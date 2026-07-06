@@ -1,0 +1,122 @@
+[
+  {
+    "id": "modelscope",
+    "name": "ModelScope",
+    "base_url": "https://api-inference.modelscope.cn/v1",
+    "protocol": "openai",
+    "image_request_mode": "openai",
+    "image_generation_endpoint": "",
+    "image_edit_endpoint": "",
+    "enabled": true,
+    "primary": true,
+    "image_models": [
+      "Tongyi-MAI/Z-Image-Turbo",
+      "Qwen/Qwen-Image-2512"
+    ],
+    "chat_models": [
+      "Qwen/Qwen3-235B-A22B"
+    ],
+    "video_models": [],
+    "model_protocols": {},
+    "ms_loras": [],
+    "ms_defaults_version": 1,
+    "rh_apps": [],
+    "rh_workflows": [],
+    "volcengine_project_name": "default",
+    "volcengine_region": "cn-north-1"
+  },
+  {
+    "id": "bailian",
+    "name": "百炼",
+    "base_url": "https://llm-o1fwnzyfrcfv7r2b.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+    "protocol": "openai",
+    "image_request_mode": "openai",
+    "image_generation_endpoint": "",
+    "image_edit_endpoint": "",
+    "enabled": true,
+    "primary": false,
+    "image_models": [
+      "qwen-image-2.0"
+    ],
+    "chat_models": [
+      "deepseek-v4-flash"
+    ],
+    "video_models": [],
+    "model_protocols": {},
+    "ms_loras": [],
+    "ms_defaults_version": 0,
+    "rh_apps": [],
+    "rh_workflows": [],
+    "volcengine_project_name": "default",
+    "volcengine_region": "cn-north-1"
+  },
+  {
+    "id": "yunwu",
+    "name": "云雾",
+    "base_url": "https://api3.wlai.vip/v1",
+    "protocol": "openai",
+    "image_request_mode": "openai",
+    "image_generation_endpoint": "",
+    "image_edit_endpoint": "",
+    "enabled": false,
+    "primary": false,
+    "image_models": [
+      "gpt-image-2"
+    ],
+    "chat_models": [
+      "deepseek-v4-flash"
+    ],
+    "video_models": [
+      "MiniMax-Hailuo-02"
+    ],
+    "model_protocols": {},
+    "ms_loras": [],
+    "ms_defaults_version": 0,
+    "rh_apps": [],
+    "rh_workflows": [],
+    "volcengine_project_name": "default",
+    "volcengine_region": "cn-north-1"
+  },
+  {
+    "id": "runninghub",
+    "name": "RunningHub",
+    "base_url": "https://www.runninghub.cn",
+    "protocol": "runninghub",
+    "image_request_mode": "openai",
+    "image_generation_endpoint": "",
+    "image_edit_endpoint": "",
+    "enabled": false,
+    "primary": false,
+    "image_models": [],
+    "chat_models": [],
+    "video_models": [],
+    "model_protocols": {},
+    "ms_loras": [],
+    "ms_defaults_version": 0,
+    "rh_apps": [],
+    "rh_workflows": [],
+    "volcengine_project_name": "default",
+    "volcengine_region": "cn-north-1"
+  },
+  {
+    "id": "volcengine",
+    "name": "Volcengine",
+    "base_url": "https://ark.cn-beijing.volces.com",
+    "protocol": "volcengine",
+    "image_request_mode": "openai",
+    "image_generation_endpoint": "",
+    "image_edit_endpoint": "",
+    "enabled": false,
+    "primary": false,
+    "image_models": [],
+    "chat_models": [],
+    "video_models": [],
+    "model_protocols": {},
+    "ms_loras": [],
+    "ms_defaults_version": 0,
+    "rh_apps": [],
+    "rh_workflows": [],
+    "volcengine_project_name": "default",
+    "volcengine_region": "cn-north-1"
+  }
+]
