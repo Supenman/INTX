@@ -26,30 +26,36 @@ function GridBackground() {
 
     const { x: offsetX, y: offsetY, zoom } = viewport;
 
-    const dotRadius = 1;
-    const gridSize = GRID_SIZE * zoom;
-    const majorGridSize = gridSize * MAJOR_GRID_INTERVAL;
+    // Adapt grid and dot size to zoom level
+    const effectiveGridSize = Math.max(20, Math.min(60, GRID_SIZE * zoom));
+    const effectiveMajorGridSize = effectiveGridSize * MAJOR_GRID_INTERVAL;
+    const dotRadius = Math.max(0.6, Math.min(1.5, 1 / Math.sqrt(Math.max(zoom, 0.1))));
+    const majorDotRadius = Math.max(1, Math.min(2.5, 2 / Math.sqrt(Math.max(zoom, 0.1))));
+    const dotAlpha = Math.min(1, zoom * 0.5);
 
-    const startX = -offsetX % gridSize;
-    const startY = -offsetY % gridSize;
-    const majorStartX = -offsetX % majorGridSize;
-    const majorStartY = -offsetY % majorGridSize;
+    const startX = -offsetX % effectiveGridSize;
+    const startY = -offsetY % effectiveGridSize;
+    const majorStartX = -offsetX % effectiveMajorGridSize;
+    const majorStartY = -offsetY % effectiveMajorGridSize;
 
-    ctx.fillStyle = isDark ? 'rgba(255, 255, 255, 0.035)' : 'rgba(0, 0, 0, 0.035)';
-    
-    for (let x = startX; x <= rect.width + gridSize; x += gridSize) {
-      for (let y = startY; y <= rect.height + gridSize; y += gridSize) {
+    ctx.fillStyle = isDark
+      ? `rgba(255, 255, 255, ${0.035 * dotAlpha})`
+      : `rgba(0, 0, 0, ${0.035 * dotAlpha})`;
+
+    for (let x = startX; x <= rect.width + effectiveGridSize; x += effectiveGridSize) {
+      for (let y = startY; y <= rect.height + effectiveGridSize; y += effectiveGridSize) {
         ctx.beginPath();
         ctx.arc(x, y, dotRadius, 0, Math.PI * 2);
         ctx.fill();
       }
     }
 
-    ctx.fillStyle = isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.06)';
-    const majorDotRadius = 2;
-    
-    for (let x = majorStartX; x <= rect.width + majorGridSize; x += majorGridSize) {
-      for (let y = majorStartY; y <= rect.height + majorGridSize; y += majorGridSize) {
+    ctx.fillStyle = isDark
+      ? `rgba(255, 255, 255, ${0.06 * dotAlpha})`
+      : `rgba(0, 0, 0, ${0.06 * dotAlpha})`;
+
+    for (let x = majorStartX; x <= rect.width + effectiveMajorGridSize; x += effectiveMajorGridSize) {
+      for (let y = majorStartY; y <= rect.height + effectiveMajorGridSize; y += effectiveMajorGridSize) {
         ctx.beginPath();
         ctx.arc(x, y, majorDotRadius, 0, Math.PI * 2);
         ctx.fill();

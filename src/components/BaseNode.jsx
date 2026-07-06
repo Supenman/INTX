@@ -53,17 +53,22 @@ function StyledHandle({ type, position, id, nodeId, isNodeHovered, isNodeActive,
   const shouldShowHandle = isNodeHovered || isNodeActive || hasConnection || isConnecting || isHovered;
   const { isDark: isDarkTheme } = useTheme();
 
+  const accentRgb = accent?.accentRgb || 'var(--signal-image-rgb)';
+  const labelEyebrow = accent?.labelEyebrow || 'DATA';
+  const hoverLabel = type === 'source' ? `${labelEyebrow} data` : 'Connect input';
+  const isSource = type === 'source';
+
   const bgColor = isHovered
-    ? 'var(--text-primary)'
+    ? `rgba(${accentRgb}, 1)`
     : hasConnection
-      ? 'var(--node-btn-bg)'
+      ? `rgba(${accentRgb}, 0.85)`
       : isDarkTheme ? 'rgba(255, 255, 255, 0.14)' : 'rgba(13, 20, 38, 0.08)';
-  const textColor = isHovered ? 'var(--bg-primary)' : 'var(--node-text)';
-  const borderColor = isHovered || hasConnection ? 'var(--node-border-hover)' : 'var(--node-border)';
+  const textColor = isHovered ? '#ffffff' : `rgba(${accentRgb}, 1)`;
+  const borderColor = isHovered || hasConnection ? `rgba(${accentRgb}, 0.6)` : 'var(--node-border)';
   const shadow = isHovered
-    ? '0 2px 8px rgba(0, 0, 0, 0.16)'
+    ? `0 0 12px rgba(${accentRgb}, 0.4)`
     : hasConnection
-      ? '0 1px 4px rgba(0, 0, 0, 0.08)'
+      ? `0 0 6px rgba(${accentRgb}, 0.25)`
       : 'none';
   const displayText = connectionCount > 2 ? '2+' : connectionCount;
 
@@ -86,9 +91,32 @@ function StyledHandle({ type, position, id, nodeId, isNodeHovered, isNodeActive,
             <line x1="5" y1="12" x2="19" y2="12" />
           </svg>
         ) : (
-          <span style={{ fontSize: 13, fontWeight: 800, lineHeight: 1, pointerEvents: 'none' }}>{displayText}</span>
+          <span style={{ fontSize: 13, fontWeight: 800, lineHeight: 1, pointerEvents: 'none', color: textColor }}>{displayText}</span>
         )}
       </div>
+
+      {/* Hover label showing data type */}
+      {isHovered && (
+        <div style={{
+          position: 'absolute',
+          ...(isSource ? { right: 'calc(100% + 10px)' } : { left: 'calc(100% + 10px)' }),
+          top: '50%',
+          transform: 'translateY(-50%)',
+          padding: '3px 8px',
+          borderRadius: 6,
+          background: 'var(--panel-bg-strong)',
+          border: '1px solid var(--panel-border)',
+          fontSize: 9,
+          fontWeight: 600,
+          color: `rgba(${accentRgb}, 1)`,
+          whiteSpace: 'nowrap',
+          pointerEvents: 'none',
+          zIndex: 1001,
+          userSelect: 'none',
+        }}>
+          {hoverLabel}
+        </div>
+      )}
 
       <Handle type={type} position={position} id={id} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave} style={{ width: 44, height: 44, background: 'transparent', border: 'none', borderRadius: '50%', zIndex: 10 }} />
     </div>
@@ -96,7 +124,7 @@ function StyledHandle({ type, position, id, nodeId, isNodeHovered, isNodeActive,
 }
 
 function BaseNode({ id, type, data, selected }) {
-  const { activeNodeId, handleNodeClick, handleSubmit, handleNodeTypeChange, handleUpdateResult, handleRenameNode, apiProviders, nodeStates, nodes, edges } = useActiveNode();
+  const { activeNodeId, handleNodeClick, handleSubmit, handleNodeTypeChange, handleUpdateResult, handleRenameNode, handleNodeContextMenu, apiProviders, nodeStates, nodes, edges } = useActiveNode();
   const isActive = activeNodeId === id;
   const nodeState = nodeStates[id];
   const [isHovered, setIsHovered] = useState(false);
@@ -128,24 +156,38 @@ function BaseNode({ id, type, data, selected }) {
   const hasResult = Boolean(data.result);
   const hasPrompt = Boolean(data.prompt);
   const isLit = selected || isActive || isHovered;
+  const isDisabled = Boolean(data.disabled);
 
   const cardBorder = error
     ? '1px solid rgba(var(--signal-error-rgb), 0.55)'
-    : isLit
-      ? '1px solid var(--node-border-hover)'
-      : '1px solid var(--node-border)';
+    : isDisabled
+      ? '1px solid rgba(255, 255, 255, 0.06)'
+      : isProcessing
+        ? `1px solid rgba(${accent.accentRgb}, 0.35)`
+        : isLit
+          ? '1px solid var(--node-border-hover)'
+          : '1px solid var(--node-border)';
 
   const cardShadow = error
     ? '0 0 0 1px rgba(var(--signal-error-rgb), 0.18), 0 8px 24px rgba(var(--signal-error-rgb), 0.08)'
-    : isLit
-      ? '0 4px 18px rgba(0, 0, 0, 0.18)'
-      : '0 2px 12px rgba(0, 0, 0, 0.08)';
+    : isProcessing
+      ? `0 0 0 1px rgba(${accent.accentRgb}, 0.08), 0 4px 18px rgba(0, 0, 0, 0.14)`
+      : isLit
+        ? '0 4px 18px rgba(0, 0, 0, 0.18)'
+        : '0 2px 12px rgba(0, 0, 0, 0.08)';
 
   return (
-    <div ref={nodeRef} style={{ position: 'relative', width: 'fit-content', height: 'fit-content' }}>
+    <div ref={nodeRef} style={{ position: 'relative', width: 'fit-content', height: 'fit-content', opacity: isDisabled ? 0.5 : 1, transition: 'opacity 0.25s var(--ease-out)' }}
+      onContextMenu={(e) => {
+        if (handleNodeContextMenu) {
+          handleNodeContextMenu(e, id);
+        }
+      }}>
       <div
         className="node-card"
-        onClick={(e) => handleNodeClick(e, id)}
+        onClick={(e) => {
+          if (!isDisabled) handleNodeClick(e, id);
+        }}
         style={{
           position: 'relative',
           width,
@@ -155,7 +197,7 @@ function BaseNode({ id, type, data, selected }) {
           borderRadius: 16,
           animation: isEntering ? 'nodeEnter 0.35s var(--ease-out)' : 'none',
           transition: 'border-color 0.22s var(--ease-out), box-shadow 0.22s var(--ease-out)',
-          cursor: 'pointer',
+          cursor: isDisabled ? 'default' : 'pointer',
           overflow: 'hidden',
           boxShadow: cardShadow,
         }}
@@ -163,52 +205,43 @@ function BaseNode({ id, type, data, selected }) {
         onMouseLeave={() => setIsHovered(false)}
       >
         {isProcessing && (
-          <div style={{
-            position: 'absolute',
-            bottom: 0,
-            left: 0,
-            right: 0,
-            height: `${Math.max(6, progress)}%`,
-            background: `linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.14))`,
-            transition: 'height 0.6s var(--ease-out)',
-            overflow: 'hidden',
-            zIndex: 1
-          }}>
+          <>
             <div style={{
               position: 'absolute',
-              inset: 0,
-              background: `radial-gradient(ellipse at 50% 0%, rgba(255, 255, 255, 0.18), transparent 62%)`,
-              animation: 'breathe 2s ease-in-out infinite'
-            }} />
-          </div>
-        )}
+              top: 0,
+              left: 0,
+              width: `${Math.max(2, progress)}%`,
+              height: 3,
+              background: `linear-gradient(90deg, rgba(${accent.accentRgb}, 0.5), rgba(${accent.accentRgb}, 1))`,
+              borderRadius: '16px 0 0 0',
+              transition: 'width 0.4s var(--ease-out)',
+              zIndex: 10,
+            }}>
+              <div style={{
+                position: 'absolute',
+                right: -3,
+                top: -2,
+                width: 7,
+                height: 7,
+                borderRadius: '50%',
+                background: `rgba(${accent.accentRgb}, 1)`,
+                boxShadow: `0 0 8px rgba(${accent.accentRgb}, 0.8)`,
+              }} />
+            </div>
 
-        {isProcessing && (
-          <div style={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: 8,
-            zIndex: 10
-          }}>
             <div style={{
-              fontSize: 26,
+              position: 'absolute',
+              top: 10,
+              right: 14,
+              fontSize: 20,
               fontWeight: 700,
-              color: 'var(--node-text)',
-              letterSpacing: '-0.08em',
-              textShadow: isDarkTheme ? '0 8px 24px rgba(0,0,0,0.55)' : '0 6px 18px rgba(13,20,38,0.24)',
-              animation: 'pulse 1.5s ease-in-out infinite'
+              color: `rgba(${accent.accentRgb}, 0.45)`,
+              letterSpacing: '-0.06em',
+              zIndex: 10,
             }}>
               {Math.round(progress)}%
             </div>
-            <div style={{ fontSize: 9, fontWeight: 600, letterSpacing: '0.18em', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
-              Rendering
-            </div>
-          </div>
+          </>
         )}
 
         {error && !isProcessing && (
@@ -238,7 +271,7 @@ function BaseNode({ id, type, data, selected }) {
           </div>
         )}
 
-        <div style={{ position: 'absolute', top: 12, left: 14, right: 12, display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between', zIndex: 6 }}>
+        <div style={{ position: 'absolute', top: 8, left: 10, right: 10, display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between', zIndex: 6 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
             <span style={{ display: 'inline-flex', width: 24, height: 24, alignItems: 'center', justifyContent: 'center', borderRadius: 8, color: 'var(--text-secondary)', background: 'var(--node-icon-secondary)' }}>
               {config.smallIcon}
@@ -273,25 +306,70 @@ function BaseNode({ id, type, data, selected }) {
               </span>
             </div>
           )}
+          {isDisabled && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              background: 'rgba(255, 255, 255, 0.06)',
+              padding: '4px 7px',
+              borderRadius: 999,
+              border: '1px solid rgba(255, 255, 255, 0.12)',
+              color: 'var(--text-tertiary)',
+              flexShrink: 0,
+            }}>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+              <span style={{ fontSize: 8, fontWeight: 600, letterSpacing: '0.04em' }}>
+                OFF
+              </span>
+            </div>
+          )}
         </div>
 
+        {hasResult && !isProcessing && !error && (
+          <div style={{
+            position: 'absolute',
+            top: 36,
+            right: 12,
+            zIndex: 11,
+            width: 18,
+            height: 18,
+            borderRadius: '50%',
+            background: 'rgba(var(--signal-live-rgb), 0.9)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 2px 6px rgba(var(--signal-live-rgb), 0.35)',
+          }}>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          </div>
+        )}
+
         {!isProcessing && (
-          <div style={{ position: 'absolute', top: type === 'media' ? 0 : 48, left: type === 'media' ? 0 : 18, right: type === 'media' ? 0 : 18, bottom: error ? 38 : (type === 'media' ? 0 : 16), display: 'flex', flexDirection: 'column', alignItems: 'stretch', justifyContent: 'center', zIndex: type === 'media' ? 0 : 5 }}>
+          <div style={{ position: 'absolute', top: type === 'media' ? 0 : 36, left: type === 'media' ? 0 : 10, right: type === 'media' ? 0 : 10, bottom: error ? 38 : (type === 'media' ? 0 : 10), display: 'flex', flexDirection: 'column', alignItems: 'stretch', justifyContent: 'center', zIndex: type === 'media' ? 0 : 5 }}>
             {data.result ? (
               data.result.type === 'image' ? (
-                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: type === 'media' ? 0 : 12, overflow: 'hidden', background: 'rgba(0,0,0,0.18)' }}>
+                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: type === 'media' ? 0 : 12, overflow: 'hidden', background: 'repeating-conic-gradient(rgba(255,255,255,0.03) 0% 25%, transparent 0% 50%) 0px 0px / 16px 16px', transition: 'transform 0.3s var(--ease-out)', transform: isHovered ? 'scale(1.01)' : 'scale(1)' }}>
                   <img
                     src={data.result.url}
                     alt={data.title || 'media'}
+                    loading="lazy"
+                    onError={(e) => { e.target.style.opacity = '0.3'; }}
                     style={{
                       width: '100%',
                       height: '100%',
-                      objectFit: type === 'media' ? 'cover' : 'contain'
+                      objectFit: type === 'media' ? 'cover' : 'contain',
+                      transition: 'opacity 0.3s var(--ease-out)',
                     }}
                   />
                 </div>
               ) : data.result.type === 'video' ? (
-                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: type === 'media' ? 0 : 12, overflow: 'hidden', background: 'rgba(0,0,0,0.18)' }}>
+                <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: type === 'media' ? 0 : 12, overflow: 'hidden', background: 'rgba(0,0,0,0.18)' }}>
                   <video
                     src={data.result.url}
                     controls={type !== 'media'}
@@ -305,6 +383,13 @@ function BaseNode({ id, type, data, selected }) {
                       objectFit: type === 'media' ? 'cover' : 'contain'
                     }}
                   />
+                  {type !== 'media' && (
+                    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', opacity: isHovered ? 1 : 0.6, transition: 'opacity 0.3s var(--ease-out)' }}>
+                      <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="white"><polygon points="8,5 19,12 8,19" /></svg>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : type === 'text' ? (
                 isEditing ? (

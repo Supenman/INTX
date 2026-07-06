@@ -41,6 +41,13 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
   );
   const hasConnectedData = validSourceNodes.length > 0;
 
+  const [atReferenceState, setAtReferenceState] = useState({
+    active: false,
+    filter: '',
+    position: null,
+    startIndex: -1,
+  });
+
   useEffect(() => {
     setPrompt(node?.data?.prompt || '');
     setDuration(node?.data?.duration || '5');
@@ -73,10 +80,21 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
     return () => clearTimeout(timer);
   }, [prompt, node?.id, node?.data?.prompt, handleUpdateNodeData]);
 
+  const resolveReferences = (text, sourceNodes) => {
+    return text.replace(/@\[([^\]]+)\]\(ref:([^)]+)\)/g, (match, title, refId) => {
+      const sourceNode = sourceNodes.find(n => n.id === refId);
+      if (sourceNode) {
+        return sourceNode.data.result?.content || sourceNode.data.prompt || match;
+      }
+      return match;
+    });
+  };
+
   const handleSubmit = useCallback(() => {
     setIsSubmitting(true);
+    const resolvedPrompt = resolveReferences(prompt, validSourceNodes);
     const submitData = {
-      prompt,
+      prompt: resolvedPrompt,
       aspectRatio,
       resolution,
       model,
@@ -85,7 +103,7 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
     };
     onSubmit(node.id, submitData);
     setTimeout(() => setIsSubmitting(false), 500);
-  }, [prompt, aspectRatio, resolution, model, node, onSubmit, duration, fps]);
+  }, [prompt, aspectRatio, resolution, model, node, onSubmit, duration, fps, validSourceNodes]);
 
   const handleTypeChange = (newType) => {
     onNodeTypeChange && onNodeTypeChange(newType);
@@ -104,6 +122,72 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
   };
 
   const availableModels = getAvailableModels(node.type, apiProviders);
+
+  const getCursorPosition = (textarea) => {
+    const rect = textarea.getBoundingClientRect();
+    const text = textarea.value.substring(0, textarea.selectionStart);
+    const measure = document.createElement('span');
+    measure.style.cssText = `font-size: 11px; font-family: inherit; letter-spacing: normal; white-space: pre-wrap; position: fixed; visibility: hidden; max-width: ${rect.width}px;`;
+    measure.textContent = text;
+    document.body.appendChild(measure);
+    const pos = measure.getBoundingClientRect();
+    document.body.removeChild(measure);
+    return {
+      x: Math.min(pos.left - rect.left, rect.width - 200),
+      y: pos.bottom - rect.top + 2,
+    };
+  };
+
+  const handlePromptChange = (e) => {
+    const value = e.target.value;
+    const cursorPos = e.target.selectionStart;
+
+    setPrompt(value);
+
+    if (!hasConnectedData) {
+      setAtReferenceState({ active: false, filter: '', position: null, startIndex: -1 });
+      return;
+    }
+
+    const textBeforeCursor = value.substring(0, cursorPos);
+    const atIndex = textBeforeCursor.lastIndexOf('@');
+
+    if (atIndex !== -1) {
+      const afterAt = textBeforeCursor.substring(atIndex + 1);
+      const isWordChar = (ch) => /[\w一-鿿]/.test(ch);
+      // Only trigger if @ is at word boundary (preceded by space or start) and only word chars after
+      const charBeforeAt = atIndex > 0 ? value[atIndex - 1] : ' ';
+      if ((charBeforeAt === ' ' || charBeforeAt === '\n' || atIndex === 0) && afterAt.length >= 0 && !afterAt.includes(' ')) {
+        setAtReferenceState({
+          active: true,
+          filter: afterAt,
+          position: getCursorPosition(e.target),
+          startIndex: atIndex,
+        });
+        return;
+      }
+    }
+
+    setAtReferenceState({ active: false, filter: '', position: null, startIndex: -1 });
+  };
+
+  const insertReference = (sourceNode) => {
+    const before = prompt.substring(0, atReferenceState.startIndex);
+    const after = prompt.substring(atReferenceState.startIndex + atReferenceState.filter.length + 1);
+    const referenceTag = `@[${sourceNode.data.title || 'Untitled'}](ref:${sourceNode.id})`;
+    setPrompt(before + referenceTag + after);
+    setAtReferenceState({ active: false, filter: '', position: null, startIndex: -1 });
+  };
+
+  const filteredAtNodes = atReferenceState.active
+    ? validSourceNodes.filter(n =>
+        (n.data.title || '').toLowerCase().includes(atReferenceState.filter.toLowerCase())
+      )
+    : [];
+
+  // Split prompt for chip rendering
+  const promptParts = prompt ? prompt.split(/(@\[[^\]]*\]\(ref:[^)]*\))/) : [];
+  const promptHasRefs = promptParts.length > 1;
 
   return (
     <div
@@ -225,28 +309,142 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
           </div>
         )}
 
-        <textarea
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          placeholder={node.type === 'text' ? '输入文本内容...' : '描述你想生成的内容...'}
-          onKeyDown={(e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); handleSubmit(); } }}
-          style={{
-            width: '100%',
-            minHeight: 38,
-            maxHeight: 90,
-            background: 'transparent',
-            border: 'none',
-            borderRadius: 0,
-            padding: '6px 6px 4px',
-            fontSize: 11,
-            color: 'var(--drawer-text)',
-            resize: 'none',
-            outline: 'none',
-            lineHeight: 1.5,
-            marginBottom: 0,
-            fontFamily: 'inherit',
-          }}
-        />
+        <div style={{ position: 'relative' }}>
+          <textarea
+            value={prompt}
+            onChange={handlePromptChange}
+            placeholder={node.type === 'text' ? '输入文本内容...' : '描述你想生成的内容...'}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape' && atReferenceState.active) {
+                setAtReferenceState({ active: false, filter: '', position: null, startIndex: -1 });
+                return;
+              }
+              if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); handleSubmit(); }
+            }}
+            style={{
+              width: '100%',
+              minHeight: 38,
+              maxHeight: 90,
+              background: 'transparent',
+              border: 'none',
+              borderRadius: 0,
+              padding: '6px 6px 4px',
+              fontSize: 11,
+              color: promptHasRefs ? 'transparent' : 'var(--drawer-text)',
+              caretColor: 'var(--drawer-text)',
+              resize: 'none',
+              outline: 'none',
+              lineHeight: 1.5,
+              marginBottom: 0,
+              fontFamily: 'inherit',
+              position: 'relative',
+              zIndex: 2,
+            }}
+          />
+
+          {/* Mirror div for chip rendering */}
+          {promptHasRefs && (
+            <div style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              padding: '6px 6px 4px',
+              fontSize: 11,
+              lineHeight: 1.5,
+              color: 'var(--drawer-text)',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              pointerEvents: 'none',
+              fontFamily: 'inherit',
+              zIndex: 1,
+            }}>
+              {promptParts.map((segment, i) => {
+                if (segment.startsWith('@[') && segment.includes('](ref:')) {
+                  const title = segment.match(/@\[([^\]]*)\]/)?.[1] || '';
+                  return (
+                    <span key={i} style={{
+                      background: 'rgba(var(--accent-rgb), 0.15)',
+                      color: 'var(--accent-strong)',
+                      borderRadius: 4,
+                      padding: '1px 5px',
+                      fontSize: 10,
+                      fontWeight: 600,
+                    }}>
+                      @{title}
+                    </span>
+                  );
+                }
+                return <span key={i}>{segment}</span>;
+              })}
+            </div>
+          )}
+
+          {/* @-reference typeahead dropdown */}
+          {atReferenceState.active && (
+            <div style={{
+              position: 'absolute',
+              left: Math.max(0, Math.min(atReferenceState.position?.x || 0, 200)),
+              top: (atReferenceState.position?.y || 30) + 4,
+              minWidth: 200,
+              maxWidth: 260,
+              maxHeight: 150,
+              overflowY: 'auto',
+              background: 'var(--panel-bg-strong)',
+              backdropFilter: 'var(--panel-blur)',
+              border: '1px solid var(--sidebar-border)',
+              borderRadius: 10,
+              boxShadow: 'var(--panel-shadow)',
+              zIndex: 10002,
+              padding: 4,
+              animation: 'fadeIn 0.1s var(--ease-out)',
+            }}>
+              {filteredAtNodes.length === 0 ? (
+                <div style={{
+                  padding: '8px 10px',
+                  fontSize: 10,
+                  color: 'var(--text-tertiary)',
+                  textAlign: 'center',
+                }}>
+                  {validSourceNodes.length === 0 ? '无可用连接数据' : '没有匹配的连接数据'}
+                </div>
+              ) : (
+                filteredAtNodes.map((sourceNode) => {
+                  const sourceMeta = NODE_TYPE_REGISTRY[sourceNode.type] || NODE_TYPE_REGISTRY.image;
+                  return (
+                    <div
+                      key={sourceNode.id}
+                      onClick={() => insertReference(sourceNode)}
+                      style={{
+                        padding: '6px 8px',
+                        fontSize: 10,
+                        cursor: 'pointer',
+                        borderRadius: 6,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        color: 'var(--sidebar-text)',
+                        transition: 'background 0.1s',
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--sidebar-item-bg-hover)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                    >
+                      <span style={{ color: sourceMeta.accentVar, flexShrink: 0 }}>
+                        {sourceMeta.smallIcon}
+                      </span>
+                      <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {sourceNode.data.title || sourceMeta.title}
+                      </span>
+                      <span style={{ marginLeft: 'auto', fontSize: 8, color: 'var(--text-tertiary)', flexShrink: 0 }}>
+                        {sourceNode.data.result ? 'Done' : 'Prompt'}
+                      </span>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
+        </div>
 
         {node.type === 'video' && (
           <div style={{ display: 'flex', gap: 6, marginBottom: 4, borderTop: '1px solid var(--drawer-border)', paddingTop: 5, marginTop: 2 }}>

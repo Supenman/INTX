@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTheme } from '../ThemeContext';
 
-function Sidebar({ onAddNodeClick, addButtonRef, toggleTheme, onNewCanvas, canUndo, canRedo, onUndo, onRedo, onOpenApiSettings }) {
+function Sidebar({ onAddNodeClick, addButtonRef, toggleTheme, onNewCanvas, canUndo, canRedo, onUndo, onRedo, onOpenApiSettings, showMinimap, onToggleMinimap, statusLogOpen, onToggleStatusLog, statusLogHasEntries }) {
   const [hoveredItem, setHoveredItem] = useState(null);
   const { isDark } = useTheme();
 
@@ -111,7 +111,55 @@ function Sidebar({ onAddNodeClick, addButtonRef, toggleTheme, onNewCanvas, canUn
         <span style={{ ...tooltipStyle, opacity: hoveredItem === 'api' ? 1 : 0, transform: `translateY(-50%) ${hoveredItem === 'api' ? 'translateX(4px)' : ''}` }}>API 设置</span>
       </button>
 
+      <div style={dividerStyle}></div>
+
+      <button
+        onClick={onToggleStatusLog}
+        style={{ ...getItemStyle(hoveredItem === 'log'), color: statusLogOpen ? 'var(--accent-strong)' : 'var(--sidebar-icon)' }}
+        onMouseEnter={() => setHoveredItem('log')}
+        onMouseLeave={() => setHoveredItem(null)}
+        aria-label="状态日志"
+      >
+        <div style={{ position: 'relative', display: 'flex' }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="16" y1="13" x2="8" y2="13" />
+            <line x1="16" y1="17" x2="8" y2="17" />
+          </svg>
+          {statusLogHasEntries && !statusLogOpen && (
+            <div style={{
+              position: 'absolute',
+              top: -2,
+              right: -3,
+              width: 6,
+              height: 6,
+              borderRadius: '50%',
+              background: 'var(--signal-live)',
+              boxShadow: '0 0 4px rgba(var(--signal-live-rgb), 0.6)',
+            }} />
+          )}
+        </div>
+        <span style={{ ...tooltipStyle, opacity: hoveredItem === 'log' ? 1 : 0, transform: `translateY(-50%) ${hoveredItem === 'log' ? 'translateX(4px)' : ''}` }}>状态日志</span>
+      </button>
+
       <div style={{ flex: 1 }} />
+
+      <button
+        onClick={onToggleMinimap}
+        style={{ ...getItemStyle(hoveredItem === 'minimap'), color: showMinimap ? 'var(--accent-strong)' : 'var(--sidebar-icon)' }}
+        onMouseEnter={() => setHoveredItem('minimap')}
+        onMouseLeave={() => setHoveredItem(null)}
+        aria-label="小地图"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="2" y="2" width="8" height="8" rx="1" />
+          <rect x="14" y="2" width="8" height="8" rx="1" />
+          <rect x="2" y="14" width="8" height="8" rx="1" />
+          <rect x="14" y="14" width="8" height="8" rx="1" />
+        </svg>
+        <span style={{ ...tooltipStyle, opacity: hoveredItem === 'minimap' ? 1 : 0, transform: `translateY(-50%) ${hoveredItem === 'minimap' ? 'translateX(4px)' : ''}` }}>小地图</span>
+      </button>
 
       <button
         onClick={toggleTheme}
