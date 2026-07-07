@@ -23,6 +23,8 @@ import AlignmentGuides from './components/AlignmentGuides';
 import { ConnectionContext } from './ConnectionContext';
 import { ThemeProvider, useTheme } from './ThemeContext';
 import { loadCanvasState, saveCanvasState, clearCanvasState, createDebouncedSave } from './utils/canvasStorage';
+import { listProjects, createProject, loadProject, saveProject, deleteProject as deleteProjectFromStorage, renameProject as renameProjectInStorage, setCurrentProjectId as setCurrentProjectStorage, getCurrentProjectId, migrateFromOldStorage } from './utils/projectStorage';
+import ProjectSelector from './components/ProjectSelector';
 import { NODE_TYPE_REGISTRY } from './domain/nodeTypes';
 import { ActiveNodeContext } from './ActiveNodeContext';
 import { createTask, getTaskStatus } from './services/apiClient';
@@ -71,6 +73,9 @@ function AppContent() {
   const { isDark, toggleTheme } = useTheme();
   const [activeNodeId, setActiveNodeId] = useState(null);
   const [nodeIdCounter, setNodeIdCounter] = useState(initialState.counter);
+  const [currentProjectId, setCurrentProjectId] = useState(null);
+  const [projectSelectorOpen, setProjectSelectorOpen] = useState(false);
+  const [projectsVersion, setProjectsVersion] = useState(0);
   const debouncedSave = useRef(createDebouncedSave(400)).current;
   const [menuState, setMenuState] = useState({
     visible: false,
@@ -271,14 +276,51 @@ function AppContent() {
     );
   }, [isDark, setEdges]);
 
-  /* Auto-save canvas state on changes */
+  /* Auto-save canvas state to current project on changes */
   useEffect(() => {
     if (nodes.length === 0) return;
-    debouncedSave({ nodes, edges, nodeIdCounter, nodeStates });
-  }, [nodes, edges, nodeIdCounter, nodeStates, debouncedSave]);
+    if (!currentProjectId) return;
+    saveProject(currentProjectId, { nodes, edges, nodeIdCounter, nodeStates });
+  }, [nodes, edges, nodeIdCounter, nodeStates, currentProjectId]);
 
-  const handleNewCanvas = useCallback(() => {
-    clearCanvasState();
+  /* On mount: migrate old storage, load last-used project */
+  useEffect(() => {
+    migrateFromOldStorage();
+    const projects = listProjects();
+    if (projects.length === 0) {
+      setProjectSelectorOpen(true);
+      return;
+    }
+    const lastId = getCurrentProjectId();
+    const target = lastId && projects.find((p) => p.id === lastId) ? lastId : projects[0].id;
+    const data = loadProject(target);
+    if (data) {
+      setCurrentProjectId(data.id);
+      setCurrentProjectStorage(data.id);
+      if (data.nodes.length > 0) {
+        setNodes(data.nodes);
+        setEdges(data.edges || []);
+        setNodeIdCounter(data.nodeIdCounter || 1);
+        setNodeStates(data.nodeStates || {});
+      }
+    } else {
+      setProjectSelectorOpen(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleOpenProjectSelector = useCallback(() => {
+    setProjectSelectorOpen(true);
+  }, []);
+
+  const handleCreateProject = useCallback((name) => {
+    /* save current project first */
+    if (currentProjectId) {
+      saveProject(currentProjectId, { nodes, edges, nodeIdCounter, nodeStates });
+    }
+    const id = createProject(name);
+    setCurrentProjectId(id);
+    setCurrentProjectStorage(id);
     setNodes([]);
     setEdges([]);
     setNodeIdCounter(1);
@@ -287,7 +329,55 @@ function AppContent() {
     undoFutureRef.current = [];
     setCanUndo(false);
     setCanRedo(false);
-  }, [setNodes, setEdges]);
+    setProjectsVersion((v) => v + 1);
+  }, [currentProjectId, nodes, edges, nodeIdCounter, nodeStates, setNodes, setEdges]);
+
+  const handleSwitchProject = useCallback((id) => {
+    /* save current first */
+    if (currentProjectId) {
+      saveProject(currentProjectId, { nodes, edges, nodeIdCounter, nodeStates });
+    }
+    const data = loadProject(id);
+    if (data) {
+      setCurrentProjectId(data.id);
+      setCurrentProjectStorage(data.id);
+      setNodes(data.nodes || []);
+      setEdges(data.edges || []);
+      setNodeIdCounter(data.nodeIdCounter || 1);
+      setNodeStates(data.nodeStates || {});
+      undoPastRef.current = [];
+      undoFutureRef.current = [];
+      setCanUndo(false);
+      setCanRedo(false);
+      setProjectSelectorOpen(false);
+    }
+  }, [currentProjectId, nodes, edges, nodeIdCounter, nodeStates, setNodes, setEdges]);
+
+  const handleDeleteProject = useCallback((id) => {
+    deleteProjectFromStorage(id);
+    const projects = listProjects();
+    if (projects.length === 0) {
+      setCurrentProjectId(null);
+      setCurrentProjectStorage(null);
+      setNodes([]);
+      setEdges([]);
+      setNodeIdCounter(1);
+      setNodeStates({});
+      undoPastRef.current = [];
+      undoFutureRef.current = [];
+      setCanUndo(false);
+      setCanRedo(false);
+    } else if (id === currentProjectId) {
+      /* switched deleted was current — switch to first available */
+      handleSwitchProject(projects[0].id);
+    }
+    setProjectsVersion((v) => v + 1);
+  }, [currentProjectId, handleSwitchProject, setNodes, setEdges]);
+
+  const handleRenameProject = useCallback((id, name) => {
+    renameProjectInStorage(id, name);
+    setProjectsVersion((v) => v + 1);
+  }, []);
 
   const addNode = useCallback((type, position = null) => {
     const id = String(nodeIdCounter);
@@ -1031,6 +1121,7 @@ function AppContent() {
   }), []);
 
   const contextValue = useMemo(() => ({ isConnecting }), [isConnecting]);
+  const projectList = useMemo(() => listProjects(), [projectsVersion]);
 
   const emptyStateBtnStyle = {
     display: 'inline-flex',
@@ -1058,7 +1149,7 @@ function AppContent() {
           addButtonRef={addButtonRef}
           toggleTheme={toggleTheme}
           currentTheme={isDark ? 'dark' : 'light'}
-          onNewCanvas={handleNewCanvas}
+          onOpenProjectSelector={handleOpenProjectSelector}
           canUndo={canUndo}
           canRedo={canRedo}
           onUndo={handleUndo}
@@ -1224,6 +1315,16 @@ function AppContent() {
         {isApiSettingsOpen && (
           <ApiSettings onClose={handleCloseApiSettings} onUpdate={handleApiUpdate} />
         )}
+        <ProjectSelector
+          open={projectSelectorOpen}
+          projects={projectList}
+          currentProjectId={currentProjectId}
+          onClose={() => setProjectSelectorOpen(false)}
+          onSwitch={handleSwitchProject}
+          onCreate={handleCreateProject}
+          onDelete={handleDeleteProject}
+          onRename={handleRenameProject}
+        />
         <input ref={mediaFileInputRef} type="file" accept="image/*,video/*" onChange={handleMediaFileChange} style={{ display: 'none' }} />
         <StatusLog
           entries={statusLogEntries}

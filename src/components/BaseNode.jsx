@@ -62,6 +62,9 @@ function StyledHandle({ type, position, id, nodeId, isNodeHovered, isNodeActive,
   const labelEyebrow = accent?.labelEyebrow || 'DATA';
   const hoverLabel = type === 'source' ? `${labelEyebrow} data` : 'Connect input';
   const isSource = type === 'source';
+  const handleOffset = 16; // distance from node edge to visual center (outside)
+  const circleSize = 28;
+  const hitAreaSize = 36;
 
   const bgColor = isHovered
     ? `rgba(${accentRgb}, 1)`
@@ -87,9 +90,55 @@ function StyledHandle({ type, position, id, nodeId, isNodeHovered, isNodeActive,
     setIsHovered(false);
   };
 
+  const isLeftRight = position === Position.Left || position === Position.Right;
+
+  // Position helpers — visual and hit area both centered at handleOffset from node edge
+  const getCirclePos = () => {
+    const off = handleOffset + circleSize / 2;
+    switch (position) {
+      case Position.Left: return { left: -off, top: '50%' };
+      case Position.Right: return { right: -off, top: '50%' };
+      case Position.Top: return { top: -off, left: '50%' };
+      case Position.Bottom: return { bottom: -off, left: '50%' };
+    }
+  };
+
+  const getHandlePos = () => {
+    const off = handleOffset + hitAreaSize / 2;
+    switch (position) {
+      case Position.Left: return { left: -off, top: '50%' };
+      case Position.Right: return { right: -off, top: '50%' };
+      case Position.Top: return { top: -off, left: '50%' };
+      case Position.Bottom: return { bottom: -off, left: '50%' };
+    }
+  };
+
+  const visualTransform = isLeftRight
+    ? `translateY(-50%) ${isHovered ? 'scale(1.22)' : 'scale(1)'}`
+    : `translateX(-50%) ${isHovered ? 'scale(1.22)' : 'scale(1)'}`;
+
   return (
-    <div style={{ position: 'absolute', ...(position === Position.Left ? { left: -16, top: '50%' } : position === Position.Right ? { right: -16, top: '50%' } : position === Position.Top ? { top: -16, left: '50%' } : { bottom: -16, left: '50%' }), transform: position === Position.Right ? 'translate(50%, -50%)' : position === Position.Bottom ? 'translate(-50%, 50%)' : 'translate(-50%, -50%)', zIndex: 1000, width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: shouldShowHandle ? 1 : 0, visibility: shouldShowHandle ? 'visible' : 'hidden', transition: shouldShowHandle ? 'opacity 0.2s var(--ease-out)' : 'opacity 0.3s var(--ease-out) 0.1s', pointerEvents: 'none' }}>
-      <div style={{ position: 'absolute', top: '50%', left: '50%', transform: `translate(-50%, -50%) ${isHovered ? 'scale(1.22)' : 'scale(1)'}`, width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: bgColor, border: `2px solid ${borderColor}`, color: textColor, transition: 'all 0.2s var(--ease-out)', pointerEvents: 'none', boxShadow: shadow, userSelect: 'none', zIndex: 5 }}>
+    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1000, opacity: shouldShowHandle ? 1 : 0, visibility: shouldShowHandle ? 'visible' : 'hidden', transition: shouldShowHandle ? 'opacity 0.2s var(--ease-out)' : 'opacity 0.3s var(--ease-out) 0.1s' }}>
+      {/* Visual handle circle — at original position (-16 from node edge) */}
+      <div style={{
+        position: 'absolute',
+        ...getCirclePos(),
+        transform: visualTransform,
+        width: circleSize,
+        height: circleSize,
+        borderRadius: '50%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: bgColor,
+        border: `2px solid ${borderColor}`,
+        color: textColor,
+        boxShadow: shadow,
+        transition: 'all 0.2s var(--ease-out)',
+        pointerEvents: 'none',
+        userSelect: 'none',
+        zIndex: 5,
+      }}>
         {!hasConnection ? (
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ pointerEvents: 'none' }}>
             <line x1="12" y1="5" x2="12" y2="19" />
@@ -100,11 +149,11 @@ function StyledHandle({ type, position, id, nodeId, isNodeHovered, isNodeActive,
         )}
       </div>
 
-      {/* Hover label showing data type */}
+      {/* Hover label — placed inside node edge to avoid blocking view */}
       {isHovered && (
         <div style={{
           position: 'absolute',
-          ...(isSource ? { right: 'calc(100% + 10px)' } : { left: 'calc(100% + 10px)' }),
+          ...(isSource ? { right: '4px' } : { left: '4px' }),
           top: '50%',
           transform: 'translateY(-50%)',
           padding: '3px 8px',
@@ -123,7 +172,25 @@ function StyledHandle({ type, position, id, nodeId, isNodeHovered, isNodeActive,
         </div>
       )}
 
-      <Handle type={type} position={position} id={id} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave} style={{ width: 44, height: 44, background: 'transparent', border: 'none', borderRadius: '50%', zIndex: 10 }} />
+      {/* Actual React Flow Handle — positioned at same center as the visual circle */}
+      <Handle
+        type={type}
+        position={position}
+        id={id}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        style={{
+          ...getHandlePos(),
+          transform: isLeftRight ? 'translateY(-50%)' : 'translateX(-50%)',
+          width: hitAreaSize,
+          height: hitAreaSize,
+          background: 'transparent',
+          border: 'none',
+          borderRadius: '50%',
+          zIndex: 10,
+          pointerEvents: 'auto',
+        }}
+      />
     </div>
   );
 }
