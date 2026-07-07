@@ -307,9 +307,13 @@ function AppContent() {
   const handleNodeTypeChange = useCallback((nodeId, newType) => {
     setNodes(nodes => nodes.map(node => {
       if (node.id === nodeId) {
+        const aspectRatio = node.data?.aspectRatio || '16:9';
+        const { width, height } = getNodeSize(aspectRatio, newType);
         return {
           ...node,
           type: newType,
+          width,
+          height,
           data: {
             ...node.data,
             title: newType === 'image' ? '图片' : newType === 'text' ? '文字' : '视频',
@@ -523,7 +527,11 @@ function AppContent() {
       nodes.map(node => {
         if (node.id === nodeId) {
           const newData = typeof data === 'object' ? data : { prompt: data };
-          return { ...node, data: { ...node.data, ...newData } };
+          // Recalculate dimensions if aspectRatio or type might have changed
+          const nextType = newData.nodeType || node.type;
+          const nextAspectRatio = newData.aspectRatio || node.data?.aspectRatio || '16:9';
+          const { width, height } = getNodeSize(nextAspectRatio, nextType);
+          return { ...node, type: nextType, width, height, data: { ...node.data, ...newData } };
         }
         return node;
       })
