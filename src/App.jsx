@@ -329,6 +329,7 @@ function AppContent() {
     setMenuState({ visible: false, position: { x: 0, y: 0 }, source: null });
     connectionSourceRef.current = null;
     pendingConnectionDropRef.current = false;
+    setIsConnecting(false);
   }, []);
 
   const handleAddNodeClick = useCallback(() => {
@@ -452,12 +453,14 @@ function AppContent() {
         source: connectFrom.nodeId,
         sourceHandle: connectFrom.handleId || null,
         target: nodeId,
+        targetHandle: 'target',
         data: { sourceType },
         markerEnd: { type: MarkerType.ArrowClosed, color: edgeColor, width: 10, height: 10 },
         style: { stroke: edgeColor, strokeWidth: 1.5 },
       }, eds));
       connectionSourceRef.current = null;
     }
+    setIsConnecting(false);
   }, [addNode, nodes, setEdges, isDark, menuState.source]);
 
   const handleAddFromEmpty = useCallback((type) => {
