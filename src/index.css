@@ -8,16 +8,16 @@
   color-scheme: dark;
   --bg-primary: #1b1b1f;
   --bg-secondary: #23232a;
-  --bg-ambient-a: rgba(124, 107, 246, 0.06);
-  --bg-ambient-b: transparent;
+  --bg-ambient-a: rgba(124, 107, 246, 0.07);
+  --bg-ambient-b: rgba(0, 160, 255, 0.05);
   --panel-bg: rgba(0, 0, 0, 0.28);
   --panel-bg-strong: rgba(14, 14, 20, 0.88);
   --panel-border: rgba(255, 255, 255, 0.05);
   --panel-border-strong: rgba(255, 255, 255, 0.08);
   --panel-shadow: 0 8px 40px rgba(0, 0, 0, 0.24);
   --panel-blur: blur(16px) saturate(1.08);
-  --grid-color: rgba(255, 255, 255, 0.04);
-  --grid-major: rgba(255, 255, 255, 0.08);
+  --grid-color: rgba(255, 255, 255, 0.05);
+  --grid-major: rgba(255, 255, 255, 0.10);
   --accent: #7c6bf6;
   --accent-strong: #a89bff;
   --accent-soft: rgba(124, 107, 246, 0.10);
@@ -82,15 +82,15 @@ html[data-theme="light"] {
   --bg-primary: #f5f3ef;
   --bg-secondary: #edebe6;
   --bg-ambient-a: rgba(107, 75, 244, 0.05);
-  --bg-ambient-b: transparent;
+  --bg-ambient-b: rgba(0, 100, 200, 0.04);
   --panel-bg: rgba(255, 255, 255, 0.60);
   --panel-bg-strong: rgba(255, 255, 255, 0.90);
   --panel-border: rgba(0, 0, 0, 0.055);
   --panel-border-strong: rgba(0, 0, 0, 0.10);
   --panel-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
   --panel-blur: blur(16px) saturate(1.08);
-  --grid-color: rgba(0, 0, 0, 0.04);
-  --grid-major: rgba(0, 0, 0, 0.08);
+  --grid-color: rgba(0, 0, 0, 0.05);
+  --grid-major: rgba(0, 0, 0, 0.10);
   --accent: #6b4bf4;
   --accent-strong: #2d1b7a;
   --accent-soft: rgba(107, 75, 244, 0.07);
@@ -148,9 +148,7 @@ html[data-theme="light"] {
 
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background:
-    radial-gradient(ellipse at 25% 20%, var(--bg-ambient-a), transparent 50vw),
-    linear-gradient(160deg, var(--bg-primary), var(--bg-secondary));
+  background: var(--bg-primary);
   color: var(--text-primary);
   overflow: hidden;
   width: 100vw;

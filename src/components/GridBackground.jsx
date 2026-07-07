@@ -1,9 +1,9 @@
 import { useRef, useEffect } from 'react';
 import { useTheme } from '../ThemeContext';
 import { useViewport } from '@xyflow/react';
+import { GRID_SIZE } from '../utils/nodeSize';
 
-const GRID_SIZE = 40;
-const MAJOR_GRID_INTERVAL = 5;
+const MAJOR_INTERVAL = 5;
 
 function GridBackground() {
   const canvasRef = useRef(null);
@@ -26,38 +26,41 @@ function GridBackground() {
 
     const { x: offsetX, y: offsetY, zoom } = viewport;
 
-    // Adapt grid and dot size to zoom level
-    const effectiveGridSize = Math.max(20, Math.min(60, GRID_SIZE * zoom));
-    const effectiveMajorGridSize = effectiveGridSize * MAJOR_GRID_INTERVAL;
-    const dotRadius = Math.max(0.6, Math.min(1.5, 1 / Math.sqrt(Math.max(zoom, 0.1))));
-    const majorDotRadius = Math.max(1, Math.min(2.5, 2 / Math.sqrt(Math.max(zoom, 0.1))));
-    const dotAlpha = Math.min(1, zoom * 0.5);
+    // Adapt grid to zoom
+    const gridSize = Math.max(8, Math.min(60, GRID_SIZE * zoom));
+    const majorGridSize = gridSize * MAJOR_INTERVAL;
 
-    const startX = -offsetX % effectiveGridSize;
-    const startY = -offsetY % effectiveGridSize;
-    const majorStartX = -offsetX % effectiveMajorGridSize;
-    const majorStartY = -offsetY % effectiveMajorGridSize;
+    // Read CSS variables for grid colors
+    const style = getComputedStyle(document.documentElement);
+    const minorColor = style.getPropertyValue('--grid-color').trim();
+    const majorColor = style.getPropertyValue('--grid-major').trim();
 
-    ctx.fillStyle = isDark
-      ? `rgba(255, 255, 255, ${0.035 * dotAlpha})`
-      : `rgba(0, 0, 0, ${0.035 * dotAlpha})`;
+    const startX = -offsetX % gridSize;
+    const startY = -offsetY % gridSize;
+    const majorStartX = -offsetX % majorGridSize;
+    const majorStartY = -offsetY % majorGridSize;
 
-    for (let x = startX; x <= rect.width + effectiveGridSize; x += effectiveGridSize) {
-      for (let y = startY; y <= rect.height + effectiveGridSize; y += effectiveGridSize) {
+    const dotR = Math.max(0.4, Math.min(1.4, 1 / Math.sqrt(Math.max(zoom, 0.2))));
+
+    // Major grid dots (every 5th) — drawn first so minor dots overlay if coincident
+    for (let x = majorStartX; x <= rect.width + majorGridSize; x += majorGridSize) {
+      for (let y = majorStartY; y <= rect.height + majorGridSize; y += majorGridSize) {
         ctx.beginPath();
-        ctx.arc(x, y, dotRadius, 0, Math.PI * 2);
+        ctx.arc(x, y, dotR * 1.5, 0, Math.PI * 2);
+        ctx.fillStyle = majorColor;
         ctx.fill();
       }
     }
 
-    ctx.fillStyle = isDark
-      ? `rgba(255, 255, 255, ${0.06 * dotAlpha})`
-      : `rgba(0, 0, 0, ${0.06 * dotAlpha})`;
-
-    for (let x = majorStartX; x <= rect.width + effectiveMajorGridSize; x += effectiveMajorGridSize) {
-      for (let y = majorStartY; y <= rect.height + effectiveMajorGridSize; y += effectiveMajorGridSize) {
+    // Minor grid dots
+    for (let x = startX; x <= rect.width + gridSize; x += gridSize) {
+      const isMajorCol = Math.abs((x - startX) % majorGridSize) < 1;
+      for (let y = startY; y <= rect.height + gridSize; y += gridSize) {
+        const isMajor = isMajorCol && Math.abs((y - startY) % majorGridSize) < 1;
+        if (isMajor) continue; // already drawn above
         ctx.beginPath();
-        ctx.arc(x, y, majorDotRadius, 0, Math.PI * 2);
+        ctx.arc(x, y, dotR, 0, Math.PI * 2);
+        ctx.fillStyle = minorColor;
         ctx.fill();
       }
     }

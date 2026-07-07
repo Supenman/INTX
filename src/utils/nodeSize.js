@@ -1,5 +1,11 @@
 import { ASPECT_RATIOS } from './dimensions';
 
+export const GRID_SIZE = 20;
+
+export function snapToGrid(value) {
+  return Math.round(value / GRID_SIZE) * GRID_SIZE;
+}
+
 export function getNodeSize(aspectRatio, type) {
   if (type === 'text') {
     return { width: 260, height: 190 };

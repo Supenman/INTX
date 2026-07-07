@@ -5,6 +5,8 @@ import { useActiveNode } from '../ActiveNodeContext';
 import { useTheme } from '../ThemeContext';
 import { getNodeSize } from '../utils/nodeSize';
 import NodeDrawer from './NodeDrawer';
+import ResizeHandle from './ResizeHandle';
+import { ASPECT_RATIOS } from '../utils/dimensions';
 
 import { NODE_TYPE_REGISTRY } from '../domain/nodeTypes';
 
@@ -124,12 +126,14 @@ function StyledHandle({ type, position, id, nodeId, isNodeHovered, isNodeActive,
 }
 
 function BaseNode({ id, type, data, selected }) {
-  const { activeNodeId, handleNodeClick, handleSubmit, handleNodeTypeChange, handleUpdateResult, handleRenameNode, handleNodeContextMenu, apiProviders, nodeStates, nodes, edges } = useActiveNode();
+  const { activeNodeId, handleNodeClick, handleSubmit, handleNodeTypeChange, handleUpdateResult, handleRenameNode, handleNodeContextMenu, handleResizeNode, apiProviders, nodeStates, nodes, edges } = useActiveNode();
   const isActive = activeNodeId === id;
   const nodeState = nodeStates[id];
   const [isHovered, setIsHovered] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingText, setEditingText] = useState('');
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editingTitle, setEditingTitle] = useState('');
   const [isEntering, setIsEntering] = useState(true);
   const nodeRef = useRef(null);
 
@@ -141,7 +145,14 @@ function BaseNode({ id, type, data, selected }) {
   const registry = NODE_TYPE_REGISTRY[type] || NODE_TYPE_REGISTRY.image;
   const config = { ...NODE_CONFIGS[type], ...registry };
   const accent = registry;
-  const { width, height } = getNodeSize(data.aspectRatio || '16:9', type);
+  const defaultSize = getNodeSize(data.aspectRatio || '16:9', type);
+  const nodeInStore = nodes.find(n => n.id === id);
+  const width = nodeInStore?.width ?? defaultSize.width;
+  const height = nodeInStore?.height ?? defaultSize.height;
+  const arEntry = ASPECT_RATIOS.find(r => r.label === (data.aspectRatio || '16:9'));
+  const aspectRatio = type === 'media' && data.mediaAspectRatio
+    ? data.mediaAspectRatio
+    : (arEntry ? arEntry.ratio : 16 / 9);
   const { isDark: isDarkTheme } = useTheme();
 
   const connectedSourceNodes = edges
@@ -149,7 +160,7 @@ function BaseNode({ id, type, data, selected }) {
     .map((e) => nodes.find((n) => n.id === e.source))
     .filter(Boolean);
 
-  const hasConnectedData = connectedSourceNodes.some((n) => n.data.prompt || n.data.result);
+  const hasConnectedData = connectedSourceNodes.some((n) => n.data.prompt || n.data.result || n.data?.images?.length > 0);
   const isProcessing = nodeState?.processing || false;
   const progress = nodeState?.progress || 0;
   const error = nodeState?.error || null;
@@ -271,68 +282,50 @@ function BaseNode({ id, type, data, selected }) {
           </div>
         )}
 
-        <div style={{ position: 'absolute', top: 8, left: 10, right: 10, display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between', zIndex: 6 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-            <span style={{ display: 'inline-flex', width: 24, height: 24, alignItems: 'center', justifyContent: 'center', borderRadius: 8, color: 'var(--text-secondary)', background: 'var(--node-icon-secondary)' }}>
-              {config.smallIcon}
-            </span>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--node-text)', letterSpacing: 0.1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {data.title || config.title}
+        {(hasConnectedData || isDisabled) && (
+          <div style={{ position: 'absolute', top: 8, right: 10, zIndex: 6, display: 'flex', gap: 4 }}>
+            {hasConnectedData && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                background: 'rgba(var(--signal-live-rgb), 0.12)',
+                padding: '4px 7px',
+                borderRadius: 999,
+                border: '1px solid rgba(var(--signal-live-rgb), 0.24)',
+                color: 'var(--signal-live)',
+              }}>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                <span style={{ fontSize: 8, fontWeight: 600, letterSpacing: '0.04em' }}>LINK</span>
               </div>
-              <div style={{ fontSize: 8, fontWeight: 600, color: 'var(--text-tertiary)', letterSpacing: '0.12em' }}>
-                {accent.labelEyebrow}
+            )}
+            {isDisabled && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                background: 'rgba(255, 255, 255, 0.06)',
+                padding: '4px 7px',
+                borderRadius: 999,
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                color: 'var(--text-tertiary)',
+              }}>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
+                <span style={{ fontSize: 8, fontWeight: 600, letterSpacing: '0.04em' }}>OFF</span>
               </div>
-            </div>
+            )}
           </div>
-
-          {hasConnectedData && (
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
-              background: 'rgba(var(--signal-live-rgb), 0.12)',
-              padding: '4px 7px',
-              borderRadius: 999,
-              border: '1px solid rgba(var(--signal-live-rgb), 0.24)',
-              color: 'var(--signal-live)',
-              flexShrink: 0,
-            }}>
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-              <span style={{ fontSize: 8, fontWeight: 600, letterSpacing: '0.04em' }}>
-                LINK
-              </span>
-            </div>
-          )}
-          {isDisabled && (
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
-              background: 'rgba(255, 255, 255, 0.06)',
-              padding: '4px 7px',
-              borderRadius: 999,
-              border: '1px solid rgba(255, 255, 255, 0.12)',
-              color: 'var(--text-tertiary)',
-              flexShrink: 0,
-            }}>
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-              </svg>
-              <span style={{ fontSize: 8, fontWeight: 600, letterSpacing: '0.04em' }}>
-                OFF
-              </span>
-            </div>
-          )}
-        </div>
+        )}
 
         {hasResult && !isProcessing && !error && (
           <div style={{
             position: 'absolute',
-            top: 36,
+            top: 8,
             right: 12,
             zIndex: 11,
             width: 18,
@@ -351,7 +344,7 @@ function BaseNode({ id, type, data, selected }) {
         )}
 
         {!isProcessing && (
-          <div style={{ position: 'absolute', top: type === 'media' ? 0 : 36, left: type === 'media' ? 0 : 10, right: type === 'media' ? 0 : 10, bottom: error ? 38 : (type === 'media' ? 0 : 10), display: 'flex', flexDirection: 'column', alignItems: 'stretch', justifyContent: 'center', zIndex: type === 'media' ? 0 : 5 }}>
+          <div style={{ position: 'absolute', top: type === 'media' ? 0 : 10, left: type === 'media' ? 0 : 10, right: type === 'media' ? 0 : 10, bottom: error ? 38 : (type === 'media' ? 0 : 10), display: 'flex', flexDirection: 'column', alignItems: 'stretch', justifyContent: 'center', zIndex: type === 'media' ? 0 : 5 }}>
             {data.result ? (
               data.result.type === 'image' ? (
                 <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: type === 'media' ? 0 : 12, overflow: 'hidden', background: 'repeating-conic-gradient(rgba(255,255,255,0.03) 0% 25%, transparent 0% 50%) 0px 0px / 16px 16px', transition: 'transform 0.3s var(--ease-out)', transform: isHovered ? 'scale(1.01)' : 'scale(1)' }}>
@@ -506,6 +499,83 @@ function BaseNode({ id, type, data, selected }) {
               </div>
             )}
           </div>
+        )}
+
+          <ResizeHandle nodeId={id} type={type} width={width} height={height} aspectRatio={aspectRatio} defaultWidth={defaultSize.width} defaultHeight={defaultSize.height} onResize={handleResizeNode} isVisible={isLit} />
+        </div>
+
+      {/* Title capsule — outside the node card */}
+      <div style={{
+        position: 'absolute',
+        top: -24,
+        left: 10,
+        zIndex: 5,
+        maxWidth: width,
+      }}>
+        {isEditingTitle ? (
+          <input
+            value={editingTitle}
+            onChange={(e) => setEditingTitle(e.target.value)}
+            onBlur={() => {
+              const trimmed = editingTitle.trim();
+              if (trimmed && trimmed !== (data.title || config.title)) {
+                handleRenameNode(id, trimmed);
+              }
+              setIsEditingTitle(false);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') { e.currentTarget.blur(); }
+              if (e.key === 'Escape') { setEditingTitle(data.title || config.title); setIsEditingTitle(false); }
+            }}
+            autoFocus
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: `rgba(${accent.accentRgb}, 0.08)`,
+              border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: 999,
+              outline: 'none',
+              padding: '2px 10px',
+              fontSize: 11,
+              fontWeight: 500,
+              color: `rgba(${accent.accentRgb}, 0.9)`,
+              minWidth: 30,
+              maxWidth: width - 20,
+              fontFamily: 'inherit',
+              backdropFilter: 'blur(6px)',
+            }}
+          />
+        ) : (
+          <span
+            onClick={(e) => {
+              e.stopPropagation();
+              setEditingTitle(data.title || config.title);
+              setIsEditingTitle(true);
+            }}
+            style={{
+              display: 'inline-block',
+              padding: '2px 10px',
+              borderRadius: 999,
+              background: `rgba(${accent.accentRgb}, 0.08)`,
+              border: '1px solid rgba(255,255,255,0.06)',
+              fontSize: 11,
+              fontWeight: 500,
+              color: `rgba(${accent.accentRgb}, 0.85)`,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              cursor: 'text',
+              maxWidth: width - 20,
+              transition: 'background 0.2s, border-color 0.2s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = `rgba(${accent.accentRgb}, 0.12)`;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = `rgba(${accent.accentRgb}, 0.08)`;
+            }}
+          >
+            {data.title || config.title}
+          </span>
         )}
       </div>
 

@@ -19,6 +19,7 @@ import NodeTypeMenu from './components/NodeTypeMenu';
 import NodeContextMenu from './components/NodeContextMenu';
 import StatusLog from './components/StatusLog';
 import ApiSettings from './components/ApiSettings';
+import AlignmentGuides from './components/AlignmentGuides';
 import { ConnectionContext } from './ConnectionContext';
 import { ThemeProvider, useTheme } from './ThemeContext';
 import { loadCanvasState, saveCanvasState, clearCanvasState, createDebouncedSave } from './utils/canvasStorage';
@@ -27,6 +28,8 @@ import { ActiveNodeContext } from './ActiveNodeContext';
 import { createTask, getTaskStatus } from './services/apiClient';
 import { findProviderForModel } from './utils/modelUtils';
 import { getNodeSize } from './utils/nodeSize';
+import { computeAlignmentSnap } from './utils/alignmentSnap';
+import { compressImage } from './utils/compressImage';
 
 const initialNodes = [];
 const initialEdges = [];
@@ -90,6 +93,12 @@ function AppContent() {
   const [showMinimap, setShowMinimap] = useState(false);
   const [statusLogOpen, setStatusLogOpen] = useState(false);
   const [statusLogEntries, setStatusLogEntries] = useState([]);
+
+  // Alignment snapping (always on)
+  const snapThreshold = 12;
+  const [guideLines, setGuideLines] = useState([]);
+  const draggingNodeRef = useRef(null);
+  const reactFlowInstanceRef = useRef(null);
 
   const addLogEntry = useCallback((nodeId, status, message) => {
     const node = latestNodes.current.find(n => n.id === nodeId);
@@ -156,6 +165,7 @@ function AppContent() {
       skipUndoRef.current = false;
       return;
     }
+    if (draggingNodeRef.current) return;
     undoPastRef.current.push({
       nodes: structuredClone(prevNodesRef.current),
       edges: structuredClone(prevEdgesRef.current),
@@ -281,7 +291,7 @@ function AppContent() {
 
   const addNode = useCallback((type, position = null) => {
     const id = String(nodeIdCounter);
-    let nodePosition = position && reactFlowInstance
+    const nodePosition = position && reactFlowInstance
       ? reactFlowInstance.screenToFlowPosition(position)
       : { x: 200 + Math.random() * 200, y: 100 + Math.random() * 200 };
 
@@ -295,6 +305,7 @@ function AppContent() {
       data: {
         title,
         prompt: '',
+        images: [],
         ...(type === 'media' ? {} : { aspectRatio, resolution: '1K', model: '' }),
         ...(type === 'video' ? { duration: '5', fps: '30' } : {}),
       },
@@ -389,55 +400,53 @@ function AppContent() {
     const isVideo = file.type.startsWith('video/');
     const dropId = String(nodeIdCounter);
 
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const content = ev.target?.result;
-
-      const addNode = (mw, mh) => {
-        let w = 220, h = 220;
-        if (mw && mh) {
-          const ratio = mw / mh;
-          const baseSize = 210;
-          w = Math.round(baseSize * (ratio >= 1 ? ratio : 1));
-          h = Math.round(baseSize * (ratio >= 1 ? 1 : 1 / ratio));
+    const createMediaNode = (mw, mh, contentUrl) => {
+      let w = 220, h = 220;
+      if (mw && mh) {
+        const MAX_DIM = 500;
+        const ratio = mw / mh;
+        if (mw > MAX_DIM || mh > MAX_DIM) {
+          if (mw > mh) { w = MAX_DIM; h = Math.round(w / ratio); }
+          else { h = MAX_DIM; w = Math.round(h * ratio); }
+        } else {
+          w = mw; h = mh;
         }
-        const newNode = {
-          id: dropId,
-          type: 'media',
-          width: w,
-          height: h,
-          position: position || { x: 200 + Math.random() * 200, y: 100 + Math.random() * 200 },
-          data: {
-            title: file.name,
-            prompt: '',
-            result: {
-              type: isVideo ? 'video' : 'image',
-              url: content,
-            },
-          },
-        };
-        setNodes(nodes => [...nodes, newNode]);
-      };
-
-      if (isVideo) {
-        const video = document.createElement('video');
-        video.preload = 'metadata';
-        video.onloadedmetadata = () => {
-          addNode(video.videoWidth, video.videoHeight);
-        };
-        video.onerror = () => addNode(null, null);
-        video.src = content;
-      } else {
-        const img = new Image();
-        img.onload = () => {
-          addNode(img.naturalWidth, img.naturalHeight);
-        };
-        img.onerror = () => addNode(null, null);
-        img.src = content;
       }
+      const newNode = {
+        id: dropId,
+        type: 'media',
+        width: w,
+        height: h,
+        position: position || { x: 200 + Math.random() * 200, y: 100 + Math.random() * 200 },
+        data: {
+          title: file.name,
+          prompt: '',
+          images: [{ url: contentUrl || '', name: file.name, type: isVideo ? 'video' : 'image' }],
+          result: { type: isVideo ? 'video' : 'image', url: contentUrl || '' },
+        },
+      };
+      if (mw && mh) newNode.data.mediaAspectRatio = w / h;
+      setNodes(nodes => [...nodes, newNode]);
     };
 
-    reader.readAsDataURL(file);
+    if (isVideo) {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const content = ev.target?.result;
+        const video = document.createElement('video');
+        video.preload = 'metadata';
+        video.onloadedmetadata = () => createMediaNode(video.videoWidth, video.videoHeight, content);
+        video.onerror = () => createMediaNode(null, null, content);
+        video.src = content;
+      };
+      reader.readAsDataURL(file);
+    } else {
+      // Compress images client-side to avoid storing huge base64 in React state
+      compressImage(file).then(({ dataUrl, width, height }) => {
+        createMediaNode(width, height, dataUrl);
+      }).catch(() => createMediaNode(null, null, null));
+    }
+
     setNodeIdCounter(c => c + 1);
   }, [reactFlowInstance, nodeIdCounter, setNodes, setNodeIdCounter]);
 
@@ -490,38 +499,53 @@ function AppContent() {
     if (!nodeId) return;
 
     const isVideo = file.type.startsWith('video/');
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const content = ev.target?.result;
 
-      const updateNode = (mw, mh) => {
-        setNodes(nds => nds.map(n =>
-          n.id === nodeId
-            ? { ...n, data: { ...n.data, title: file.name, prompt: '', mediaWidth: mw, mediaHeight: mh, result: { type: isVideo ? 'video' : 'image', url: content } } }
-            : n
-        ));
-        pendingMediaNodeIdRef.current = null;
-      };
+    const updateNode = (mw, mh, contentUrl) => {
+      let w = 220, h = 220, ar = null;
+      if (mw && mh) {
+        const MAX_DIM = 500;
+        const ratio = mw / mh;
+        if (mw > MAX_DIM || mh > MAX_DIM) {
+          if (mw > mh) { w = MAX_DIM; h = Math.round(w / ratio); }
+          else { h = MAX_DIM; w = Math.round(h * ratio); }
+        } else {
+          w = mw; h = mh;
+        }
+        ar = w / h;
+      }
+      setNodes(nds => nds.map(n =>
+        n.id === nodeId
+          ? {
+              ...n, width: w, height: h,
+              data: {
+                ...n.data, mediaAspectRatio: ar, title: file.name, prompt: '',
+                mediaWidth: mw, mediaHeight: mh,
+                images: [{ url: contentUrl || '', name: file.name, type: isVideo ? 'video' : 'image' }],
+                result: { type: isVideo ? 'video' : 'image', url: contentUrl || '' },
+              },
+            }
+          : n
+      ));
+      pendingMediaNodeIdRef.current = null;
+    };
 
-      if (isVideo) {
+    if (isVideo) {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const content = ev.target?.result;
         const video = document.createElement('video');
         video.preload = 'metadata';
-        video.onloadedmetadata = () => {
-          updateNode(video.videoWidth, video.videoHeight);
-        };
-        video.onerror = () => updateNode(null, null);
+        video.onloadedmetadata = () => updateNode(video.videoWidth, video.videoHeight, content);
+        video.onerror = () => updateNode(null, null, content);
         video.src = content;
-      } else {
-        const img = new Image();
-        img.onload = () => {
-          updateNode(img.naturalWidth, img.naturalHeight);
-        };
-        img.onerror = () => updateNode(null, null);
-        img.src = content;
-      }
-    };
-    reader.readAsDataURL(file);
-    // Reset input so same file can be picked again
+      };
+      reader.readAsDataURL(file);
+    } else {
+      compressImage(file).then(({ dataUrl, width, height }) => {
+        updateNode(width, height, dataUrl);
+      }).catch(() => updateNode(null, null, null));
+    }
+
     e.target.value = '';
   }, [setNodes]);
 
@@ -585,6 +609,19 @@ function AppContent() {
     }, 300);
 
     try {
+      // Collect reference images/videos from upstream connected nodes
+      const upstreamEdges = latestEdges.current.filter(e => e.target === nodeId);
+      const refImages = [];
+      const refVideos = [];
+      upstreamEdges.forEach(e => {
+        const sourceNode = latestNodes.current.find(n => n.id === e.source);
+        if (!sourceNode?.data?.images) return;
+        sourceNode.data.images.forEach(img => {
+          if (img.type === 'video') refVideos.push(img);
+          else refImages.push(img);
+        });
+      });
+
       const { task_id } = await createTask({
         type: nodeType,
         prompt,
@@ -594,6 +631,8 @@ function AppContent() {
         resolution,
         duration,
         fps,
+        images: refImages.length > 0 ? refImages : undefined,
+        videos: refVideos.length > 0 ? refVideos : undefined,
       });
 
       const pollInterval = setInterval(async () => {
@@ -612,7 +651,20 @@ function AppContent() {
               setNodes(nodes =>
                 nodes.map(node => {
                   if (node.id === nodeId) {
-                    return { ...node, data: { ...node.data, result: task.result } };
+                    const resultType = task.result?.type || '';
+                    const newImage = (resultType === 'image' || resultType === 'video')
+                      ? { url: task.result.url || '', name: data?.title || '生成结果', type: resultType }
+                      : null;
+                    return {
+                      ...node,
+                      data: {
+                        ...node.data,
+                        result: task.result,
+                        images: newImage
+                          ? [...(node.data.images || []), newImage]
+                          : (node.data.images || []),
+                      },
+                    };
                   }
                   return node;
                 })
@@ -659,7 +711,7 @@ function AppContent() {
         }));
       }, 5000);
     }
-  }, [setNodes, setNodeStates, apiProviders, addLogEntry]);
+  }, [setNodes, setNodeStates, apiProviders, addLogEntry, latestEdges, latestNodes]);
 
   const handleContextMenuAction = useCallback((action, nodeId) => {
     switch (action) {
@@ -811,7 +863,11 @@ function AppContent() {
         const sourceNode = nds.find((n) => n.id === params.source);
         if (sourceNode) {
           sourceType = sourceNode.type || 'image';
-          const sourceContent = sourceNode.data.result?.content || sourceNode.data.prompt;
+          // Only copy text content from text nodes — media/image/video nodes
+          // pass their images/videos through reference collection at submit time
+          const sourceContent = sourceNode.type === 'text'
+            ? (sourceNode.data.result?.content || sourceNode.data.prompt)
+            : null;
           if (sourceContent) {
             return nds.map((node) => {
               if (node.id === params.target) {
@@ -883,6 +939,89 @@ function AppContent() {
     }));
   }, [setNodes]);
 
+  const handleResizeNode = useCallback((nodeId, width, height) => {
+    setNodes(nds => nds.map(n => {
+      if (n.id === nodeId) {
+        return { ...n, width, height };
+      }
+      return n;
+    }));
+  }, [setNodes]);
+
+  // --- Alignment snap drag handlers ---
+  const handleNodeDragStart = useCallback((event, node) => {
+    draggingNodeRef.current = {
+      id: node.id,
+      width: node.measured?.width ?? node.width ?? 200,
+      height: node.measured?.height ?? node.height ?? 200,
+    };
+  }, []);
+
+  const handleNodeDrag = useCallback((event, node) => {
+    const dragNode = {
+      id: node.id,
+      position: { x: node.position.x, y: node.position.y },
+      width: draggingNodeRef.current?.width ?? node.measured?.width ?? node.width ?? 200,
+      height: draggingNodeRef.current?.height ?? node.measured?.height ?? node.height ?? 200,
+    };
+
+    const otherNodes = latestNodes.current
+      .filter(n => n.id !== node.id)
+      .map(n => ({
+        id: n.id,
+        position: { x: n.position.x, y: n.position.y },
+        width: n.measured?.width ?? n.width ?? 200,
+        height: n.measured?.height ?? n.height ?? 200,
+      }));
+
+    const result = computeAlignmentSnap(dragNode, otherNodes, snapThreshold);
+
+    if (result.snappedPosition) {
+      const instance = reactFlowInstanceRef.current;
+      if (instance) {
+        const currentNodes = instance.getNodes();
+        const updatedNodes = currentNodes.map(n =>
+          n.id === node.id ? { ...n, position: result.snappedPosition } : n
+        );
+        instance.setNodes(updatedNodes);
+      }
+    }
+
+    setGuideLines(result.guides);
+  }, [snapThreshold]);
+
+  const handleNodeDragStop = useCallback((event, node) => {
+    // Final snap: apply snapped position since RF's drag-end handler
+    // overwrites our real-time snap with the last calculated position.
+    const instance = reactFlowInstanceRef.current;
+    if (node && instance) {
+      const allNodes = instance.getNodes();
+      const dragNode = {
+        id: node.id,
+        position: { x: node.position.x, y: node.position.y },
+        width: node.measured?.width ?? node.width ?? 200,
+        height: node.measured?.height ?? node.height ?? 200,
+      };
+      const otherNodes = allNodes
+        .filter(n => n.id !== node.id)
+        .map(n => ({
+          id: n.id,
+          position: { x: n.position.x, y: n.position.y },
+          width: n.measured?.width ?? n.width ?? 200,
+          height: n.measured?.height ?? n.height ?? 200,
+        }));
+      const result = computeAlignmentSnap(dragNode, otherNodes, snapThreshold);
+      if (result.snappedPosition) {
+        const currentNodes = instance.getNodes();
+        instance.setNodes(currentNodes.map(n =>
+          n.id === node.id ? { ...n, position: result.snappedPosition } : n
+        ));
+      }
+    }
+    setGuideLines([]);
+    draggingNodeRef.current = null;
+  }, [snapThreshold]);
+
 
   const customNodeTypes = useMemo(() => ({
     image: (props) => <ImageNode {...props} />,
@@ -910,7 +1049,7 @@ function AppContent() {
 
   return (
     <ConnectionContext.Provider value={contextValue}>
-      <ActiveNodeContext.Provider value={{ activeNodeId, handleNodeClick, handleSubmit, handleNodeTypeChange, handleUpdateResult, handleRenameNode, handleUpdateNodeData, handleOpenApiSettings, handleNodeContextMenu, apiProviders, nodeStates, nodes: latestNodes.current, edges: latestEdges.current }}>
+      <ActiveNodeContext.Provider value={{ activeNodeId, handleNodeClick, handleSubmit, handleNodeTypeChange, handleUpdateResult, handleRenameNode, handleUpdateNodeData, handleResizeNode, handleOpenApiSettings, handleNodeContextMenu, apiProviders, nodeStates, nodes: latestNodes.current, edges: latestEdges.current }}>
       <div ref={reactFlowWrapper} style={{ width: '100%', height: '100%' }}
             onDragOver={handleDragOver}
             onDrop={handleFileDrop}>
@@ -939,12 +1078,15 @@ function AppContent() {
           onConnect={onConnect}
           onConnectStart={onConnectStart}
           onConnectEnd={onConnectEnd}
-          onInit={setReactFlowInstance}
+          onInit={(instance) => { setReactFlowInstance(instance); reactFlowInstanceRef.current = instance; }}
           onEdgeClick={onEdgeClick}
           nodeTypes={customNodeTypes}
           fitView
           minZoom={0.15}
           maxZoom={2.5}
+          onNodeDragStart={handleNodeDragStart}
+          onNodeDrag={handleNodeDrag}
+          onNodeDragStop={handleNodeDragStop}
           connectionLineStyle={{
             stroke: 'var(--accent)',
             strokeWidth: 1.5,
@@ -1012,6 +1154,7 @@ function AppContent() {
             />
           )}
           <Controls position="bottom-right" showInteractive={false} style={{ bottom: 48, right: 8 }} />
+          <AlignmentGuides guides={guideLines} />
         </ReactFlow>
         {nodes.length === 0 && (
           <div style={{

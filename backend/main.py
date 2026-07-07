@@ -752,6 +752,8 @@ class GeneratePayload(BaseModel):
     resolution: Optional[str] = None
     duration: Optional[int] = None
     fps: Optional[int] = None
+    images: List[Dict] = []
+    videos: List[Dict] = []
 
 
 _RESOLUTION_MAP = {
@@ -777,7 +779,7 @@ def compute_image_size(resolution_label, aspect_ratio_label):
     return f"{w}x{h}"
 
 
-async def call_openai_compatible_api(base_url, api_key, model, prompt, generate_type, resolution=None, aspect_ratio=None):
+async def call_openai_compatible_api(base_url, api_key, model, prompt, generate_type, resolution=None, aspect_ratio=None, protocol="openai", images=None, videos=None):
     base_url = base_url.rstrip("/")
     if not base_url.endswith("/v1"):
         base_url = f"{base_url}/v1"
@@ -804,7 +806,11 @@ async def call_openai_compatible_api(base_url, api_key, model, prompt, generate_
                 img_body = {"model": model, "prompt": prompt, "response_format": "url"}
                 if resolution:
                     img_body["size"] = compute_image_size(resolution, aspect_ratio)
-                # Use async-mode header to support providers that return task_id (e.g. ModelScope)
+
+                # ModelScope protocol supports reference images via image_urls
+                if protocol == "modelscope" and images:
+                    img_body["image_urls"] = [img["url"] for img in images]
+
                 resp = await client.post(
                     f"{base_url}/images/generations",
                     headers={
@@ -842,6 +848,15 @@ async def call_openai_compatible_api(base_url, api_key, model, prompt, generate_
                 raise Exception(f"不支持的API响应格式: {str(data)[:200]}")
 
             elif generate_type == "video":
+                vid_body = {"model": model, "prompt": prompt, "n": 1}
+
+                # ModelScope supports reference images/videos for video generation
+                if protocol == "modelscope":
+                    if images:
+                        vid_body["image_urls"] = [img["url"] for img in images]
+                    if videos:
+                        vid_body["video_urls"] = [v["url"] for v in videos]
+
                 # Use async-mode header to support task-based video providers
                 resp = await client.post(
                     f"{base_url}/videos/generations",
@@ -850,11 +865,7 @@ async def call_openai_compatible_api(base_url, api_key, model, prompt, generate_
                         "Content-Type": "application/json",
                         "X-ModelScope-Async-Mode": "true",
                     },
-                    json={
-                        "model": model,
-                        "prompt": prompt,
-                        "n": 1
-                    }
+                    json=vid_body
                 )
                 if resp.status_code < 400:
                     data = resp.json()
@@ -936,6 +947,7 @@ async def generate_content(payload: GeneratePayload):
         elif payload.type == "video":
             model = provider.get("video_models", ["sora"])[0] if provider.get("video_models") else "sora"
     try:
+        protocol = detect_protocol(payload)
         result = await call_openai_compatible_api(
             base_url=base_url,
             api_key=api_key,
@@ -944,6 +956,9 @@ async def generate_content(payload: GeneratePayload):
             generate_type=payload.type,
             resolution=payload.resolution,
             aspect_ratio=payload.aspect_ratio,
+            protocol=protocol,
+            images=payload.images,
+            videos=payload.videos,
         )
         return {"ok": True, "result": result}
     except Exception as e:
@@ -986,6 +1001,8 @@ async def run_canvas_task(task_id: str, payload: GeneratePayload):
                 models_list = [m for m in models_list if "edit" not in m.lower() and "inpaint" not in m.lower()]
             model = models_list[0] if models_list else ""
 
+        protocol = provider.get("protocol", "openai") or "openai"
+
         async with CANVAS_TASK_LOCK:
             CANVAS_TASKS[task_id]["progress"] = 30
 
@@ -997,6 +1014,9 @@ async def run_canvas_task(task_id: str, payload: GeneratePayload):
             generate_type=payload.type,
             resolution=payload.resolution,
             aspect_ratio=payload.aspect_ratio,
+            protocol=protocol,
+            images=payload.images,
+            videos=payload.videos,
         )
 
         async with CANVAS_TASK_LOCK:

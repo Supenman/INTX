@@ -143,6 +143,8 @@ function Sidebar({ onAddNodeClick, addButtonRef, toggleTheme, onNewCanvas, canUn
         <span style={{ ...tooltipStyle, opacity: hoveredItem === 'log' ? 1 : 0, transform: `translateY(-50%) ${hoveredItem === 'log' ? 'translateX(4px)' : ''}` }}>状态日志</span>
       </button>
 
+      <div style={dividerStyle}></div>
+
       <div style={{ flex: 1 }} />
 
       <button

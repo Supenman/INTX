@@ -37,7 +37,7 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
   const { handleOpenApiSettings, handleUpdateNodeData } = useActiveNode() || {};
   const connectedSourceNodes = node.connectedSourceNodes || [];
   const validSourceNodes = connectedSourceNodes.filter(sourceNode =>
-    (sourceNode.data.result?.content || sourceNode.data.prompt)
+    (sourceNode.data.result?.content || sourceNode.data.prompt || sourceNode.data?.images?.length > 0)
   );
   const hasConnectedData = validSourceNodes.length > 0;
 
@@ -266,27 +266,30 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
               }}>
                 {validSourceNodes.map((sourceNode) => {
                   const sourceContent = sourceNode.data.result?.content || sourceNode.data.prompt;
+                  const sourceImages = sourceNode.data?.images || [];
                   return (
                     <div
                       key={sourceNode.id}
                       onClick={(e) => {
                         e.stopPropagation();
-                        setPrompt(sourceContent);
-                        setShowConnectedDataMenu(false);
+                        if (sourceContent) {
+                          setPrompt(sourceContent);
+                          setShowConnectedDataMenu(false);
+                        }
                       }}
                       style={{
                         padding: '8px 10px',
                         fontSize: 10,
                         color: 'var(--drawer-text)',
                         background: 'transparent',
-                        cursor: 'pointer',
+                        cursor: sourceContent ? 'pointer' : 'default',
                         display: 'flex',
                         flexDirection: 'column',
                         gap: 3,
                         transition: 'all 0.1s ease',
                         borderBottom: '1px solid var(--drawer-border)',
                       }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--accent-soft)'; }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = sourceContent ? 'var(--accent-soft)' : 'transparent'; }}
                       onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: 5, opacity: 0.8, flexWrap: 'wrap' }}>
@@ -298,9 +301,32 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
                           <span style={{ fontSize: 8, padding: '1px 5px', borderRadius: 3, background: 'var(--accent-soft)', color: 'var(--accent-strong)' }}>done</span>
                         )}
                       </div>
-                      <div style={{ fontSize: 9, opacity: 0.6, lineHeight: 1.4, maxHeight: 48, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
-                        {sourceContent}
-                      </div>
+                      {sourceImages.length > 0 && (
+                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 2 }}>
+                          {sourceImages.map((img, i) => (
+                            img.type === 'video' ? (
+                              <div key={i} style={{
+                                width: 36, height: 36, borderRadius: 4, overflow: 'hidden',
+                                background: 'var(--accent-soft)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                fontSize: 8, color: 'var(--accent-strong)',
+                              }}>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+                              </div>
+                            ) : (
+                              <div key={i} style={{ width: 36, height: 36, borderRadius: 4, overflow: 'hidden', background: 'var(--panel-bg)' }}>
+                                <img src={img.url} alt={img.name || ''} style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                  onError={(e) => { e.target.style.display = 'none'; }} />
+                              </div>
+                            )
+                          ))}
+                        </div>
+                      )}
+                      {sourceContent && (
+                        <div style={{ fontSize: 9, opacity: 0.6, lineHeight: 1.4, maxHeight: 48, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
+                          {sourceContent}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
