@@ -8,10 +8,10 @@ export function snapToGrid(value) {
 
 export function getNodeSize(aspectRatio, type) {
   if (type === 'text') {
-    return { width: 260, height: 190 };
+    return { width: 373, height: 210 };
   }
   if (type === 'media') {
-    return { width: 220, height: 220 };
+    return { width: 373, height: 210 };
   }
 
   const ar = ASPECT_RATIOS.find(r => r.label === aspectRatio);

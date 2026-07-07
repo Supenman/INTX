@@ -6,12 +6,12 @@
 
 :root {
   color-scheme: dark;
-  --bg-primary: #1b1b1f;
-  --bg-secondary: #23232a;
+  --bg-primary: #1f1f1e;
+  --bg-secondary: #262626;
   --bg-ambient-a: rgba(124, 107, 246, 0.07);
   --bg-ambient-b: rgba(0, 160, 255, 0.05);
   --panel-bg: rgba(0, 0, 0, 0.28);
-  --panel-bg-strong: rgba(14, 14, 20, 0.88);
+  --panel-bg-strong: rgba(31, 31, 30, 0.88);
   --panel-border: rgba(255, 255, 255, 0.05);
   --panel-border-strong: rgba(255, 255, 255, 0.08);
   --panel-shadow: 0 8px 40px rgba(0, 0, 0, 0.24);
@@ -56,7 +56,7 @@
   --sidebar-icon: var(--text-primary);
   --sidebar-accent: var(--accent);
 
-  --node-bg: #1c1c22;
+  --node-bg: #212120;
   --node-surface: rgba(255, 255, 255, 0.025);
   --node-border: rgba(255, 255, 255, 0.055);
   --node-border-hover: rgba(226, 226, 240, 0.16);
@@ -67,7 +67,7 @@
   --node-icon: rgba(235, 235, 239, 0.22);
   --node-icon-secondary: rgba(235, 235, 239, 0.10);
 
-  --drawer-bg: rgba(14, 14, 20, 0.92);
+  --drawer-bg: rgba(31, 31, 30, 0.92);
   --drawer-border: rgba(255, 255, 255, 0.06);
   --drawer-text: var(--text-primary);
   --drawer-text-secondary: var(--text-secondary);
@@ -382,4 +382,9 @@ html[data-theme="light"] {
   stroke: var(--accent) !important;
   stroke-width: 1.5 !important;
   stroke-dasharray: 4 4;
+}
+
+/* Hide scrollbar in NodeDrawer textarea while keeping scroll functionality */
+.node-drawer-panel textarea::-webkit-scrollbar {
+  display: none;
 }

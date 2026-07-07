@@ -43,6 +43,9 @@ const NODE_CONFIGS = {
     emptyHint: '规划一段镜头运动',
     drawerTitle: '视频节点',
   },
+  media: {
+    emptyHint: '单击节点上传文件',
+  },
 };
 
 function StyledHandle({ type, position, id, nodeId, isNodeHovered, isNodeActive, accent }) {
@@ -344,7 +347,7 @@ function BaseNode({ id, type, data, selected }) {
         )}
 
         {!isProcessing && (
-          <div style={{ position: 'absolute', top: type === 'media' ? 0 : 10, left: type === 'media' ? 0 : 10, right: type === 'media' ? 0 : 10, bottom: error ? 38 : (type === 'media' ? 0 : 10), display: 'flex', flexDirection: 'column', alignItems: 'stretch', justifyContent: 'center', zIndex: type === 'media' ? 0 : 5 }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: error ? 38 : 0, display: 'flex', flexDirection: 'column', alignItems: 'stretch', justifyContent: 'center', zIndex: type === 'media' ? 0 : 5 }}>
             {data.result ? (
               data.result.type === 'image' ? (
                 <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: type === 'media' ? 0 : 12, overflow: 'hidden', background: 'repeating-conic-gradient(rgba(255,255,255,0.03) 0% 25%, transparent 0% 50%) 0px 0px / 16px 16px', transition: 'transform 0.3s var(--ease-out)', transform: isHovered ? 'scale(1.01)' : 'scale(1)' }}>
@@ -409,7 +412,7 @@ function BaseNode({ id, type, data, selected }) {
                       wordBreak: 'break-word',
                       whiteSpace: 'pre-wrap',
                       fontFamily: 'inherit',
-                      padding: 10,
+                      padding: 0,
                     }}
                     autoFocus
                   />
@@ -430,9 +433,7 @@ function BaseNode({ id, type, data, selected }) {
                       whiteSpace: 'pre-wrap',
                       cursor: 'text',
                       userSelect: 'text',
-                      padding: 10,
-                      borderRadius: 12,
-                      background: 'var(--node-surface)',
+                      padding: 0,
                     }}
                     onClick={(e) => {
                       e.stopPropagation();
@@ -457,9 +458,7 @@ function BaseNode({ id, type, data, selected }) {
                   WebkitBoxOrient: 'vertical',
                   wordBreak: 'break-word',
                   whiteSpace: 'pre-wrap',
-                  padding: 12,
-                  borderRadius: 12,
-                  background: 'var(--node-surface)',
+                  padding: 0,
                 }}>
                   {data.result.content}
                 </div>
@@ -478,10 +477,7 @@ function BaseNode({ id, type, data, selected }) {
                 WebkitBoxOrient: 'vertical',
                 wordBreak: 'break-word',
                 whiteSpace: 'pre-wrap',
-                padding: 12,
-                borderRadius: 12,
-                background: 'var(--node-surface)',
-                border: '1px solid var(--node-border)',
+                padding: 0,
               }}>
                 {data.prompt}
               </div>

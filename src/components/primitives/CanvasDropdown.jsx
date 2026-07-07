@@ -59,6 +59,8 @@ export default function CanvasDropdown({
   placeholder,
   style,
   buttonStyle,
+  menuStyle,
+  itemStyle,
   ...rest
 }) {
   const [open, setOpen] = useState(false);
@@ -113,6 +115,7 @@ export default function CanvasDropdown({
             ...menuBase,
             ...getMenuPosition(position),
             ...(align === 'right' ? { left: 'auto', right: 0 } : {}),
+            ...menuStyle,
           }}
         >
           {options.map((opt) => {
@@ -136,6 +139,7 @@ export default function CanvasDropdown({
                 style={{
                   ...itemBase,
                   ...(selected ? { background: colorVar.soft, color: colorVar.text } : {}),
+                  ...itemStyle,
                 }}
               >
                 {opt.icon}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, cloneElement } from 'react';
 import { NODE_TYPE_REGISTRY } from '../domain/nodeTypes';
 import { getAvailableModels } from '../utils/modelUtils';
 import { ASPECT_RATIOS, RESOLUTIONS } from '../utils/dimensions';
@@ -31,7 +31,9 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
   const [showConnectedDataMenu, setShowConnectedDataMenu] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [drawerDir, setDrawerDir] = useState('bottom');
+  const [isExpanded, setIsExpanded] = useState(false);
   const drawerRef = useRef(null);
+  const textareaRef = useRef(null);
 
   const config = NODE_TYPE_REGISTRY[node.type] || NODE_TYPE_REGISTRY.image;
   const { handleOpenApiSettings, handleUpdateNodeData } = useActiveNode() || {};
@@ -68,6 +70,17 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
       }
     }
   }, [prompt, aspectRatio, model, resolution, duration, fps]);
+
+  // Native wheel handler to stop React Flow from stealing scroll events
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    const handler = (e) => {
+      e.stopPropagation();
+    };
+    el.addEventListener('wheel', handler, { passive: true });
+    return () => el.removeEventListener('wheel', handler);
+  }, []);
 
   // Autosave prompt to node data with debounce
   useEffect(() => {
@@ -337,6 +350,8 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
 
         <div style={{ position: 'relative' }}>
           <textarea
+            ref={textareaRef}
+            className="nowheel"
             value={prompt}
             onChange={handlePromptChange}
             placeholder={node.type === 'text' ? '输入文本内容...' : '描述你想生成的内容...'}
@@ -349,16 +364,16 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
             }}
             style={{
               width: '100%',
-              minHeight: 38,
-              maxHeight: 90,
+              height: isExpanded ? 200 : 110,
               background: 'transparent',
               border: 'none',
               borderRadius: 0,
-              padding: '6px 6px 4px',
+              padding: 0,
               fontSize: 11,
               color: promptHasRefs ? 'transparent' : 'var(--drawer-text)',
               caretColor: 'var(--drawer-text)',
               resize: 'none',
+              overflow: 'auto',
               outline: 'none',
               lineHeight: 1.5,
               marginBottom: 0,
@@ -368,6 +383,41 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
             }}
           />
 
+          {/* Expand/collapse button */}
+          <button
+            onClick={(e) => { e.stopPropagation(); setIsExpanded(!isExpanded); }}
+            style={{
+              position: 'absolute',
+              top: 4,
+              right: 4,
+              zIndex: 3,
+              width: 20,
+              height: 20,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--drawer-border)',
+              borderRadius: 4,
+              color: 'var(--text-tertiary)',
+              cursor: 'pointer',
+              opacity: 0.7,
+              transition: 'opacity 0.15s, background 0.15s',
+              padding: 0,
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.background = 'var(--accent-soft)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.7'; e.currentTarget.style.background = 'var(--bg-secondary)'; }}
+            title={isExpanded ? '收起' : '展开'}
+          >
+            {isExpanded ? (
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="18 15 12 9 6 15" />
+              </svg>
+            ) : (
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            )}
+          </button>
+
           {/* Mirror div for chip rendering */}
           {promptHasRefs && (
             <div style={{
@@ -375,7 +425,7 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
               top: 0,
               left: 0,
               right: 0,
-              padding: '6px 6px 4px',
+              padding: 0,
               fontSize: 11,
               lineHeight: 1.5,
               color: 'var(--drawer-text)',
@@ -498,9 +548,11 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
               { value: 'text', label: '文字', icon: NODE_TYPE_REGISTRY.text.smallIcon },
               { value: 'video', label: '视频', icon: NODE_TYPE_REGISTRY.video.smallIcon },
             ]}
-            trigger={<>{config.smallIcon}{config.title}</>}
+            trigger={<>{cloneElement(config.smallIcon, { width: 11, height: 11 })}{config.title}</>}
             buttonStyle={triggerBtnBase}
-            position="top"
+            position="bottom"
+            menuStyle={{ fontSize: 11, padding: '4px 0', minWidth: 80 }}
+            itemStyle={{ padding: '5px 10px', fontSize: 11 }}
           />
 
           {availableModels.length > 0 ? (
@@ -510,8 +562,10 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
               options={availableModels.map((m) => ({ value: m, label: m }))}
               trigger={<span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 38 }}>{model || '模型'}</span>}
               buttonStyle={{ ...triggerBtnBase, maxWidth: 58, minWidth: 0 }}
-              position="top"
+              position="bottom"
               placeholder="模型"
+              menuStyle={{ fontSize: 11, padding: '4px 0', minWidth: 80 }}
+              itemStyle={{ padding: '5px 10px', fontSize: 11 }}
             />
           ) : (
             <button
@@ -538,7 +592,9 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
                 options={ASPECT_RATIOS.map((r) => ({ value: r.label, label: r.label }))}
                 trigger={<span style={{ maxWidth: 24, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{aspectRatio}</span>}
                 buttonStyle={{ ...triggerBtnBase, fontSize: 8 }}
-                position="top"
+                position="bottom"
+                menuStyle={{ fontSize: 11, padding: '4px 0', minWidth: 80 }}
+                itemStyle={{ padding: '5px 10px', fontSize: 11 }}
               />
 
               <CanvasDropdown
@@ -547,7 +603,9 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
                 options={RESOLUTIONS.map((r) => ({ value: r.label, label: r.label }))}
                 trigger={<span style={{ maxWidth: 18, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{resolution}</span>}
                 buttonStyle={{ ...triggerBtnBase, fontSize: 8 }}
-                position="top"
+                position="bottom"
+                menuStyle={{ fontSize: 11, padding: '4px 0', minWidth: 80 }}
+                itemStyle={{ padding: '5px 10px', fontSize: 11 }}
               />
             </>
           )}
@@ -561,16 +619,16 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               width: 28, height: 28,
-              background: 'transparent',
+              background: 'var(--signal-live)',
               border: 'none', borderRadius: 6,
-              color: 'var(--text-tertiary)',
+              color: '#0e0e14',
               cursor: isSubmitting ? 'wait' : 'pointer',
               transition: 'all 0.15s ease',
-              opacity: isSubmitting ? 0.4 : 1,
+              opacity: isSubmitting ? 0.4 : 0.85,
               flexShrink: 0,
             }}
-            onMouseEnter={(e) => { if (!isSubmitting) { e.currentTarget.style.color = 'var(--accent)'; e.currentTarget.style.background = 'var(--accent-soft)'; } }}
-            onMouseLeave={(e) => { if (!isSubmitting) { e.currentTarget.style.color = 'var(--text-tertiary)'; e.currentTarget.style.background = 'transparent'; } }}
+            onMouseEnter={(e) => { if (!isSubmitting) { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'scale(1.1)'; } }}
+            onMouseLeave={(e) => { if (!isSubmitting) { e.currentTarget.style.opacity = '0.85'; e.currentTarget.style.transform = 'scale(1)'; } }}
           >
             {isSubmitting ? (
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 0.8s linear infinite' }}>
@@ -584,9 +642,8 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
                 <line x1="16.24" y1="7.76" x2="19.07" y2="4.93" />
               </svg>
             ) : (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="19" x2="12" y2="5" />
-                <polyline points="5 12 12 5" />
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="6,4 20,12 6,20" />
               </svg>
             )}
           </button>
