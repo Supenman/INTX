@@ -38,9 +38,14 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
   const config = NODE_TYPE_REGISTRY[node.type] || NODE_TYPE_REGISTRY.image;
   const { handleOpenApiSettings, handleUpdateNodeData } = useActiveNode() || {};
   const connectedSourceNodes = node.connectedSourceNodes || [];
-  const validSourceNodes = connectedSourceNodes.filter(sourceNode =>
-    (sourceNode.data.result?.content || sourceNode.data.prompt || sourceNode.data?.images?.length > 0)
-  );
+  const validSourceNodes = connectedSourceNodes.filter(sourceNode => {
+    // Image/video/media nodes: output = generated images
+    if (sourceNode.type !== 'text') {
+      return (sourceNode.data?.images?.length > 0);
+    }
+    // Text nodes: output = text content
+    return (sourceNode.data.result?.content || sourceNode.data.prompt);
+  });
   const hasConnectedData = validSourceNodes.length > 0;
 
   const [atReferenceState, setAtReferenceState] = useState({
@@ -97,6 +102,8 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
     return text.replace(/@\[([^\]]+)\]\(ref:([^)]+)\)/g, (match, title, refId) => {
       const sourceNode = sourceNodes.find(n => n.id === refId);
       if (sourceNode) {
+        // Image/video/media nodes output images, not text — leave reference unresolved
+        if (sourceNode.type !== 'text') return match;
         return sourceNode.data.result?.content || sourceNode.data.prompt || match;
       }
       return match;
@@ -278,7 +285,9 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
                 animation: 'fadeIn 0.12s var(--ease-out)',
               }}>
                 {validSourceNodes.map((sourceNode) => {
-                  const sourceContent = sourceNode.data.result?.content || sourceNode.data.prompt;
+                  const sourceContent = sourceNode.type === 'text'
+                    ? (sourceNode.data.result?.content || sourceNode.data.prompt)
+                    : '';
                   const sourceImages = sourceNode.data?.images || [];
                   return (
                     <div

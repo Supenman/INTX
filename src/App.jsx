@@ -751,7 +751,7 @@ function AppContent() {
                         ...node.data,
                         result: task.result,
                         images: newImage
-                          ? [...(node.data.images || []), newImage]
+                          ? [newImage]
                           : (node.data.images || []),
                       },
                     };
@@ -956,7 +956,7 @@ function AppContent() {
           // Only copy text content from text nodes — media/image/video nodes
           // pass their images/videos through reference collection at submit time
           const sourceContent = sourceNode.type === 'text'
-            ? (sourceNode.data.result?.content || sourceNode.data.prompt)
+            ? sourceNode.data.result?.content
             : null;
           if (sourceContent) {
             return nds.map((node) => {
