@@ -28,6 +28,12 @@
   --signal-text-rgb: 247, 215, 116;
   --signal-video: #c084fc;
   --signal-video-rgb: 192, 132, 252;
+  --signal-source-text: #fbbf24;
+  --signal-source-text-rgb: 251, 191, 36;
+  --signal-audio: #f472b6;
+  --signal-audio-rgb: 244, 114, 182;
+  --signal-markdown: #60a5fa;
+  --signal-markdown-rgb: 96, 165, 250;
   --signal-live: #34d399;
   --signal-live-rgb: 52, 211, 153;
   --signal-error: #fb7185;
@@ -101,6 +107,12 @@ html[data-theme="light"] {
   --signal-text-rgb: 167, 101, 0;
   --signal-video: #7c3aed;
   --signal-video-rgb: 124, 58, 237;
+  --signal-source-text: #d97706;
+  --signal-source-text-rgb: 217, 119, 6;
+  --signal-audio: #db2777;
+  --signal-audio-rgb: 219, 39, 119;
+  --signal-markdown: #2563eb;
+  --signal-markdown-rgb: 37, 99, 235;
   --signal-live: #059669;
   --signal-live-rgb: 5, 150, 105;
   --signal-error: #e11d48;
@@ -386,5 +398,10 @@ html[data-theme="light"] {
 
 /* Hide scrollbar in NodeDrawer textarea while keeping scroll functionality */
 .node-drawer-panel textarea::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar in source text node textareas */
+.node-card textarea::-webkit-scrollbar {
   display: none;
 }

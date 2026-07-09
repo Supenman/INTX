@@ -1,9 +1,10 @@
 const TEXT_MIN = 200;
+const TEXT_TYPES = ['text', 'source-text', 'source-markdown'];
 
 /**
  * Compute new dimensions for a node being resized.
  *
- * @param {'image'|'video'|'media'|'text'} type
+ * @param {string} type
  * @param {number} startWidth
  * @param {number} startHeight
  * @param {number} deltaX - mouse delta in screen pixels
@@ -15,7 +16,7 @@ const TEXT_MIN = 200;
  * @returns {{ width: number, height: number }}
  */
 export function computeResizeDimensions(type, startWidth, startHeight, deltaX, deltaY, aspectRatio, zoom, defaultWidth = 150, defaultHeight = 150) {
-  if (type === 'text') {
+  if (TEXT_TYPES.includes(type)) {
     const width = Math.max(TEXT_MIN, Math.round(startWidth + deltaX / zoom));
     const height = Math.max(TEXT_MIN, Math.round(startHeight + deltaY / zoom));
     return { width, height };

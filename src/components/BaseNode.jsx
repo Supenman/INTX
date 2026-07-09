@@ -1,4 +1,4 @@
-import { useState, useRef, useContext, useEffect } from 'react';
+import { useState, useRef, useContext, useEffect, useCallback } from 'react';
 import { Handle, Position, useHandleConnections } from '@xyflow/react';
 import { ConnectionContext } from '../ConnectionContext';
 import { useActiveNode } from '../ActiveNodeContext';
@@ -43,8 +43,59 @@ const NODE_CONFIGS = {
     emptyHint: '规划一段镜头运动',
     drawerTitle: '视频节点',
   },
-  media: {
-    emptyHint: '单击节点上传文件',
+  'source-text': {
+    icon: (
+      <svg width="56" height="56" viewBox="0 0 64 64" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M14 8H50V16H38V52H26V16H14V8Z" />
+      </svg>
+    ),
+    emptyHint: '双击输入文本',
+    drawerTitle: '文本素材',
+  },
+  'source-image': {
+    icon: (
+      <svg width="56" height="56" viewBox="0 0 64 64" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="10" y="12" width="44" height="40" rx="4" />
+        <circle cx="26" cy="24" r="4" />
+        <polyline points="54 38 40 26 12 52" />
+      </svg>
+    ),
+    emptyHint: '上传图片文件',
+    drawerTitle: '图像素材',
+  },
+  'source-video': {
+    icon: (
+      <svg width="56" height="56" viewBox="0 0 64 64" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="8" y="16" width="48" height="32" rx="4" />
+        <polygon points="26 24 42 32 26 40 26 24" />
+      </svg>
+    ),
+    emptyHint: '上传视频文件',
+    drawerTitle: '视频素材',
+  },
+  'source-audio': {
+    icon: (
+      <svg width="56" height="56" viewBox="0 0 64 64" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M20 46V14l32-4v28" />
+        <circle cx="16" cy="46" r="6" />
+        <circle cx="48" cy="42" r="6" />
+      </svg>
+    ),
+    emptyHint: '上传音频文件',
+    drawerTitle: '音频素材',
+  },
+  'source-markdown': {
+    icon: (
+      <svg width="56" height="56" viewBox="0 0 64 64" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="8" y="8" width="48" height="48" rx="4" />
+        <line x1="24" y1="28" x2="20" y2="28" />
+        <line x1="44" y1="28" x2="40" y2="28" />
+        <line x1="32" y1="20" x2="32" y2="36" />
+        <line x1="24" y1="36" x2="40" y2="36" />
+      </svg>
+    ),
+    emptyHint: '双击输入 Markdown',
+    drawerTitle: 'Markdown 素材',
   },
 };
 
@@ -196,7 +247,7 @@ function StyledHandle({ type, position, id, nodeId, isNodeHovered, isNodeActive,
 }
 
 function BaseNode({ id, type, data, selected }) {
-  const { activeNodeId, handleNodeClick, handleSubmit, handleNodeTypeChange, handleUpdateResult, handleRenameNode, handleNodeContextMenu, handleResizeNode, apiProviders, nodeStates, nodes, edges } = useActiveNode();
+  const { activeNodeId, handleNodeClick, handleSubmit, handleNodeTypeChange, handleUpdateResult, handleUpdateNodeData, handleRenameNode, handleNodeContextMenu, handleResizeNode, apiProviders, nodeStates, nodes, edges } = useActiveNode();
   const isActive = activeNodeId === id;
   const nodeState = nodeStates[id];
   const [isHovered, setIsHovered] = useState(false);
@@ -206,6 +257,35 @@ function BaseNode({ id, type, data, selected }) {
   const [editingTitle, setEditingTitle] = useState('');
   const [isEntering, setIsEntering] = useState(true);
   const nodeRef = useRef(null);
+  const cardRef = useRef(null);
+
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el || !isEditing) return;
+    const handler = (e) => e.stopPropagation();
+    el.addEventListener('wheel', handler, { passive: false });
+    return () => el.removeEventListener('wheel', handler);
+  }, [isEditing]);
+  const textFileInputRef = useRef(null);
+
+  const isTextSource = type === 'source-text' || type === 'source-markdown';
+
+  const handleTextFileChange = useCallback((e) => {
+    const file = e.target?.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const content = ev.target?.result;
+      if (content) {
+        handleUpdateNodeData(id, {
+          title: file.name,
+          result: { type: 'text', content },
+        });
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  }, [id, handleUpdateNodeData]);
 
   useEffect(() => {
     const t = setTimeout(() => setIsEntering(false), 500);
@@ -215,12 +295,13 @@ function BaseNode({ id, type, data, selected }) {
   const registry = NODE_TYPE_REGISTRY[type] || NODE_TYPE_REGISTRY.image;
   const config = { ...NODE_CONFIGS[type], ...registry };
   const accent = registry;
+  const isSourceType = type.startsWith('source-');
   const defaultSize = getNodeSize(data.aspectRatio || '16:9', type);
   const nodeInStore = nodes.find(n => n.id === id);
   const width = nodeInStore?.width ?? defaultSize.width;
   const height = nodeInStore?.height ?? defaultSize.height;
   const arEntry = ASPECT_RATIOS.find(r => r.label === (data.aspectRatio || '16:9'));
-  const aspectRatio = type === 'media' && data.mediaAspectRatio
+  const aspectRatio = isSourceType && data.mediaAspectRatio
     ? data.mediaAspectRatio
     : (arEntry ? arEntry.ratio : 16 / 9);
   const { isDark: isDarkTheme } = useTheme();
@@ -265,9 +346,17 @@ function BaseNode({ id, type, data, selected }) {
         }
       }}>
       <div
+        ref={cardRef}
         className="node-card"
         onClick={(e) => {
           if (!isDisabled) handleNodeClick(e, id);
+        }}
+        onDoubleClick={(e) => {
+          if ((type === 'text' || isTextSource) && !isProcessing) {
+            e.stopPropagation();
+            setEditingText(data.result?.content || '');
+            setIsEditing(true);
+          }
         }}
         style={{
           position: 'relative',
@@ -413,11 +502,56 @@ function BaseNode({ id, type, data, selected }) {
           </div>
         )}
 
+        {isTextSource && !data.result && !isProcessing && (
+          <>
+            <input ref={textFileInputRef} type="file" accept=".txt,.md,text/*" onChange={handleTextFileChange} style={{ display: 'none' }} />
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                textFileInputRef.current?.click();
+              }}
+              title="上传文件"
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = `rgba(${accent.accentRgb}, 0.15)`;
+                e.currentTarget.style.opacity = '1';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+                e.currentTarget.style.opacity = '0.7';
+              }}
+              style={{
+                position: 'absolute',
+                top: 8,
+                right: 8,
+                zIndex: 12,
+                width: 24,
+                height: 24,
+                borderRadius: 6,
+                border: '1px solid rgba(255,255,255,0.08)',
+                background: 'rgba(255,255,255,0.04)',
+                color: `rgba(${accent.accentRgb}, 0.75)`,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                opacity: 0.7,
+                transition: 'all 0.18s var(--ease-out)',
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+            </button>
+          </>
+        )}
+
         {!isProcessing && (
-          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: error ? 38 : 0, display: 'flex', flexDirection: 'column', alignItems: 'stretch', justifyContent: 'center', zIndex: type === 'media' ? 0 : 5 }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: error ? 38 : 0, display: 'flex', flexDirection: 'column', alignItems: 'stretch', justifyContent: 'center', zIndex: isSourceType ? 0 : 5 }}>
             {data.result ? (
               data.result.type === 'image' ? (
-                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: type === 'media' ? 0 : 12, overflow: 'hidden', background: 'repeating-conic-gradient(rgba(255,255,255,0.03) 0% 25%, transparent 0% 50%) 0px 0px / 16px 16px', transition: 'transform 0.3s var(--ease-out)', transform: isHovered ? 'scale(1.01)' : 'scale(1)' }}>
+                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: isSourceType ? 0 : 12, overflow: 'hidden', background: 'repeating-conic-gradient(rgba(255,255,255,0.03) 0% 25%, transparent 0% 50%) 0px 0px / 16px 16px', transition: 'transform 0.3s var(--ease-out)', transform: isHovered ? 'scale(1.01)' : 'scale(1)' }}>
                   <img
                     src={data.result.url}
                     alt={data.title || 'media'}
@@ -426,27 +560,27 @@ function BaseNode({ id, type, data, selected }) {
                     style={{
                       width: '100%',
                       height: '100%',
-                      objectFit: type === 'media' ? 'cover' : 'contain',
+                      objectFit: isSourceType ? 'cover' : 'contain',
                       transition: 'opacity 0.3s var(--ease-out)',
                     }}
                   />
                 </div>
               ) : data.result.type === 'video' ? (
-                <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: type === 'media' ? 0 : 12, overflow: 'hidden', background: 'rgba(0,0,0,0.18)' }}>
+                <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: isSourceType ? 0 : 12, overflow: 'hidden', background: 'rgba(0,0,0,0.18)' }}>
                   <video
                     src={data.result.url}
-                    controls={type !== 'media'}
-                    autoPlay={type === 'media'}
-                    loop={type === 'media'}
-                    muted={type === 'media'}
+                    controls={!isSourceType}
+                    autoPlay={isSourceType}
+                    loop={isSourceType}
+                    muted={isSourceType}
                     playsInline
                     style={{
                       width: '100%',
                       height: '100%',
-                      objectFit: type === 'media' ? 'cover' : 'contain'
+                      objectFit: isSourceType ? 'cover' : 'contain'
                     }}
                   />
-                  {type !== 'media' && (
+                  {!isSourceType && (
                     <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', opacity: isHovered ? 1 : 0.6, transition: 'opacity 0.3s var(--ease-out)' }}>
                       <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="white"><polygon points="8,5 19,12 8,19" /></svg>
@@ -454,14 +588,36 @@ function BaseNode({ id, type, data, selected }) {
                     </div>
                   )}
                 </div>
-              ) : type === 'text' ? (
+              ) : data.result.type === 'audio' ? (
+                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: 'rgba(0,0,0,0.18)', padding: '0 16px' }}>
+                  <audio
+                    src={data.result.url}
+                    controls
+                    autoPlay={isSourceType}
+                    loop={isSourceType}
+                    playsInline
+                    style={{ width: '100%', maxHeight: 36, opacity: 0.85 }}
+                  />
+                </div>
+              ) : (type === 'text' || isTextSource) ? (
                 isEditing ? (
                   <textarea
+                    className="nodrag"
                     value={editingText}
                     onChange={(e) => setEditingText(e.target.value)}
+                    onWheel={(e) => e.stopPropagation()}
                     onBlur={(e) => {
                       setIsEditing(false);
-                      handleUpdateResult(id, e.target.value);
+                      if (data.result) {
+                        handleUpdateResult(id, e.target.value);
+                      } else if (e.target.value.trim()) {
+                        handleUpdateNodeData(id, {
+                          result: { type: 'text', content: e.target.value },
+                        });
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') setIsEditing(false);
                     }}
                     style={{
                       fontSize: 12,
@@ -476,6 +632,7 @@ function BaseNode({ id, type, data, selected }) {
                       textAlign: 'left',
                       lineHeight: '1.55',
                       overflow: 'auto',
+                      scrollbarWidth: 'none',
                       wordBreak: 'break-word',
                       whiteSpace: 'pre-wrap',
                       fontFamily: 'inherit',
@@ -498,14 +655,7 @@ function BaseNode({ id, type, data, selected }) {
                       WebkitBoxOrient: 'vertical',
                       wordBreak: 'break-word',
                       whiteSpace: 'pre-wrap',
-                      cursor: 'text',
-                      userSelect: 'text',
                       padding: 0,
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setEditingText(data.result.content);
-                      setIsEditing(true);
                     }}
                   >
                     {data.result.content}
@@ -530,24 +680,44 @@ function BaseNode({ id, type, data, selected }) {
                   {data.result.content}
                 </div>
               )
-            ) : data.prompt ? (
-              <div style={{
-                fontSize: type === 'text' ? 12 : 11,
-                color: 'var(--node-text)',
-                opacity: 0.74,
-                textAlign: type === 'text' ? 'left' : 'center',
-                lineHeight: type === 'text' ? 1.55 : 1.45,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                display: '-webkit-box',
-                WebkitLineClamp: type === 'text' ? 8 : 4,
-                WebkitBoxOrient: 'vertical',
-                wordBreak: 'break-word',
-                whiteSpace: 'pre-wrap',
-                padding: 0,
-              }}>
-                {data.prompt}
-              </div>
+            ) : isTextSource && isEditing ? (
+              <textarea
+                className="nodrag"
+                value={editingText}
+                onChange={(e) => setEditingText(e.target.value)}
+                onWheel={(e) => e.stopPropagation()}
+                onBlur={(e) => {
+                  setIsEditing(false);
+                  if (e.target.value.trim()) {
+                    handleUpdateNodeData(id, {
+                      result: { type: 'text', content: e.target.value },
+                    });
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') setIsEditing(false);
+                }}
+                style={{
+                  fontSize: 12,
+                  color: 'var(--node-text)',
+                  backgroundColor: 'rgba(255,255,255,0.04)',
+                  border: '1px solid var(--node-border-hover)',
+                  borderRadius: 10,
+                  outline: 'none',
+                  resize: 'none',
+                  width: '100%',
+                  height: '100%',
+                  textAlign: 'left',
+                  lineHeight: '1.55',
+                  overflow: 'auto',
+                  scrollbarWidth: 'none',
+                  wordBreak: 'break-word',
+                  whiteSpace: 'pre-wrap',
+                  fontFamily: 'inherit',
+                  padding: '8px 10px',
+                }}
+                autoFocus
+              />
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, color: 'var(--text-tertiary)' }}>
                 <div style={{ opacity: 0.55 }}>{config.icon}</div>
@@ -558,6 +728,11 @@ function BaseNode({ id, type, data, selected }) {
                   <span style={{ fontSize: 11, color: 'var(--node-text-secondary)' }}>
                     {config.emptyHint}
                   </span>
+                  {isTextSource && (
+                    <span style={{ fontSize: 9, color: 'var(--text-tertiary)', opacity: 0.6, marginTop: 2 }}>
+                      或点击右上角上传文件
+                    </span>
+                  )}
                 </div>
               </div>
             )}
@@ -642,7 +817,7 @@ function BaseNode({ id, type, data, selected }) {
         )}
       </div>
 
-      {type !== 'media' && <StyledHandle type="target" position={Position.Left} id="target" nodeId={id} isNodeHovered={isHovered} isNodeActive={isActive} accent={accent} />}
+      {!isSourceType && <StyledHandle type="target" position={Position.Left} id="target" nodeId={id} isNodeHovered={isHovered} isNodeActive={isActive} accent={accent} />}
       <StyledHandle type="source" position={Position.Right} id="source" nodeId={id} isNodeHovered={isHovered} isNodeActive={isActive} accent={accent} />
 
       {isActive && (

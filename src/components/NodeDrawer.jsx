@@ -21,6 +21,169 @@ const triggerBtnBase = {
   whiteSpace: 'nowrap',
 };
 
+// ── ContentEditable @-reference helpers ──────────────────────────────────
+
+const ZWSP = '​';
+const REF_SPLIT = /(@\[[^\]]*\]\(ref:[^)]+\))/;
+
+function isChipEl(node) {
+  return node?.nodeType === 1 && node.hasAttribute?.('data-ref-id');
+}
+
+function getNodeTypeById(nodes, id) {
+  const n = nodes.find(n => n.id === id);
+  return n ? n.type : 'image';
+}
+
+function buildChipEl(nodeId, label, nodeType, options) {
+  const chip = document.createElement('span');
+  chip.contentEditable = 'false';
+  chip.className = 'prompt-chip chip-' + (nodeType || 'image');
+  chip.setAttribute('data-ref-id', nodeId);
+  chip.setAttribute('data-ref-label', label);
+  if (options?.thumbUrl) {
+    const img = document.createElement('img');
+    img.className = 'prompt-chip-thumb';
+    img.src = options.thumbUrl;
+    img.draggable = false;
+    img.onerror = (e) => { e.target.style.display = 'none'; };
+    chip.appendChild(img);
+  } else {
+    const icon = document.createElement('span');
+    icon.className = 'prompt-chip-icon';
+    const map = { image: '🖼', text: '📝', video: '🎬', media: '📎', 'source-text': '📄', 'source-image': '🖼', 'source-video': '🎬', 'source-audio': '🎵', 'source-markdown': '📋' };
+    icon.textContent = map[nodeType] || '🔗';
+    chip.appendChild(icon);
+  }
+  chip.appendChild(document.createTextNode(label));
+  return chip;
+}
+
+function serializeDOM(root) {
+  const parts = [];
+  const walk = (node) => {
+    if (node.nodeType === 3) {
+      parts.push(node.textContent);
+    } else if (node.nodeType === 1) {
+      if (node.tagName === 'BR') {
+        parts.push('\n');
+      } else if (node.hasAttribute('data-ref-id')) {
+        const id = node.getAttribute('data-ref-id');
+        const label = node.getAttribute('data-ref-label') || 'Untitled';
+        parts.push('@[' + label + '](ref:' + id + ')');
+      } else {
+        node.childNodes.forEach(walk);
+      }
+    }
+  };
+  root.childNodes.forEach(walk);
+  return parts.join('').split(ZWSP).join('').replace(/\n+$/, '');
+}
+
+function ensureCaretSlotBeforeChip(chip) {
+  if (!chip.previousSibling || chip.previousSibling.nodeName === 'BR') {
+    chip.parentNode.insertBefore(document.createTextNode(ZWSP), chip);
+  }
+}
+
+function normalizeChipSlots(root) {
+  root.querySelectorAll('[data-ref-id]').forEach(chip => {
+    const prev = chip.previousSibling;
+    if (!prev || prev.nodeName === 'BR') {
+      chip.parentNode.insertBefore(document.createTextNode(ZWSP), chip);
+    }
+  });
+}
+
+function insertChipAtEditor(editorEl, nodeId, label, nodeType, thumbUrl) {
+  const sel = window.getSelection();
+  if (!sel.rangeCount) return;
+  let range = sel.getRangeAt(0);
+  if (!editorEl.contains(range.commonAncestorContainer)) {
+    range = document.createRange();
+    range.selectNodeContents(editorEl);
+    range.collapse(false);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+  const chip = buildChipEl(nodeId, label, nodeType, { thumbUrl });
+  range.deleteContents();
+  range.insertNode(chip);
+  ensureCaretSlotBeforeChip(chip);
+  range.setStartAfter(chip);
+  range.collapse(true);
+  sel.removeAllRanges();
+  sel.addRange(range);
+  editorEl.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+function deleteAdjacentChip(root, direction) {
+  const sel = window.getSelection();
+  if (!sel.rangeCount) return false;
+  const range = sel.getRangeAt(0);
+  if (!range.collapsed) return false;
+  if (direction === 'backspace' && range.startContainer.nodeType === 3 && range.startOffset === 0) {
+    const prev = range.startContainer.previousSibling;
+    if (isChipEl(prev)) { prev.remove(); return true; }
+  }
+  if (direction === 'delete' && range.startContainer.nodeType === 3 && range.startOffset === range.startContainer.textContent.length) {
+    const next = range.startContainer.nextSibling;
+    if (isChipEl(next)) { next.remove(); return true; }
+  }
+  return false;
+}
+
+function isLastCharAt(root) {
+  const sel = window.getSelection();
+  if (!sel.rangeCount) return false;
+  const range = sel.getRangeAt(0);
+  if (!root.contains(range.startContainer)) return false;
+  if (range.startOffset === 0) return false;
+  const node = range.startContainer;
+  if (node.nodeType !== 3) return false;
+  return node.textContent[range.startOffset - 1] === '@';
+}
+
+function getPrevChar(root) {
+  const sel = window.getSelection();
+  if (!sel.rangeCount) return null;
+  const range = sel.getRangeAt(0);
+  if (range.startOffset < 2) return null;
+  const node = range.startContainer;
+  if (node.nodeType !== 3) return null;
+  return node.textContent[range.startOffset - 2] || null;
+}
+
+function renderPromptToRoot(text, root, sourceNodes) {
+  root.innerHTML = '';
+  if (!text) {
+    root.innerHTML = '<br>';
+    return;
+  }
+  const segments = text.split(REF_SPLIT);
+  for (const seg of segments) {
+    if (seg.startsWith('@[') && seg.includes('](ref:')) {
+      const m = seg.match(/@\[([^\]]*)\]\(ref:([^)]+)\)/);
+      if (m) {
+        const nodeType = getNodeTypeById(sourceNodes || [], m[2]);
+        const srcNode = sourceNodes?.find(n => n.id === m[2]);
+        const thumbUrl = srcNode?.data?.images?.[0]?.url;
+        root.appendChild(buildChipEl(m[2], m[1], nodeType, { thumbUrl }));
+        continue;
+      }
+    }
+    const lines = seg.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      if (i > 0) root.appendChild(document.createElement('br'));
+      if (lines[i]) root.appendChild(document.createTextNode(lines[i]));
+    }
+  }
+  normalizeChipSlots(root);
+  if (!root.firstChild) root.innerHTML = '<br>';
+}
+
+// ── Component ────────────────────────────────────────────────────────────
+
 function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
   const [prompt, setPrompt] = useState(node?.data?.prompt || '');
   const [duration, setDuration] = useState(node?.data?.duration || '5');
@@ -28,23 +191,28 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
   const [aspectRatio, setAspectRatio] = useState(node?.data?.aspectRatio || '16:9');
   const [resolution, setResolution] = useState(node?.data?.resolution || '1K');
   const [model, setModel] = useState(node?.data?.model || '');
-  const [showConnectedDataMenu, setShowConnectedDataMenu] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [drawerDir, setDrawerDir] = useState('bottom');
   const [isExpanded, setIsExpanded] = useState(false);
+  const [hoveredDockIdx, setHoveredDockIdx] = useState(null);
+  const [chipTooltip, setChipTooltip] = useState(null);
+  const [hoveredChipNodeId, setHoveredChipNodeId] = useState(null);
   const drawerRef = useRef(null);
-  const textareaRef = useRef(null);
+  const editorRef = useRef(null);
+  const savedRangeRef = useRef(null);
+  const isBuildingRef = useRef(false);
+  const atMenuOpenRef = useRef(false);
+  const promptRef = useRef(prompt);
+
+  promptRef.current = prompt;
 
   const config = NODE_TYPE_REGISTRY[node.type] || NODE_TYPE_REGISTRY.image;
   const { handleOpenApiSettings, handleUpdateNodeData } = useActiveNode() || {};
   const connectedSourceNodes = node.connectedSourceNodes || [];
   const validSourceNodes = connectedSourceNodes.filter(sourceNode => {
-    // Image/video/media nodes: output = generated images
-    if (sourceNode.type !== 'text') {
-      return (sourceNode.data?.images?.length > 0);
-    }
-    // Text nodes: output = text content
-    return (sourceNode.data.result?.content || sourceNode.data.prompt);
+    const hasImages = sourceNode.data?.images?.length > 0;
+    const hasText = sourceNode.data?.result?.content || sourceNode.data?.prompt;
+    return hasImages || hasText;
   });
   const hasConnectedData = validSourceNodes.length > 0;
 
@@ -55,6 +223,7 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
     startIndex: -1,
   });
 
+  // Reset form on node change
   useEffect(() => {
     setPrompt(node?.data?.prompt || '');
     setDuration(node?.data?.duration || '5');
@@ -65,20 +234,69 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
     setModel(node?.data?.model || availableModels?.[0] || '');
   }, [node?.id, node?.data?.prompt, node?.data?.duration, node?.data?.fps, node?.data?.aspectRatio, node?.data?.resolution, node?.data?.model, node?.type, apiProviders]);
 
+  // Drawer direction
   useEffect(() => {
     if (drawerRef.current) {
       const rect = drawerRef.current.getBoundingClientRect();
-      if (rect.bottom > window.innerHeight - 16) {
-        setDrawerDir('top');
-      } else {
-        setDrawerDir('bottom');
-      }
+      setDrawerDir(rect.bottom > window.innerHeight - 16 ? 'top' : 'bottom');
     }
   }, [prompt, aspectRatio, model, resolution, duration, fps]);
 
+  // Inject editor CSS once
+  useEffect(() => {
+    if (document.getElementById('nd-editor-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'nd-editor-styles';
+    style.textContent = `
+.prompt-editor {
+  width:100%; min-height:60px; max-height:110px; overflow-y:auto;
+  background:transparent; border:none; outline:none;
+  font-size:11px; line-height:1.5;
+  color:var(--drawer-text); caret-color:var(--drawer-text);
+  font-family:inherit; white-space:pre-wrap; word-wrap:break-word;
+  padding:0; position:relative; z-index:2;
+  scrollbar-width:none;
+}
+.prompt-editor::-webkit-scrollbar { display:none; }
+.prompt-editor.nd-expanded { height:250px; max-height:none; }
+.prompt-editor:empty::before {
+  content:attr(data-placeholder); color:var(--text-tertiary);
+  pointer-events:none; display:block;
+}
+.prompt-editor:focus { outline:none; }
+.prompt-chip {
+  display:inline-flex; align-items:center; gap:3px;
+  padding:0 6px 0 4px; border-radius:5px;
+  font-size:10px; font-weight:600; line-height:1.5;
+  vertical-align:middle; margin:0 1px; border:1px solid transparent;
+  cursor:default; transition:filter 0.15s, box-shadow 0.15s;
+}
+.prompt-chip:hover { filter:brightness(1.12); box-shadow:0 1px 6px rgba(0,0,0,0.2); }
+.prompt-chip-icon { font-size:9px; font-weight:700; opacity:0.9; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; }
+.chip-image { background:rgba(var(--signal-image-rgb),0.12); color:var(--signal-image); border-color:rgba(var(--signal-image-rgb),0.25); }
+.chip-text { background:rgba(var(--signal-text-rgb),0.12); color:var(--signal-text); border-color:rgba(var(--signal-text-rgb),0.25); }
+.chip-video { background:rgba(var(--signal-video-rgb),0.12); color:var(--signal-video); border-color:rgba(var(--signal-video-rgb),0.25); }
+.prompt-chip-thumb { width:14px; height:14px; border-radius:3px; object-fit:cover; display:block; }
+`;
+    document.head.appendChild(style);
+  }, []);
+
+  // Sync prompt → DOM when prompt changes externally
+  useEffect(() => {
+    const el = editorRef.current;
+    if (!el) return;
+    const current = serializeDOM(el);
+    if (current !== prompt) {
+      isBuildingRef.current = true;
+      renderPromptToRoot(prompt, el, validSourceNodes);
+      isBuildingRef.current = false;
+    }
+  }, [prompt, node?.id]);
+  // validSourceNodes intentionally omitted — we read it fresh via closure inside renderPromptToRoot
+
   // Native wheel handler to stop React Flow from stealing scroll events
   useEffect(() => {
-    const el = textareaRef.current;
+    const el = editorRef.current;
     if (!el) return;
     const handler = (e) => {
       e.stopPropagation();
@@ -102,8 +320,7 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
     return text.replace(/@\[([^\]]+)\]\(ref:([^)]+)\)/g, (match, title, refId) => {
       const sourceNode = sourceNodes.find(n => n.id === refId);
       if (sourceNode) {
-        // Image/video/media nodes output images, not text — leave reference unresolved
-        if (sourceNode.type !== 'text') return match;
+        if (sourceNode.type !== 'text' && sourceNode.type !== 'source-text' && sourceNode.type !== 'source-markdown') return match;
         return sourceNode.data.result?.content || sourceNode.data.prompt || match;
       }
       return match;
@@ -143,59 +360,139 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
 
   const availableModels = getAvailableModels(node.type, apiProviders);
 
-  const getCursorPosition = (textarea) => {
-    const rect = textarea.getBoundingClientRect();
-    const text = textarea.value.substring(0, textarea.selectionStart);
-    const measure = document.createElement('span');
-    measure.style.cssText = `font-size: 11px; font-family: inherit; letter-spacing: normal; white-space: pre-wrap; position: fixed; visibility: hidden; max-width: ${rect.width}px;`;
-    measure.textContent = text;
-    document.body.appendChild(measure);
-    const pos = measure.getBoundingClientRect();
-    document.body.removeChild(measure);
-    return {
-      x: Math.min(pos.left - rect.left, rect.width - 200),
-      y: pos.bottom - rect.top + 2,
-    };
-  };
+  // ── ContentEditable input handler ─────────────────────────────────────
 
-  const handlePromptChange = (e) => {
-    const value = e.target.value;
-    const cursorPos = e.target.selectionStart;
+  const handleInput = useCallback(() => {
+    const editor = editorRef.current;
+    if (!editor || isBuildingRef.current) return;
 
-    setPrompt(value);
-
-    if (!hasConnectedData) {
-      setAtReferenceState({ active: false, filter: '', position: null, startIndex: -1 });
-      return;
-    }
-
-    const textBeforeCursor = value.substring(0, cursorPos);
-    const atIndex = textBeforeCursor.lastIndexOf('@');
-
-    if (atIndex !== -1) {
-      const afterAt = textBeforeCursor.substring(atIndex + 1);
-      const isWordChar = (ch) => /[\w一-鿿]/.test(ch);
-      // Only trigger if @ is at word boundary (preceded by space or start) and only word chars after
-      const charBeforeAt = atIndex > 0 ? value[atIndex - 1] : ' ';
-      if ((charBeforeAt === ' ' || charBeforeAt === '\n' || atIndex === 0) && afterAt.length >= 0 && !afterAt.includes(' ')) {
+    // Detect @ typed at word boundary
+    if (hasConnectedData && isLastCharAt(editor)) {
+      const prev = getPrevChar(editor);
+      if (prev === null || prev === ' ' || prev === '\n') {
+        const sel = window.getSelection();
+        if (sel.rangeCount) {
+          savedRangeRef.current = sel.getRangeAt(0).cloneRange();
+        }
+        atMenuOpenRef.current = true;
         setAtReferenceState({
           active: true,
-          filter: afterAt,
-          position: getCursorPosition(e.target),
-          startIndex: atIndex,
+          filter: '',
+          position: { x: 0, y: 30 },
+          startIndex: -1,
         });
-        return;
       }
     }
 
-    setAtReferenceState({ active: false, filter: '', position: null, startIndex: -1 });
-  };
+    // Update filter text when menu is open
+    if (atMenuOpenRef.current && savedRangeRef.current) {
+      const sel = window.getSelection();
+      if (sel.rangeCount) {
+        const curRange = sel.getRangeAt(0);
+        const savedRange = savedRangeRef.current;
+        if (editor.contains(savedRange.startContainer) && editor.contains(curRange.startContainer)) {
+          const r = document.createRange();
+          r.setStart(savedRange.startContainer, savedRange.startOffset);
+          r.setEnd(curRange.startContainer, curRange.startOffset);
+          const filterText = r.toString();
+          if (filterText.includes(' ') || filterText.includes('\n')) {
+            atMenuOpenRef.current = false;
+            setAtReferenceState({ active: false, filter: '', position: null, startIndex: -1 });
+          } else {
+            setAtReferenceState(prev => prev.active ? { ...prev, filter: filterText } : prev);
+          }
+        }
+      }
+    }
+
+    // Serialize and sync prompt
+    const serialized = serializeDOM(editor);
+    if (serialized !== promptRef.current) {
+      setPrompt(serialized);
+    }
+  }, [hasConnectedData]);
+
+  // ── KeyDown handler ───────────────────────────────────────────────────
+
+  const handleKeyDown = useCallback((e) => {
+    e.stopPropagation(); // prevent React Flow from stealing events
+
+    if (e.key === 'Escape' && atMenuOpenRef.current) {
+      atMenuOpenRef.current = false;
+      setAtReferenceState({ active: false, filter: '', position: null, startIndex: -1 });
+      e.preventDefault();
+      return;
+    }
+
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      handleSubmit();
+      return;
+    }
+
+    if (e.key === 'Backspace' || e.key === 'Delete') {
+      const editor = editorRef.current;
+      if (editor && deleteAdjacentChip(editor, e.key === 'Backspace' ? 'backspace' : 'delete')) {
+        e.preventDefault();
+        // Sync prompt after chip deletion
+        const serialized = serializeDOM(editor);
+        if (serialized !== promptRef.current) {
+          setPrompt(serialized);
+        }
+      }
+    }
+  }, [handleSubmit]);
+
+  // ── Paste handler ─────────────────────────────────────────────────────
+
+  const handlePaste = useCallback((e) => {
+    e.preventDefault();
+    const text = e.clipboardData.getData('text/plain');
+    if (text) {
+      document.execCommand('insertText', false, text);
+    }
+  }, []);
+
+  // ── Insert @-reference chip ──────────────────────────────────────────
 
   const insertReference = (sourceNode) => {
-    const before = prompt.substring(0, atReferenceState.startIndex);
-    const after = prompt.substring(atReferenceState.startIndex + atReferenceState.filter.length + 1);
-    const referenceTag = `@[${sourceNode.data.title || 'Untitled'}](ref:${sourceNode.id})`;
-    setPrompt(before + referenceTag + after);
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    const sel = window.getSelection();
+    const savedRange = savedRangeRef.current;
+
+    if (sel && savedRange && editor.contains(savedRange.startContainer)) {
+      // Get current cursor for filter text
+      const curRange = sel.rangeCount ? sel.getRangeAt(0) : null;
+
+      // Restore saved range
+      sel.removeAllRanges();
+      sel.addRange(savedRange);
+
+      // Delete from @ to current cursor (covers @ + filter text)
+      const deleteRange = document.createRange();
+      const cont = savedRange.startContainer;
+      const off = savedRange.startOffset;
+      if (off > 0) {
+        deleteRange.setStart(cont, off - 1); // the @ char
+      } else {
+        deleteRange.setStart(cont, 0);
+      }
+      if (curRange && editor.contains(curRange.startContainer)) {
+        deleteRange.setEnd(curRange.startContainer, curRange.startOffset);
+      } else {
+        deleteRange.setEnd(cont, off);
+      }
+      deleteRange.deleteContents();
+    }
+
+    // Insert chip
+    const title = sourceNode.data.title || 'Untitled';
+    const thumbUrl = sourceNode.data?.images?.[0]?.url;
+    insertChipAtEditor(editor, sourceNode.id, title, sourceNode.type, thumbUrl);
+
+    atMenuOpenRef.current = false;
     setAtReferenceState({ active: false, filter: '', position: null, startIndex: -1 });
   };
 
@@ -205,13 +502,37 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
       )
     : [];
 
-  // Split prompt for chip rendering
-  const promptParts = prompt ? prompt.split(/(@\[[^\]]*\]\(ref:[^)]*\))/) : [];
-  const promptHasRefs = promptParts.length > 1;
+  // ── Dock hover helpers ──────────────────────────────────────────────
+
+  const getDockScale = (idx) => {
+    if (hoveredDockIdx === null) return 1;
+    if (idx === hoveredDockIdx) return 1.25;
+    if (Math.abs(idx - hoveredDockIdx) === 1) return 1.10;
+    return 1;
+  };
+
+  const getDockX = (idx) => {
+    if (hoveredDockIdx === null) return 0;
+    if (idx === hoveredDockIdx) return 0;
+    if (Math.abs(idx - hoveredDockIdx) === 1) {
+      return (idx < hoveredDockIdx ? -1 : 1) * 10;
+    }
+    return 0;
+  };
+
+  const getDockOpacity = (idx) => {
+    if (hoveredDockIdx === null) return 0.65;
+    if (idx === hoveredDockIdx || Math.abs(idx - hoveredDockIdx) === 1) return 1;
+    return 0.4;
+  };
+
+  // ── Render ───────────────────────────────────────────────────────────
 
   return (
-    <div
-      ref={drawerRef}
+    <>
+      <div
+        ref={drawerRef}
+        className="nodrag"
       style={{
         position: 'absolute',
         left: 0,
@@ -223,6 +544,76 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
         transformOrigin: drawerDir === 'bottom' ? 'top center' : 'bottom center',
       }}
     >
+      {/* Floating ConnectedNodesPreview */}
+      {hasConnectedData && (
+        <div className="nodrag" style={{
+          position: 'absolute',
+          bottom: 'calc(100% + 6px)',
+          left: 0,
+          right: 0,
+          display: 'flex',
+          justifyContent: 'center',
+          zIndex: 10,
+          pointerEvents: 'auto',
+        }}>
+          <div style={{
+            display: 'flex',
+            gap: 4,
+            padding: '3px 8px',
+            background: 'var(--drawer-bg)',
+            border: '1px solid var(--drawer-border)',
+            borderRadius: 8,
+            backdropFilter: 'blur(20px)',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+            alignItems: 'center',
+          }}>
+            {validSourceNodes.map((sourceNode, idx) => {
+              const scale = getDockScale(idx);
+              const x = getDockX(idx);
+              const opacity = getDockOpacity(idx);
+              const isHovered = idx === hoveredDockIdx || (hoveredChipNodeId === sourceNode.id && hoveredDockIdx === null);
+              const sourceMeta = NODE_TYPE_REGISTRY[sourceNode.type] || NODE_TYPE_REGISTRY.image;
+              const sourceImages = sourceNode.data?.images || [];
+              const thumbSrc = sourceImages[0]?.url;
+              return (
+                <div
+                  key={sourceNode.id}
+                  onClick={(e) => { e.stopPropagation(); insertReference(sourceNode); }}
+                  onMouseEnter={() => setHoveredDockIdx(idx)}
+                  onMouseLeave={() => setHoveredDockIdx(null)}
+                  title={sourceNode.data.title || sourceMeta.title}
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 6,
+                    overflow: 'hidden',
+                    cursor: 'pointer',
+                    flexShrink: 0,
+                    transition: 'transform 0.2s var(--ease-out), opacity 0.2s var(--ease-out)',
+                    transform: `scale(${scale}) translateX(${x}px) translateY(${isHovered ? -4 : 0}px)`,
+                    opacity,
+                    background: isHovered ? 'var(--accent-soft)' : 'var(--panel-bg)',
+                    border: isHovered ? '1px solid var(--accent)' : '1px solid var(--drawer-border)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  {thumbSrc ? (
+                    <img src={thumbSrc} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                      onError={(e) => { e.target.style.display = 'none'; e.target.parentElement.style.background = 'var(--panel-bg)'; }} />
+                  ) : (
+                    <div style={{ color: sourceMeta.accentVar, opacity: 0.8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {sourceMeta.smallIcon}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div
         className="node-drawer-panel"
         style={{
@@ -234,236 +625,31 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
           backdropFilter: 'blur(20px)',
         }}
       >
-        {hasConnectedData && (
-          <div style={{ position: 'relative', marginBottom: 6 }}>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowConnectedDataMenu(!showConnectedDataMenu);
-              }}
-              style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 6,
-                padding: '5px 8px',
-                background: 'transparent',
-                border: '1px solid transparent',
-                borderRadius: 5,
-                fontSize: 10,
-                color: 'var(--text-tertiary)',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-                fontWeight: 500,
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="20 6 9 17 4 12"></polyline>
-                </svg>
-                <span>连接数据 ({validSourceNodes.length})</span>
-              </div>
-              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.7, transform: showConnectedDataMenu ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>
-                <polyline points="6 9 12 15 18 9"></polyline>
-              </svg>
-            </button>
-            {showConnectedDataMenu && (
-              <div style={{
-                position: 'absolute',
-                bottom: '100%',
-                left: 0,
-                right: 0,
-                marginBottom: 6,
-                background: 'var(--drawer-bg)',
-                border: '1px solid var(--drawer-border)',
-                borderRadius: 8,
-                boxShadow: '0 4px 20px rgba(0, 0, 0, 0.14)',
-                maxHeight: 180,
-                overflowY: 'auto',
-                zIndex: 10001,
-                animation: 'fadeIn 0.12s var(--ease-out)',
-              }}>
-                {validSourceNodes.map((sourceNode) => {
-                  const sourceContent = sourceNode.type === 'text'
-                    ? (sourceNode.data.result?.content || sourceNode.data.prompt)
-                    : '';
-                  const sourceImages = sourceNode.data?.images || [];
-                  return (
-                    <div
-                      key={sourceNode.id}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (sourceContent) {
-                          setPrompt(sourceContent);
-                          setShowConnectedDataMenu(false);
-                        }
-                      }}
-                      style={{
-                        padding: '8px 10px',
-                        fontSize: 10,
-                        color: 'var(--drawer-text)',
-                        background: 'transparent',
-                        cursor: sourceContent ? 'pointer' : 'default',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 3,
-                        transition: 'all 0.1s ease',
-                        borderBottom: '1px solid var(--drawer-border)',
-                      }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = sourceContent ? 'var(--accent-soft)' : 'transparent'; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, opacity: 0.8, flexWrap: 'wrap' }}>
-                        {(NODE_TYPE_REGISTRY[sourceNode.type] || NODE_TYPE_REGISTRY.image).smallIcon}
-                        <span style={{ fontWeight: 600, fontSize: 9 }}>
-                          {sourceNode.data.title || (NODE_TYPE_REGISTRY[sourceNode.type] || NODE_TYPE_REGISTRY.image).title}
-                        </span>
-                        {sourceNode.data.result && (
-                          <span style={{ fontSize: 8, padding: '1px 5px', borderRadius: 3, background: 'var(--accent-soft)', color: 'var(--accent-strong)' }}>done</span>
-                        )}
-                      </div>
-                      {sourceImages.length > 0 && (
-                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 2 }}>
-                          {sourceImages.map((img, i) => (
-                            img.type === 'video' ? (
-                              <div key={i} style={{
-                                width: 36, height: 36, borderRadius: 4, overflow: 'hidden',
-                                background: 'var(--accent-soft)',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                fontSize: 8, color: 'var(--accent-strong)',
-                              }}>
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="5 3 19 12 5 21 5 3" /></svg>
-                              </div>
-                            ) : (
-                              <div key={i} style={{ width: 36, height: 36, borderRadius: 4, overflow: 'hidden', background: 'var(--panel-bg)' }}>
-                                <img src={img.url} alt={img.name || ''} style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                  onError={(e) => { e.target.style.display = 'none'; }} />
-                              </div>
-                            )
-                          ))}
-                        </div>
-                      )}
-                      {sourceContent && (
-                        <div style={{ fontSize: 9, opacity: 0.6, lineHeight: 1.4, maxHeight: 48, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
-                          {sourceContent}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
-
         <div style={{ position: 'relative' }}>
-          <textarea
-            ref={textareaRef}
-            className="nowheel"
-            value={prompt}
-            onChange={handlePromptChange}
-            placeholder={node.type === 'text' ? '输入文本内容...' : '描述你想生成的内容...'}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape' && atReferenceState.active) {
-                setAtReferenceState({ active: false, filter: '', position: null, startIndex: -1 });
-                return;
+          {/* ContentEditable editor */}
+          <div
+            ref={editorRef}
+            contentEditable
+            className={'prompt-editor' + (isExpanded ? ' nd-expanded' : '')}
+            data-placeholder={node.type === 'text' ? '输入文本内容...' : '描述你想生成的内容...'}
+            onInput={handleInput}
+            onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
+            onMouseOver={(e) => {
+              const chip = e.target.closest('[data-ref-id]');
+              if (chip) {
+                const rect = chip.getBoundingClientRect();
+                setChipTooltip({ rect, label: chip.getAttribute('data-ref-label') });
+                setHoveredChipNodeId(chip.getAttribute('data-ref-id'));
               }
-              if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); handleSubmit(); }
             }}
-            style={{
-              width: '100%',
-              height: isExpanded ? 200 : 110,
-              background: 'transparent',
-              border: 'none',
-              borderRadius: 0,
-              padding: 0,
-              fontSize: 11,
-              color: promptHasRefs ? 'transparent' : 'var(--drawer-text)',
-              caretColor: 'var(--drawer-text)',
-              resize: 'none',
-              overflow: 'auto',
-              outline: 'none',
-              lineHeight: 1.5,
-              marginBottom: 0,
-              fontFamily: 'inherit',
-              position: 'relative',
-              zIndex: 2,
+            onMouseOut={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget)) {
+                setChipTooltip(null);
+                setHoveredChipNodeId(null);
+              }
             }}
           />
-
-          {/* Expand/collapse button */}
-          <button
-            onClick={(e) => { e.stopPropagation(); setIsExpanded(!isExpanded); }}
-            style={{
-              position: 'absolute',
-              top: 4,
-              right: 4,
-              zIndex: 3,
-              width: 20,
-              height: 20,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: 'var(--bg-secondary)',
-              border: '1px solid var(--drawer-border)',
-              borderRadius: 4,
-              color: 'var(--text-tertiary)',
-              cursor: 'pointer',
-              opacity: 0.7,
-              transition: 'opacity 0.15s, background 0.15s',
-              padding: 0,
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.background = 'var(--accent-soft)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.7'; e.currentTarget.style.background = 'var(--bg-secondary)'; }}
-            title={isExpanded ? '收起' : '展开'}
-          >
-            {isExpanded ? (
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="18 15 12 9 6 15" />
-              </svg>
-            ) : (
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
-            )}
-          </button>
-
-          {/* Mirror div for chip rendering */}
-          {promptHasRefs && (
-            <div style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              padding: 0,
-              fontSize: 11,
-              lineHeight: 1.5,
-              color: 'var(--drawer-text)',
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
-              pointerEvents: 'none',
-              fontFamily: 'inherit',
-              zIndex: 1,
-            }}>
-              {promptParts.map((segment, i) => {
-                if (segment.startsWith('@[') && segment.includes('](ref:')) {
-                  const title = segment.match(/@\[([^\]]*)\]/)?.[1] || '';
-                  return (
-                    <span key={i} style={{
-                      background: 'rgba(var(--accent-rgb), 0.15)',
-                      color: 'var(--accent-strong)',
-                      borderRadius: 4,
-                      padding: '1px 5px',
-                      fontSize: 10,
-                      fontWeight: 600,
-                    }}>
-                      @{title}
-                    </span>
-                  );
-                }
-                return <span key={i}>{segment}</span>;
-              })}
-            </div>
-          )}
 
           {/* @-reference typeahead dropdown */}
           {atReferenceState.active && (
@@ -622,6 +808,35 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
           <div style={{ flex: 1 }} />
 
           <button
+            onClick={(e) => { e.stopPropagation(); setIsExpanded(!isExpanded); }}
+            title={isExpanded ? '收起' : '展开'}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 24, height: 24, flexShrink: 0, marginRight: 6,
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--drawer-border)',
+              borderRadius: 5,
+              color: 'var(--text-tertiary)',
+              cursor: 'pointer',
+              opacity: 0.7,
+              transition: 'opacity 0.15s, background 0.15s',
+              padding: 0,
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.background = 'var(--accent-soft)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.7'; e.currentTarget.style.background = 'var(--bg-secondary)'; }}
+          >
+            {isExpanded ? (
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="18 15 12 9 6 15" />
+              </svg>
+            ) : (
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            )}
+          </button>
+
+          <button
             onClick={(e) => { e.stopPropagation(); handleSubmit(); }}
             disabled={isSubmitting}
             className="drawer-run-btn"
@@ -659,6 +874,28 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
         </div>
       </div>
     </div>
+      {chipTooltip && (
+        <div style={{
+          position: 'fixed',
+          left: chipTooltip.rect.left + chipTooltip.rect.width / 2,
+          top: chipTooltip.rect.top - 8,
+          transform: 'translate(-50%, -100%)',
+          zIndex: 10050,
+          padding: '3px 8px',
+          background: 'rgba(0,0,0,0.85)',
+          backdropFilter: 'blur(8px)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: 6,
+          fontSize: 11,
+          color: '#fff',
+          whiteSpace: 'nowrap',
+          pointerEvents: 'none',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+        }}>
+          {chipTooltip.label}
+        </div>
+      )}
+    </>
   );
 }
 

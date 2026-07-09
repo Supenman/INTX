@@ -12,7 +12,11 @@ import '@xyflow/react/dist/style.css';
 import ImageNode from './components/ImageNode';
 import TextNode from './components/TextNode';
 import VideoNode from './components/VideoNode';
-import MediaNode from './components/MediaNode';
+import SourceTextNode from './components/SourceTextNode';
+import SourceImageNode from './components/SourceImageNode';
+import SourceVideoNode from './components/SourceVideoNode';
+import SourceAudioNode from './components/SourceAudioNode';
+import SourceMarkdownNode from './components/SourceMarkdownNode';
 import GridBackground from './components/GridBackground';
 import Sidebar from './components/Sidebar';
 import NodeTypeMenu from './components/NodeTypeMenu';
@@ -40,8 +44,12 @@ function getInitialState() {
   try {
     const saved = loadCanvasState();
     if (saved && Array.isArray(saved.nodes) && saved.nodes.length > 0) {
+      // Migrate old media type nodes to source-image
+      const migratedNodes = saved.nodes.map(n =>
+        n.type === 'media' ? { ...n, type: 'source-image' } : n
+      );
       return {
-        nodes: saved.nodes,
+        nodes: migratedNodes,
         edges: saved.edges || [],
         counter: saved.nodeIdCounter || 1,
       };
@@ -57,6 +65,9 @@ function getEdgeColor(sourceType, isDark) {
     case 'image': return isDark ? 'rgba(94, 234, 212, 0.70)' : 'rgba(15, 159, 143, 0.70)';
     case 'text': return isDark ? 'rgba(247, 215, 116, 0.70)' : 'rgba(167, 101, 0, 0.70)';
     case 'video': return isDark ? 'rgba(192, 132, 252, 0.70)' : 'rgba(124, 58, 237, 0.70)';
+    case 'source-text':
+    case 'source-markdown': return isDark ? 'rgba(251, 191, 36, 0.70)' : 'rgba(217, 119, 6, 0.70)';
+    case 'source-audio': return isDark ? 'rgba(244, 114, 182, 0.70)' : 'rgba(219, 39, 119, 0.70)';
     default: return isDark ? 'rgba(94, 234, 212, 0.70)' : 'rgba(15, 159, 143, 0.70)';
   }
 }
@@ -241,6 +252,159 @@ function AppContent() {
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [handleUndo, handleRedo, handleDeleteNode]);
 
+  /* Canvas paste: create source nodes from clipboard content */
+  useEffect(() => {
+    const handler = (e) => {
+      const target = e.target;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.contentEditable === 'true') return;
+      if (clipboardRef.current) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      const dt = e.clipboardData;
+      if (!dt) return;
+
+      const vp = reactFlowInstance?.getViewport();
+      const baseX = vp ? (window.innerWidth / 2 - vp.x) / vp.zoom : 300;
+      const baseY = vp ? (window.innerHeight / 2 - vp.y) / vp.zoom : 200;
+
+      const offsets = [
+        { x: 0, y: 0 },
+        { x: 40, y: 40 },
+        { x: 80, y: 80 },
+        { x: -40, y: 40 },
+        { x: -80, y: 80 },
+      ];
+
+      let pastedCount = 0;
+
+      /* Helper: create a media node (image/video/audio) */
+      const pasteMediaNode = (nodeType, mw, mh, contentUrl, resultType, fileName, offsetIdx) => {
+        let w = 220, h = 220;
+        if (mw && mh) {
+          const MAX_DIM = 500;
+          const ratio = mw / mh;
+          if (mw > MAX_DIM || mh > MAX_DIM) {
+            if (mw > mh) { w = MAX_DIM; h = Math.round(w / ratio); }
+            else { h = MAX_DIM; w = Math.round(h * ratio); }
+          } else {
+            w = mw; h = mh;
+          }
+        }
+        const off = offsets[offsetIdx] || { x: 0, y: 0 };
+        const pid = String(nodeIdCounter);
+        const newNode = {
+          id: pid,
+          type: nodeType,
+          width: w,
+          height: h,
+          position: { x: baseX + off.x, y: baseY + off.y },
+          data: {
+            title: fileName || '粘贴',
+            prompt: '',
+            images: contentUrl ? [{ url: contentUrl, name: fileName || '粘贴', type: resultType || 'image' }] : [],
+            result: { type: resultType || 'image', url: contentUrl || '' },
+          },
+        };
+        if (mw && mh) newNode.data.mediaAspectRatio = w / h;
+        setNodes(ns => [...ns, newNode]);
+        setNodeIdCounter(c => c + 1);
+        pastedCount++;
+      };
+
+      /* ── Handle file from clipboard ── */
+      const file = dt.files?.[0];
+      if (file) {
+        if (file.size > 50 * 1024 * 1024) return;
+
+        const fileType = file.type.toLowerCase();
+        const fileName = file.name.toLowerCase();
+        let nodeType;
+        if (fileType.startsWith('video/') || /\.(mp4|webm|mov|m4v|avi|mkv)$/i.test(fileName)) {
+          nodeType = 'source-video';
+        } else if (fileType.startsWith('audio/') || /\.(mp3|wav|m4a|aac|ogg|flac)$/i.test(fileName)) {
+          nodeType = 'source-audio';
+        } else if (fileName.endsWith('.md')) {
+          nodeType = 'source-markdown';
+        } else if (fileType.startsWith('text/') || /\.(txt|json|csv|srt|vtt)$/i.test(fileName)) {
+          nodeType = 'source-text';
+        } else {
+          nodeType = 'source-image';
+        }
+
+        if (nodeType === 'source-video') {
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            const content = ev.target?.result;
+            const video = document.createElement('video');
+            video.preload = 'metadata';
+            video.onloadedmetadata = () => pasteMediaNode('source-video', video.videoWidth, video.videoHeight, content, 'video', file.name, 0);
+            video.onerror = () => pasteMediaNode('source-video', null, null, content, 'video', file.name, 0);
+            video.src = content;
+          };
+          reader.readAsDataURL(file);
+        } else if (nodeType === 'source-audio') {
+          const reader = new FileReader();
+          reader.onload = (ev) => pasteMediaNode('source-audio', null, null, ev.target?.result, 'audio', file.name, 0);
+          reader.readAsDataURL(file);
+        } else if (nodeType === 'source-text' || nodeType === 'source-markdown') {
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            const content = ev.target?.result;
+            const pid = String(nodeIdCounter);
+            const newNode = {
+              id: pid,
+              type: nodeType,
+              width: 373,
+              height: 210,
+              position: { x: baseX, y: baseY },
+              data: {
+                title: file.name,
+                prompt: '',
+                images: [],
+                result: { type: 'text', content },
+              },
+            };
+            setNodes(ns => [...ns, newNode]);
+            setNodeIdCounter(c => c + 1);
+          };
+          reader.readAsText(file);
+        } else {
+          compressImage(file).then(({ dataUrl, width, height }) => {
+            pasteMediaNode('source-image', width, height, dataUrl, 'image', file.name, 0);
+          }).catch(() => pasteMediaNode('source-image', null, null, null, 'image', file.name, 0));
+        }
+        return;
+      }
+
+      /* ── Handle plain text paste (no files) ── */
+      if (pastedCount === 0 && dt.types?.includes('text/plain')) {
+        const text = dt.getData('text/plain');
+        if (text?.trim()) {
+          const pid = String(nodeIdCounter);
+          const newNode = {
+            id: pid,
+            type: 'source-text',
+            width: 373,
+            height: 210,
+            position: { x: baseX, y: baseY },
+            data: {
+              title: '粘贴文本',
+              prompt: '',
+              images: [],
+              result: { type: 'text', content: text },
+            },
+          };
+          setNodes(ns => [...ns, newNode]);
+          setNodeIdCounter(c => c + 1);
+        }
+      }
+    };
+    window.addEventListener('paste', handler, true);
+    return () => window.removeEventListener('paste', handler, true);
+  }, [reactFlowInstance, nodeIdCounter, setNodes, setNodeIdCounter]);
+
   useEffect(() => {
     const loadApiProviders = async () => {
       try {
@@ -385,7 +549,10 @@ function AppContent() {
       ? reactFlowInstance.screenToFlowPosition(position)
       : { x: 200 + Math.random() * 200, y: 100 + Math.random() * 200 };
 
-    const title = type === 'image' ? '图片' : type === 'text' ? '文字' : type === 'video' ? '视频' : type === 'media' ? '上传文件' : '节点';
+    const title = type === 'image' ? '图片' : type === 'text' ? '文字' : type === 'video' ? '视频'
+      : type === 'source-text' ? '文本素材' : type === 'source-image' ? '图像素材'
+      : type === 'source-video' ? '视频素材' : type === 'source-audio' ? '音频素材'
+      : type === 'source-markdown' ? 'Markdown 素材' : '节点';
     const aspectRatio = '16:9';
     const { width, height } = getNodeSize(aspectRatio, type, {});
 
@@ -396,7 +563,7 @@ function AppContent() {
         title,
         prompt: '',
         images: [],
-        ...(type === 'media' ? {} : { aspectRatio, resolution: '1K', model: '' }),
+        ...(type.startsWith('source-') ? {} : { aspectRatio, resolution: '1K', model: '' }),
         ...(type === 'video' ? { duration: '5', fps: '30' } : {}),
       },
     };
@@ -487,10 +654,24 @@ function AppContent() {
     const position = reactFlowInstance
       ? reactFlowInstance.screenToFlowPosition({ x: e.clientX, y: e.clientY })
       : null;
-    const isVideo = file.type.startsWith('video/');
     const dropId = String(nodeIdCounter);
 
-    const createMediaNode = (mw, mh, contentUrl) => {
+    const fileType = file.type.toLowerCase();
+    const fileName = file.name.toLowerCase();
+    let nodeType;
+    if (fileType.startsWith('video/') || /\.(mp4|webm|mov|m4v|avi|mkv)$/i.test(fileName)) {
+      nodeType = 'source-video';
+    } else if (fileType.startsWith('audio/') || /\.(mp3|wav|m4a|aac|ogg|flac)$/i.test(fileName)) {
+      nodeType = 'source-audio';
+    } else if (fileName.endsWith('.md')) {
+      nodeType = 'source-markdown';
+    } else if (fileType.startsWith('text/') || /\.(txt|json|csv|srt|vtt)$/i.test(fileName)) {
+      nodeType = 'source-text';
+    } else {
+      nodeType = 'source-image';
+    }
+
+    const createMediaNode = (mw, mh, contentUrl, resultType) => {
       let w = 220, h = 220;
       if (mw && mh) {
         const MAX_DIM = 500;
@@ -504,37 +685,63 @@ function AppContent() {
       }
       const newNode = {
         id: dropId,
-        type: 'media',
+        type: nodeType,
         width: w,
         height: h,
         position: position || { x: 200 + Math.random() * 200, y: 100 + Math.random() * 200 },
         data: {
           title: file.name,
           prompt: '',
-          images: [{ url: contentUrl || '', name: file.name, type: isVideo ? 'video' : 'image' }],
-          result: { type: isVideo ? 'video' : 'image', url: contentUrl || '' },
+          images: contentUrl ? [{ url: contentUrl, name: file.name, type: resultType || 'image' }] : [],
+          result: { type: resultType || 'image', url: contentUrl || '' },
         },
       };
       if (mw && mh) newNode.data.mediaAspectRatio = w / h;
       setNodes(nodes => [...nodes, newNode]);
     };
 
-    if (isVideo) {
+    if (nodeType === 'source-video') {
       const reader = new FileReader();
       reader.onload = (ev) => {
         const content = ev.target?.result;
         const video = document.createElement('video');
         video.preload = 'metadata';
-        video.onloadedmetadata = () => createMediaNode(video.videoWidth, video.videoHeight, content);
-        video.onerror = () => createMediaNode(null, null, content);
+        video.onloadedmetadata = () => createMediaNode(video.videoWidth, video.videoHeight, content, 'video');
+        video.onerror = () => createMediaNode(null, null, content, 'video');
         video.src = content;
       };
       reader.readAsDataURL(file);
+    } else if (nodeType === 'source-audio') {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        createMediaNode(null, null, ev.target?.result, 'audio');
+      };
+      reader.readAsDataURL(file);
+    } else if (nodeType === 'source-text' || nodeType === 'source-markdown') {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const content = ev.target?.result;
+        const newNode = {
+          id: dropId,
+          type: nodeType,
+          width: 373,
+          height: 210,
+          position: position || { x: 200 + Math.random() * 200, y: 100 + Math.random() * 200 },
+          data: {
+            title: file.name,
+            prompt: '',
+            images: [],
+            result: { type: 'text', content: content },
+          },
+        };
+        setNodes(nodes => [...nodes, newNode]);
+      };
+      reader.readAsText(file);
     } else {
-      // Compress images client-side to avoid storing huge base64 in React state
+      // source-image: compress and create
       compressImage(file).then(({ dataUrl, width, height }) => {
-        createMediaNode(width, height, dataUrl);
-      }).catch(() => createMediaNode(null, null, null));
+        createMediaNode(width, height, dataUrl, 'image');
+      }).catch(() => createMediaNode(null, null, null, 'image'));
     }
 
     setNodeIdCounter(c => c + 1);
@@ -569,8 +776,18 @@ function AppContent() {
   const handleNodeClick = useCallback((event, nodeId) => {
     event.stopPropagation();
     const node = nodes.find(n => n.id === nodeId);
-    if (node?.type === 'media') {
+    if (node?.type?.startsWith('source-')) {
       if (node.data?.result) return;
+      if (node.type === 'source-text' || node.type === 'source-markdown') {
+        return; // handled by double-click in BaseNode
+      }
+      // Set accept filter based on source node type
+      const acceptMap = {
+        'source-image': 'image/*',
+        'source-video': 'video/*',
+        'source-audio': 'audio/*',
+      };
+      mediaFileInputRef.current.accept = acceptMap[node.type] || '*/*';
       pendingMediaNodeIdRef.current = nodeId;
       mediaFileInputRef.current?.click();
       return;
@@ -589,8 +806,9 @@ function AppContent() {
     if (!nodeId) return;
 
     const isVideo = file.type.startsWith('video/');
+    const isAudio = file.type.startsWith('audio/');
 
-    const updateNode = (mw, mh, contentUrl) => {
+    const updateNode = (mw, mh, contentUrl, resultType) => {
       let w = 220, h = 220, ar = null;
       if (mw && mh) {
         const MAX_DIM = 500;
@@ -603,6 +821,7 @@ function AppContent() {
         }
         ar = w / h;
       }
+      const resType = resultType || (isVideo ? 'video' : isAudio ? 'audio' : 'image');
       setNodes(nds => nds.map(n =>
         n.id === nodeId
           ? {
@@ -610,8 +829,8 @@ function AppContent() {
               data: {
                 ...n.data, mediaAspectRatio: ar, title: file.name, prompt: '',
                 mediaWidth: mw, mediaHeight: mh,
-                images: [{ url: contentUrl || '', name: file.name, type: isVideo ? 'video' : 'image' }],
-                result: { type: isVideo ? 'video' : 'image', url: contentUrl || '' },
+                images: [{ url: contentUrl || '', name: file.name, type: resType }],
+                result: { type: resType, url: contentUrl || '' },
               },
             }
           : n
@@ -625,15 +844,21 @@ function AppContent() {
         const content = ev.target?.result;
         const video = document.createElement('video');
         video.preload = 'metadata';
-        video.onloadedmetadata = () => updateNode(video.videoWidth, video.videoHeight, content);
-        video.onerror = () => updateNode(null, null, content);
+        video.onloadedmetadata = () => updateNode(video.videoWidth, video.videoHeight, content, 'video');
+        video.onerror = () => updateNode(null, null, content, 'video');
         video.src = content;
+      };
+      reader.readAsDataURL(file);
+    } else if (isAudio) {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        updateNode(null, null, ev.target?.result, 'audio');
       };
       reader.readAsDataURL(file);
     } else {
       compressImage(file).then(({ dataUrl, width, height }) => {
-        updateNode(width, height, dataUrl);
-      }).catch(() => updateNode(null, null, null));
+        updateNode(width, height, dataUrl, 'image');
+      }).catch(() => updateNode(null, null, null, 'image'));
     }
 
     e.target.value = '';
@@ -953,9 +1178,8 @@ function AppContent() {
         const sourceNode = nds.find((n) => n.id === params.source);
         if (sourceNode) {
           sourceType = sourceNode.type || 'image';
-          // Only copy text content from text nodes — media/image/video nodes
-          // pass their images/videos through reference collection at submit time
-          const sourceContent = sourceNode.type === 'text'
+          // Copy text content from text and source-text/source-markdown nodes
+          const sourceContent = (sourceNode.type === 'text' || sourceNode.type === 'source-text' || sourceNode.type === 'source-markdown')
             ? sourceNode.data.result?.content
             : null;
           if (sourceContent) {
@@ -1117,7 +1341,11 @@ function AppContent() {
     image: (props) => <ImageNode {...props} />,
     text: (props) => <TextNode {...props} />,
     video: (props) => <VideoNode {...props} />,
-    media: (props) => <MediaNode {...props} />,
+    'source-text': (props) => <SourceTextNode {...props} />,
+    'source-image': (props) => <SourceImageNode {...props} />,
+    'source-video': (props) => <SourceVideoNode {...props} />,
+    'source-audio': (props) => <SourceAudioNode {...props} />,
+    'source-markdown': (props) => <SourceMarkdownNode {...props} />,
   }), []);
 
   const contextValue = useMemo(() => ({ isConnecting }), [isConnecting]);
@@ -1325,7 +1553,7 @@ function AppContent() {
           onDelete={handleDeleteProject}
           onRename={handleRenameProject}
         />
-        <input ref={mediaFileInputRef} type="file" accept="image/*,video/*" onChange={handleMediaFileChange} style={{ display: 'none' }} />
+        <input ref={mediaFileInputRef} type="file" accept="image/*,video/*,audio/*" onChange={handleMediaFileChange} style={{ display: 'none' }} />
         <StatusLog
           entries={statusLogEntries}
           isOpen={statusLogOpen}

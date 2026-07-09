@@ -7,10 +7,7 @@ export function snapToGrid(value) {
 }
 
 export function getNodeSize(aspectRatio, type) {
-  if (type === 'text') {
-    return { width: 373, height: 210 };
-  }
-  if (type === 'media') {
+  if (type === 'text' || type.startsWith('source-')) {
     return { width: 373, height: 210 };
   }
 
