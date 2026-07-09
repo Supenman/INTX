@@ -347,7 +347,7 @@ function BaseNode({ id, type, data, selected }) {
       }}>
       <div
         ref={cardRef}
-        className="node-card"
+        className={`node-card${selected ? ' selected' : ''}`}
         onClick={(e) => {
           if (!isDisabled) handleNodeClick(e, id);
         }}

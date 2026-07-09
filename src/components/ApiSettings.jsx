@@ -25,7 +25,7 @@ function getProtocolLabel(protocol) {
   return found ? found.label : protocol || 'OpenAI 兼容';
 }
 
-export default function ApiSettings({ onClose, onUpdate }) {
+export default function ApiSettings({ onClose, onUpdate, embedded }) {
   const [providers, setProviders] = useState([]);
   const [selectedProviderId, setSelectedProviderId] = useState(null);
   const [status, setStatus] = useState('');
@@ -191,20 +191,21 @@ export default function ApiSettings({ onClose, onUpdate }) {
     updateProvider({ [`${type}_models`]: current.filter((_, i) => i !== index) });
   };
 
-  return (
-    <div style={overlayStyle} onClick={onClose}>
-      <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
+  const content = (
+    <>
+      {!embedded && (
         <div style={headerStyle}>
           <h2 style={titleStyle}>API 设置</h2>
           <button style={closeButtonStyle} onClick={onClose}>
             <CloseIcon />
           </button>
         </div>
+      )}
 
-        <div style={layoutStyle}>
-          <aside style={sidebarStyle}>
-            <div style={sectionTitleStyle}>平台列表</div>
-            <div style={providerListStyle}>
+      <div style={embedded ? embeddedLayoutStyle : layoutStyle}>
+        <aside style={sidebarStyle}>
+          <div style={sectionTitleStyle}>平台列表</div>
+          <div style={providerListStyle}>
               {providers.map((p) => {
                 const badge = getProtocolBadge(p.protocol);
                 const enabled = p.enabled !== false;
@@ -285,9 +286,18 @@ export default function ApiSettings({ onClose, onUpdate }) {
             onClose={() => setIsModelPickerOpen(false)}
           />
         )}
+      </>
+    );
+
+    if (embedded) return content;
+
+    return (
+      <div style={overlayStyle} onClick={onClose}>
+        <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
+          {content}
+        </div>
       </div>
-    </div>
-  );
+    );
 }
 
 function CloseIcon() {
@@ -329,6 +339,12 @@ const layoutStyle = {
   display: 'grid', gridTemplateColumns: '220px minmax(0, 1fr)',
   alignItems: 'start', padding: '18px', gap: 18,
   overflowY: 'auto', flex: 1,
+};
+
+const embeddedLayoutStyle = {
+  display: 'grid', gridTemplateColumns: '220px minmax(0, 1fr)',
+  alignItems: 'start', padding: '18px', gap: 18,
+  flex: 1, minHeight: 0,
 };
 
 const sidebarStyle = {

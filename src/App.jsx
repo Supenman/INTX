@@ -7,6 +7,9 @@ import {
   Controls,
   MiniMap,
   MarkerType,
+  SelectionMode,
+  useStoreApi,
+  ReactFlowProvider,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import ImageNode from './components/ImageNode';
@@ -22,7 +25,7 @@ import Sidebar from './components/Sidebar';
 import NodeTypeMenu from './components/NodeTypeMenu';
 import NodeContextMenu from './components/NodeContextMenu';
 import StatusLog from './components/StatusLog';
-import ApiSettings from './components/ApiSettings';
+import SettingsPanel from './components/SettingsPanel';
 import AlignmentGuides from './components/AlignmentGuides';
 import { ConnectionContext } from './ConnectionContext';
 import { ThemeProvider, useTheme } from './ThemeContext';
@@ -74,7 +77,6 @@ function getEdgeColor(sourceType, isDark) {
 
 function AppContent() {
   const reactFlowWrapper = useRef(null);
-  const addButtonRef = useRef(null);
   const mediaFileInputRef = useRef(null);
   const pendingMediaNodeIdRef = useRef(null);
   const initialState = useMemo(() => getInitialState(), []);
@@ -94,13 +96,12 @@ function AppContent() {
     source: null,
   });
   const [isConnecting, setIsConnecting] = useState(false);
-  const [isApiSettingsOpen, setIsApiSettingsOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [apiProviders, setApiProviders] = useState([]);
   const [nodeStates, setNodeStates] = useState({});
   const clipboardRef = useRef(null);
   const connectionSourceRef = useRef(null);
   const pendingConnectionDropRef = useRef(false);
-  const lastClickRef = useRef({ time: 0, x: 0, y: 0 });
   const [nodeContextMenu, setNodeContextMenu] = useState({
     visible: false,
     position: { x: 0, y: 0 },
@@ -148,12 +149,12 @@ function AppContent() {
     setApiProviders(providers);
   }, []);
 
-  const handleOpenApiSettings = useCallback(() => {
-    setIsApiSettingsOpen(true);
+  const handleOpenSettings = useCallback(() => {
+    setIsSettingsOpen(true);
   }, []);
 
-  const handleCloseApiSettings = useCallback(() => {
-    setIsApiSettingsOpen(false);
+  const handleCloseSettings = useCallback(() => {
+    setIsSettingsOpen(false);
   }, []);
 
   /* Stable refs so customNodeTypes useMemo can have empty deps */
@@ -161,6 +162,10 @@ function AppContent() {
   latestNodes.current = nodes;
   const latestEdges = useRef(edges);
   latestEdges.current = edges;
+
+  /* Refs for keyboard handler (avoids adding fast-changing state to deps) */
+  const keyboardDataRef = useRef({ nodeIdCounter, currentProjectId, nodeStates });
+  keyboardDataRef.current = { nodeIdCounter, currentProjectId, nodeStates };
 
   /* Undo / Redo */
   const prevNodesRef = useRef(nodes);
@@ -232,7 +237,7 @@ function AppContent() {
     setActiveNodeId(null);
   }, [activeNodeId, setNodes, setEdges]);
 
-  /* Keyboard shortcuts: Ctrl+Z / Ctrl+Y */
+  /* Keyboard shortcuts: Ctrl+Z / Ctrl+Y / Ctrl+S / F / M / Delete */
   useEffect(() => {
     const onKeyDown = (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
@@ -243,14 +248,34 @@ function AppContent() {
         e.preventDefault();
         handleRedo();
       }
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        const d = keyboardDataRef.current;
+        if (d.currentProjectId) {
+          saveProject(d.currentProjectId, {
+            nodes: latestNodes.current,
+            edges: latestEdges.current,
+            nodeIdCounter: d.nodeIdCounter,
+            nodeStates: d.nodeStates,
+          });
+        }
+      }
       if (!(e.ctrlKey || e.metaKey) && (e.key === 'Delete' || e.key === 'Backspace')) {
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
         handleDeleteNode();
       }
+      if (!(e.ctrlKey || e.metaKey) && e.key === 'f') {
+        e.preventDefault();
+        reactFlowInstanceRef.current?.fitView({ padding: 0.2 });
+      }
+      if (!(e.ctrlKey || e.metaKey) && e.key === 'm') {
+        e.preventDefault();
+        setShowMinimap(v => !v);
+      }
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [handleUndo, handleRedo, handleDeleteNode]);
+  }, [handleUndo, handleRedo, handleDeleteNode, setShowMinimap]);
 
   /* Canvas paste: create source nodes from clipboard content */
   useEffect(() => {
@@ -404,6 +429,128 @@ function AppContent() {
     window.addEventListener('paste', handler, true);
     return () => window.removeEventListener('paste', handler, true);
   }, [reactFlowInstance, nodeIdCounter, setNodes, setNodeIdCounter]);
+
+  const storeApi = useStoreApi();
+
+  /* ── Fix box selection: d3-zoom intercepts left-click pointer events even
+      with panOnDrag={[1]}, preventing React Flow's selection. We intercept
+      left-click pointerdown on the renderer (capture phase), stop propagation
+      to keep d3-zoom from capturing the pointer, and handle selection ourselves. ── */
+  useEffect(() => {
+    let startX, startY;
+    let selInProgress = false;
+
+    const getPane = () => document.querySelector('.react-flow__pane');
+
+    const onPointerDown = (e) => {
+      // Only handle events on the renderer background (capture phase)
+      if (e.button !== 0) return;
+      const target = e.target;
+      if (!target.closest || !target.closest('.react-flow__renderer')) return;
+      if (target.closest('.react-flow__node, .react-flow__edge, .react-flow__handle')) return;
+
+      const pane = getPane();
+      if (!pane) return;
+
+      e.stopPropagation();
+
+      startX = e.clientX;
+      startY = e.clientY;
+      selInProgress = false;
+
+      const paneBounds = pane.getBoundingClientRect();
+      const x = e.clientX - paneBounds.left;
+      const y = e.clientY - paneBounds.top;
+      storeApi.setState({
+        userSelectionRect: { x, y, width: 0, height: 0, startX: x, startY: y },
+      });
+    };
+
+    const onPointerMove = (e) => {
+      if (startX == null) return;
+      const pane = getPane();
+      if (!pane) return;
+
+      const paneBounds = pane.getBoundingClientRect();
+      const cx = e.clientX - paneBounds.left;
+      const cy = e.clientY - paneBounds.top;
+      const sx = startX - paneBounds.left;
+      const sy = startY - paneBounds.top;
+
+      const rect = {
+        x: Math.min(cx, sx),
+        y: Math.min(cy, sy),
+        width: Math.abs(cx - sx),
+        height: Math.abs(cy - sy),
+        startX: sx,
+        startY: sy,
+      };
+
+      if (!selInProgress) {
+        selInProgress = true;
+        storeApi.getState().resetSelectedElements();
+      }
+
+      storeApi.setState({ userSelectionRect: rect, userSelectionActive: true });
+    };
+
+    const onPointerUp = (e) => {
+      if (startX == null) return;
+
+      if (selInProgress) {
+        const state = storeApi.getState();
+
+        const flowTL = reactFlowInstanceRef.current?.screenToFlowPosition({
+          x: Math.min(startX, e.clientX),
+          y: Math.min(startY, e.clientY),
+        });
+        const flowBR = reactFlowInstanceRef.current?.screenToFlowPosition({
+          x: Math.max(startX, e.clientX),
+          y: Math.max(startY, e.clientY),
+        });
+
+        if (flowTL && flowBR) {
+          const selFlowRect = {
+            x: flowTL.x,
+            y: flowTL.y,
+            width: flowBR.x - flowTL.x,
+            height: flowBR.y - flowTL.y,
+          };
+
+          const ids = [];
+          for (const [id, node] of state.nodeLookup) {
+            const absPos = node.internals?.positionAbsolute;
+            if (!absPos || !node.measured) continue;
+            const nr = {
+              x: absPos.x, y: absPos.y,
+              width: node.measured.width ?? 0,
+              height: node.measured.height ?? 0,
+            };
+            if (rectsIntersect(selFlowRect, nr)) ids.push(id);
+          }
+
+          if (ids.length > 0) state.addSelectedNodes(ids);
+        }
+      } else {
+        // Simple click on empty canvas — deselect all
+        storeApi.getState().resetSelectedElements();
+      }
+
+      storeApi.setState({ userSelectionActive: false, userSelectionRect: null });
+      startX = null;
+    };
+
+    // Use capture phase on document to catch events before d3-zoom
+    document.addEventListener('pointerdown', onPointerDown, true);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown, true);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+    };
+  }, [storeApi]);
 
   useEffect(() => {
     const loadApiProviders = async () => {
@@ -598,15 +745,6 @@ function AppContent() {
     connectionSourceRef.current = null;
     pendingConnectionDropRef.current = false;
     setIsConnecting(false);
-  }, []);
-
-  const handleAddNodeClick = useCallback(() => {
-    const rect = addButtonRef.current.getBoundingClientRect();
-    setMenuState({
-      visible: true,
-      position: { x: rect.right + 12, y: rect.top },
-      source: 'button',
-    });
   }, []);
 
   const handlePaneContextMenu = useCallback((e) => {
@@ -1368,13 +1506,11 @@ function AppContent() {
 
   return (
     <ConnectionContext.Provider value={contextValue}>
-      <ActiveNodeContext.Provider value={{ activeNodeId, handleNodeClick, handleSubmit, handleNodeTypeChange, handleUpdateResult, handleRenameNode, handleUpdateNodeData, handleResizeNode, handleOpenApiSettings, handleNodeContextMenu, apiProviders, nodeStates, nodes: latestNodes.current, edges: latestEdges.current }}>
+      <ActiveNodeContext.Provider value={{ activeNodeId, handleNodeClick, handleSubmit, handleNodeTypeChange, handleUpdateResult, handleRenameNode, handleUpdateNodeData, handleResizeNode, handleOpenSettings, handleNodeContextMenu, apiProviders, nodeStates, nodes: latestNodes.current, edges: latestEdges.current }}>
       <div ref={reactFlowWrapper} style={{ width: '100%', height: '100%' }}
             onDragOver={handleDragOver}
             onDrop={handleFileDrop}>
         <Sidebar
-          onAddNodeClick={handleAddNodeClick}
-          addButtonRef={addButtonRef}
           toggleTheme={toggleTheme}
           currentTheme={isDark ? 'dark' : 'light'}
           onOpenProjectSelector={handleOpenProjectSelector}
@@ -1382,7 +1518,7 @@ function AppContent() {
           canRedo={canRedo}
           onUndo={handleUndo}
           onRedo={handleRedo}
-          onOpenApiSettings={handleOpenApiSettings}
+          onOpenSettings={handleOpenSettings}
           showMinimap={showMinimap}
           onToggleMinimap={() => setShowMinimap(v => !v)}
           statusLogOpen={statusLogOpen}
@@ -1411,9 +1547,13 @@ function AppContent() {
             strokeWidth: 1.5,
             strokeDasharray: '4 4',
           }}
-          panOnScroll={false}
-          zoomOnScroll={false}
+          panOnDrag={[1]}
+          panOnScroll
+          panOnScrollMode="vertical"
+          zoomOnScroll
           zoomOnPinch
+          selectionOnDrag
+          selectionMode={SelectionMode.Partial}
           zoomOnDoubleClick={false}
           onPaneClick={(e) => {
             if (pendingConnectionDropRef.current) {
@@ -1426,21 +1566,6 @@ function AppContent() {
             }
             if (nodeContextMenu.visible) {
               handleCloseContextMenu();
-            }
-            // Double-click detection via timing
-            const now = Date.now();
-            const last = lastClickRef.current;
-            if (now - last.time < 350 && Math.abs(e.clientX - last.x) < 20 && Math.abs(e.clientY - last.y) < 20) {
-              if (!e.target?.closest?.('.react-flow__node')) {
-                setMenuState({
-                  visible: true,
-                  position: { x: e.clientX, y: e.clientY },
-                  source: 'doubleclick',
-                });
-              }
-              lastClickRef.current = { time: 0, x: 0, y: 0 };
-            } else {
-              lastClickRef.current = { time: now, x: e.clientX, y: e.clientY };
             }
           }}
           onPaneContextMenu={handlePaneContextMenu}
@@ -1526,7 +1651,7 @@ function AppContent() {
             position={menuState.position}
             onSelect={handleMenuSelect}
             onClose={handleCloseMenu}
-            triggerButtonRef={menuState.source === "button" ? addButtonRef : null}
+            triggerButtonRef={null}
           />
         )}
         {nodeContextMenu.visible && (
@@ -1540,8 +1665,8 @@ function AppContent() {
             onClose={handleCloseContextMenu}
           />
         )}
-        {isApiSettingsOpen && (
-          <ApiSettings onClose={handleCloseApiSettings} onUpdate={handleApiUpdate} />
+        {isSettingsOpen && (
+          <SettingsPanel onClose={handleCloseSettings} onApiUpdate={handleApiUpdate} />
         )}
         <ProjectSelector
           open={projectSelectorOpen}
@@ -1569,7 +1694,14 @@ function AppContent() {
 export default function App() {
   return (
     <ThemeProvider>
-      <AppContent />
+      <ReactFlowProvider>
+        <AppContent />
+      </ReactFlowProvider>
     </ThemeProvider>
   );
+}
+
+/* ── Helper: check if two axis-aligned rectangles intersect (for box selection) ── */
+function rectsIntersect(a, b) {
+  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
 }

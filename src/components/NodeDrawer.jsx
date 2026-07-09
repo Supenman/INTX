@@ -207,7 +207,7 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
   promptRef.current = prompt;
 
   const config = NODE_TYPE_REGISTRY[node.type] || NODE_TYPE_REGISTRY.image;
-  const { handleOpenApiSettings, handleUpdateNodeData } = useActiveNode() || {};
+  const { handleOpenSettings, handleUpdateNodeData } = useActiveNode() || {};
   const connectedSourceNodes = node.connectedSourceNodes || [];
   const validSourceNodes = connectedSourceNodes.filter(sourceNode => {
     const hasImages = sourceNode.data?.images?.length > 0;
@@ -766,7 +766,7 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                handleOpenApiSettings && handleOpenApiSettings();
+                handleOpenSettings && handleOpenSettings();
               }}
               style={{ ...triggerBtnBase, maxWidth: 58, minWidth: 0, gap: 3, color: 'var(--accent)' }}
               title="配置 API 平台"

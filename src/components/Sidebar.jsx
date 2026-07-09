@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTheme } from '../ThemeContext';
 
-function Sidebar({ onAddNodeClick, addButtonRef, toggleTheme, onOpenProjectSelector, canUndo, canRedo, onUndo, onRedo, onOpenApiSettings, showMinimap, onToggleMinimap, statusLogOpen, onToggleStatusLog, statusLogHasEntries }) {
+function Sidebar({ toggleTheme, onOpenProjectSelector, canUndo, canRedo, onUndo, onRedo, onOpenSettings, showMinimap, onToggleMinimap, statusLogOpen, onToggleStatusLog, statusLogHasEntries }) {
   const [hoveredItem, setHoveredItem] = useState(null);
   const { isDark } = useTheme();
 
@@ -25,28 +25,6 @@ function Sidebar({ onAddNodeClick, addButtonRef, toggleTheme, onOpenProjectSelec
 
   return (
     <nav style={sidebarStyle} aria-label="BeastTV 工具栏">
-      <div style={brandStyle} aria-hidden="true">
-        <span style={brandSignalStyle} />
-        <span style={brandTextStyle}>BTV</span>
-      </div>
-
-      <button
-        ref={addButtonRef}
-        onClick={onAddNodeClick}
-        style={{ ...getItemStyle(hoveredItem === 'add'), color: 'var(--accent-strong)' }}
-        onMouseEnter={() => setHoveredItem('add')}
-        onMouseLeave={() => setHoveredItem(null)}
-        aria-label="添加节点"
-      >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-          <line x1="12" y1="5" x2="12" y2="19" />
-          <line x1="5" y1="12" x2="19" y2="12" />
-        </svg>
-        <span style={{ ...tooltipStyle, opacity: hoveredItem === 'add' ? 1 : 0, transform: `translateY(-50%) ${hoveredItem === 'add' ? 'translateX(4px)' : ''}` }}>添加节点</span>
-      </button>
-
-      <div style={dividerStyle}></div>
-
       <button
         onClick={onOpenProjectSelector}
         style={{ ...getItemStyle(hoveredItem === 'projects') }}
@@ -95,17 +73,17 @@ function Sidebar({ onAddNodeClick, addButtonRef, toggleTheme, onOpenProjectSelec
       <div style={dividerStyle}></div>
 
       <button
-        onClick={onOpenApiSettings}
-        style={{ ...getItemStyle(hoveredItem === 'api') }}
-        onMouseEnter={() => setHoveredItem('api')}
+        onClick={onOpenSettings}
+        style={{ ...getItemStyle(hoveredItem === 'settings') }}
+        onMouseEnter={() => setHoveredItem('settings')}
         onMouseLeave={() => setHoveredItem(null)}
-        aria-label="API 设置"
+        aria-label="设置"
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="16 18 22 12 16 6" />
-          <polyline points="8 6 2 12 8 18" />
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
         </svg>
-        <span style={{ ...tooltipStyle, opacity: hoveredItem === 'api' ? 1 : 0, transform: `translateY(-50%) ${hoveredItem === 'api' ? 'translateX(4px)' : ''}` }}>API 设置</span>
+        <span style={{ ...tooltipStyle, opacity: hoveredItem === 'settings' ? 1 : 0, transform: `translateY(-50%) ${hoveredItem === 'settings' ? 'translateX(4px)' : ''}` }}>设置</span>
       </button>
 
       <div style={dividerStyle}></div>
@@ -157,7 +135,7 @@ function Sidebar({ onAddNodeClick, addButtonRef, toggleTheme, onOpenProjectSelec
           <rect x="2" y="14" width="8" height="8" rx="1" />
           <rect x="14" y="14" width="8" height="8" rx="1" />
         </svg>
-        <span style={{ ...tooltipStyle, opacity: hoveredItem === 'minimap' ? 1 : 0, transform: `translateY(-50%) ${hoveredItem === 'minimap' ? 'translateX(4px)' : ''}` }}>小地图</span>
+        <span style={{ ...tooltipStyle, opacity: hoveredItem === 'minimap' ? 1 : 0, transform: `translateY(-50%) ${hoveredItem === 'minimap' ? 'translateX(4px)' : ''}` }}>小地图 M</span>
       </button>
 
       <button
@@ -192,35 +170,6 @@ const sidebarStyle = {
   gap: 2,
   minWidth: 46,
   transition: 'all 0.3s var(--ease-out)',
-};
-
-const brandStyle = {
-  width: 38,
-  minHeight: 36,
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: 4,
-  marginBottom: 2,
-  borderRadius: 10,
-  background: 'var(--accent-soft)',
-  border: '1px solid var(--panel-border)',
-};
-
-const brandSignalStyle = {
-  width: 14,
-  height: 2.5,
-  borderRadius: 99,
-  background: 'linear-gradient(90deg, var(--signal-image), var(--signal-text), var(--signal-video))',
-  boxShadow: '0 0 8px rgba(124, 107, 246, 0.20)',
-};
-
-const brandTextStyle = {
-  fontSize: 8,
-  fontWeight: 800,
-  letterSpacing: '0.06em',
-  color: 'var(--sidebar-text)',
 };
 
 const dividerStyle = {
