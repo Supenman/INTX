@@ -41,6 +41,7 @@
   --text-primary: #ebebef;
   --text-secondary: rgba(235, 235, 239, 0.58);
   --text-tertiary: rgba(235, 235, 239, 0.36);
+  --text-primary-rgb: 235, 235, 239;
   --border-color: rgba(255, 255, 255, 0.05);
   --radius-sm: 8px;
   --radius-md: 12px;
@@ -120,6 +121,7 @@ html[data-theme="light"] {
   --text-primary: #1a1a20;
   --text-secondary: rgba(26, 26, 32, 0.58);
   --text-tertiary: rgba(26, 26, 32, 0.36);
+  --text-primary-rgb: 26, 26, 32;
   --border-color: rgba(0, 0, 0, 0.06);
 
   --panel-text-primary: var(--text-primary);
@@ -300,10 +302,49 @@ html[data-theme="light"] ::selection {
   transform: translateY(-50%) scale(0.9);
 }
 
-/* Selected node: accent border + glow (matches AI-Canvas style) */
+/* Selected node: neutral highlight */
 .node-card.selected {
-  border: 1px solid var(--accent) !important;
-  box-shadow: 0 0 0 1px var(--accent-glow), 0 8px 32px rgba(124, 107, 246, 0.12) !important;
+  border: 1px solid rgba(var(--text-primary-rgb), 0.45) !important;
+  box-shadow: 0 0 0 1px rgba(var(--text-primary-rgb), 0.15), 0 8px 32px rgba(0, 0, 0, 0.20) !important;
+}
+
+/* Selection rectangle (drag to select) */
+.react-flow__selection {
+  background-color: rgba(var(--text-primary-rgb), 0.10) !important;
+  border: 1px solid rgba(var(--text-primary-rgb), 0.28) !important;
+  border-radius: 8px;
+}
+
+html[data-theme="light"] .react-flow__selection {
+  background-color: rgba(var(--text-primary-rgb), 0.07) !important;
+  border: 1px solid rgba(var(--text-primary-rgb), 0.20) !important;
+}
+
+/* Nodes selection bounding box (包围框) */
+.react-flow__nodesselection-rect {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 6px;
+  animation: selectionFadeIn 0.18s var(--ease-out);
+}
+
+/* Expanded fill + dashed border via pseudo-element */
+.react-flow__nodesselection-rect::before {
+  content: '';
+  position: absolute;
+  top: -24px;
+  left: -24px;
+  right: -24px;
+  bottom: -24px;
+  background: rgba(var(--text-primary-rgb), 0.05);
+  border: 1px dashed rgba(var(--text-primary-rgb), 0.30);
+  border-radius: 10px;
+  pointer-events: none;
+}
+
+@keyframes selectionFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @keyframes fadeIn {

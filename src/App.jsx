@@ -1,15 +1,15 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import {
   ReactFlow,
-  useNodesState,
-  useEdgesState,
   addEdge,
+  applyNodeChanges,
+  applyEdgeChanges,
   Controls,
   MiniMap,
   MarkerType,
   SelectionMode,
-  useStoreApi,
   ReactFlowProvider,
+  useStoreApi,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import ImageNode from './components/ImageNode';
@@ -80,9 +80,151 @@ function AppContent() {
   const mediaFileInputRef = useRef(null);
   const pendingMediaNodeIdRef = useRef(null);
   const initialState = useMemo(() => getInitialState(), []);
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialState.nodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialState.edges);
+  const snapThreshold = 12;
+  const [guideLines, setGuideLines] = useState([]);
+  const draggingNodeRef = useRef(null);
+  const [nodes, setNodes] = useState(initialState.nodes);
+  const [edges, setEdges] = useState(initialState.edges);
   const [reactFlowInstance, setReactFlowInstance] = useState(null);
+  const storeApi = useStoreApi();
+
+  const onEdgesChange = useCallback((changes) => {
+    setEdges((eds) => applyEdgeChanges(changes, eds));
+  }, []);
+
+  const onNodesChange = useCallback((changes) => {
+    // Intercept drag position changes to apply alignment snap
+    // before positions reach React Flow's store. Single-node drags snap
+    // the node directly; multi-node drags snap the selection bounding box
+    // and apply the same delta to all dragged nodes.
+    setNodes((nds) => {
+      const dragPosChanges = changes.filter(
+        (c) => c.type === 'position' && c.dragging && c.position !== undefined
+      );
+
+      if (dragPosChanges.length === 0) {
+        return applyNodeChanges(changes, nds);
+      }
+
+      // --- Single-node drag: direct snap ---
+      if (dragPosChanges.length === 1) {
+        const dc = dragPosChanges[0];
+        if (!dc.position) {
+          return applyNodeChanges(changes, nds);
+        }
+        const dragNode = nds.find((n) => n.id === dc.id);
+        if (!dragNode) {
+          return applyNodeChanges(changes, nds);
+        }
+
+        const otherNodes = nds
+          .filter((n) => n.id !== dc.id)
+          .map((n) => ({
+            id: n.id,
+            position: { x: n.position.x, y: n.position.y },
+            width: n.measured?.width ?? n.width ?? 200,
+            height: n.measured?.height ?? n.height ?? 200,
+          }));
+
+        const result = computeAlignmentSnap(
+          {
+            id: dc.id,
+            position: { x: dc.position.x, y: dc.position.y },
+            width: dragNode.measured?.width ?? dragNode.width ?? 200,
+            height: dragNode.measured?.height ?? dragNode.height ?? 200,
+          },
+          otherNodes,
+          snapThreshold
+        );
+
+        setGuideLines(result.guides);
+
+        if (result.snappedPosition) {
+          return applyNodeChanges(
+            changes.map((c) =>
+              c === dc ? { ...c, position: result.snappedPosition } : c
+            ),
+            nds
+          );
+        }
+
+        return applyNodeChanges(changes, nds);
+      }
+
+      // --- Multi-node drag: snap the selection bounding box ---
+      const draggedIds = new Set(dragPosChanges.map((c) => c.id));
+
+      // Compute bounding box from all dragged nodes' current positions
+      let boxMinX = Infinity;
+      let boxMinY = Infinity;
+      let boxMaxX = -Infinity;
+      let boxMaxY = -Infinity;
+
+      for (const dc of dragPosChanges) {
+        if (!dc.position) continue;
+        const n = nds.find((nd) => nd.id === dc.id);
+        if (!n) continue;
+        const w = n.measured?.width ?? n.width ?? 200;
+        const h = n.measured?.height ?? n.height ?? 200;
+        boxMinX = Math.min(boxMinX, dc.position.x);
+        boxMinY = Math.min(boxMinY, dc.position.y);
+        boxMaxX = Math.max(boxMaxX, dc.position.x + w);
+        boxMaxY = Math.max(boxMaxY, dc.position.y + h);
+      }
+
+      if (!Number.isFinite(boxMinX)) {
+        return applyNodeChanges(changes, nds);
+      }
+
+      const otherNodes = nds
+        .filter((n) => !draggedIds.has(n.id))
+        .map((n) => ({
+          id: n.id,
+          position: { x: n.position.x, y: n.position.y },
+          width: n.measured?.width ?? n.width ?? 200,
+          height: n.measured?.height ?? n.height ?? 200,
+        }));
+
+      const result = computeAlignmentSnap(
+        {
+          id: '__selection__',
+          position: { x: boxMinX, y: boxMinY },
+          width: boxMaxX - boxMinX,
+          height: boxMaxY - boxMinY,
+        },
+        otherNodes,
+        snapThreshold
+      );
+
+      setGuideLines(result.guides);
+
+      if (result.snappedPosition) {
+        const deltaX = result.snappedPosition.x - boxMinX;
+        const deltaY = result.snappedPosition.y - boxMinY;
+
+        if (deltaX !== 0 || deltaY !== 0) {
+          return applyNodeChanges(
+            changes.map((c) => {
+              if (c.type === 'position' && c.position) {
+                return {
+                  ...c,
+                  position: {
+                    x: c.position.x + deltaX,
+                    y: c.position.y + deltaY,
+                  },
+                };
+              }
+              return c;
+            }),
+            nds
+          );
+        }
+      }
+
+      return applyNodeChanges(changes, nds);
+    });
+    setEdges((eds) => applyEdgeChanges(changes, eds));
+  }, [snapThreshold]);
   const { isDark, toggleTheme } = useTheme();
   const [activeNodeId, setActiveNodeId] = useState(null);
   const [nodeIdCounter, setNodeIdCounter] = useState(initialState.counter);
@@ -111,10 +253,6 @@ function AppContent() {
   const [statusLogOpen, setStatusLogOpen] = useState(false);
   const [statusLogEntries, setStatusLogEntries] = useState([]);
 
-  // Alignment snapping (always on)
-  const snapThreshold = 12;
-  const [guideLines, setGuideLines] = useState([]);
-  const draggingNodeRef = useRef(null);
   const reactFlowInstanceRef = useRef(null);
 
   const addLogEntry = useCallback((nodeId, status, message) => {
@@ -429,128 +567,6 @@ function AppContent() {
     window.addEventListener('paste', handler, true);
     return () => window.removeEventListener('paste', handler, true);
   }, [reactFlowInstance, nodeIdCounter, setNodes, setNodeIdCounter]);
-
-  const storeApi = useStoreApi();
-
-  /* ── Fix box selection: d3-zoom intercepts left-click pointer events even
-      with panOnDrag={[1]}, preventing React Flow's selection. We intercept
-      left-click pointerdown on the renderer (capture phase), stop propagation
-      to keep d3-zoom from capturing the pointer, and handle selection ourselves. ── */
-  useEffect(() => {
-    let startX, startY;
-    let selInProgress = false;
-
-    const getPane = () => document.querySelector('.react-flow__pane');
-
-    const onPointerDown = (e) => {
-      // Only handle events on the renderer background (capture phase)
-      if (e.button !== 0) return;
-      const target = e.target;
-      if (!target.closest || !target.closest('.react-flow__renderer')) return;
-      if (target.closest('.react-flow__node, .react-flow__edge, .react-flow__handle')) return;
-
-      const pane = getPane();
-      if (!pane) return;
-
-      e.stopPropagation();
-
-      startX = e.clientX;
-      startY = e.clientY;
-      selInProgress = false;
-
-      const paneBounds = pane.getBoundingClientRect();
-      const x = e.clientX - paneBounds.left;
-      const y = e.clientY - paneBounds.top;
-      storeApi.setState({
-        userSelectionRect: { x, y, width: 0, height: 0, startX: x, startY: y },
-      });
-    };
-
-    const onPointerMove = (e) => {
-      if (startX == null) return;
-      const pane = getPane();
-      if (!pane) return;
-
-      const paneBounds = pane.getBoundingClientRect();
-      const cx = e.clientX - paneBounds.left;
-      const cy = e.clientY - paneBounds.top;
-      const sx = startX - paneBounds.left;
-      const sy = startY - paneBounds.top;
-
-      const rect = {
-        x: Math.min(cx, sx),
-        y: Math.min(cy, sy),
-        width: Math.abs(cx - sx),
-        height: Math.abs(cy - sy),
-        startX: sx,
-        startY: sy,
-      };
-
-      if (!selInProgress) {
-        selInProgress = true;
-        storeApi.getState().resetSelectedElements();
-      }
-
-      storeApi.setState({ userSelectionRect: rect, userSelectionActive: true });
-    };
-
-    const onPointerUp = (e) => {
-      if (startX == null) return;
-
-      if (selInProgress) {
-        const state = storeApi.getState();
-
-        const flowTL = reactFlowInstanceRef.current?.screenToFlowPosition({
-          x: Math.min(startX, e.clientX),
-          y: Math.min(startY, e.clientY),
-        });
-        const flowBR = reactFlowInstanceRef.current?.screenToFlowPosition({
-          x: Math.max(startX, e.clientX),
-          y: Math.max(startY, e.clientY),
-        });
-
-        if (flowTL && flowBR) {
-          const selFlowRect = {
-            x: flowTL.x,
-            y: flowTL.y,
-            width: flowBR.x - flowTL.x,
-            height: flowBR.y - flowTL.y,
-          };
-
-          const ids = [];
-          for (const [id, node] of state.nodeLookup) {
-            const absPos = node.internals?.positionAbsolute;
-            if (!absPos || !node.measured) continue;
-            const nr = {
-              x: absPos.x, y: absPos.y,
-              width: node.measured.width ?? 0,
-              height: node.measured.height ?? 0,
-            };
-            if (rectsIntersect(selFlowRect, nr)) ids.push(id);
-          }
-
-          if (ids.length > 0) state.addSelectedNodes(ids);
-        }
-      } else {
-        // Simple click on empty canvas — deselect all
-        storeApi.getState().resetSelectedElements();
-      }
-
-      storeApi.setState({ userSelectionActive: false, userSelectionRect: null });
-      startX = null;
-    };
-
-    // Use capture phase on document to catch events before d3-zoom
-    document.addEventListener('pointerdown', onPointerDown, true);
-    window.addEventListener('pointermove', onPointerMove);
-    window.addEventListener('pointerup', onPointerUp);
-
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown, true);
-      window.removeEventListener('pointermove', onPointerMove);
-      window.removeEventListener('pointerup', onPointerUp);
-    };
-  }, [storeApi]);
 
   useEffect(() => {
     const loadApiProviders = async () => {
@@ -1409,70 +1425,124 @@ function AppContent() {
     };
   }, []);
 
-  const handleNodeDrag = useCallback((event, node) => {
-    const dragNode = {
-      id: node.id,
-      position: { x: node.position.x, y: node.position.y },
-      width: draggingNodeRef.current?.width ?? node.measured?.width ?? node.width ?? 200,
-      height: draggingNodeRef.current?.height ?? node.measured?.height ?? node.height ?? 200,
-    };
-
-    const otherNodes = latestNodes.current
-      .filter(n => n.id !== node.id)
-      .map(n => ({
-        id: n.id,
-        position: { x: n.position.x, y: n.position.y },
-        width: n.measured?.width ?? n.width ?? 200,
-        height: n.measured?.height ?? n.height ?? 200,
-      }));
-
-    const result = computeAlignmentSnap(dragNode, otherNodes, snapThreshold);
-
-    if (result.snappedPosition) {
-      const instance = reactFlowInstanceRef.current;
-      if (instance) {
-        const currentNodes = instance.getNodes();
-        const updatedNodes = currentNodes.map(n =>
-          n.id === node.id ? { ...n, position: result.snappedPosition } : n
-        );
-        instance.setNodes(updatedNodes);
-      }
-    }
-
-    setGuideLines(result.guides);
-  }, [snapThreshold]);
+  const handleNodeDrag = useCallback((_event, _node) => {
+    // Snap and guide lines are handled in onNodesChange to avoid
+    // update conflicts between instance.setNodes() and controlled prop sync.
+  }, []);
 
   const handleNodeDragStop = useCallback((event, node) => {
-    // Final snap: apply snapped position since RF's drag-end handler
-    // overwrites our real-time snap with the last calculated position.
-    const instance = reactFlowInstanceRef.current;
-    if (node && instance) {
-      const allNodes = instance.getNodes();
-      const dragNode = {
-        id: node.id,
-        position: { x: node.position.x, y: node.position.y },
-        width: node.measured?.width ?? node.width ?? 200,
-        height: node.measured?.height ?? node.height ?? 200,
-      };
-      const otherNodes = allNodes
-        .filter(n => n.id !== node.id)
-        .map(n => ({
-          id: n.id,
-          position: { x: n.position.x, y: n.position.y },
-          width: n.measured?.width ?? n.width ?? 200,
-          height: n.measured?.height ?? n.height ?? 200,
-        }));
-      const result = computeAlignmentSnap(dragNode, otherNodes, snapThreshold);
-      if (result.snappedPosition) {
-        const currentNodes = instance.getNodes();
-        instance.setNodes(currentNodes.map(n =>
-          n.id === node.id ? { ...n, position: result.snappedPosition } : n
-        ));
-      }
+    // Final snap correction: apply snapped position one last time.
+    // React Flow emits a trailing dragging=false position change after
+    // drag stop which bypasses our onNodesChange snap (which only fires
+    // when dragging=true). We correct it here via React state to keep
+    // the store in sync and avoid the instance.setNodes() race condition.
+    // Handles both single-node and multi-node (bounding box) drags.
+    if (node) {
+      setNodes((nds) => {
+        const allSelected = nds.filter(
+          (n) => n.selected || n.id === node.id
+        );
+        const isMultiDrag = allSelected.length > 1;
+
+        if (!isMultiDrag) {
+          // --- Single-node final snap ---
+          const draggedNode = nds.find((n) => n.id === node.id);
+          if (!draggedNode) return nds;
+
+          const otherNodes = nds
+            .filter((n) => n.id !== node.id)
+            .map((n) => ({
+              id: n.id,
+              position: { x: n.position.x, y: n.position.y },
+              width: n.measured?.width ?? n.width ?? 200,
+              height: n.measured?.height ?? n.height ?? 200,
+            }));
+
+          const result = computeAlignmentSnap(
+            {
+              id: node.id,
+              position: {
+                x: draggedNode.position.x,
+                y: draggedNode.position.y,
+              },
+              width: draggedNode.measured?.width ?? draggedNode.width ?? 200,
+              height: draggedNode.measured?.height ?? draggedNode.height ?? 200,
+            },
+            otherNodes,
+            snapThreshold
+          );
+
+          if (result.snappedPosition) {
+            return nds.map((n) =>
+              n.id === node.id
+                ? { ...n, position: result.snappedPosition }
+                : n
+            );
+          }
+          return nds;
+        }
+
+        // --- Multi-node final snap: bounding box delta ---
+        const draggedIds = new Set(allSelected.map((n) => n.id));
+        let boxMinX = Infinity,
+          boxMinY = Infinity;
+        let boxMaxX = -Infinity,
+          boxMaxY = -Infinity;
+
+        for (const n of allSelected) {
+          const w = n.measured?.width ?? n.width ?? 200;
+          const h = n.measured?.height ?? n.height ?? 200;
+          boxMinX = Math.min(boxMinX, n.position.x);
+          boxMinY = Math.min(boxMinY, n.position.y);
+          boxMaxX = Math.max(boxMaxX, n.position.x + w);
+          boxMaxY = Math.max(boxMaxY, n.position.y + h);
+        }
+
+        if (!Number.isFinite(boxMinX)) return nds;
+
+        const otherNodes = nds
+          .filter((n) => !draggedIds.has(n.id))
+          .map((n) => ({
+            id: n.id,
+            position: { x: n.position.x, y: n.position.y },
+            width: n.measured?.width ?? n.width ?? 200,
+            height: n.measured?.height ?? n.height ?? 200,
+          }));
+
+        const result = computeAlignmentSnap(
+          {
+            id: '__selection__',
+            position: { x: boxMinX, y: boxMinY },
+            width: boxMaxX - boxMinX,
+            height: boxMaxY - boxMinY,
+          },
+          otherNodes,
+          snapThreshold
+        );
+
+        if (result.snappedPosition) {
+          const deltaX = result.snappedPosition.x - boxMinX;
+          const deltaY = result.snappedPosition.y - boxMinY;
+          if (deltaX !== 0 || deltaY !== 0) {
+            return nds.map((n) =>
+              draggedIds.has(n.id)
+                ? {
+                    ...n,
+                    position: {
+                      x: n.position.x + deltaX,
+                      y: n.position.y + deltaY,
+                    },
+                  }
+                : n
+            );
+          }
+        }
+        return nds;
+      });
     }
     setGuideLines([]);
     draggingNodeRef.current = null;
-  }, [snapThreshold]);
+  }, [snapThreshold, setNodes]);
 
 
   const customNodeTypes = useMemo(() => ({
@@ -1567,6 +1637,11 @@ function AppContent() {
             if (nodeContextMenu.visible) {
               handleCloseContextMenu();
             }
+            // In selectionOnDrag mode, React Flow disables its internal onClick
+            // handler. The NodesSelection rect (pointer-events: all) can also
+            // intercept clicks. We must explicitly deselect here.
+            storeApi.getState().resetSelectedElements();
+            storeApi.setState({ nodesSelectionActive: false });
           }}
           onPaneContextMenu={handlePaneContextMenu}
         >
@@ -1699,9 +1774,4 @@ export default function App() {
       </ReactFlowProvider>
     </ThemeProvider>
   );
-}
-
-/* ── Helper: check if two axis-aligned rectangles intersect (for box selection) ── */
-function rectsIntersect(a, b) {
-  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
 }
