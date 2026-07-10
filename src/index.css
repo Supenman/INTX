@@ -320,6 +320,10 @@ html[data-theme="light"] .react-flow__selection {
   border: 1px solid rgba(var(--text-primary-rgb), 0.20) !important;
 }
 
+.hide-single-selection-rect .react-flow__nodesselection-rect {
+  display: none !important;
+}
+
 /* Nodes selection bounding box (包围框) */
 .react-flow__nodesselection-rect {
   background: transparent !important;

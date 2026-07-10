@@ -24,7 +24,7 @@ import GridBackground from './components/GridBackground';
 import Sidebar from './components/Sidebar';
 import NodeTypeMenu from './components/NodeTypeMenu';
 import NodeContextMenu from './components/NodeContextMenu';
-import StatusLog from './components/StatusLog';
+import OutputHistoryPanel from './components/OutputHistoryPanel';
 import SettingsPanel from './components/SettingsPanel';
 import AlignmentGuides from './components/AlignmentGuides';
 import { ConnectionContext } from './ConnectionContext';
@@ -82,6 +82,7 @@ function AppContent() {
   const initialState = useMemo(() => getInitialState(), []);
   const snapThreshold = 12;
   const [guideLines, setGuideLines] = useState([]);
+  const [selectedNodeCount, setSelectedNodeCount] = useState(0);
   const draggingNodeRef = useRef(null);
   const [nodes, setNodes] = useState(initialState.nodes);
   const [edges, setEdges] = useState(initialState.edges);
@@ -251,38 +252,19 @@ function AppContent() {
     nodeId: null,
   });
   const [showMinimap, setShowMinimap] = useState(false);
-  const [statusLogOpen, setStatusLogOpen] = useState(false);
-  const [statusLogEntries, setStatusLogEntries] = useState([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [outputHistory, setOutputHistory] = useState([]);
 
   const reactFlowInstanceRef = useRef(null);
 
-  const addLogEntry = useCallback((nodeId, status, message) => {
-    const node = latestNodes.current.find(n => n.id === nodeId);
-    const meta = NODE_TYPE_REGISTRY[node?.type || 'image'];
-    const entry = {
-      id: `${nodeId}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      nodeId,
-      nodeTitle: node?.data?.title || meta?.title || '',
-      nodeType: node?.type || 'image',
-      status,
-      message: message || '',
-      timestamp: new Date(),
-    };
-    setStatusLogEntries(prev => {
-      const next = [...prev, entry];
-      return next.length > 200 ? next.slice(-200) : next;
-    });
-  }, []);
-
-  const handleLogEntryClick = useCallback((nodeId) => {
-    setActiveNodeId(nodeId);
+  const handleHistoryEntryClick = useCallback((nodeId) => {
     if (reactFlowInstance) {
       const node = nodes.find(n => n.id === nodeId);
       if (node) {
         reactFlowInstance.setCenter(node.position.x + 100, node.position.y + 100, { zoom: 1, duration: 300 });
       }
     }
-  }, [nodes, reactFlowInstance, setActiveNodeId]);
+  }, [nodes, reactFlowInstance]);
 
   const handleApiUpdate = useCallback((providers) => {
     setApiProviders(providers);
@@ -801,7 +783,50 @@ function AppContent() {
     e.stopPropagation();
 
     const files = e.dataTransfer?.files;
-    if (!files?.length) return;
+    if (!files?.length) {
+      // Check for output history entry drag
+      try {
+        const textData = e.dataTransfer?.getData('text/plain');
+        if (textData) {
+          const entry = JSON.parse(textData);
+          if (entry._source === 'output-history') {
+            const position = reactFlowInstance
+              ? reactFlowInstance.screenToFlowPosition({ x: e.clientX, y: e.clientY })
+              : { x: 200 + Math.random() * 200, y: 100 + Math.random() * 200 };
+
+            const { width, height } = getNodeSize(entry.aspectRatio || '16:9', entry.nodeType, {});
+            const newId = String(nodeIdCounter);
+
+            const newNode = {
+              id: newId,
+              type: entry.nodeType,
+              position,
+              width,
+              height,
+              data: {
+                title: entry.title || '历史输出',
+                prompt: entry.prompt || '',
+                model: entry.model || '',
+                aspectRatio: entry.aspectRatio || '16:9',
+                resolution: entry.resolution || '1K',
+                images: entry.result?.url
+                  ? [{ url: entry.result.url, name: entry.title || entry.nodeType, type: entry.result.type || 'image' }]
+                  : [],
+                result: entry.result,
+                ...(entry.nodeType === 'video' ? { duration: entry.duration || '5', fps: entry.fps || '30' } : {}),
+              },
+            };
+
+            setNodes(nodes => [...nodes, newNode]);
+            setNodeIdCounter(c => c + 1);
+            return;
+          }
+        }
+      } catch {
+        // Not a valid history entry — ignore
+      }
+      return;
+    }
 
     const file = files[0];
     if (file.size > 50 * 1024 * 1024) return;
@@ -1064,8 +1089,6 @@ function AppContent() {
       [nodeId]: { processing: true, progress: 0, error: null }
     }));
 
-    addLogEntry(nodeId, 'processing', prompt.substring(0, 80));
-
     // Fake progress animation while polling
     let fakeProgress = 0;
     const fakeInterval = setInterval(() => {
@@ -1116,7 +1139,26 @@ function AppContent() {
               ...prev,
               [nodeId]: { processing: false, progress: 100, error: null }
             }));
-            addLogEntry(nodeId, 'succeeded', '');
+            // Add to output history
+            const node = latestNodes.current.find(n => n.id === nodeId);
+            setOutputHistory(prev => {
+              const entry = {
+                id: `${nodeId}-${Date.now()}`,
+                nodeId,
+                nodeType: node?.type || 'image',
+                title: node?.data?.title || '',
+                prompt: data?.prompt || '',
+                model: data?.model || '',
+                aspectRatio: data?.aspectRatio || null,
+                resolution: data?.resolution || null,
+                duration: data?.duration || null,
+                fps: data?.fps || null,
+                result: task.result,
+                timestamp: new Date(),
+              };
+              const next = [...prev, entry];
+              return next.length > 100 ? next.slice(-100) : next;
+            });
             if (task.result) {
               setNodes(nodes =>
                 nodes.map(node => {
@@ -1153,7 +1195,6 @@ function AppContent() {
               ...prev,
               [nodeId]: { processing: false, progress: 0, error: task.error || '生成失败' }
             }));
-            addLogEntry(nodeId, 'failed', task.error || '生成失败');
             setTimeout(() => {
               setNodeStates(prev => ({
                 ...prev,
@@ -1173,7 +1214,6 @@ function AppContent() {
         ...prev,
         [nodeId]: { processing: false, progress: 0, error: error.message || '创建任务失败，请检查API配置' }
       }));
-      addLogEntry(nodeId, 'failed', error.message || '创建任务失败');
       setTimeout(() => {
         setNodeStates(prev => ({
           ...prev,
@@ -1181,7 +1221,7 @@ function AppContent() {
         }));
       }, 5000);
     }
-  }, [setNodes, setNodeStates, apiProviders, addLogEntry, latestEdges, latestNodes]);
+  }, [setNodes, setNodeStates, apiProviders, latestEdges, latestNodes]);
 
   const handleContextMenuAction = useCallback((action, nodeId) => {
     switch (action) {
@@ -1545,6 +1585,10 @@ function AppContent() {
     draggingNodeRef.current = null;
   }, [snapThreshold, setNodes]);
 
+  const onSelectionChange = useCallback(({ nodes }) => {
+    setSelectedNodeCount(nodes.length);
+  }, []);
+
 
   const customNodeTypes = useMemo(() => ({
     image: (props) => <ImageNode {...props} />,
@@ -1592,10 +1636,11 @@ function AppContent() {
           onOpenSettings={handleOpenSettings}
           showMinimap={showMinimap}
           onToggleMinimap={() => setShowMinimap(v => !v)}
-          statusLogOpen={statusLogOpen}
-          onToggleStatusLog={() => setStatusLogOpen(v => !v)}
-          statusLogHasEntries={statusLogEntries.length > 0}
+          historyOpen={historyOpen}
+          onToggleHistory={() => setHistoryOpen(v => !v)}
+          historyEntryCount={outputHistory.length}
         />
+        <div className={selectedNodeCount <= 1 ? 'hide-single-selection-rect' : ''} style={{ width: '100%', height: '100%' }}>
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -1625,6 +1670,7 @@ function AppContent() {
           zoomOnPinch
           selectionOnDrag
           selectionMode={SelectionMode.Partial}
+          onSelectionChange={onSelectionChange}
           zoomOnDoubleClick={false}
           onPaneClick={(e) => {
             if (pendingConnectionDropRef.current) {
@@ -1676,6 +1722,7 @@ function AppContent() {
           <Controls position="bottom-right" showInteractive={false} style={{ bottom: 48, right: 8 }} />
           <AlignmentGuides guides={guideLines} />
         </ReactFlow>
+        </div>
         {nodes.length === 0 && (
           <div style={{
             position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -1755,11 +1802,11 @@ function AppContent() {
           onRename={handleRenameProject}
         />
         <input ref={mediaFileInputRef} type="file" accept="image/*,video/*,audio/*" onChange={handleMediaFileChange} style={{ display: 'none' }} />
-        <StatusLog
-          entries={statusLogEntries}
-          isOpen={statusLogOpen}
-          onToggle={() => setStatusLogOpen(v => !v)}
-          onEntryClick={handleLogEntryClick}
+        <OutputHistoryPanel
+          entries={outputHistory}
+          isOpen={historyOpen}
+          onToggle={() => setHistoryOpen(v => !v)}
+          onEntryClick={handleHistoryEntryClick}
         />
     </div>
     </ActiveNodeContext.Provider>
