@@ -1,15 +1,3 @@
-/**
- * Compute alignment snapping for a node being dragged.
- *
- * For each other node, checks edge-to-edge and center-to-center alignment
- * on both axes. When a pair is within `threshold` pixels, the drag node's
- * position is snapped and a guide line coordinate is returned.
- *
- * @param {{ id: string, position: {x:number,y:number}, width: number, height: number }} dragNode
- * @param {Array<{ id: string, position: {x:number,y:number}, width: number, height: number }>} otherNodes
- * @param {number} threshold
- * @returns {{ snappedPosition: {x:number,y:number}|null, guides: Array<{axis:'x'|'y', value:number}> }}
- */
 export function computeAlignmentSnap(dragNode, otherNodes, threshold) {
   if (!otherNodes.length) return { snappedPosition: null, guides: [] };
 
@@ -23,6 +11,9 @@ export function computeAlignmentSnap(dragNode, otherNodes, threshold) {
   let distY = threshold;
   let guideX = null;
   let guideY = null;
+  // Perpendicular extent for the guide line — spans both nodes on the opposite axis
+  let extentX = null; // { min, max } — Y bounds for a vertical guide
+  let extentY = null; // { min, max } — X bounds for a horizontal guide
 
   for (const other of otherNodes) {
     const ox = other.position.x;
@@ -44,6 +35,11 @@ export function computeAlignmentSnap(dragNode, otherNodes, threshold) {
         distX = d;
         snapX = s.val;
         guideX = s.guide;
+        // Vertical guide: extend from the top of the higher node to the bottom of the lower
+        extentX = {
+          min: Math.min(y, oy),
+          max: Math.max(y + h, oy + oh),
+        };
       }
     }
 
@@ -61,13 +57,18 @@ export function computeAlignmentSnap(dragNode, otherNodes, threshold) {
         distY = d;
         snapY = s.val;
         guideY = s.guide;
+        // Horizontal guide: extend from the left of the leftmost node to the right of the rightmost
+        extentY = {
+          min: Math.min(x, ox),
+          max: Math.max(x + w, ox + ow),
+        };
       }
     }
   }
 
   const guides = [];
-  if (guideX !== null) guides.push({ axis: 'x', value: guideX });
-  if (guideY !== null) guides.push({ axis: 'y', value: guideY });
+  if (guideX !== null && extentX) guides.push({ axis: 'x', value: guideX, ...extentX });
+  if (guideY !== null && extentY) guides.push({ axis: 'y', value: guideY, ...extentY });
 
   return {
     snappedPosition:

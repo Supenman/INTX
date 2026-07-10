@@ -103,6 +103,7 @@ function AppContent() {
       );
 
       if (dragPosChanges.length === 0) {
+        setGuideLines([]);
         return applyNodeChanges(changes, nds);
       }
 

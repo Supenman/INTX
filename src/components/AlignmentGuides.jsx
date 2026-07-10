@@ -1,20 +1,12 @@
 import { useViewport } from '@xyflow/react';
 
-const LINE_COLOR = 'rgba(0, 195, 255, 0.5)';
-const LINE_STYLE = { stroke: LINE_COLOR, strokeWidth: 1, strokeDasharray: '4 2' };
-
 export default function AlignmentGuides({ guides }) {
   const viewport = useViewport();
 
   if (!guides || guides.length === 0) return null;
 
-  // Visible area in flow coordinates
-  const width = window.innerWidth;
-  const height = window.innerHeight;
   const flowLeft = -viewport.x / viewport.zoom;
   const flowTop = -viewport.y / viewport.zoom;
-  const flowRight = flowLeft + width / viewport.zoom;
-  const flowBottom = flowTop + height / viewport.zoom;
 
   return (
     <svg
@@ -30,35 +22,43 @@ export default function AlignmentGuides({ guides }) {
     >
       {guides.map((g, i) => {
         if (g.axis === 'x') {
-          // Vertical line — snap to a flow X coordinate
+          // Vertical guide — snap to flow X, extends between Y bounds of the two nodes
           const x = g.value;
-          if (x < flowLeft || x > flowRight) return null;
+          const y1 = g.min;
+          const y2 = g.max;
           const sx = (x - flowLeft) * viewport.zoom;
+          const sy1 = (y1 - flowTop) * viewport.zoom;
+          const sy2 = (y2 - flowTop) * viewport.zoom;
           return (
             <line
               key={i}
               x1={sx}
-              y1={0}
+              y1={sy1}
               x2={sx}
-              y2={height}
-              {...LINE_STYLE}
-              style={{ filter: 'drop-shadow(0 0 3px rgba(0,195,255,0.3))' }}
+              y2={sy2}
+              strokeWidth={1.5}
+              strokeDasharray="4 3"
+              style={{ stroke: 'rgba(var(--text-primary-rgb), 0.5)' }}
             />
           );
         } else {
-          // Horizontal line — snap to a flow Y coordinate
+          // Horizontal guide — snap to flow Y, extends between X bounds of the two nodes
           const y = g.value;
-          if (y < flowTop || y > flowBottom) return null;
+          const x1 = g.min;
+          const x2 = g.max;
           const sy = (y - flowTop) * viewport.zoom;
+          const sx1 = (x1 - flowLeft) * viewport.zoom;
+          const sx2 = (x2 - flowLeft) * viewport.zoom;
           return (
             <line
               key={i}
-              x1={0}
+              x1={sx1}
               y1={sy}
-              x2={width}
+              x2={sx2}
               y2={sy}
-              {...LINE_STYLE}
-              style={{ filter: 'drop-shadow(0 0 3px rgba(0,195,255,0.3))' }}
+              strokeWidth={1.5}
+              strokeDasharray="4 3"
+              style={{ stroke: 'rgba(var(--text-primary-rgb), 0.5)' }}
             />
           );
         }
