@@ -15,6 +15,7 @@ import '@xyflow/react/dist/style.css';
 import ImageNode from './components/ImageNode';
 import TextNode from './components/TextNode';
 import VideoNode from './components/VideoNode';
+import GroupNode from './components/GroupNode';
 import SourceTextNode from './components/SourceTextNode';
 import SourceImageNode from './components/SourceImageNode';
 import SourceVideoNode from './components/SourceVideoNode';
@@ -29,7 +30,7 @@ import SettingsPanel from './components/SettingsPanel';
 import AlignmentGuides from './components/AlignmentGuides';
 import { ConnectionContext } from './ConnectionContext';
 import { ThemeProvider, useTheme } from './ThemeContext';
-import { loadCanvasState, saveCanvasState, clearCanvasState, createDebouncedSave } from './utils/canvasStorage';
+import { loadCanvasState } from './utils/canvasStorage';
 import { listProjects, createProject, loadProject, saveProject, deleteProject as deleteProjectFromStorage, renameProject as renameProjectInStorage, setCurrentProjectId as setCurrentProjectStorage, getCurrentProjectId, migrateFromOldStorage } from './utils/projectStorage';
 import ProjectSelector from './components/ProjectSelector';
 import { NODE_TYPE_REGISTRY } from './domain/nodeTypes';
@@ -39,9 +40,58 @@ import { findProviderForModel } from './utils/modelUtils';
 import { getNodeSize } from './utils/nodeSize';
 import { computeAlignmentSnap } from './utils/alignmentSnap';
 import { compressImage } from './utils/compressImage';
+import SelectionBboxToolbar from './components/SelectionBboxToolbar';
 
 const initialNodes = [];
 const initialEdges = [];
+
+/** Clone data for storage — drops functions that would fail structuredClone. */
+function safeClone(obj) {
+  return JSON.parse(JSON.stringify(obj, (key, val) => (typeof val === 'function' ? undefined : val)));
+}
+
+/**
+ * For a dragged node at newPos, return the rectangles to use for alignment snap.
+ * If the node is a group with children, expands to each child's absolute rectangle
+ * so alignment uses child edges rather than the group's outer bounding box.
+ */
+function getSnapCandidates(node, newPos, allNodes) {
+  const children = allNodes.filter((n) => n.parentId === node.id);
+  if (children.length > 0) {
+    return children.map((child) => ({
+      id: child.id,
+      position: {
+        x: newPos.x + child.position.x,
+        y: newPos.y + child.position.y,
+      },
+      width: child.measured?.width ?? child.width ?? 200,
+      height: child.measured?.height ?? child.height ?? 200,
+    }));
+  }
+  return [
+    {
+      id: node.id,
+      position: { x: newPos.x, y: newPos.y },
+      width: node.measured?.width ?? node.width ?? 200,
+      height: node.measured?.height ?? node.height ?? 200,
+    },
+  ];
+}
+
+/**
+ * Convert a node's position to absolute canvas coordinates.
+ * Children inside a group have positions relative to the parent;
+ * this adds the parent's position so all coordinates are in the same space.
+ */
+function toAbsPos(node, allNodes) {
+  if (!node.parentId) return { x: node.position.x, y: node.position.y };
+  const parent = allNodes.find((n) => n.id === node.parentId);
+  if (!parent) return { x: node.position.x, y: node.position.y };
+  return {
+    x: node.position.x + parent.position.x,
+    y: node.position.y + parent.position.y,
+  };
+}
 
 function getInitialState() {
   try {
@@ -76,7 +126,6 @@ function getEdgeColor(sourceType, isDark) {
 }
 
 function AppContent() {
-  const reactFlowWrapper = useRef(null);
   const mediaFileInputRef = useRef(null);
   const pendingMediaNodeIdRef = useRef(null);
   const initialState = useMemo(() => getInitialState(), []);
@@ -103,124 +152,179 @@ function AppContent() {
         (c) => c.type === 'position' && c.dragging && c.position !== undefined
       );
 
-      if (dragPosChanges.length === 0) {
+      // When both a group and its children are dragged, skip children's
+      // position changes — they follow the parent automatically. Otherwise
+      // children would experience "double movement" (parent delta + own delta).
+      if (dragPosChanges.length > 1) {
+        const draggedIds = new Set(dragPosChanges.map((c) => c.id));
+        const parentBeingDragged = new Set();
+        for (const id of draggedIds) {
+          if (nds.some((n) => n.parentId === id)) parentBeingDragged.add(id);
+        }
+        if (parentBeingDragged.size > 0) {
+          changes = changes.filter((c) => {
+            if (c.type === 'position' && c.dragging && c.position) {
+              const node = nds.find((n) => n.id === c.id);
+              if (node?.parentId && parentBeingDragged.has(node.parentId)) return false;
+            }
+            return true;
+          });
+        }
+      }
+
+      const finalDragChanges = changes.filter(
+        (c) => c.type === 'position' && c.dragging && c.position !== undefined
+      );
+
+      if (finalDragChanges.length === 0) {
         setGuideLines([]);
         return applyNodeChanges(changes, nds);
       }
 
-      // --- Single-node drag: direct snap ---
-      if (dragPosChanges.length === 1) {
-        const dc = dragPosChanges[0];
+      // --- Single-node drag: snap — expand groups to child edges ---
+      if (finalDragChanges.length === 1) {
+        const dc = finalDragChanges[0];
         if (!dc.position) {
+          setGuideLines([]);
           return applyNodeChanges(changes, nds);
         }
         const dragNode = nds.find((n) => n.id === dc.id);
         if (!dragNode) {
+          setGuideLines([]);
           return applyNodeChanges(changes, nds);
         }
 
-        const otherNodes = nds
-          .filter((n) => n.id !== dc.id)
-          .map((n) => ({
-            id: n.id,
-            position: { x: n.position.x, y: n.position.y },
-            width: n.measured?.width ?? n.width ?? 200,
-            height: n.measured?.height ?? n.height ?? 200,
-          }));
-
-        const result = computeAlignmentSnap(
-          {
-            id: dc.id,
-            position: { x: dc.position.x, y: dc.position.y },
-            width: dragNode.measured?.width ?? dragNode.width ?? 200,
-            height: dragNode.measured?.height ?? dragNode.height ?? 200,
-          },
-          otherNodes,
-          snapThreshold
+        // Exclude the dragged node and its children (they move with the group)
+        const draggedAndChildIds = new Set(
+          [dc.id, ...nds.filter((n) => n.parentId === dc.id).map((n) => n.id)]
         );
+        // Convert all nodes to absolute coords for correct cross-space comparison
+        const otherNodes = nds
+          .filter((n) => !draggedAndChildIds.has(n.id))
+          .map((n) => {
+            const abs = toAbsPos(n, nds);
+            return {
+              id: n.id,
+              position: abs,
+              width: n.measured?.width ?? n.width ?? 200,
+              height: n.measured?.height ?? n.height ?? 200,
+            };
+          });
 
-        setGuideLines(result.guides);
+        // Convert dragged position to absolute (dc.position is relative for group children)
+        const absDragPos = dragNode.parentId
+          ? {
+              x: dc.position.x + (nds.find((p) => p.id === dragNode.parentId)?.position.x || 0),
+              y: dc.position.y + (nds.find((p) => p.id === dragNode.parentId)?.position.y || 0),
+            }
+          : { x: dc.position.x, y: dc.position.y };
 
-        if (result.snappedPosition) {
+        const candidates = getSnapCandidates(dragNode, absDragPos, nds);
+        let bestResult = null;
+        let bestDeltaX = 0, bestDeltaY = 0;
+        let bestDist = snapThreshold;
+
+        for (const cand of candidates) {
+          const result = computeAlignmentSnap(cand, otherNodes, snapThreshold);
+          if (result.snappedPosition) {
+            const dx = Math.abs(result.snappedPosition.x - cand.position.x);
+            const dy = Math.abs(result.snappedPosition.y - cand.position.y);
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < bestDist) {
+              bestDist = dist;
+              bestResult = result;
+              bestDeltaX = result.snappedPosition.x - cand.position.x;
+              bestDeltaY = result.snappedPosition.y - cand.position.y;
+            }
+          }
+        }
+
+        if (bestResult) {
+          setGuideLines(bestResult.guides);
           return applyNodeChanges(
             changes.map((c) =>
-              c === dc ? { ...c, position: result.snappedPosition } : c
+              c === dc ? { ...c, position: { x: dc.position.x + bestDeltaX, y: dc.position.y + bestDeltaY } } : c
             ),
             nds
           );
         }
 
+        setGuideLines([]);
         return applyNodeChanges(changes, nds);
       }
 
-      // --- Multi-node drag: snap the selection bounding box ---
-      const draggedIds = new Set(dragPosChanges.map((c) => c.id));
+      // --- Multi-node drag: snap individual node/child edges ---
+      const draggedGroupIds = new Set(
+        finalDragChanges.filter((dc) => nds.some((n) => n.parentId === dc.id)).map((dc) => dc.id)
+      );
+      const excludedIds = new Set([
+        ...finalDragChanges.map((dc) => dc.id),
+        ...nds.filter((n) => draggedGroupIds.has(n.parentId)).map((n) => n.id),
+      ]);
+      // Convert to absolute coords so group children and root nodes compare correctly
+      const otherNodes = nds
+        .filter((n) => !excludedIds.has(n.id))
+        .map((n) => {
+          const abs = toAbsPos(n, nds);
+          return {
+            id: n.id,
+            position: abs,
+            width: n.measured?.width ?? n.width ?? 200,
+            height: n.measured?.height ?? n.height ?? 200,
+          };
+        });
 
-      // Compute bounding box from all dragged nodes' current positions
-      let boxMinX = Infinity;
-      let boxMinY = Infinity;
-      let boxMaxX = -Infinity;
-      let boxMaxY = -Infinity;
+      // Compute alignment snap for each candidate (node or child of group), pick the closest
+      let bestDeltaX = 0, bestDeltaY = 0;
+      let bestDist = snapThreshold;
+      let bestGuides = [];
 
-      for (const dc of dragPosChanges) {
+      for (const dc of finalDragChanges) {
         if (!dc.position) continue;
         const n = nds.find((nd) => nd.id === dc.id);
         if (!n) continue;
-        const w = n.measured?.width ?? n.width ?? 200;
-        const h = n.measured?.height ?? n.height ?? 200;
-        boxMinX = Math.min(boxMinX, dc.position.x);
-        boxMinY = Math.min(boxMinY, dc.position.y);
-        boxMaxX = Math.max(boxMaxX, dc.position.x + w);
-        boxMaxY = Math.max(boxMaxY, dc.position.y + h);
-      }
-
-      if (!Number.isFinite(boxMinX)) {
-        return applyNodeChanges(changes, nds);
-      }
-
-      const otherNodes = nds
-        .filter((n) => !draggedIds.has(n.id))
-        .map((n) => ({
-          id: n.id,
-          position: { x: n.position.x, y: n.position.y },
-          width: n.measured?.width ?? n.width ?? 200,
-          height: n.measured?.height ?? n.height ?? 200,
-        }));
-
-      const result = computeAlignmentSnap(
-        {
-          id: '__selection__',
-          position: { x: boxMinX, y: boxMinY },
-          width: boxMaxX - boxMinX,
-          height: boxMaxY - boxMinY,
-        },
-        otherNodes,
-        snapThreshold
-      );
-
-      setGuideLines(result.guides);
-
-      if (result.snappedPosition) {
-        const deltaX = result.snappedPosition.x - boxMinX;
-        const deltaY = result.snappedPosition.y - boxMinY;
-
-        if (deltaX !== 0 || deltaY !== 0) {
-          return applyNodeChanges(
-            changes.map((c) => {
-              if (c.type === 'position' && c.position) {
-                return {
-                  ...c,
-                  position: {
-                    x: c.position.x + deltaX,
-                    y: c.position.y + deltaY,
-                  },
-                };
-              }
-              return c;
-            }),
-            nds
-          );
+        // Convert dragged position to absolute (dc.position is relative for group children)
+        const absDcPos = n.parentId
+          ? {
+              x: dc.position.x + (nds.find((p) => p.id === n.parentId)?.position.x || 0),
+              y: dc.position.y + (nds.find((p) => p.id === n.parentId)?.position.y || 0),
+            }
+          : { x: dc.position.x, y: dc.position.y };
+        const candidates = getSnapCandidates(n, absDcPos, nds);
+        for (const cand of candidates) {
+          const result = computeAlignmentSnap(cand, otherNodes, snapThreshold);
+          if (result.snappedPosition) {
+            const dx = Math.abs(result.snappedPosition.x - cand.position.x);
+            const dy = Math.abs(result.snappedPosition.y - cand.position.y);
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < bestDist) {
+              bestDist = dist;
+              bestDeltaX = result.snappedPosition.x - cand.position.x;
+              bestDeltaY = result.snappedPosition.y - cand.position.y;
+              bestGuides = result.guides;
+            }
+          }
         }
+      }
+
+      setGuideLines(bestGuides);
+
+      if (bestDeltaX !== 0 || bestDeltaY !== 0) {
+        return applyNodeChanges(
+          changes.map((c) => {
+            if (c.type === 'position' && c.position) {
+              return {
+                ...c,
+                position: {
+                  x: c.position.x + bestDeltaX,
+                  y: c.position.y + bestDeltaY,
+                },
+              };
+            }
+            return c;
+          }),
+          nds
+        );
       }
 
       return applyNodeChanges(changes, nds);
@@ -233,7 +337,6 @@ function AppContent() {
   const [currentProjectId, setCurrentProjectId] = useState(null);
   const [projectSelectorOpen, setProjectSelectorOpen] = useState(false);
   const [projectsVersion, setProjectsVersion] = useState(0);
-  const debouncedSave = useRef(createDebouncedSave(400)).current;
   const [menuState, setMenuState] = useState({
     visible: false,
     position: { x: 0, y: 0 },
@@ -309,8 +412,8 @@ function AppContent() {
     }
     if (draggingNodeRef.current) return;
     undoPastRef.current.push({
-      nodes: structuredClone(prevNodesRef.current),
-      edges: structuredClone(prevEdgesRef.current),
+      nodes: safeClone(prevNodesRef.current),
+      edges: safeClone(prevEdgesRef.current),
     });
     if (undoPastRef.current.length > 50) undoPastRef.current.shift();
     undoFutureRef.current = [];
@@ -328,8 +431,8 @@ function AppContent() {
     const prev = undoPastRef.current.pop();
     if (!prev) return;
     undoFutureRef.current.push({
-      nodes: structuredClone(nodes),
-      edges: structuredClone(edges),
+      nodes: safeClone(nodes),
+      edges: safeClone(edges),
     });
     skipUndoRef.current = true;
     setNodes(prev.nodes);
@@ -342,8 +445,8 @@ function AppContent() {
     const next = undoFutureRef.current.pop();
     if (!next) return;
     undoPastRef.current.push({
-      nodes: structuredClone(nodes),
-      edges: structuredClone(edges),
+      nodes: safeClone(nodes),
+      edges: safeClone(edges),
     });
     skipUndoRef.current = true;
     setNodes(next.nodes);
@@ -382,9 +485,40 @@ function AppContent() {
         }
       }
       if (!(e.ctrlKey || e.metaKey) && (e.key === 'Delete' || e.key === 'Backspace')) {
-        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-        handleDeleteNode();
-      }
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  const currentNodes = latestNodes.current;
+  let selectedIds = currentNodes.filter(n => n.selected).map(n => n.id);
+  if (selectedIds.length > 0) {
+    // Convert children of deleted groups to absolute coords first
+    const groupIds = currentNodes.filter(n => n.type === 'group' && n.selected).map(n => n.id);
+    if (groupIds.length > 0) {
+      const groupIdSet = new Set(groupIds);
+      setNodes(nds => {
+        const converted = nds.map(n => {
+          if (n.parentId && groupIdSet.has(n.parentId)) {
+            const group = nds.find(g => g.id === n.parentId);
+            if (group) {
+              return {
+                ...n,
+                parentId: null,
+                position: { x: n.position.x + group.position.x, y: n.position.y + group.position.y },
+                extent: undefined,
+              };
+            }
+          }
+          return n;
+        });
+        return converted.filter(n => !selectedIds.includes(n.id));
+      });
+    } else {
+      setNodes(nds => nds.filter(n => !selectedIds.includes(n.id)));
+    }
+    setEdges(eds => eds.filter(e => !selectedIds.includes(e.source) && !selectedIds.includes(e.target)));
+    setActiveNodeId(null);
+  } else {
+    handleDeleteNode();
+  }
+}
       if (!(e.ctrlKey || e.metaKey) && e.key === 'f') {
         e.preventDefault();
         reactFlowInstanceRef.current?.fitView({ padding: 0.2 });
@@ -403,7 +537,6 @@ function AppContent() {
     const handler = (e) => {
       const target = e.target;
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.contentEditable === 'true') return;
-      if (clipboardRef.current) return;
 
       e.preventDefault();
       e.stopPropagation();
@@ -1237,7 +1370,7 @@ function AppContent() {
         if (!sourceNode) break;
         const newId = String(nodeIdCounter);
         const clone = {
-          ...structuredClone(sourceNode),
+          ...safeClone(sourceNode),
           id: newId,
           position: { x: sourceNode.position.x + 50, y: sourceNode.position.y + 50 },
           selected: false,
@@ -1272,7 +1405,7 @@ function AppContent() {
       case 'copy': {
         const node = nodes.find(n => n.id === nodeId);
         if (node) {
-          clipboardRef.current = structuredClone(node);
+          clipboardRef.current = safeClone(node);
         }
         break;
       }
@@ -1280,7 +1413,7 @@ function AppContent() {
         if (!clipboardRef.current) break;
         const newId = String(nodeIdCounter);
         const pasteNode = {
-          ...structuredClone(clipboardRef.current),
+          ...safeClone(clipboardRef.current),
           id: newId,
           position: { x: clipboardRef.current.position.x + 80, y: clipboardRef.current.position.y + 80 },
           selected: false,
@@ -1466,11 +1599,6 @@ function AppContent() {
     };
   }, []);
 
-  const handleNodeDrag = useCallback((_event, _node) => {
-    // Snap and guide lines are handled in onNodesChange to avoid
-    // update conflicts between instance.setNodes() and controlled prop sync.
-  }, []);
-
   const handleNodeDragStop = useCallback((event, node) => {
     // Final snap correction: apply snapped position one last time.
     // React Flow emits a trailing dragging=false position change after
@@ -1486,97 +1614,132 @@ function AppContent() {
         const isMultiDrag = allSelected.length > 1;
 
         if (!isMultiDrag) {
-          // --- Single-node final snap ---
+          // --- Single-node final snap: expand groups to child edges ---
           const draggedNode = nds.find((n) => n.id === node.id);
           if (!draggedNode) return nds;
 
-          const otherNodes = nds
-            .filter((n) => n.id !== node.id)
-            .map((n) => ({
-              id: n.id,
-              position: { x: n.position.x, y: n.position.y },
-              width: n.measured?.width ?? n.width ?? 200,
-              height: n.measured?.height ?? n.height ?? 200,
-            }));
-
-          const result = computeAlignmentSnap(
-            {
-              id: node.id,
-              position: {
-                x: draggedNode.position.x,
-                y: draggedNode.position.y,
-              },
-              width: draggedNode.measured?.width ?? draggedNode.width ?? 200,
-              height: draggedNode.measured?.height ?? draggedNode.height ?? 200,
-            },
-            otherNodes,
-            snapThreshold
+          // Exclude the dragged node and its children
+          const draggedAndChildIds = new Set(
+            [node.id, ...nds.filter((n) => n.parentId === node.id).map((n) => n.id)]
           );
+          // Convert all nodes to absolute coords for correct cross-space comparison
+          const otherNodes = nds
+            .filter((n) => !draggedAndChildIds.has(n.id))
+            .map((n) => {
+              const abs = toAbsPos(n, nds);
+              return {
+                id: n.id,
+                position: abs,
+                width: n.measured?.width ?? n.width ?? 200,
+                height: n.measured?.height ?? n.height ?? 200,
+              };
+            });
 
-          if (result.snappedPosition) {
+          // Convert dragged position to absolute (relative for group children)
+          const absDragPos = draggedNode.parentId
+            ? {
+                x: draggedNode.position.x + (nds.find((p) => p.id === draggedNode.parentId)?.position.x || 0),
+                y: draggedNode.position.y + (nds.find((p) => p.id === draggedNode.parentId)?.position.y || 0),
+              }
+            : { x: draggedNode.position.x, y: draggedNode.position.y };
+
+          const candidates = getSnapCandidates(draggedNode, absDragPos, nds);
+          let bestResult = null;
+          let bestDeltaX = 0, bestDeltaY = 0;
+          let bestDist = snapThreshold;
+
+          for (const cand of candidates) {
+            const result = computeAlignmentSnap(cand, otherNodes, snapThreshold);
+            if (result.snappedPosition) {
+              const dx = Math.abs(result.snappedPosition.x - cand.position.x);
+              const dy = Math.abs(result.snappedPosition.y - cand.position.y);
+              const dist = Math.sqrt(dx * dx + dy * dy);
+              if (dist < bestDist) {
+                bestDist = dist;
+                bestResult = result;
+                bestDeltaX = result.snappedPosition.x - cand.position.x;
+                bestDeltaY = result.snappedPosition.y - cand.position.y;
+              }
+            }
+          }
+
+          if (bestResult) {
             return nds.map((n) =>
               n.id === node.id
-                ? { ...n, position: result.snappedPosition }
+                ? { ...n, position: { x: draggedNode.position.x + bestDeltaX, y: draggedNode.position.y + bestDeltaY } }
                 : n
             );
           }
           return nds;
         }
 
-        // --- Multi-node final snap: bounding box delta ---
-        const draggedIds = new Set(allSelected.map((n) => n.id));
-        let boxMinX = Infinity,
-          boxMinY = Infinity;
-        let boxMaxX = -Infinity,
-          boxMaxY = -Infinity;
+        // --- Multi-node final snap: use child edges for groups ---
+        const dragParentIds = new Set(
+          allSelected.filter((s) => allSelected.some((c) => c.parentId === s.id)).map((s) => s.id)
+        );
+        const effectiveDragged = allSelected.filter(
+          (s) => !s.parentId || !dragParentIds.has(s.parentId)
+        );
+        const draggedIds = new Set(effectiveDragged.map((n) => n.id));
+        const allDraggedIds = new Set(allSelected.map((n) => n.id));
 
-        for (const n of allSelected) {
-          const w = n.measured?.width ?? n.width ?? 200;
-          const h = n.measured?.height ?? n.height ?? 200;
-          boxMinX = Math.min(boxMinX, n.position.x);
-          boxMinY = Math.min(boxMinY, n.position.y);
-          boxMaxX = Math.max(boxMaxX, n.position.x + w);
-          boxMaxY = Math.max(boxMaxY, n.position.y + h);
+        // Exclude selected nodes AND children of dragged groups from otherNodes
+        const childOfDraggedGroupIds = new Set(
+          nds.filter((n) => draggedIds.has(n.parentId)).map((n) => n.id)
+        );
+        const excludedIds = new Set([...allDraggedIds, ...childOfDraggedGroupIds]);
+        // Convert all nodes to absolute coords for correct cross-space comparison
+        const otherNodes = nds
+          .filter((n) => !excludedIds.has(n.id))
+          .map((n) => {
+            const abs = toAbsPos(n, nds);
+            return {
+              id: n.id,
+              position: abs,
+              width: n.measured?.width ?? n.width ?? 200,
+              height: n.measured?.height ?? n.height ?? 200,
+            };
+          });
+
+        // Compute snap for each candidate (node or group child), pick the closest
+        let bestDeltaX = 0, bestDeltaY = 0;
+        let bestDist = snapThreshold;
+        for (const n of effectiveDragged) {
+          // Convert dragged position to absolute (relative for group children)
+          const absPos = n.parentId
+            ? {
+                x: n.position.x + (nds.find((p) => p.id === n.parentId)?.position.x || 0),
+                y: n.position.y + (nds.find((p) => p.id === n.parentId)?.position.y || 0),
+              }
+            : { x: n.position.x, y: n.position.y };
+          const candidates = getSnapCandidates(n, absPos, nds);
+          for (const cand of candidates) {
+            const result = computeAlignmentSnap(cand, otherNodes, snapThreshold);
+            if (result.snappedPosition) {
+              const dx = Math.abs(result.snappedPosition.x - cand.position.x);
+              const dy = Math.abs(result.snappedPosition.y - cand.position.y);
+              const dist = Math.sqrt(dx * dx + dy * dy);
+              if (dist < bestDist) {
+                bestDist = dist;
+                bestDeltaX = result.snappedPosition.x - cand.position.x;
+                bestDeltaY = result.snappedPosition.y - cand.position.y;
+              }
+            }
+          }
         }
 
-        if (!Number.isFinite(boxMinX)) return nds;
-
-        const otherNodes = nds
-          .filter((n) => !draggedIds.has(n.id))
-          .map((n) => ({
-            id: n.id,
-            position: { x: n.position.x, y: n.position.y },
-            width: n.measured?.width ?? n.width ?? 200,
-            height: n.measured?.height ?? n.height ?? 200,
-          }));
-
-        const result = computeAlignmentSnap(
-          {
-            id: '__selection__',
-            position: { x: boxMinX, y: boxMinY },
-            width: boxMaxX - boxMinX,
-            height: boxMaxY - boxMinY,
-          },
-          otherNodes,
-          snapThreshold
-        );
-
-        if (result.snappedPosition) {
-          const deltaX = result.snappedPosition.x - boxMinX;
-          const deltaY = result.snappedPosition.y - boxMinY;
-          if (deltaX !== 0 || deltaY !== 0) {
-            return nds.map((n) =>
-              draggedIds.has(n.id)
-                ? {
-                    ...n,
-                    position: {
-                      x: n.position.x + deltaX,
-                      y: n.position.y + deltaY,
-                    },
-                  }
-                : n
-            );
-          }
+        if (bestDeltaX !== 0 || bestDeltaY !== 0) {
+          return nds.map((n) =>
+            draggedIds.has(n.id)
+              ? {
+                  ...n,
+                  position: {
+                    x: n.position.x + bestDeltaX,
+                    y: n.position.y + bestDeltaY,
+                  },
+                }
+              : n
+          );
         }
         return nds;
       });
@@ -1589,6 +1752,179 @@ function AppContent() {
     setSelectedNodeCount(nodes.length);
   }, []);
 
+  const handleArrangeSelected = useCallback((mode) => {
+    setNodes((nds) => {
+      const selected = nds.filter((n) => n.selected);
+      if (selected.length < 2) return nds;
+      const GAP = 24, PAD = 20;
+      let minX = Infinity, minY = Infinity;
+      const items = selected.map((n) => ({
+        id: n.id,
+        x: n.position.x,
+        y: n.position.y,
+        w: n.measured?.width ?? n.width ?? 200,
+        h: n.measured?.height ?? n.height ?? 200,
+      }));
+      for (const it of items) {
+        minX = Math.min(minX, it.x);
+        minY = Math.min(minY, it.y);
+      }
+      const pos = {};
+      if (mode === 'grid') {
+        const cols = Math.ceil(Math.sqrt(items.length));
+        items.forEach((it, i) => {
+          const col = i % cols, row = Math.floor(i / cols);
+          pos[it.id] = { x: minX + PAD + col * (it.w + GAP), y: minY + PAD + row * (it.h + GAP) };
+        });
+      } else if (mode === 'horizontal') {
+        let cx = minX + PAD;
+        items.forEach((it) => { pos[it.id] = { x: cx, y: minY + PAD }; cx += it.w + GAP; });
+      } else if (mode === 'vertical') {
+        let cy = minY + PAD;
+        items.forEach((it) => { pos[it.id] = { x: minX + PAD, y: cy }; cy += it.h + GAP; });
+      }
+      return nds.map((n) => (pos[n.id] ? { ...n, position: pos[n.id] } : n));
+    });
+  }, [setNodes]);
+
+  const handleDeleteSelected = useCallback(() => {
+    const selected = latestNodes.current.filter((n) => n.selected);
+    const ids = selected.map((n) => n.id);
+    if (ids.length === 0) return;
+
+    // Convert children of deleted groups to absolute coords first
+    const groupIds = selected.filter((n) => n.type === 'group').map((n) => n.id);
+    if (groupIds.length > 0) {
+      const groupIdSet = new Set(groupIds);
+      setNodes((nds) => {
+        const converted = nds.map((n) => {
+          if (n.parentId && groupIdSet.has(n.parentId)) {
+            const group = nds.find((g) => g.id === n.parentId);
+            if (group) {
+              return {
+                ...n,
+                parentId: null,
+                position: {
+                  x: n.position.x + group.position.x,
+                  y: n.position.y + group.position.y,
+                },
+                extent: undefined,
+              };
+            }
+          }
+          return n;
+        });
+        return converted.filter((n) => !ids.includes(n.id));
+      });
+    } else {
+      setNodes((nds) => nds.filter((n) => !ids.includes(n.id)));
+    }
+    setEdges((eds) => eds.filter((e) => !ids.includes(e.source) && !ids.includes(e.target)));
+    setActiveNodeId((prev) => (ids.includes(prev) ? null : prev));
+  }, [setNodes, setEdges, setActiveNodeId]);
+
+  const handleGroupSelected = useCallback(() => {
+    const nds = latestNodes.current;
+    const selected = nds.filter((n) => n.selected && n.type !== 'group');
+    if (selected.length < 2) return;
+
+    const PAD = 30;
+    let minX = Infinity, minY = Infinity;
+    let maxX = -Infinity, maxY = -Infinity;
+    for (const n of selected) {
+      const w = n.measured?.width ?? n.width ?? 200;
+      const h = n.measured?.height ?? n.height ?? 200;
+      minX = Math.min(minX, n.position.x);
+      minY = Math.min(minY, n.position.y);
+      maxX = Math.max(maxX, n.position.x + w);
+      maxY = Math.max(maxY, n.position.y + h);
+    }
+
+    // Find max numeric ID to guarantee a unique group ID.
+    // The nodeIdCounter can be stale if nodes were created outside the
+    // addNode path (e.g. project load, drag-and-drop with async creation).
+    let maxId = 0;
+    for (const n of nds) {
+      const idNum = parseInt(n.id, 10);
+      if (!isNaN(idNum) && idNum > maxId) maxId = idNum;
+    }
+    const groupId = String(maxId + 1);
+    setNodeIdCounter((c) => Math.max(c, maxId + 1));
+
+    const groupPos = { x: minX - PAD, y: minY - PAD };
+    const selectedIds = new Set(selected.map((n) => n.id));
+
+    setNodes((nds) => {
+      const groupNode = {
+        id: groupId,
+        type: 'group',
+        position: groupPos,
+        width: Math.max(maxX - minX + PAD * 2, 120),
+        height: Math.max(maxY - minY + PAD * 2, 60),
+        data: {
+          title: '组',
+          onTitleChange: (nodeId, val) =>
+            setNodes((nds) =>
+              nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, title: val } } : n))
+            ),
+        },
+        selectable: true,
+        selected: true,
+      };
+      return [
+        groupNode,
+        ...nds.map((n) => {
+          if (selectedIds.has(n.id)) {
+            return {
+              ...n,
+              parentId: groupId,
+              position: {
+                x: n.position.x - groupPos.x,
+                y: n.position.y - groupPos.y,
+              },
+              extent: 'parent',
+              selected: false,
+            };
+          }
+          return n;
+        }),
+      ];
+    });
+  }, [setNodes, setNodeIdCounter]);
+
+  const handleUngroupSelected = useCallback(() => {
+    setNodes((nds) => {
+      const selectedGroupIds = nds
+        .filter((n) => n.selected && n.type === 'group')
+        .map((n) => n.id);
+      if (selectedGroupIds.length === 0) return nds;
+
+      const groupIdSet = new Set(selectedGroupIds);
+
+      const updated = nds.map((n) => {
+        if (n.parentId && groupIdSet.has(n.parentId)) {
+          const parent = nds.find((p) => p.id === n.parentId);
+          if (parent) {
+            return {
+              ...n,
+              parentId: null,
+              position: {
+                x: n.position.x + parent.position.x,
+                y: n.position.y + parent.position.y,
+              },
+              extent: undefined,
+              selected: false,
+            };
+          }
+        }
+        if (groupIdSet.has(n.id)) {
+          return { ...n, selected: false };
+        }
+        return n;
+      });
+      return updated.filter((n) => !groupIdSet.has(n.id));
+    });
+  }, [setNodes]);
 
   const customNodeTypes = useMemo(() => ({
     image: (props) => <ImageNode {...props} />,
@@ -1599,6 +1935,7 @@ function AppContent() {
     'source-video': (props) => <SourceVideoNode {...props} />,
     'source-audio': (props) => <SourceAudioNode {...props} />,
     'source-markdown': (props) => <SourceMarkdownNode {...props} />,
+    group: (props) => <GroupNode {...props} />,
   }), []);
 
   const contextValue = useMemo(() => ({ isConnecting }), [isConnecting]);
@@ -1619,10 +1956,65 @@ function AppContent() {
     transition: 'all 0.15s var(--ease-out)',
   };
 
+  // Toolbar bbox in absolute canvas coords — from React state, not zustand
+  const toolbarBbox = useMemo(() => {
+    const sel = nodes.filter((n) => n.selected);
+    if (sel.length < 2 && !(sel.length === 1 && sel[0].type === 'group')) return null;
+
+    let minX = Infinity, minY = Infinity;
+    let maxX = -Infinity, maxY = -Infinity;
+
+    // Collect nodes whose edges should contribute to the toolbar bbox.
+    // When a group is the only selection, use its children's absolute edges
+    // so the toolbar stays where the user box-selected, not at the group border.
+    const candidates = [];
+    for (const n of sel) {
+      if (n.type === 'group' && sel.length === 1) {
+        const children = nodes.filter((c) => c.parentId === n.id);
+        if (children.length > 0) {
+          for (const c of children) {
+            candidates.push({
+              position: {
+                x: n.position.x + c.position.x,
+                y: n.position.y + c.position.y,
+              },
+              width: c.measured?.width ?? c.width ?? 200,
+              height: c.measured?.height ?? c.height ?? 200,
+            });
+          }
+        } else {
+          candidates.push(n);
+        }
+      } else {
+        let px = n.position.x, py = n.position.y;
+        if (n.parentId) {
+          const parent = nodes.find((p) => p.id === n.parentId);
+          if (parent) { px += parent.position.x; py += parent.position.y; }
+        }
+        candidates.push({
+          position: { x: px, y: py },
+          width: n.measured?.width ?? n.width ?? 200,
+          height: n.measured?.height ?? n.height ?? 200,
+        });
+      }
+    }
+
+    for (const c of candidates) {
+      const rx = c.position.x + c.width;
+      const by = c.position.y + c.height;
+      if (c.position.x < minX) minX = c.position.x;
+      if (c.position.y < minY) minY = c.position.y;
+      if (rx > maxX) maxX = rx;
+      if (by > maxY) maxY = by;
+    }
+
+    return { minX, minY, maxX, maxY, count: sel.length, hasGroup: sel.some((n) => n.type === 'group') };
+  }, [nodes]);
+
   return (
     <ConnectionContext.Provider value={contextValue}>
       <ActiveNodeContext.Provider value={{ activeNodeId, handleNodeClick, handleSubmit, handleNodeTypeChange, handleUpdateResult, handleRenameNode, handleUpdateNodeData, handleResizeNode, handleOpenSettings, handleNodeContextMenu, apiProviders, nodeStates, nodes: latestNodes.current, edges: latestEdges.current }}>
-      <div ref={reactFlowWrapper} style={{ width: '100%', height: '100%' }}
+      <div style={{ width: '100%', height: '100%' }}
             onDragOver={handleDragOver}
             onDrop={handleFileDrop}>
         <Sidebar
@@ -1656,7 +2048,6 @@ function AppContent() {
           minZoom={0.15}
           maxZoom={2.5}
           onNodeDragStart={handleNodeDragStart}
-          onNodeDrag={handleNodeDrag}
           onNodeDragStop={handleNodeDragStop}
           connectionLineStyle={{
             stroke: 'var(--accent)',
@@ -1723,6 +2114,12 @@ function AppContent() {
           <AlignmentGuides guides={guideLines} />
         </ReactFlow>
         </div>
+        <SelectionBboxToolbar
+          bbox={toolbarBbox}
+          onArrange={handleArrangeSelected}
+          onGroup={handleGroupSelected}
+          onUngroup={handleUngroupSelected}
+        />
         {nodes.length === 0 && (
           <div style={{
             position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
