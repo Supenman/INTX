@@ -63,17 +63,25 @@ if errorlevel 1 (
 
 echo [4/4] Starting services...
 echo.
-echo Backend:  http://127.0.0.1:8000
+
+:: Backend in the same console (background) — closes when this window closes
+start /B "" cmd /c "pushd "%ROOT%backend" && "%PYTHON%" main.py" > backend.log 2>&1
+timeout /t 2 /nobreak >nul
+
+:: Frontend in the foreground
+echo Backend:  http://127.0.0.1:8000  (log: backend.log)
 echo Frontend: http://localhost:5173
 echo.
-
-start "BeastTV Backend" cmd /k "pushd "%ROOT%backend" && "%PYTHON%" main.py"
-timeout /t 2 /nobreak >nul
-start "BeastTV Frontend" cmd /k "pushd "%ROOT%" && npm run dev"
-timeout /t 3 /nobreak >nul
-start "" "http://localhost:5173"
-
-echo BeastTV is starting. If the browser opens before Vite is ready, refresh after a few seconds.
-echo To stop both services, run stop-beasttv.bat.
+echo Close this window to stop all services.
 echo.
+start "" "http://localhost:5173"
+pushd "%ROOT%" && npm run dev
+
+:: Ctrl+C fallback — clean up backend if npm exits first
+echo.
+echo Stopping backend...
+for /f "tokens=5" %%A in ('netstat -ano ^| findstr /R /C:":8000 .*LISTENING"') do (
+  taskkill /PID %%A /F >nul 2>nul
+)
+echo All services stopped.
 pause
