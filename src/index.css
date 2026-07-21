@@ -470,9 +470,16 @@ html[data-theme="light"] {
   border-radius: var(--radius-md);
   box-shadow: var(--panel-shadow);
   backdrop-filter: var(--panel-blur);
-  animation: toolbarFadeIn 0.15s var(--ease-out);
   white-space: nowrap;
   user-select: none;
+  transform: translateX(-50%);
+  transition: none;
+}
+.bbox-toolbar-bottom { animation: toolbarSlideUp 0.18s var(--ease-out); }
+.bbox-toolbar-top { animation: toolbarFadeIn 0.18s var(--ease-out); }
+@keyframes toolbarSlideUp {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 .bbox-toolbar-count {
@@ -575,8 +582,8 @@ html[data-theme="light"] {
 }
 
 @keyframes toolbarFadeIn {
-  from { opacity: 0; transform: translateY(8px) scale(0.95); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 /* ── Group Node ── */
@@ -642,4 +649,368 @@ html[data-theme="light"] {
   outline: none;
   width: 120px;
   font-family: inherit;
+}
+
+/* ============================================
+   NodeDrawer (visual reference: AI-Canvas-tauri PromptPanel)
+   ============================================ */
+
+/* Shell — top border shifts to brand on focus (matches .prompt-panel.focused) */
+.nd-panel {
+  background: var(--drawer-bg);
+  border: 1px solid var(--drawer-border);
+  border-radius: 12px;
+  padding: 10px 12px 6px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.20);
+  backdrop-filter: blur(20px) saturate(1.1);
+  transition: border-color 0.18s var(--ease-out);
+}
+.nd-panel.is-focused { border-color: var(--accent); }
+
+/* Editor — is-empty class binding drives placeholder (more reliable than :empty) */
+.nd-editor {
+  width: 100%;
+  min-height: 110px;
+  max-height: 280px;
+  overflow-y: auto;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--drawer-text);
+  caret-color: var(--accent);
+  font-family: inherit;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  padding: 0;
+  scrollbar-width: none;
+}
+.nd-editor::-webkit-scrollbar { display: none; }
+.nd-editor.is-empty::before {
+  content: attr(data-placeholder);
+  color: var(--text-tertiary);
+  pointer-events: none;
+  display: block;
+  white-space: pre-wrap;
+}
+.nd-editor::selection {
+  background: rgba(var(--accent-rgb, 124 107 246), 0.30);
+}
+
+/* Footer — tight padding, 1px top divider (matches .prompt-footer) */
+.nd-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 2px 2px;
+  gap: 6px;
+  border-top: 1px solid var(--drawer-border);
+  margin-top: 8px;
+}
+.nd-footer-left {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+.nd-footer-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* Reference chips — font-size 12, 1px 7px 1px 5px padding, 7px radius */
+.nd-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px 1px 5px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.55;
+  vertical-align: middle;
+  margin: 0 2px;
+  border: 1px solid transparent;
+  transition: filter 0.15s var(--ease-out), box-shadow 0.15s var(--ease-out);
+  cursor: default;
+  user-select: none;
+}
+.nd-chip:hover {
+  filter: brightness(1.14) saturate(1.05);
+  box-shadow: 0 2px 9px rgba(0, 0, 0, 0.30);
+}
+.nd-chip-icon {
+  font-weight: 700;
+  font-size: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  opacity: 0.9;
+}
+.nd-chip-thumb {
+  width: 16px;
+  height: 16px;
+  object-fit: cover;
+  border-radius: 4px;
+  display: block;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2);
+}
+
+/* 6 chip color variants — alpha 0.12 background, 0.35 border */
+.nd-chip-image    { background: rgba(var(--signal-image-rgb), 0.12);    color: var(--signal-image);    border-color: rgba(var(--signal-image-rgb), 0.35);    border-left: none; padding: 0 7px 0 0; }
+.nd-chip-text     { background: rgba(var(--signal-text-rgb), 0.12);     color: var(--signal-text);     border-color: rgba(var(--signal-text-rgb), 0.35); }
+.nd-chip-video    { background: rgba(var(--signal-video-rgb), 0.12);    color: var(--signal-video);    border-color: rgba(var(--signal-video-rgb), 0.35); }
+.nd-chip-audio    { background: rgba(var(--signal-audio-rgb), 0.12);    color: var(--signal-audio);    border-color: rgba(var(--signal-audio-rgb), 0.35); }
+.nd-chip-markdown { background: rgba(var(--signal-markdown-rgb), 0.12); color: var(--signal-markdown); border-color: rgba(var(--signal-markdown-rgb), 0.35); }
+.nd-chip-asset    { background: var(--accent-soft); color: var(--accent-strong); border-color: rgba(var(--accent-rgb, 124 107 246), 0.20); }
+
+/* @-typeahead popover — spring entry, glass-bg, fixed at 240px */
+.nd-atmenu {
+  position: absolute;
+  left: 8px;
+  top: calc(100% + 6px);
+  min-width: 220px;
+  max-width: 280px;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--panel-bg-strong);
+  backdrop-filter: blur(20px) saturate(1.1);
+  border: 1px solid var(--panel-border-strong);
+  border-radius: 12px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.30);
+  z-index: 10002;
+  padding: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  transform-origin: bottom left;
+  animation: fadeIn 0.22s var(--ease-out);
+}
+.nd-atmenu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 7px;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--text-primary);
+  transition: background 0.12s var(--ease-out);
+}
+.nd-atmenu-item:hover { background: var(--panel-btn-bg-hover); }
+.nd-atmenu-item-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  opacity: 0.85;
+}
+.nd-atmenu-item-label {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+.nd-atmenu-item-type {
+  font-size: 9px;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(var(--text-primary-rgb), 0.05);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.nd-atmenu-empty {
+  padding: 14px 12px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  text-align: center;
+}
+
+/* Connected-source dock — small thumbnails above panel */
+.nd-dock {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 6px;
+  margin: 0 0 -6px 0;
+  position: relative;
+  z-index: 3;
+  pointer-events: none;
+}
+.nd-dock-item {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  overflow: hidden;
+  flex-shrink: 0;
+  cursor: pointer;
+  pointer-events: auto;
+  background: var(--panel-bg-strong);
+  border: 1px solid var(--panel-border-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.22s var(--ease-out), border-color 0.18s var(--ease-out), background 0.18s var(--ease-out), box-shadow 0.18s var(--ease-out);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+}
+.nd-dock-item.is-hovered {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22), 0 0 0 2px var(--accent-glow);
+}
+.nd-dock-thumb { width: 100%; height: 100%; object-fit: cover; display: block; }
+.nd-dock-icon  { display: inline-flex; align-items: center; justify-content: center; opacity: 0.85; }
+
+/* Floating chip tooltip — glass-bg, fixed above chip, pointer-events none */
+.nd-chip-tooltip {
+  position: fixed;
+  z-index: 10050;
+  transform: translate(-50%, calc(-100% - 8px));
+  max-width: 260px;
+  padding: 4px 9px;
+  background: var(--panel-bg-strong);
+  backdrop-filter: blur(12px) saturate(1.1);
+  border: 1px solid var(--panel-border-strong);
+  border-radius: 7px;
+  font-size: 12px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.30);
+  animation: fadeIn 0.12s var(--ease-out);
+}
+
+/* Video params row — 1px top divider above (matches .prompt-actions) */
+.nd-params {
+  display: flex;
+  gap: 8px;
+  padding: 6px 2px 4px;
+  border-top: 1px solid var(--drawer-border);
+  margin-top: 6px;
+}
+.nd-param { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.nd-param-label {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding-left: 2px;
+}
+.nd-param-input {
+  width: 100%;
+  background: rgba(var(--text-primary-rgb), 0.04);
+  border: 1px solid var(--panel-border);
+  border-radius: 7px;
+  padding: 5px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s var(--ease-out), background 0.15s var(--ease-out);
+  -moz-appearance: textfield;
+}
+.nd-param-input::-webkit-outer-spin-button,
+.nd-param-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.nd-param-input:focus {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* Generic icon button (28x28) — matches .prompt-btn */
+.nd-btn {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.12s var(--ease-out), background 0.12s var(--ease-out);
+  font-family: inherit;
+}
+.nd-btn:hover {
+  color: var(--text-primary);
+  background: var(--panel-btn-bg-hover);
+}
+
+/* Trigger button — used inside CanvasDropdown trigger slot */
+.nd-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 10px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-primary);
+  cursor: pointer;
+  white-space: nowrap;
+  max-width: 90px;
+  transition: color 0.12s var(--ease-out), background 0.12s var(--ease-out);
+  font-family: inherit;
+}
+.nd-trigger-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+.nd-trigger:hover { color: var(--text-primary); background: var(--panel-btn-bg-hover); }
+.nd-trigger.is-accent { color: var(--accent); }
+.nd-trigger.is-accent:hover { color: var(--accent-strong); background: var(--accent-soft); }
+
+/* Submit — up arrow + "生成" text, 28px tall, accent-soft baseline */
+.nd-submit {
+  flex-shrink: 0;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 12px;
+  border: none;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: inherit;
+  transition: background 0.15s var(--ease-out), color 0.15s var(--ease-out);
+}
+.nd-submit:hover:not(:disabled) {
+  background: var(--accent);
+  color: #fff;
+}
+.nd-submit:disabled {
+  color: var(--text-tertiary);
+  cursor: wait;
+  opacity: 0.6;
 }

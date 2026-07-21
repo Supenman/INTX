@@ -47,12 +47,28 @@ function computeToolbarPosition(bbox, viewport) {
   const screenLeft = minX * zoom + tx;
   const screenTop = minY * zoom + ty;
   const screenRight = maxX * zoom + tx;
+  const screenBottom = maxY * zoom + ty;
   const centerX = (screenLeft + screenRight) / 2;
 
+  const gap = 0;
+  const toolbarH = 42;
+  const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
+  const margin = 8;
+
+  const wouldOverflowTop = screenTop - toolbarH - gap < margin;
+  const placement = wouldOverflowTop ? 'bottom' : 'top';
+
+  if (placement === 'top') {
+    return {
+      left: centerX,
+      bottom: vh - screenTop + gap,
+      placement,
+    };
+  }
   return {
     left: centerX,
-    top: screenTop - 26,
-    transform: 'translateX(-50%) translateY(-100%)',
+    top: Math.min(screenBottom + gap, vh - toolbarH - margin),
+    placement,
   };
 }
 
@@ -95,7 +111,7 @@ export default function SelectionBboxToolbar({ bbox, onArrange, onGroup, onUngro
   const arrangeLabel = '排列';
 
   return (
-    <div className="bbox-toolbar" style={position}>
+    <div className={`bbox-toolbar bbox-toolbar-${position.placement}`} style={position}>
       <span className="bbox-toolbar-count">{bbox.count} 个节点</span>
       <div className="bbox-toolbar-divider" />
       {/* Arrange button with submenu */}

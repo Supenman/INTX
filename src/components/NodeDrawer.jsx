@@ -8,13 +8,14 @@ import CanvasDropdown from './primitives/CanvasDropdown';
 const triggerBtnBase = {
   display: 'flex',
   alignItems: 'center',
-  gap: 2,
-  padding: '2px 4px',
+  gap: 5,
+  padding: '0 10px',
+  height: 28,
   background: 'transparent',
   border: '1px solid transparent',
-  borderRadius: 4,
-  fontSize: 9,
-  color: 'var(--text-tertiary)',
+  borderRadius: 6,
+  fontSize: 11,
+  color: 'var(--text-primary)',
   cursor: 'pointer',
   transition: 'all 0.15s ease',
   fontWeight: 500,
@@ -38,19 +39,19 @@ function getNodeTypeById(nodes, id) {
 function buildChipEl(nodeId, label, nodeType, options) {
   const chip = document.createElement('span');
   chip.contentEditable = 'false';
-  chip.className = 'prompt-chip chip-' + (nodeType || 'image');
+  chip.className = 'nd-chip nd-chip-' + (nodeType || 'image');
   chip.setAttribute('data-ref-id', nodeId);
   chip.setAttribute('data-ref-label', label);
   if (options?.thumbUrl) {
     const img = document.createElement('img');
-    img.className = 'prompt-chip-thumb';
+    img.className = 'nd-chip-thumb';
     img.src = options.thumbUrl;
     img.draggable = false;
     img.onerror = (e) => { e.target.style.display = 'none'; };
     chip.appendChild(img);
   } else {
     const icon = document.createElement('span');
-    icon.className = 'prompt-chip-icon';
+    icon.className = 'nd-chip-icon';
     const map = { image: '🖼', text: '📝', video: '🎬', media: '📎', 'source-text': '📄', 'source-image': '🖼', 'source-video': '🎬', 'source-audio': '🎵', 'source-markdown': '📋' };
     icon.textContent = map[nodeType] || '🔗';
     chip.appendChild(icon);
@@ -193,10 +194,10 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
   const [model, setModel] = useState(node?.data?.model || '');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [drawerDir, setDrawerDir] = useState('bottom');
-  const [isExpanded, setIsExpanded] = useState(false);
   const [hoveredDockIdx, setHoveredDockIdx] = useState(null);
   const [chipTooltip, setChipTooltip] = useState(null);
   const [hoveredChipNodeId, setHoveredChipNodeId] = useState(null);
+  const [focused, setFocused] = useState(false);
   const drawerRef = useRef(null);
   const editorRef = useRef(null);
   const savedRangeRef = useRef(null);
@@ -241,45 +242,6 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
       setDrawerDir(rect.bottom > window.innerHeight - 16 ? 'top' : 'bottom');
     }
   }, [prompt, aspectRatio, model, resolution, duration, fps]);
-
-  // Inject editor CSS once
-  useEffect(() => {
-    if (document.getElementById('nd-editor-styles')) return;
-    const style = document.createElement('style');
-    style.id = 'nd-editor-styles';
-    style.textContent = `
-.prompt-editor {
-  width:100%; min-height:60px; max-height:110px; overflow-y:auto;
-  background:transparent; border:none; outline:none;
-  font-size:11px; line-height:1.5;
-  color:var(--drawer-text); caret-color:var(--drawer-text);
-  font-family:inherit; white-space:pre-wrap; word-wrap:break-word;
-  padding:0; position:relative; z-index:2;
-  scrollbar-width:none;
-}
-.prompt-editor::-webkit-scrollbar { display:none; }
-.prompt-editor.nd-expanded { height:250px; max-height:none; }
-.prompt-editor:empty::before {
-  content:attr(data-placeholder); color:var(--text-tertiary);
-  pointer-events:none; display:block;
-}
-.prompt-editor:focus { outline:none; }
-.prompt-chip {
-  display:inline-flex; align-items:center; gap:3px;
-  padding:0 6px 0 4px; border-radius:5px;
-  font-size:10px; font-weight:600; line-height:1.5;
-  vertical-align:middle; margin:0 1px; border:1px solid transparent;
-  cursor:default; transition:filter 0.15s, box-shadow 0.15s;
-}
-.prompt-chip:hover { filter:brightness(1.12); box-shadow:0 1px 6px rgba(0,0,0,0.2); }
-.prompt-chip-icon { font-size:9px; font-weight:700; opacity:0.9; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; }
-.chip-image { background:rgba(var(--signal-image-rgb),0.12); color:var(--signal-image); border-color:rgba(var(--signal-image-rgb),0.25); }
-.chip-text { background:rgba(var(--signal-text-rgb),0.12); color:var(--signal-text); border-color:rgba(var(--signal-text-rgb),0.25); }
-.chip-video { background:rgba(var(--signal-video-rgb),0.12); color:var(--signal-video); border-color:rgba(var(--signal-video-rgb),0.25); }
-.prompt-chip-thumb { width:14px; height:14px; border-radius:3px; object-fit:cover; display:block; }
-`;
-    document.head.appendChild(style);
-  }, []);
 
   // Sync prompt → DOM when prompt changes externally
   useEffect(() => {
@@ -535,10 +497,10 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
         className="nodrag"
       style={{
         position: 'absolute',
-        left: 0,
-        [drawerDir === 'bottom' ? 'top' : 'bottom']: 'calc(100% + 8px)',
-        width: '100%',
-        minWidth: 280,
+        left: '50%',
+        marginLeft: -300,
+        [drawerDir === 'bottom' ? 'top' : 'bottom']: 'calc(100% + 10px)',
+        width: 600,
         zIndex: 1000,
         animation: 'slideUp 0.2s var(--ease-out)',
         transformOrigin: drawerDir === 'bottom' ? 'top center' : 'bottom center',
@@ -546,95 +508,55 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
     >
       {/* Floating ConnectedNodesPreview */}
       {hasConnectedData && (
-        <div className="nodrag" style={{
-          position: 'absolute',
-          bottom: 'calc(100% + 6px)',
-          left: 0,
-          right: 0,
-          display: 'flex',
-          justifyContent: 'center',
-          zIndex: 10,
-          pointerEvents: 'auto',
-        }}>
-          <div style={{
-            display: 'flex',
-            gap: 4,
-            padding: '3px 8px',
-            background: 'var(--drawer-bg)',
-            border: '1px solid var(--drawer-border)',
-            borderRadius: 8,
-            backdropFilter: 'blur(20px)',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
-            alignItems: 'center',
-          }}>
-            {validSourceNodes.map((sourceNode, idx) => {
-              const scale = getDockScale(idx);
-              const x = getDockX(idx);
-              const opacity = getDockOpacity(idx);
-              const isHovered = idx === hoveredDockIdx || (hoveredChipNodeId === sourceNode.id && hoveredDockIdx === null);
-              const sourceMeta = NODE_TYPE_REGISTRY[sourceNode.type] || NODE_TYPE_REGISTRY.image;
-              const sourceImages = sourceNode.data?.images || [];
-              const thumbSrc = sourceImages[0]?.url;
-              return (
-                <div
-                  key={sourceNode.id}
-                  onClick={(e) => { e.stopPropagation(); insertReference(sourceNode); }}
-                  onMouseEnter={() => setHoveredDockIdx(idx)}
-                  onMouseLeave={() => setHoveredDockIdx(null)}
-                  title={sourceNode.data.title || sourceMeta.title}
-                  style={{
-                    width: 38,
-                    height: 38,
-                    borderRadius: 6,
-                    overflow: 'hidden',
-                    cursor: 'pointer',
-                    flexShrink: 0,
-                    transition: 'transform 0.2s var(--ease-out), opacity 0.2s var(--ease-out)',
-                    transform: `scale(${scale}) translateX(${x}px) translateY(${isHovered ? -4 : 0}px)`,
-                    opacity,
-                    background: isHovered ? 'var(--accent-soft)' : 'var(--panel-bg)',
-                    border: isHovered ? '1px solid var(--accent)' : '1px solid var(--drawer-border)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  {thumbSrc ? (
-                    <img src={thumbSrc} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                      onError={(e) => { e.target.style.display = 'none'; e.target.parentElement.style.background = 'var(--panel-bg)'; }} />
-                  ) : (
-                    <div style={{ color: sourceMeta.accentVar, opacity: 0.8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {sourceMeta.smallIcon}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+        <div className="nd-dock">
+          {validSourceNodes.map((sourceNode, idx) => {
+            const scale = getDockScale(idx);
+            const x = getDockX(idx);
+            const opacity = getDockOpacity(idx);
+            const isHovered = idx === hoveredDockIdx || (hoveredChipNodeId === sourceNode.id && hoveredDockIdx === null);
+            const sourceMeta = NODE_TYPE_REGISTRY[sourceNode.type] || NODE_TYPE_REGISTRY.image;
+            const sourceImages = sourceNode.data?.images || [];
+            const thumbSrc = sourceImages[0]?.url;
+            return (
+              <div
+                key={sourceNode.id}
+                className={'nd-dock-item' + (isHovered ? ' is-hovered' : '')}
+                onClick={(e) => { e.stopPropagation(); insertReference(sourceNode); }}
+                onMouseEnter={() => setHoveredDockIdx(idx)}
+                onMouseLeave={() => setHoveredDockIdx(null)}
+                title={sourceNode.data.title || sourceMeta.title}
+                style={{
+                  transform: `scale(${scale}) translateX(${x}px) translateY(${isHovered ? -4 : 0}px)`,
+                  opacity,
+                }}
+              >
+                {thumbSrc ? (
+                  <img src={thumbSrc} alt="" className="nd-dock-thumb"
+                    onError={(e) => { e.target.style.display = 'none'; }} />
+                ) : (
+                  <span className="nd-dock-icon" style={{ color: sourceMeta.accentVar }}>
+                    {sourceMeta.smallIcon}
+                  </span>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
-      <div
-        className="node-drawer-panel"
-        style={{
-          background: 'var(--drawer-bg)',
-          border: '1px solid var(--drawer-border)',
-          borderRadius: 10,
-          padding: '6px 8px',
-          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.12)',
-          backdropFilter: 'blur(20px)',
-        }}
-      >
+      <div className={'nd-panel' + (focused ? ' is-focused' : '')}>
         <div style={{ position: 'relative' }}>
           {/* ContentEditable editor */}
           <div
             ref={editorRef}
             contentEditable
-            className={'prompt-editor' + (isExpanded ? ' nd-expanded' : '')}
-            data-placeholder={node.type === 'text' ? '输入文本内容...' : '描述你想生成的内容...'}
+            className={'nd-editor' + (!prompt ? ' is-empty' : '')}
+            data-placeholder={node.type === 'text' ? '输入文本内容...' : "输入描述或按'/'呼出指令（Enter 发送，Shift+Enter 换行）"}
             onInput={handleInput}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
             onMouseOver={(e) => {
               const chip = e.target.closest('[data-ref-id]');
               if (chip) {
@@ -653,30 +575,9 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
 
           {/* @-reference typeahead dropdown */}
           {atReferenceState.active && (
-            <div style={{
-              position: 'absolute',
-              left: Math.max(0, Math.min(atReferenceState.position?.x || 0, 200)),
-              top: (atReferenceState.position?.y || 30) + 4,
-              minWidth: 200,
-              maxWidth: 260,
-              maxHeight: 150,
-              overflowY: 'auto',
-              background: 'var(--panel-bg-strong)',
-              backdropFilter: 'var(--panel-blur)',
-              border: '1px solid var(--sidebar-border)',
-              borderRadius: 10,
-              boxShadow: 'var(--panel-shadow)',
-              zIndex: 10002,
-              padding: 4,
-              animation: 'fadeIn 0.1s var(--ease-out)',
-            }}>
+            <div className="nd-atmenu">
               {filteredAtNodes.length === 0 ? (
-                <div style={{
-                  padding: '8px 10px',
-                  fontSize: 10,
-                  color: 'var(--text-tertiary)',
-                  textAlign: 'center',
-                }}>
+                <div className="nd-atmenu-empty">
                   {validSourceNodes.length === 0 ? '无可用连接数据' : '没有匹配的连接数据'}
                 </div>
               ) : (
@@ -685,28 +586,16 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
                   return (
                     <div
                       key={sourceNode.id}
+                      className="nd-atmenu-item"
                       onClick={() => insertReference(sourceNode)}
-                      style={{
-                        padding: '6px 8px',
-                        fontSize: 10,
-                        cursor: 'pointer',
-                        borderRadius: 6,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        color: 'var(--sidebar-text)',
-                        transition: 'background 0.1s',
-                      }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--sidebar-item-bg-hover)'; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
                     >
-                      <span style={{ color: sourceMeta.accentVar, flexShrink: 0 }}>
+                      <span className="nd-atmenu-item-icon" style={{ color: sourceMeta.accentVar }}>
                         {sourceMeta.smallIcon}
                       </span>
-                      <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <span className="nd-atmenu-item-label">
                         {sourceNode.data.title || sourceMeta.title}
                       </span>
-                      <span style={{ marginLeft: 'auto', fontSize: 8, color: 'var(--text-tertiary)', flexShrink: 0 }}>
+                      <span className="nd-atmenu-item-type">
                         {sourceNode.data.result ? 'Done' : 'Prompt'}
                       </span>
                     </div>
@@ -718,180 +607,130 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
         </div>
 
         {node.type === 'video' && (
-          <div style={{ display: 'flex', gap: 6, marginBottom: 4, borderTop: '1px solid var(--drawer-border)', paddingTop: 5, marginTop: 2 }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 9, color: 'var(--drawer-text-secondary)', marginBottom: 3, fontWeight: 500 }}>时长 (s)</div>
-              <input type="number" value={duration} onChange={(e) => setDuration(e.target.value)} min="1" max="60"
-                style={{ width: '100%', background: 'transparent', border: '1px solid var(--drawer-border)', borderRadius: 5, padding: '4px 7px', fontSize: 11, color: 'var(--drawer-text)', outline: 'none' }}
-              />
+          <div className="nd-params">
+            <div className="nd-param">
+              <div className="nd-param-label">时长 (s)</div>
+              <input type="number" className="nd-param-input" value={duration} onChange={(e) => setDuration(e.target.value)} min="1" max="60" />
             </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 9, color: 'var(--drawer-text-secondary)', marginBottom: 3, fontWeight: 500 }}>帧率 (fps)</div>
-              <input type="number" value={fps} onChange={(e) => setFps(e.target.value)} min="15" max="60"
-                style={{ width: '100%', background: 'transparent', border: '1px solid var(--drawer-border)', borderRadius: 5, padding: '4px 7px', fontSize: 11, color: 'var(--drawer-text)', outline: 'none' }}
-              />
+            <div className="nd-param">
+              <div className="nd-param-label">帧率 (fps)</div>
+              <input type="number" className="nd-param-input" value={fps} onChange={(e) => setFps(e.target.value)} min="15" max="60" />
             </div>
           </div>
         )}
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 2, borderTop: '1px solid var(--drawer-border)', paddingTop: 4, marginTop: 2, flexWrap: 'nowrap' }}>
-          <CanvasDropdown
-            value={node.type}
-            onChange={handleTypeChange}
-            options={[
-              { value: 'image', label: '图片', icon: NODE_TYPE_REGISTRY.image.smallIcon },
-              { value: 'text', label: '文字', icon: NODE_TYPE_REGISTRY.text.smallIcon },
-              { value: 'video', label: '视频', icon: NODE_TYPE_REGISTRY.video.smallIcon },
-            ]}
-            trigger={<>{cloneElement(config.smallIcon, { width: 11, height: 11 })}{config.title}</>}
-            buttonStyle={triggerBtnBase}
-            position="bottom"
-            menuStyle={{ fontSize: 11, padding: '4px 0', minWidth: 80 }}
-            itemStyle={{ padding: '5px 10px', fontSize: 11 }}
-          />
-
-          {availableModels.length > 0 ? (
+        <div className="nd-footer">
+          <div className="nd-footer-left">
             <CanvasDropdown
-              value={model}
-              onChange={(m) => setModel(m)}
-              options={availableModels.map((m) => ({ value: m, label: m }))}
-              trigger={<span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 38 }}>{model || '模型'}</span>}
-              buttonStyle={{ ...triggerBtnBase, maxWidth: 58, minWidth: 0 }}
+              value={node.type}
+              onChange={handleTypeChange}
+              options={[
+                { value: 'image', label: '图片', icon: NODE_TYPE_REGISTRY.image.smallIcon },
+                { value: 'text', label: '文字', icon: NODE_TYPE_REGISTRY.text.smallIcon },
+                { value: 'video', label: '视频', icon: NODE_TYPE_REGISTRY.video.smallIcon },
+              ]}
+              trigger={<>{cloneElement(config.smallIcon, { width: 11, height: 11 })}<span className="nd-trigger-text">{config.title}</span></>}
+              buttonStyle={triggerBtnBase}
               position="bottom"
-              placeholder="模型"
               menuStyle={{ fontSize: 11, padding: '4px 0', minWidth: 80 }}
               itemStyle={{ padding: '5px 10px', fontSize: 11 }}
             />
-          ) : (
+
+            {availableModels.length > 0 ? (
+              <CanvasDropdown
+                value={model}
+                onChange={(m) => setModel(m)}
+                options={availableModels.map((m) => ({ value: m, label: m }))}
+                trigger={<span className="nd-trigger-text">{model || '模型'}</span>}
+                buttonStyle={triggerBtnBase}
+                position="bottom"
+                placeholder="模型"
+                menuStyle={{ fontSize: 11, padding: '4px 0', minWidth: 80 }}
+                itemStyle={{ padding: '5px 10px', fontSize: 11 }}
+              />
+            ) : (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleOpenSettings && handleOpenSettings();
+                }}
+                style={{ ...triggerBtnBase, gap: 4, color: 'var(--accent)' }}
+                title="配置 API 平台"
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                </svg>
+                <span className="nd-trigger-text">API</span>
+              </button>
+            )}
+
+            {node.type !== 'text' && (
+              <>
+                <CanvasDropdown
+                  value={aspectRatio}
+                  onChange={handleAspectRatioChange}
+                  options={ASPECT_RATIOS.map((r) => ({ value: r.label, label: r.label }))}
+                  trigger={<span className="nd-trigger-text">{aspectRatio}</span>}
+                  buttonStyle={triggerBtnBase}
+                  position="bottom"
+                  menuStyle={{ fontSize: 11, padding: '4px 0', minWidth: 80 }}
+                  itemStyle={{ padding: '5px 10px', fontSize: 11 }}
+                />
+
+                <CanvasDropdown
+                  value={resolution}
+                  onChange={(r) => setResolution(r)}
+                  options={RESOLUTIONS.map((r) => ({ value: r.label, label: r.label }))}
+                  trigger={<span className="nd-trigger-text">{resolution}</span>}
+                  buttonStyle={triggerBtnBase}
+                  position="bottom"
+                  menuStyle={{ fontSize: 11, padding: '4px 0', minWidth: 80 }}
+                  itemStyle={{ padding: '5px 10px', fontSize: 11 }}
+                />
+              </>
+            )}
+          </div>
+
+          <div className="nd-footer-right">
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleOpenSettings && handleOpenSettings();
-              }}
-              style={{ ...triggerBtnBase, maxWidth: 58, minWidth: 0, gap: 3, color: 'var(--accent)' }}
-              title="配置 API 平台"
+              onClick={(e) => { e.stopPropagation(); handleSubmit(); }}
+              disabled={isSubmitting}
+              className="nd-submit"
             >
-              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="3" />
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-              </svg>
-              <span style={{ fontSize: 8 }}>API</span>
+              {isSubmitting ? (
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 0.8s linear infinite' }}>
+                  <line x1="12" y1="2" x2="12" y2="6" />
+                  <line x1="12" y1="18" x2="12" y2="22" />
+                  <line x1="4.93" y1="4.93" x2="7.76" y2="7.76" />
+                  <line x1="16.24" y1="16.24" x2="19.07" y2="19.07" />
+                  <line x1="2" y1="12" x2="6" y2="12" />
+                  <line x1="18" y1="12" x2="22" y2="12" />
+                  <line x1="4.93" y1="19.07" x2="7.76" y2="16.24" />
+                  <line x1="16.24" y1="7.76" x2="19.07" y2="4.93" />
+                </svg>
+              ) : (
+                <>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="19" x2="12" y2="5" />
+                    <polyline points="5 12 12 5 19 12" />
+                  </svg>
+                  <span>生成</span>
+                </>
+              )}
             </button>
-          )}
-
-          {node.type !== 'text' && (
-            <>
-              <CanvasDropdown
-                value={aspectRatio}
-                onChange={handleAspectRatioChange}
-                options={ASPECT_RATIOS.map((r) => ({ value: r.label, label: r.label }))}
-                trigger={<span style={{ maxWidth: 24, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{aspectRatio}</span>}
-                buttonStyle={{ ...triggerBtnBase, fontSize: 8 }}
-                position="bottom"
-                menuStyle={{ fontSize: 11, padding: '4px 0', minWidth: 80 }}
-                itemStyle={{ padding: '5px 10px', fontSize: 11 }}
-              />
-
-              <CanvasDropdown
-                value={resolution}
-                onChange={(r) => setResolution(r)}
-                options={RESOLUTIONS.map((r) => ({ value: r.label, label: r.label }))}
-                trigger={<span style={{ maxWidth: 18, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{resolution}</span>}
-                buttonStyle={{ ...triggerBtnBase, fontSize: 8 }}
-                position="bottom"
-                menuStyle={{ fontSize: 11, padding: '4px 0', minWidth: 80 }}
-                itemStyle={{ padding: '5px 10px', fontSize: 11 }}
-              />
-            </>
-          )}
-
-          <div style={{ flex: 1 }} />
-
-          <button
-            onClick={(e) => { e.stopPropagation(); setIsExpanded(!isExpanded); }}
-            title={isExpanded ? '收起' : '展开'}
-            style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: 24, height: 24, flexShrink: 0, marginRight: 6,
-              background: 'var(--bg-secondary)',
-              border: '1px solid var(--drawer-border)',
-              borderRadius: 5,
-              color: 'var(--text-tertiary)',
-              cursor: 'pointer',
-              opacity: 0.7,
-              transition: 'opacity 0.15s, background 0.15s',
-              padding: 0,
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.background = 'var(--accent-soft)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.7'; e.currentTarget.style.background = 'var(--bg-secondary)'; }}
-          >
-            {isExpanded ? (
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="18 15 12 9 6 15" />
-              </svg>
-            ) : (
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
-            )}
-          </button>
-
-          <button
-            onClick={(e) => { e.stopPropagation(); handleSubmit(); }}
-            disabled={isSubmitting}
-            className="drawer-run-btn"
-            style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: 28, height: 28,
-              background: 'var(--signal-live)',
-              border: 'none', borderRadius: 6,
-              color: '#0e0e14',
-              cursor: isSubmitting ? 'wait' : 'pointer',
-              transition: 'all 0.15s ease',
-              opacity: isSubmitting ? 0.4 : 0.85,
-              flexShrink: 0,
-            }}
-            onMouseEnter={(e) => { if (!isSubmitting) { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'scale(1.1)'; } }}
-            onMouseLeave={(e) => { if (!isSubmitting) { e.currentTarget.style.opacity = '0.85'; e.currentTarget.style.transform = 'scale(1)'; } }}
-          >
-            {isSubmitting ? (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 0.8s linear infinite' }}>
-                <line x1="12" y1="2" x2="12" y2="6" />
-                <line x1="12" y1="18" x2="12" y2="22" />
-                <line x1="4.93" y1="4.93" x2="7.76" y2="7.76" />
-                <line x1="16.24" y1="16.24" x2="19.07" y2="19.07" />
-                <line x1="2" y1="12" x2="6" y2="12" />
-                <line x1="18" y1="12" x2="22" y2="12" />
-                <line x1="4.93" y1="19.07" x2="7.76" y2="16.24" />
-                <line x1="16.24" y1="7.76" x2="19.07" y2="4.93" />
-              </svg>
-            ) : (
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                <polygon points="6,4 20,12 6,20" />
-              </svg>
-            )}
-          </button>
+          </div>
         </div>
       </div>
     </div>
       {chipTooltip && (
-        <div style={{
-          position: 'fixed',
-          left: chipTooltip.rect.left + chipTooltip.rect.width / 2,
-          top: chipTooltip.rect.top - 8,
-          transform: 'translate(-50%, -100%)',
-          zIndex: 10050,
-          padding: '3px 8px',
-          background: 'rgba(0,0,0,0.85)',
-          backdropFilter: 'blur(8px)',
-          border: '1px solid rgba(255,255,255,0.08)',
-          borderRadius: 6,
-          fontSize: 11,
-          color: '#fff',
-          whiteSpace: 'nowrap',
-          pointerEvents: 'none',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-        }}>
+        <div
+          className="nd-chip-tooltip"
+          style={{
+            left: chipTooltip.rect.left + chipTooltip.rect.width / 2,
+            top: chipTooltip.rect.top - 8,
+          }}
+        >
           {chipTooltip.label}
         </div>
       )}

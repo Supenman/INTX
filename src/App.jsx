@@ -1964,27 +1964,16 @@ function AppContent() {
     let minX = Infinity, minY = Infinity;
     let maxX = -Infinity, maxY = -Infinity;
 
-    // Collect nodes whose edges should contribute to the toolbar bbox.
-    // When a group is the only selection, use its children's absolute edges
-    // so the toolbar stays where the user box-selected, not at the group border.
     const candidates = [];
     for (const n of sel) {
       if (n.type === 'group' && sel.length === 1) {
-        const children = nodes.filter((c) => c.parentId === n.id);
-        if (children.length > 0) {
-          for (const c of children) {
-            candidates.push({
-              position: {
-                x: n.position.x + c.position.x,
-                y: n.position.y + c.position.y,
-              },
-              width: c.measured?.width ?? c.width ?? 200,
-              height: c.measured?.height ?? c.height ?? 200,
-            });
-          }
-        } else {
-          candidates.push(n);
-        }
+        const measuredW = n.measured?.width ?? n.width;
+        const measuredH = n.measured?.height ?? n.height;
+        candidates.push({
+          position: n.position,
+          width: measuredW ?? 200,
+          height: measuredH ?? 200,
+        });
       } else {
         let px = n.position.x, py = n.position.y;
         if (n.parentId) {
