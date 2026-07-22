@@ -1828,7 +1828,9 @@ function AppContent() {
     const selected = nds.filter((n) => n.selected && n.type !== 'group');
     if (selected.length < 2) return;
 
-    const PAD = 30;
+    // group 边框紧贴原节点 bbox;y 上推 24px 以包含 BaseNode 渲染在 top:-24 的 title capsule
+    const PAD_X = 0;
+    const TITLE_OFFSET = 24;
     let minX = Infinity, minY = Infinity;
     let maxX = -Infinity, maxY = -Infinity;
     for (const n of selected) {
@@ -1851,7 +1853,7 @@ function AppContent() {
     const groupId = String(maxId + 1);
     setNodeIdCounter((c) => Math.max(c, maxId + 1));
 
-    const groupPos = { x: minX - PAD, y: minY - PAD };
+    const groupPos = { x: minX - PAD_X, y: minY - TITLE_OFFSET };
     const selectedIds = new Set(selected.map((n) => n.id));
 
     setNodes((nds) => {
@@ -1859,8 +1861,8 @@ function AppContent() {
         id: groupId,
         type: 'group',
         position: groupPos,
-        width: Math.max(maxX - minX + PAD * 2, 120),
-        height: Math.max(maxY - minY + PAD * 2, 60),
+        width: Math.max(maxX - minX + PAD_X * 2, 120),
+        height: Math.max(maxY - minY + TITLE_OFFSET, 60),
         data: {
           title: '组',
           onTitleChange: (nodeId, val) =>
@@ -1995,6 +1997,11 @@ function AppContent() {
       if (c.position.y < minY) minY = c.position.y;
       if (rx > maxX) maxX = rx;
       if (by > maxY) maxY = by;
+    }
+
+    // Title capsule 渲染在节点 top: -24(BaseNode.jsx:748),把视觉顶部往上推 24px
+    if (sel.some((n) => n.type !== 'group')) {
+      minY -= 24;
     }
 
     return { minX, minY, maxX, maxY, count: sel.length, hasGroup: sel.some((n) => n.type === 'group') };
