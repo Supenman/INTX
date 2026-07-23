@@ -1,7 +1,6 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useViewport } from '@xyflow/react';
 
-/* ── Inline SVG Icons ── */
 const ArrangeIcon = () => (
   <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
     <rect x="1" y="1" width="5" height="5" rx="1" />
@@ -44,11 +43,9 @@ function computeToolbarPosition(bbox, viewport) {
   const tx = viewport.x;
   const ty = viewport.y;
 
-  const screenLeft = minX * zoom + tx;
   const screenTop = minY * zoom + ty;
-  const screenRight = maxX * zoom + tx;
   const screenBottom = maxY * zoom + ty;
-  const centerX = (screenLeft + screenRight) / 2;
+  const centerX = (minX * zoom + tx + maxX * zoom + tx) / 2;
 
   const gap = 0;
   const toolbarH = 42;
@@ -59,17 +56,9 @@ function computeToolbarPosition(bbox, viewport) {
   const placement = wouldOverflowTop ? 'bottom' : 'top';
 
   if (placement === 'top') {
-    return {
-      left: centerX,
-      bottom: vh - screenTop + gap,
-      placement,
-    };
+    return { left: centerX, bottom: vh - screenTop + gap, placement };
   }
-  return {
-    left: centerX,
-    top: Math.min(screenBottom + gap, vh - toolbarH - margin),
-    placement,
-  };
+  return { left: centerX, top: Math.min(screenBottom + gap, vh - toolbarH - margin), placement };
 }
 
 const ARRANGE_ITEMS = [
@@ -88,7 +77,6 @@ export default function SelectionBboxToolbar({ bbox, onArrange, onGroup, onUngro
     [bbox, viewport]
   );
 
-  // Close menu on click outside
   useEffect(() => {
     if (!menuOpen) return;
     const handleClick = (e) => {
@@ -107,14 +95,20 @@ export default function SelectionBboxToolbar({ bbox, onArrange, onGroup, onUngro
 
   if (!position) return null;
 
-  const isGroupSelected = bbox.hasGroup;
-  const arrangeLabel = '排列';
+  // 按钮显示规则:
+  // - 选中 group(可能单独选也可能多选混着)→ 显示"解组"
+  // - 多选普通节点(≥ 2)→ 显示"打组"
+  // - 单选普通节点 → 不显示
+  const hasGroup = bbox.hasGroup;
+  const showGroupBtn = hasGroup || bbox.count >= 2;
+  const groupLabel = hasGroup ? '解组' : '打组';
+  const groupTitle = hasGroup ? '取消打组' : '打组';
+  const groupHandler = hasGroup ? onUngroup : onGroup;
 
   return (
     <div className={`bbox-toolbar bbox-toolbar-${position.placement}`} style={position}>
       <span className="bbox-toolbar-count">{bbox.count} 个节点</span>
       <div className="bbox-toolbar-divider" />
-      {/* Arrange button with submenu */}
       <div className="bbox-toolbar-arrange-wrap" ref={menuRef}>
         <button
           className="bbox-toolbar-btn bbox-toolbar-btn-label"
@@ -122,7 +116,7 @@ export default function SelectionBboxToolbar({ bbox, onArrange, onGroup, onUngro
           onClick={() => setMenuOpen((v) => !v)}
         >
           <ArrangeIcon />
-          <span className="bbox-toolbar-btn-label-text">{arrangeLabel}</span>
+          <span className="bbox-toolbar-btn-label-text">排列</span>
           <ChevronDownIcon />
         </button>
         {menuOpen && (
@@ -139,18 +133,19 @@ export default function SelectionBboxToolbar({ bbox, onArrange, onGroup, onUngro
           </div>
         )}
       </div>
-      <div className="bbox-toolbar-divider" />
-      {/* Group / Ungroup toggle */}
-      <button
-        className="bbox-toolbar-btn bbox-toolbar-btn-label"
-        title={isGroupSelected ? '取消打组' : '打组'}
-        onClick={isGroupSelected ? onUngroup : onGroup}
-      >
-        {isGroupSelected ? <UngroupIcon /> : <GroupIcon />}
-        <span className="bbox-toolbar-btn-label-text">
-          {isGroupSelected ? '解组' : '打组'}
-        </span>
-      </button>
+      {showGroupBtn && (
+        <>
+          <div className="bbox-toolbar-divider" />
+          <button
+            className="bbox-toolbar-btn bbox-toolbar-btn-label"
+            title={groupTitle}
+            onClick={() => groupHandler?.()}
+          >
+            {hasGroup ? <UngroupIcon /> : <GroupIcon />}
+            <span className="bbox-toolbar-btn-label-text">{groupLabel}</span>
+          </button>
+        </>
+      )}
     </div>
   );
 }

@@ -10,6 +10,7 @@ import {
   SelectionMode,
   ReactFlowProvider,
   useStoreApi,
+  useReactFlow,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import ImageNode from './components/ImageNode';
@@ -130,6 +131,7 @@ function AppContent() {
   const pendingMediaNodeIdRef = useRef(null);
   const initialState = useMemo(() => getInitialState(), []);
   const snapThreshold = 12;
+  const { getNodesBounds } = useReactFlow();
   const [guideLines, setGuideLines] = useState([]);
   const [selectedNodeCount, setSelectedNodeCount] = useState(0);
   const draggingNodeRef = useRef(null);
@@ -489,30 +491,7 @@ function AppContent() {
   const currentNodes = latestNodes.current;
   let selectedIds = currentNodes.filter(n => n.selected).map(n => n.id);
   if (selectedIds.length > 0) {
-    // Convert children of deleted groups to absolute coords first
-    const groupIds = currentNodes.filter(n => n.type === 'group' && n.selected).map(n => n.id);
-    if (groupIds.length > 0) {
-      const groupIdSet = new Set(groupIds);
-      setNodes(nds => {
-        const converted = nds.map(n => {
-          if (n.parentId && groupIdSet.has(n.parentId)) {
-            const group = nds.find(g => g.id === n.parentId);
-            if (group) {
-              return {
-                ...n,
-                parentId: null,
-                position: { x: n.position.x + group.position.x, y: n.position.y + group.position.y },
-                extent: undefined,
-              };
-            }
-          }
-          return n;
-        });
-        return converted.filter(n => !selectedIds.includes(n.id));
-      });
-    } else {
-      setNodes(nds => nds.filter(n => !selectedIds.includes(n.id)));
-    }
+    setNodes(nds => nds.filter(n => !selectedIds.includes(n.id)));
     setEdges(eds => eds.filter(e => !selectedIds.includes(e.source) && !selectedIds.includes(e.target)));
     setActiveNodeId(null);
   } else {
@@ -1792,77 +1771,58 @@ function AppContent() {
     const ids = selected.map((n) => n.id);
     if (ids.length === 0) return;
 
-    // Convert children of deleted groups to absolute coords first
-    const groupIds = selected.filter((n) => n.type === 'group').map((n) => n.id);
-    if (groupIds.length > 0) {
-      const groupIdSet = new Set(groupIds);
-      setNodes((nds) => {
-        const converted = nds.map((n) => {
-          if (n.parentId && groupIdSet.has(n.parentId)) {
-            const group = nds.find((g) => g.id === n.parentId);
-            if (group) {
-              return {
-                ...n,
-                parentId: null,
-                position: {
-                  x: n.position.x + group.position.x,
-                  y: n.position.y + group.position.y,
-                },
-                extent: undefined,
-              };
-            }
-          }
-          return n;
-        });
-        return converted.filter((n) => !ids.includes(n.id));
-      });
-    } else {
-      setNodes((nds) => nds.filter((n) => !ids.includes(n.id)));
-    }
+    setNodes((nds) => nds.filter((n) => !ids.includes(n.id)));
     setEdges((eds) => eds.filter((e) => !ids.includes(e.source) && !ids.includes(e.target)));
     setActiveNodeId((prev) => (ids.includes(prev) ? null : prev));
   }, [setNodes, setEdges, setActiveNodeId]);
+
+  // ── 打组 / 解组 ──────────────────────────────────────
+  // 几何约定:group 四周各外扩 SELECTION_PAD,跟 React Flow .react-flow__nodesselection-rect 一致
+  // 这样 group 视觉上和框选 selection box 逐像素对齐(只是 dashed → solid)
+  // 当前 PAD = 24(原 selection 对齐)+ 10(半个 title 高度 ≈ 19.2 / 2)= 34
+  const SELECTION_PAD = 34;
+  const GROUP_MIN_W = 120;
+  const GROUP_MIN_H = 60;
 
   const handleGroupSelected = useCallback(() => {
     const nds = latestNodes.current;
     const selected = nds.filter((n) => n.selected && n.type !== 'group');
     if (selected.length < 2) return;
 
-    // group 边框紧贴原节点 bbox;y 上推 24px 以包含 BaseNode 渲染在 top:-24 的 title capsule
-    const PAD_X = 0;
-    const TITLE_OFFSET = 24;
-    let minX = Infinity, minY = Infinity;
-    let maxX = -Infinity, maxY = -Infinity;
-    for (const n of selected) {
-      const w = n.measured?.width ?? n.width ?? 200;
-      const h = n.measured?.height ?? n.height ?? 200;
-      minX = Math.min(minX, n.position.x);
-      minY = Math.min(minY, n.position.y);
-      maxX = Math.max(maxX, n.position.x + w);
-      maxY = Math.max(maxY, n.position.y + h);
-    }
+    // 用 React Flow 自己的 getNodesBounds 算子节点 bbox —— 和 selection box 同一套算法,
+    // 这样 group 视觉 = selection 视觉(只是 dashed → solid)
+    const bounds = getNodesBounds(selected);
+    const minX = bounds.x;
+    const minY = bounds.y;
+    const maxX = bounds.x + bounds.width;
+    const maxY = bounds.y + bounds.height;
 
-    // Find max numeric ID to guarantee a unique group ID.
-    // The nodeIdCounter can be stale if nodes were created outside the
-    // addNode path (e.g. project load, drag-and-drop with async creation).
+    // group 几何:四周各外扩 SELECTION_PAD
+    // = 子节点 bbox 四周 + (一个 selection box 扩展 24px + 半个 title 高度 ≈ 10px)
+    const SELECTION_PAD_LOCAL = 34;
+    const groupPos = {
+      x: minX - SELECTION_PAD_LOCAL,
+      y: minY - SELECTION_PAD_LOCAL,
+    };
+    const groupW = Math.max(maxX - minX + SELECTION_PAD_LOCAL * 2, GROUP_MIN_W);
+    const groupH = Math.max(maxY - minY + SELECTION_PAD_LOCAL * 2, GROUP_MIN_H);
+
     let maxId = 0;
     for (const n of nds) {
-      const idNum = parseInt(n.id, 10);
-      if (!isNaN(idNum) && idNum > maxId) maxId = idNum;
+      const num = parseInt(n.id, 10);
+      if (!isNaN(num) && num > maxId) maxId = num;
     }
     const groupId = String(maxId + 1);
     setNodeIdCounter((c) => Math.max(c, maxId + 1));
 
-    const groupPos = { x: minX - PAD_X, y: minY - TITLE_OFFSET };
     const selectedIds = new Set(selected.map((n) => n.id));
-
     setNodes((nds) => {
       const groupNode = {
         id: groupId,
         type: 'group',
         position: groupPos,
-        width: Math.max(maxX - minX + PAD_X * 2, 120),
-        height: Math.max(maxY - minY + TITLE_OFFSET, 60),
+        width: groupW,
+        height: groupH,
         data: {
           title: '组',
           onTitleChange: (nodeId, val) =>
@@ -1876,40 +1836,36 @@ function AppContent() {
       return [
         groupNode,
         ...nds.map((n) => {
-          if (selectedIds.has(n.id)) {
-            return {
-              ...n,
-              parentId: groupId,
-              position: {
-                x: n.position.x - groupPos.x,
-                y: n.position.y - groupPos.y,
-              },
-              extent: 'parent',
-              selected: false,
-            };
-          }
-          return n;
+          if (!selectedIds.has(n.id)) return n;
+          return {
+            ...n,
+            parentId: groupId,
+            position: {
+              x: n.position.x - groupPos.x,
+              y: n.position.y - groupPos.y,
+            },
+            extent: 'parent',
+            selected: false,
+          };
         }),
       ];
     });
-  }, [setNodes, setNodeIdCounter]);
+  }, [setNodes, setNodeIdCounter, getNodesBounds]);
 
   const handleUngroupSelected = useCallback(() => {
     setNodes((nds) => {
-      const selectedGroupIds = nds
-        .filter((n) => n.selected && n.type === 'group')
-        .map((n) => n.id);
-      if (selectedGroupIds.length === 0) return nds;
-
-      const groupIdSet = new Set(selectedGroupIds);
+      const groupIds = new Set(
+        nds.filter((n) => n.selected && n.type === 'group').map((n) => n.id)
+      );
+      if (groupIds.size === 0) return nds;
 
       const updated = nds.map((n) => {
-        if (n.parentId && groupIdSet.has(n.parentId)) {
+        if (n.parentId && groupIds.has(n.parentId)) {
           const parent = nds.find((p) => p.id === n.parentId);
           if (parent) {
             return {
               ...n,
-              parentId: null,
+              parentId: undefined,
               position: {
                 x: n.position.x + parent.position.x,
                 y: n.position.y + parent.position.y,
@@ -1919,12 +1875,10 @@ function AppContent() {
             };
           }
         }
-        if (groupIdSet.has(n.id)) {
-          return { ...n, selected: false };
-        }
+        if (groupIds.has(n.id)) return { ...n, selected: false };
         return n;
       });
-      return updated.filter((n) => !groupIdSet.has(n.id));
+      return updated.filter((n) => !groupIds.has(n.id));
     });
   }, [setNodes]);
 
@@ -1961,50 +1915,48 @@ function AppContent() {
   // Toolbar bbox in absolute canvas coords — from React state, not zustand
   const toolbarBbox = useMemo(() => {
     const sel = nodes.filter((n) => n.selected);
-    if (sel.length < 2 && !(sel.length === 1 && sel[0].type === 'group')) return null;
+    if (sel.length === 0) return null;
+
+    // 选中 group 时:用 group 自己的 bbox(顶/底/左/右 = group 的 position + width/height)
+    // 因为打组时 group 顶边已对齐 title capsule 顶,这里不需要再减 24
+    const selectedGroup = sel.find((n) => n.type === 'group');
+    if (selectedGroup) {
+      const w = selectedGroup.measured?.width ?? selectedGroup.width ?? GROUP_MIN_W;
+      const h = selectedGroup.measured?.height ?? selectedGroup.height ?? GROUP_MIN_H;
+      return {
+        minX: selectedGroup.position.x,
+        minY: selectedGroup.position.y,
+        maxX: selectedGroup.position.x + w,
+        maxY: selectedGroup.position.y + h,
+        count: sel.length,
+        hasGroup: true,
+      };
+    }
+
+    // 多选普通节点时:children bbox,顶边再上推 24 对齐 title capsule
+    if (sel.length < 2) return null;
 
     let minX = Infinity, minY = Infinity;
     let maxX = -Infinity, maxY = -Infinity;
 
-    const candidates = [];
     for (const n of sel) {
-      if (n.type === 'group' && sel.length === 1) {
-        const measuredW = n.measured?.width ?? n.width;
-        const measuredH = n.measured?.height ?? n.height;
-        candidates.push({
-          position: n.position,
-          width: measuredW ?? 200,
-          height: measuredH ?? 200,
-        });
-      } else {
-        let px = n.position.x, py = n.position.y;
-        if (n.parentId) {
-          const parent = nodes.find((p) => p.id === n.parentId);
-          if (parent) { px += parent.position.x; py += parent.position.y; }
-        }
-        candidates.push({
-          position: { x: px, y: py },
-          width: n.measured?.width ?? n.width ?? 200,
-          height: n.measured?.height ?? n.height ?? 200,
-        });
+      let px = n.position.x, py = n.position.y;
+      if (n.parentId) {
+        const parent = nodes.find((p) => p.id === n.parentId);
+        if (parent) { px += parent.position.x; py += parent.position.y; }
       }
+      const w = n.measured?.width ?? n.width ?? 200;
+      const h = n.measured?.height ?? n.height ?? 200;
+      if (px < minX) minX = px;
+      if (py < minY) minY = py;
+      if (px + w > maxX) maxX = px + w;
+      if (py + h > maxY) maxY = py + h;
     }
 
-    for (const c of candidates) {
-      const rx = c.position.x + c.width;
-      const by = c.position.y + c.height;
-      if (c.position.x < minX) minX = c.position.x;
-      if (c.position.y < minY) minY = c.position.y;
-      if (rx > maxX) maxX = rx;
-      if (by > maxY) maxY = by;
-    }
+    // BaseNode title capsule 渲染在节点 top: -24,视觉顶边比 position.y 高 24
+    minY -= 24;
 
-    // Title capsule 渲染在节点 top: -24(BaseNode.jsx:748),把视觉顶部往上推 24px
-    if (sel.some((n) => n.type !== 'group')) {
-      minY -= 24;
-    }
-
-    return { minX, minY, maxX, maxY, count: sel.length, hasGroup: sel.some((n) => n.type === 'group') };
+    return { minX, minY, maxX, maxY, count: sel.length, hasGroup: false };
   }, [nodes]);
 
   return (

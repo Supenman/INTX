@@ -5,7 +5,7 @@ function GroupNode({ data, selected, id }) {
   const [title, setTitle] = useState(data?.title || '组');
   const inputRef = useRef(null);
 
-  const handleDoubleClick = useCallback((e) => {
+  const startEditing = useCallback((e) => {
     e.stopPropagation();
     setEditing(true);
   }, []);
@@ -24,8 +24,7 @@ function GroupNode({ data, selected, id }) {
   const handleKeyDown = useCallback((e) => {
     if (e.key === 'Enter') {
       inputRef.current?.blur();
-    }
-    if (e.key === 'Escape') {
+    } else if (e.key === 'Escape') {
       setTitle(data?.title || '组');
       setEditing(false);
     }
@@ -43,11 +42,8 @@ function GroupNode({ data, selected, id }) {
   }, [data?.title]);
 
   return (
-    <div
-      className={`group-node${selected ? ' selected' : ''}`}
-      onDoubleClick={handleDoubleClick}
-    >
-      <div className="group-node-title" onDoubleClick={(e) => e.stopPropagation()}>
+    <div className={`group-node${selected ? ' selected' : ''}`}>
+      <div className="group-node-title" onClick={editing ? undefined : startEditing}>
         {editing ? (
           <input
             ref={inputRef}
@@ -56,6 +52,7 @@ function GroupNode({ data, selected, id }) {
             onChange={(e) => setTitle(e.target.value)}
             onBlur={handleBlur}
             onKeyDown={handleKeyDown}
+            onClick={(e) => e.stopPropagation()}
           />
         ) : (
           <span className="group-node-title-text">{title}</span>
