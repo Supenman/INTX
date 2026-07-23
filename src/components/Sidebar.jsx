@@ -38,8 +38,6 @@ function Sidebar({ toggleTheme, onOpenProjectSelector, canUndo, canRedo, onUndo,
         <span style={{ ...tooltipStyle, opacity: hoveredItem === 'projects' ? 1 : 0, transform: `translateY(-50%) ${hoveredItem === 'projects' ? 'translateX(4px)' : ''}` }}>项目管理</span>
       </button>
 
-      <div style={dividerStyle}></div>
-
       <button
         onClick={onUndo}
         disabled={!canUndo}
@@ -70,8 +68,6 @@ function Sidebar({ toggleTheme, onOpenProjectSelector, canUndo, canRedo, onUndo,
         <span style={{ ...tooltipStyle, opacity: hoveredItem === 'redo' ? 1 : 0, transform: `translateY(-50%) ${hoveredItem === 'redo' ? 'translateX(4px)' : ''}` }}>重做 Ctrl+Y</span>
       </button>
 
-      <div style={dividerStyle}></div>
-
       <button
         onClick={onOpenSettings}
         style={{ ...getItemStyle(hoveredItem === 'settings') }}
@@ -85,8 +81,6 @@ function Sidebar({ toggleTheme, onOpenProjectSelector, canUndo, canRedo, onUndo,
         </svg>
         <span style={{ ...tooltipStyle, opacity: hoveredItem === 'settings' ? 1 : 0, transform: `translateY(-50%) ${hoveredItem === 'settings' ? 'translateX(4px)' : ''}` }}>设置</span>
       </button>
-
-      <div style={dividerStyle}></div>
 
       <button
         onClick={onToggleHistory}
@@ -115,8 +109,6 @@ function Sidebar({ toggleTheme, onOpenProjectSelector, canUndo, canRedo, onUndo,
         </div>
         <span style={{ ...tooltipStyle, opacity: hoveredItem === 'history' ? 1 : 0, transform: `translateY(-50%) ${hoveredItem === 'history' ? 'translateX(4px)' : ''}` }}>输出历史</span>
       </button>
-
-      <div style={dividerStyle}></div>
 
       <div style={{ flex: 1 }} />
 
@@ -170,13 +162,6 @@ const sidebarStyle = {
   transition: 'all 0.3s var(--ease-out)',
 };
 
-const dividerStyle = {
-  width: 24,
-  height: 1,
-  background: 'linear-gradient(90deg, transparent, var(--sidebar-border), transparent)',
-  margin: '4px 0',
-};
-
 const getItemStyle = (isHovered) => ({
   position: 'relative',
   width: 38,
@@ -186,13 +171,12 @@ const getItemStyle = (isHovered) => ({
   justifyContent: 'center',
   borderRadius: 10,
   cursor: 'pointer',
-  transition: 'all 0.2s var(--ease-out)',
+  transition: 'all 0.15s var(--ease-out)',
   color: 'var(--sidebar-icon)',
   background: isHovered ? 'var(--sidebar-item-bg-hover)' : 'transparent',
   border: '1px solid transparent',
   outline: 'none',
-  transform: isHovered ? 'translateX(2px)' : 'translateX(0)',
-  boxShadow: isHovered ? '0 6px 16px rgba(0, 0, 0, 0.18)' : 'none',
+  transform: isHovered ? 'scale(1.08)' : 'scale(1)',
 });
 
 const tooltipStyle = {

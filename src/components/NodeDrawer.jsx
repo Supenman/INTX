@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, cloneElement } from 'react';
+import { createPortal } from 'react-dom';
 import { NODE_TYPE_REGISTRY } from '../domain/nodeTypes';
 import { getAvailableModels } from '../utils/modelUtils';
 import { ASPECT_RATIOS, RESOLUTIONS } from '../utils/dimensions';
@@ -495,6 +496,7 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
       <div
         ref={drawerRef}
         className="nodrag"
+        onMouseUp={(e) => e.stopPropagation()}
       style={{
         position: 'absolute',
         left: '50%',
@@ -522,6 +524,8 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
                 key={sourceNode.id}
                 className={'nd-dock-item' + (isHovered ? ' is-hovered' : '')}
                 onClick={(e) => { e.stopPropagation(); insertReference(sourceNode); }}
+                onMouseDown={(e) => e.stopPropagation()}
+                onMouseUp={(e) => e.stopPropagation()}
                 onMouseEnter={() => setHoveredDockIdx(idx)}
                 onMouseLeave={() => setHoveredDockIdx(null)}
                 title={sourceNode.data.title || sourceMeta.title}
@@ -723,7 +727,7 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
         </div>
       </div>
     </div>
-      {chipTooltip && (
+      {chipTooltip && createPortal(
         <div
           className="nd-chip-tooltip"
           style={{
@@ -732,7 +736,8 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
           }}
         >
           {chipTooltip.label}
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
