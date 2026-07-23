@@ -108,8 +108,8 @@ function Sidebar({ toggleTheme, onOpenProjectSelector, canUndo, canRedo, onUndo,
               width: 6,
               height: 6,
               borderRadius: '50%',
-              background: 'var(--signal-live)',
-              boxShadow: '0 0 4px rgba(var(--signal-live-rgb), 0.6)',
+              background: 'var(--text-primary)',
+              boxShadow: '0 0 4px var(--white-30)',
             }} />
           )}
         </div>

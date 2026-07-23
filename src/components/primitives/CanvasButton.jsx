@@ -34,8 +34,8 @@ const VARIANT_STYLE = {
   },
   danger: {
     background: 'transparent',
-    color: '#dc2626',
-    border: '1px solid #fecaca',
+    color: 'var(--text-primary)',
+    border: '1px solid var(--white-20)',
   },
 };
 

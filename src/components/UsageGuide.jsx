@@ -28,14 +28,14 @@ export default function UsageGuide() {
       </Section>
 
       <Section title="节点类型">
-        <TypeRow label="图片生成" color="var(--signal-image)" desc="根据提示词生成图片" />
-        <TypeRow label="文本生成" color="var(--signal-text)" desc="根据提示词生成文本" />
-        <TypeRow label="视频生成" color="var(--signal-video)" desc="根据提示词生成视频" />
-        <TypeRow label="素材-图片" color="var(--signal-image)" desc="上传或粘贴的图片素材" />
-        <TypeRow label="素材-文本" color="var(--signal-source-text)" desc="纯文本素材" />
-        <TypeRow label="素材-视频" color="var(--signal-video)" desc="视频素材" />
-        <TypeRow label="素材-音频" color="var(--signal-audio)" desc="音频素材" />
-        <TypeRow label="素材-Markdown" color="var(--signal-markdown)" desc="Markdown 格式文本素材" />
+        <TypeRow label="图片生成" typeKey="image" desc="根据提示词生成图片" />
+        <TypeRow label="文本生成" typeKey="text" desc="根据提示词生成文本" />
+        <TypeRow label="视频生成" typeKey="video" desc="根据提示词生成视频" />
+        <TypeRow label="素材-图片" typeKey="source-image" desc="上传或粘贴的图片素材" />
+        <TypeRow label="素材-文本" typeKey="source-text" desc="纯文本素材" />
+        <TypeRow label="素材-视频" typeKey="source-video" desc="视频素材" />
+        <TypeRow label="素材-音频" typeKey="source-audio" desc="音频素材" />
+        <TypeRow label="素材-Markdown" typeKey="source-markdown" desc="Markdown 格式文本素材" />
       </Section>
     </div>
   );
@@ -69,10 +69,10 @@ function Row({ keys, desc }) {
   );
 }
 
-function TypeRow({ label, color, desc }) {
+function TypeRow({ label, typeKey, desc }) {
   return (
     <div style={rowStyle}>
-      <div style={typeTagStyle(color)}>{label}</div>
+      <div style={typeTagStyle(typeKey)}>{label}</div>
       <span style={descStyle}>{desc}</span>
     </div>
   );
@@ -131,11 +131,24 @@ const descStyle = {
   lineHeight: 1.4,
 };
 
-const typeTagStyle = (color) => ({
-  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-  padding: '2px 9px', borderRadius: 5,
-  background: `color-mix(in srgb, ${color} 15%, transparent)`,
-  color,
-  fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap',
-  minWidth: 98,
-});
+const typeTagStyle = (typeKey) => {
+  const borderStyleMap = {
+    image: 'solid',
+    text: 'dashed',
+    video: 'dotted',
+    'source-text': 'double',
+    'source-image': 'solid',
+    'source-video': 'groove',
+    'source-audio': 'outset',
+    'source-markdown': 'ridge',
+  };
+  return {
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    padding: '2px 9px', borderRadius: 5,
+    background: 'var(--white-10)',
+    color: 'var(--text-primary)',
+    border: `1px ${borderStyleMap[typeKey] || 'solid'} var(--white-20)`,
+    fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap',
+    minWidth: 98,
+  };
+};

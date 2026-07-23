@@ -34,7 +34,7 @@ function CustomEdge({
   const baseColor = isDarkTheme ? 'rgba(255, 255, 255, 0.4)' : 'rgba(0, 0, 0, 0.3)';
   const buttonBg = isDarkTheme ? 'rgba(0, 0, 0, 0.9)' : 'rgba(255, 255, 255, 0.95)';
   const buttonBorder = isDarkTheme ? 'rgba(255, 255, 255, 0.4)' : 'rgba(0, 0, 0, 0.3)';
-  const buttonIconColor = isDarkTheme ? '#ffffff' : '#000000';
+  const buttonIconColor = isDarkTheme ? 'var(--text-primary)' : 'var(--text-primary)';
 
   return (
     <>

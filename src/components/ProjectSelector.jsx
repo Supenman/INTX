@@ -185,7 +185,7 @@ export default function ProjectSelector({ open, onClose, projects, currentProjec
                         <button
                           onClick={(e) => { e.stopPropagation(); handleDelete(p.id); }}
                           style={{
-                            border: 'none', background: 'var(--signal-error)', color: '#fff',
+                            border: 'none', background: 'var(--text-primary)', color: 'var(--text-primary)',
                             borderRadius: 6, padding: '3px 10px', fontSize: 11, cursor: 'pointer',
                             fontWeight: 600, fontFamily: 'inherit',
                           }}
@@ -238,7 +238,7 @@ export default function ProjectSelector({ open, onClose, projects, currentProjec
                           color: colorVar.textSecondary, display: 'flex', alignItems: 'center',
                           justifyContent: 'center', transition: motion.fast, fontFamily: 'inherit',
                         }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--signal-error)'; e.currentTarget.style.color = '#fff'; }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--text-primary)'; e.currentTarget.style.color = '#fff'; }}
                         onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = colorVar.textSecondary; }}
                       >
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -276,7 +276,7 @@ export default function ProjectSelector({ open, onClose, projects, currentProjec
               <button
                 onClick={handleCreate}
                 style={{
-                  border: 'none', background: colorVar.accent, color: '#fff',
+                  border: 'none', background: colorVar.accent, color: 'var(--text-primary)',
                   borderRadius: 8, padding: '8px 16px', fontSize: 12, fontWeight: 600,
                   cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
                 }}

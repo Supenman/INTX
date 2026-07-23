@@ -7,13 +7,13 @@ import { fetchProviders, saveProviders, fetchUpstreamModels } from '../services/
 import { colorVar, fontWeight, motion } from '../styles/tokens';
 
 const PROTOCOL_BADGES = {
-  openai:    { bg: '#00A67E18', color: '#00A67E', label: 'O' },
-  apimart:   { bg: '#6366F118', color: '#6366F1', label: 'A' },
-  gemini:    { bg: '#4285F418', color: '#4285F4', label: 'G' },
-  volcengine:{ bg: '#1677FF18', color: '#1677FF', label: 'V' },
-  runninghub:{ bg: '#F59E0B18', color: '#F59E0B', label: 'R' },
-  jimeng:    { bg: '#EC489918', color: '#EC4899', label: 'J' },
-  codex:     { bg: '#8B5CF618', color: '#8B5CF6', label: 'X' },
+  openai:    { bg: 'var(--text-primary)18', color: 'var(--text-primary)', label: 'O' },
+  apimart:   { bg: 'var(--white-10)', color: 'var(--text-primary)', label: 'A' },
+  gemini:    { bg: 'var(--white-10)', color: 'var(--text-primary)', label: 'G' },
+  volcengine:{ bg: 'var(--white-10)', color: 'var(--text-primary)', label: 'V' },
+  runninghub:{ bg: 'var(--white-10)', color: 'var(--text-primary)', label: 'R' },
+  jimeng:    { bg: 'var(--white-10)', color: 'var(--text-primary)', label: 'J' },
+  codex:     { bg: 'var(--white-10)', color: 'var(--text-primary)', label: 'X' },
 };
 
 function getProtocolBadge(protocol) {
@@ -398,12 +398,12 @@ const providerMetaStyle = {
 
 const toggleTrackStyle = (enabled) => ({
   width: 28, height: 16, borderRadius: 8, flexShrink: 0,
-  background: enabled ? '#00A67E' : colorVar.border,
+  background: enabled ? 'var(--text-primary)' : colorVar.border,
   cursor: 'pointer', position: 'relative', transition: motion.fast,
 });
 
 const toggleThumbStyle = (enabled) => ({
-  width: 12, height: 12, borderRadius: '50%', background: '#fff',
+  width: 12, height: 12, borderRadius: '50%', background: 'var(--text-primary)',
   position: 'absolute', top: 2,
   left: enabled ? 14 : 2,
   transition: motion.fast,

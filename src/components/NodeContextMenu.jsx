@@ -176,7 +176,7 @@ function NodeContextMenu({ position, nodeId, isDisabled, isProcessing, hasClipbo
               cursor: 'pointer',
               fontSize: 11,
               fontWeight: 600,
-              color: item.danger ? 'var(--signal-error)' : 'var(--sidebar-text)',
+              color: item.danger ? 'var(--text-primary)' : 'var(--sidebar-text)',
               transition: 'background 0.1s var(--ease-out)',
               textAlign: 'left',
               opacity: item.id === 'paste' && !hasClipboard ? 0.4 : 1,
@@ -196,7 +196,7 @@ function NodeContextMenu({ position, nodeId, isDisabled, isProcessing, hasClipbo
               width: 20,
               height: 20,
               flexShrink: 0,
-              color: item.danger ? 'var(--signal-error)' : 'var(--text-tertiary)',
+              color: item.danger ? 'var(--text-primary)' : 'var(--text-tertiary)',
             }}>
               {icon}
             </span>

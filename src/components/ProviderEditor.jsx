@@ -365,8 +365,8 @@ export default function ProviderEditor({
           <div style={{
             padding: '8px 12px', borderRadius: 8, marginTop: 4,
             fontSize: 12, fontWeight: 600,
-            background: testResult.ok ? '#00A67E12' : '#E5393512',
-            color: testResult.ok ? '#00A67E' : '#E53935',
+            background: testResult.ok ? 'var(--white-10)' : 'var(--white-10)',
+            color: 'var(--text-primary)',
           }}>
             {testResult.ok
               ? `连接成功 · ${testResult.model_count || 0} 个模型`
@@ -397,7 +397,7 @@ export default function ProviderEditor({
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           {status && (
-            <span style={{ fontSize: 11, fontWeight: 700, color: status.includes('失败') ? '#E53935' : '#00A67E' }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-primary)' }}>
               {status}
             </span>
           )}
@@ -466,8 +466,8 @@ const keyActionBtnStyle = {
 
 const keyActionDangerBtnStyle = {
   height: 28, padding: '0 10px', borderRadius: 6,
-  border: `1px solid #E5393533`,
-  background: '#E5393512', color: '#E53935', fontSize: 11,
+  border: '1px solid var(--text-primary)',
+  background: 'var(--white-10)', color: 'var(--text-primary)', fontSize: 11,
   fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
 };
 
@@ -503,12 +503,12 @@ const actionRowStyle = {
 
 const deleteBtnStyle = {
   height: 32, padding: '0 14px', borderRadius: 8, border: `1px solid ${colorVar.border}`,
-  background: 'transparent', color: '#E53935', fontSize: 12,
+  background: 'transparent', color: 'var(--text-primary)', fontSize: 12,
   fontWeight: 700, cursor: 'pointer',
 };
 
 const saveBtnStyle = {
   height: 32, padding: '0 18px', borderRadius: 8, border: 'none',
-  background: colorVar.accent, color: '#fff', fontSize: 12,
+  background: colorVar.accent, color: 'var(--text-primary)', fontSize: 12,
   fontWeight: 700, cursor: 'pointer',
 };

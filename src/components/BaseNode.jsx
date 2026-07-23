@@ -109,7 +109,7 @@ function StyledHandle({ type, position, id, nodeId, isNodeHovered, isNodeActive,
   const shouldShowHandle = isNodeHovered || isNodeActive || hasConnection || isConnecting || isHovered;
   const { isDark: isDarkTheme } = useTheme();
 
-  const accentRgb = accent?.accentRgb || 'var(--signal-image-rgb)';
+  const accentRgb = 'var(--text-primary-rgb)';
   const labelEyebrow = accent?.labelEyebrow || 'DATA';
   const hoverLabel = type === 'source' ? `${labelEyebrow} data` : 'Connect input';
   const isSource = type === 'source';
@@ -122,7 +122,7 @@ function StyledHandle({ type, position, id, nodeId, isNodeHovered, isNodeActive,
     : hasConnection
       ? `rgba(${accentRgb}, 0.85)`
       : isDarkTheme ? 'rgba(255, 255, 255, 0.14)' : 'rgba(13, 20, 38, 0.08)';
-  const textColor = isHovered ? '#ffffff' : `rgba(${accentRgb}, 1)`;
+  const textColor = isHovered ? 'var(--text-primary)' : `rgba(${accentRgb}, 1)`;
   const borderColor = isHovered || hasConnection ? `rgba(${accentRgb}, 0.6)` : 'var(--node-border)';
   const shadow = isHovered
     ? `0 0 12px rgba(${accentRgb}, 0.4)`
@@ -321,19 +321,19 @@ function BaseNode({ id, type, data, selected }) {
   const isDisabled = Boolean(data.disabled);
 
   const cardBorder = error
-    ? '1px solid rgba(var(--signal-error-rgb), 0.55)'
+    ? '1px solid var(--text-primary)'
     : isDisabled
       ? '1px solid rgba(255, 255, 255, 0.06)'
       : isProcessing
-        ? `1px solid rgba(${accent.accentRgb}, 0.35)`
+        ? `1px solid rgba(${accentRgb}, 0.35)`
         : isLit
           ? '1px solid var(--node-border-hover)'
           : '1px solid var(--node-border)';
 
   const cardShadow = error
-    ? '0 0 0 1px rgba(var(--signal-error-rgb), 0.18), 0 8px 24px rgba(var(--signal-error-rgb), 0.08)'
+    ? '0 0 0 1px rgba(var(--text-primary-rgb), 0.18), 0 8px 24px rgba(0, 0, 0, 0.08)'
     : isProcessing
-      ? `0 0 0 1px rgba(${accent.accentRgb}, 0.08), 0 4px 18px rgba(0, 0, 0, 0.14)`
+      ? `0 0 0 1px rgba(var(--text-primary-rgb), 0.08), 0 4px 18px rgba(0, 0, 0, 0.14)`
       : isLit
         ? '0 4px 18px rgba(0, 0, 0, 0.18)'
         : '0 2px 12px rgba(0, 0, 0, 0.08)';
@@ -347,7 +347,7 @@ function BaseNode({ id, type, data, selected }) {
       }}>
       <div
         ref={cardRef}
-        className={`node-card${selected ? ' selected' : ''}`}
+        className={`node-card node-type-${type}${selected ? ' selected' : ''}`}
         onClick={(e) => {
           if (!isDisabled) handleNodeClick(e, id);
         }}
@@ -364,6 +364,7 @@ function BaseNode({ id, type, data, selected }) {
           height,
           background: 'var(--node-bg)',
           border: cardBorder,
+          borderStyle: accent?.borderStyle || 'solid',
           borderRadius: 16,
           animation: isEntering ? 'nodeEnter 0.35s var(--ease-out)' : 'none',
           transition: 'border-color 0.22s var(--ease-out), box-shadow 0.22s var(--ease-out)',
@@ -382,7 +383,7 @@ function BaseNode({ id, type, data, selected }) {
               left: 0,
               width: `${Math.max(2, progress)}%`,
               height: 3,
-              background: `linear-gradient(90deg, rgba(${accent.accentRgb}, 0.5), rgba(${accent.accentRgb}, 1))`,
+              background: `linear-gradient(90deg, rgba(var(--text-primary-rgb), 0.5), rgba(var(--text-primary-rgb), 1))`,
               borderRadius: '16px 0 0 0',
               transition: 'width 0.4s var(--ease-out)',
               zIndex: 10,
@@ -394,8 +395,8 @@ function BaseNode({ id, type, data, selected }) {
                 width: 7,
                 height: 7,
                 borderRadius: '50%',
-                background: `rgba(${accent.accentRgb}, 1)`,
-                boxShadow: `0 0 8px rgba(${accent.accentRgb}, 0.8)`,
+                background: `rgba(var(--text-primary-rgb), 1)`,
+                boxShadow: `0 0 8px rgba(var(--text-primary-rgb), 0.8)`,
               }} />
             </div>
 
@@ -405,7 +406,7 @@ function BaseNode({ id, type, data, selected }) {
               right: 14,
               fontSize: 20,
               fontWeight: 700,
-              color: `rgba(${accent.accentRgb}, 0.45)`,
+              color: `rgba(var(--text-primary-rgb), 0.45)`,
               letterSpacing: '-0.06em',
               zIndex: 10,
             }}>
@@ -421,8 +422,8 @@ function BaseNode({ id, type, data, selected }) {
             left: 0,
             right: 0,
             padding: '10px 12px',
-            background: 'rgba(var(--signal-error-rgb), 0.94)',
-            color: '#ffffff',
+            background: 'var(--text-primary)',
+            color: 'var(--text-primary)',
             fontSize: 11,
             fontWeight: 700,
             display: 'flex',
@@ -448,11 +449,11 @@ function BaseNode({ id, type, data, selected }) {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 4,
-                background: 'rgba(var(--signal-live-rgb), 0.12)',
+                background: 'var(--white-10)',
                 padding: '4px 7px',
                 borderRadius: 999,
-                border: '1px solid rgba(var(--signal-live-rgb), 0.24)',
-                color: 'var(--signal-live)',
+                border: '1px solid var(--white-20)',
+                color: 'var(--text-primary)',
               }}>
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="20 6 9 17 4 12" />
@@ -490,11 +491,11 @@ function BaseNode({ id, type, data, selected }) {
             width: 18,
             height: 18,
             borderRadius: '50%',
-            background: 'rgba(var(--signal-live-rgb), 0.9)',
+            background: 'var(--text-primary)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 2px 6px rgba(var(--signal-live-rgb), 0.35)',
+            boxShadow: '0 2px 6px var(--black-50)',
           }}>
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="20 6 9 17 4 12" />
@@ -512,7 +513,7 @@ function BaseNode({ id, type, data, selected }) {
               }}
               title="上传文件"
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = `rgba(${accent.accentRgb}, 0.15)`;
+                e.currentTarget.style.background = `rgba(var(--text-primary-rgb), 0.15)`;
                 e.currentTarget.style.opacity = '1';
               }}
               onMouseLeave={(e) => {
@@ -529,7 +530,7 @@ function BaseNode({ id, type, data, selected }) {
                 borderRadius: 6,
                 border: '1px solid rgba(255,255,255,0.08)',
                 background: 'rgba(255,255,255,0.04)',
-                color: `rgba(${accent.accentRgb}, 0.75)`,
+                color: `rgba(var(--text-primary-rgb), 0.75)`,
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
@@ -768,14 +769,14 @@ function BaseNode({ id, type, data, selected }) {
             autoFocus
             onClick={(e) => e.stopPropagation()}
             style={{
-              background: `rgba(${accent.accentRgb}, 0.08)`,
+              background: `rgba(var(--text-primary-rgb), 0.08)`,
               border: '1px solid rgba(255,255,255,0.08)',
               borderRadius: 999,
               outline: 'none',
               padding: '2px 10px',
               fontSize: 11,
               fontWeight: 500,
-              color: `rgba(${accent.accentRgb}, 0.9)`,
+              color: `rgba(var(--text-primary-rgb), 0.9)`,
               minWidth: 30,
               maxWidth: width - 20,
               fontFamily: 'inherit',
@@ -793,11 +794,11 @@ function BaseNode({ id, type, data, selected }) {
               display: 'inline-block',
               padding: '2px 10px',
               borderRadius: 999,
-              background: `rgba(${accent.accentRgb}, 0.08)`,
+              background: `rgba(var(--text-primary-rgb), 0.08)`,
               border: '1px solid rgba(255,255,255,0.06)',
               fontSize: 11,
               fontWeight: 500,
-              color: `rgba(${accent.accentRgb}, 0.85)`,
+              color: `rgba(var(--text-primary-rgb), 0.85)`,
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
@@ -806,10 +807,10 @@ function BaseNode({ id, type, data, selected }) {
               transition: 'background 0.2s, border-color 0.2s',
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = `rgba(${accent.accentRgb}, 0.12)`;
+              e.currentTarget.style.background = `rgba(var(--text-primary-rgb), 0.12)`;
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = `rgba(${accent.accentRgb}, 0.08)`;
+              e.currentTarget.style.background = `rgba(var(--text-primary-rgb), 0.08)`;
             }}
           >
             {data.title || config.title}

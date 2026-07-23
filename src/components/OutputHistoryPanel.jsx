@@ -44,11 +44,11 @@ function OutputHistoryPanel({ entries, isOpen, onToggle, onEntryClick }) {
       return (
         <div style={{
           width: 28, height: 28, borderRadius: 4, overflow: 'hidden', flexShrink: 0,
-          background: 'rgba(var(--signal-video-rgb), 0.10)',
+          background: 'var(--white-10)',
           border: '1px solid var(--panel-border)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--signal-video)' }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--text-primary)' }}>
             <polygon points="5 3 19 12 5 21 5 3" />
           </svg>
         </div>
@@ -105,8 +105,8 @@ function OutputHistoryPanel({ entries, isOpen, onToggle, onEntryClick }) {
               padding: '0 6px',
               height: 16,
               borderRadius: 8,
-              background: 'rgba(var(--signal-live-rgb), 0.12)',
-              color: 'var(--signal-live)',
+              background: 'var(--white-10)',
+              color: 'var(--text-primary)',
               display: 'inline-flex',
               alignItems: 'center',
               lineHeight: 1,
@@ -143,8 +143,8 @@ function OutputHistoryPanel({ entries, isOpen, onToggle, onEntryClick }) {
                 fontSize: 9,
                 padding: '1px 6px',
                 borderRadius: 6,
-                background: 'rgba(var(--signal-live-rgb), 0.10)',
-                color: 'var(--signal-live)',
+                background: 'var(--white-10)',
+                color: 'var(--text-primary)',
                 fontWeight: 600,
               }}>
                 {entries.length}

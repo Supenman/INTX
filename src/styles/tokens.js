@@ -60,11 +60,18 @@ export const colorVar = {
   borderStrong: 'var(--line-strong)',
   soft: 'var(--soft)',
   bg: 'var(--bg)',
-  // signal colors for canvas accents
-  signalImage: 'var(--signal-image)',
-  signalText: 'var(--signal-text)',
-  signalVideo: 'var(--signal-video)',
-  signalError: 'var(--signal-error)',
+};
+
+// 节点类型 → border-style(代替原 signal 颜色)
+export const borderStyles = {
+  image: 'solid',
+  text: 'dashed',
+  video: 'dotted',
+  'source-text': 'double',
+  'source-image': 'solid',
+  'source-video': 'groove',
+  'source-audio': 'outset',
+  'source-markdown': 'ridge',
 };
 
 export default {
@@ -75,4 +82,5 @@ export default {
   motion,
   controlHeight,
   colorVar,
+  borderStyles,
 };
