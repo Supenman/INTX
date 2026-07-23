@@ -115,15 +115,8 @@ function getInitialState() {
 }
 
 function getEdgeColor(sourceType, isDark) {
-  switch (sourceType) {
-    case 'image': return isDark ? 'rgba(94, 234, 212, 0.70)' : 'rgba(15, 159, 143, 0.70)';
-    case 'text': return isDark ? 'rgba(247, 215, 116, 0.70)' : 'rgba(167, 101, 0, 0.70)';
-    case 'video': return isDark ? 'rgba(192, 132, 252, 0.70)' : 'rgba(124, 58, 237, 0.70)';
-    case 'source-text':
-    case 'source-markdown': return isDark ? 'rgba(251, 191, 36, 0.70)' : 'rgba(217, 119, 6, 0.70)';
-    case 'source-audio': return isDark ? 'rgba(244, 114, 182, 0.70)' : 'rgba(219, 39, 119, 0.70)';
-    default: return isDark ? 'rgba(94, 234, 212, 0.70)' : 'rgba(15, 159, 143, 0.70)';
-  }
+  // 纯黑白灰:edge 颜色用 white(暗主题)/black(亮主题)的 70% 透明度
+  return isDark ? 'rgba(255, 255, 255, 0.70)' : 'rgba(0, 0, 0, 0.70)';
 }
 
 function AppContent() {
@@ -1882,6 +1875,16 @@ function AppContent() {
     });
   }, [setNodes]);
 
+  const handleChangeGroupBgColor = useCallback((groupId, colorHex) => {
+    setNodes((nds) =>
+      nds.map((n) =>
+        n.id === groupId
+          ? { ...n, data: { ...n.data, bgColor: colorHex } }
+          : n
+      )
+    );
+  }, [setNodes]);
+
   const customNodeTypes = useMemo(() => ({
     image: (props) => <ImageNode {...props} />,
     text: (props) => <TextNode {...props} />,
@@ -1917,19 +1920,39 @@ function AppContent() {
     const sel = nodes.filter((n) => n.selected);
     if (sel.length === 0) return null;
 
-    // 选中 group 时:用 group 自己的 bbox(顶/底/左/右 = group 的 position + width/height)
-    // 因为打组时 group 顶边已对齐 title capsule 顶,这里不需要再减 24
+    // 选中 group 时:用 children 的 bbox(与打组前 selection bbox 完全一致),顶边上推 24 对齐 title capsule
     const selectedGroup = sel.find((n) => n.type === 'group');
     if (selectedGroup) {
-      const w = selectedGroup.measured?.width ?? selectedGroup.width ?? GROUP_MIN_W;
-      const h = selectedGroup.measured?.height ?? selectedGroup.height ?? GROUP_MIN_H;
+      let minX = Infinity, minY = Infinity;
+      let maxX = -Infinity, maxY = -Infinity;
+      for (const n of nodes) {
+        if (n.parentId !== selectedGroup.id) continue;
+        const px = n.position.x + selectedGroup.position.x;
+        const py = n.position.y + selectedGroup.position.y;
+        const w = n.measured?.width ?? n.width ?? 200;
+        const h = n.measured?.height ?? n.height ?? 200;
+        if (px < minX) minX = px;
+        if (py < minY) minY = py;
+        if (px + w > maxX) maxX = px + w;
+        if (py + h > maxY) maxY = py + h;
+      }
+      if (minX === Infinity) {
+        // fallback: group 自身 bbox
+        const w = selectedGroup.measured?.width ?? selectedGroup.width ?? GROUP_MIN_W;
+        const h = selectedGroup.measured?.height ?? selectedGroup.height ?? GROUP_MIN_H;
+        minX = selectedGroup.position.x;
+        minY = selectedGroup.position.y;
+        maxX = selectedGroup.position.x + w;
+        maxY = selectedGroup.position.y + h;
+      } else {
+        minY -= 24;
+      }
       return {
-        minX: selectedGroup.position.x,
-        minY: selectedGroup.position.y,
-        maxX: selectedGroup.position.x + w,
-        maxY: selectedGroup.position.y + h,
+        minX, minY, maxX, maxY,
         count: sel.length,
         hasGroup: true,
+        groupId: selectedGroup.id,
+        groupBgColor: selectedGroup.data?.bgColor || null,
       };
     }
 
@@ -2067,6 +2090,7 @@ function AppContent() {
           onArrange={handleArrangeSelected}
           onGroup={handleGroupSelected}
           onUngroup={handleUngroupSelected}
+          onGroupBgColorChange={handleChangeGroupBgColor}
         />
         {nodes.length === 0 && (
           <div style={{
@@ -2099,13 +2123,13 @@ function AppContent() {
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
                 <button onClick={() => handleAddFromEmpty('image')}
                   style={emptyStateBtnStyle}>
-                  <span style={{ color: 'var(--signal-image)' }}>{NODE_TYPE_REGISTRY.image.smallIcon}</span>
+                  <span style={{ color: 'var(--text-primary)' }}>{NODE_TYPE_REGISTRY.image.smallIcon}</span>
                   图片节点
                 </button>
 
                 <button onClick={() => handleAddFromEmpty('video')}
                   style={emptyStateBtnStyle}>
-                  <span style={{ color: 'var(--signal-video)' }}>{NODE_TYPE_REGISTRY.video.smallIcon}</span>
+                  <span style={{ color: 'var(--text-primary)' }}>{NODE_TYPE_REGISTRY.video.smallIcon}</span>
                   视频节点
                 </button>
               </div>

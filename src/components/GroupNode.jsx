@@ -42,7 +42,10 @@ function GroupNode({ data, selected, id }) {
   }, [data?.title]);
 
   return (
-    <div className={`group-node${selected ? ' selected' : ''}`}>
+    <div
+      className={`group-node${selected ? ' selected' : ''}`}
+      style={data?.bgColor ? { backgroundColor: data.bgColor } : undefined}
+    >
       <div className="group-node-title" onClick={editing ? undefined : startEditing}>
         {editing ? (
           <input

@@ -10,8 +10,8 @@ const ArrangeIcon = () => (
   </svg>
 );
 
-const ChevronDownIcon = () => (
-  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+const ChevronDownIcon = ({ className }) => (
+  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
     <path d="M2.5 3.5L5 6.5L7.5 3.5" />
   </svg>
 );
@@ -47,7 +47,7 @@ function computeToolbarPosition(bbox, viewport) {
   const screenBottom = maxY * zoom + ty;
   const centerX = (minX * zoom + tx + maxX * zoom + tx) / 2;
 
-  const gap = 0;
+  const gap = 6;
   const toolbarH = 42;
   const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
   const margin = 8;
@@ -61,16 +61,23 @@ function computeToolbarPosition(bbox, viewport) {
   return { left: centerX, top: Math.min(screenBottom + gap, vh - toolbarH - margin), placement };
 }
 
+const GROUP_BG_COLORS = [
+  'rgba(142,142,147,0.35)', 'rgba(74,120,200,0.35)', 'rgba(90,154,90,0.35)', 'rgba(138,92,184,0.35)', 'rgba(154,118,71,0.35)',
+  'rgba(184,90,138,0.35)', 'rgba(166,74,74,0.35)', 'rgba(138,138,74,0.35)', 'rgba(74,138,138,0.35)', 'rgba(122,90,58,0.35)',
+];
+
 const ARRANGE_ITEMS = [
   { key: 'grid', label: '宫格排列' },
   { key: 'horizontal', label: '水平排列' },
   { key: 'vertical', label: '垂直排列' },
 ];
 
-export default function SelectionBboxToolbar({ bbox, onArrange, onGroup, onUngroup }) {
+export default function SelectionBboxToolbar({ bbox, onArrange, onGroup, onUngroup, onGroupBgColorChange }) {
   const viewport = useViewport();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [colorMenuOpen, setColorMenuOpen] = useState(false);
   const menuRef = useRef(null);
+  const colorMenuRef = useRef(null);
 
   const position = useMemo(
     () => computeToolbarPosition(bbox, viewport),
@@ -88,6 +95,17 @@ export default function SelectionBboxToolbar({ bbox, onArrange, onGroup, onUngro
     return () => document.removeEventListener('mousedown', handleClick, true);
   }, [menuOpen]);
 
+  useEffect(() => {
+    if (!colorMenuOpen) return;
+    const handleClick = (e) => {
+      if (colorMenuRef.current && !colorMenuRef.current.contains(e.target)) {
+        setColorMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick, true);
+    return () => document.removeEventListener('mousedown', handleClick, true);
+  }, [colorMenuOpen]);
+
   const handleArrangeClick = useCallback((key) => {
     setMenuOpen(false);
     onArrange?.(key);
@@ -95,10 +113,6 @@ export default function SelectionBboxToolbar({ bbox, onArrange, onGroup, onUngro
 
   if (!position) return null;
 
-  // 按钮显示规则:
-  // - 选中 group(可能单独选也可能多选混着)→ 显示"解组"
-  // - 多选普通节点(≥ 2)→ 显示"打组"
-  // - 单选普通节点 → 不显示
   const hasGroup = bbox.hasGroup;
   const showGroupBtn = hasGroup || bbox.count >= 2;
   const groupLabel = hasGroup ? '解组' : '打组';
@@ -107,17 +121,15 @@ export default function SelectionBboxToolbar({ bbox, onArrange, onGroup, onUngro
 
   return (
     <div className={`bbox-toolbar bbox-toolbar-${position.placement}`} style={position}>
-      <span className="bbox-toolbar-count">{bbox.count} 个节点</span>
-      <div className="bbox-toolbar-divider" />
       <div className="bbox-toolbar-arrange-wrap" ref={menuRef}>
         <button
           className="bbox-toolbar-btn bbox-toolbar-btn-label"
           title="排列"
-          onClick={() => setMenuOpen((v) => !v)}
+          onClick={() => { setMenuOpen((v) => !v); setColorMenuOpen(false); }}
         >
           <ArrangeIcon />
           <span className="bbox-toolbar-btn-label-text">排列</span>
-          <ChevronDownIcon />
+          <ChevronDownIcon className={menuOpen ? 'chevron-up' : ''} />
         </button>
         {menuOpen && (
           <div className="bbox-toolbar-submenu">
@@ -144,6 +156,50 @@ export default function SelectionBboxToolbar({ bbox, onArrange, onGroup, onUngro
             {hasGroup ? <UngroupIcon /> : <GroupIcon />}
             <span className="bbox-toolbar-btn-label-text">{groupLabel}</span>
           </button>
+        </>
+      )}
+      {hasGroup && onGroupBgColorChange && (
+        <>
+          <div className="bbox-toolbar-divider" />
+          <div className="bbox-toolbar-arrange-wrap" ref={colorMenuRef}>
+            <button
+              className="bbox-toolbar-btn bbox-toolbar-btn-swatch"
+              title="组背景色"
+              onClick={() => { setColorMenuOpen((v) => !v); setMenuOpen(false); }}
+            >
+              <span
+                className={`bbox-toolbar-current-swatch${bbox.groupBgColor ? '' : ' unset'}`}
+                style={bbox.groupBgColor ? { background: bbox.groupBgColor } : undefined}
+              />
+              <ChevronDownIcon className={colorMenuOpen ? 'chevron-up' : ''} />
+            </button>
+            {colorMenuOpen && (
+              <div className="bbox-toolbar-submenu bbox-toolbar-submenu-colors">
+                {GROUP_BG_COLORS.map((rgba) => (
+                  <button
+                    key={rgba}
+                    className={`bbox-toolbar-color-swatch${bbox.groupBgColor === rgba ? ' active' : ''}`}
+                    style={{ background: rgba }}
+                    onClick={() => {
+                      onGroupBgColorChange(bbox.groupId, bbox.groupBgColor === rgba ? null : rgba);
+                      setColorMenuOpen(false);
+                    }}
+                  />
+                ))}
+                <div className="bbox-toolbar-color-clear-wrap">
+                  <button
+                    className="bbox-toolbar-color-clear"
+                    onClick={() => {
+                      onGroupBgColorChange(bbox.groupId, null);
+                      setColorMenuOpen(false);
+                    }}
+                  >
+                    清除背景色
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </>
       )}
     </div>
