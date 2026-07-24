@@ -41,7 +41,7 @@ function Sidebar({ toggleTheme, onOpenProjectSelector, canUndo, canRedo, onUndo,
       <button
         onClick={onUndo}
         disabled={!canUndo}
-        style={{ ...getItemStyle(hoveredItem === 'undo'), opacity: canUndo ? 1 : 0.25, cursor: canUndo ? 'pointer' : 'default' }}
+        style={{ ...getItemStyle(hoveredItem === 'undo'), opacity: canUndo ? 1 : 0.25, cursor: canUndo ? 'pointer' : 'not-allowed' }}
         onMouseEnter={() => setHoveredItem('undo')}
         onMouseLeave={() => setHoveredItem(null)}
         aria-label="撤销"
@@ -56,7 +56,7 @@ function Sidebar({ toggleTheme, onOpenProjectSelector, canUndo, canRedo, onUndo,
       <button
         onClick={onRedo}
         disabled={!canRedo}
-        style={{ ...getItemStyle(hoveredItem === 'redo'), opacity: canRedo ? 1 : 0.25, cursor: canRedo ? 'pointer' : 'default' }}
+        style={{ ...getItemStyle(hoveredItem === 'redo'), opacity: canRedo ? 1 : 0.25, cursor: canRedo ? 'pointer' : 'not-allowed' }}
         onMouseEnter={() => setHoveredItem('redo')}
         onMouseLeave={() => setHoveredItem(null)}
         aria-label="重做"

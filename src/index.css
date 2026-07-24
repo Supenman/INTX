@@ -251,6 +251,15 @@ html[data-theme="light"] ::selection {
 
 .react-flow__pane {
   background: transparent;
+  cursor: default;
+}
+.react-flow__pane.react-flow__pane.draggable,
+.react-flow__pane.react-flow__pane.selection {
+  cursor: grab;
+}
+.react-flow__pane.react-flow__pane.dragging,
+.react-flow__pane.react-flow__pane.selection.dragging {
+  cursor: grabbing;
 }
 
 .react-flow__background {
@@ -311,6 +320,7 @@ html[data-theme="light"] ::selection {
   transition: all 0.2s var(--ease-out);
   opacity: 0;
   transform: scale(0.6);
+  cursor: crosshair;
 }
 
 .react-flow__handle:hover {
@@ -346,6 +356,40 @@ html[data-theme="light"] ::selection {
 .node-card.selected {
   border: 1px solid rgba(var(--text-primary-rgb), 0.45) !important;
   box-shadow: 0 0 0 1px rgba(var(--text-primary-rgb), 0.15), 0 8px 32px rgba(0, 0, 0, 0.20) !important;
+}
+
+/* Node card: cursor signals dragability */
+.react-flow__node:not(:has(.group-node)):hover .node-card {
+  cursor: grab;
+}
+.react-flow__node.dragging .node-card {
+  cursor: grabbing !important;
+}
+
+/* Input/editor elements keep their own cursors inside node */
+.react-flow__node input,
+.react-flow__node textarea,
+.react-flow__node [contenteditable] {
+  cursor: text;
+}
+.react-flow__node button,
+.react-flow__node select,
+.react-flow__node [role="button"] {
+  cursor: pointer;
+}
+.react-flow__node button:disabled,
+.react-flow__node select:disabled {
+  cursor: not-allowed;
+}
+
+/* Body cursor modes */
+body.cursor-drawing,
+body.cursor-drawing * {
+  cursor: crosshair !important;
+}
+body.cursor-selecting,
+body.cursor-selecting * {
+  cursor: crosshair !important;
 }
 
 /* Selection rectangle (drag to select) */

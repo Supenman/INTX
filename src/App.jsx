@@ -1408,6 +1408,27 @@ function AppContent() {
     }
   }, []);
 
+  useEffect(() => {
+    if (isConnecting) {
+      document.body.classList.add('cursor-drawing');
+    } else {
+      document.body.classList.remove('cursor-drawing');
+    }
+    return () => document.body.classList.remove('cursor-drawing');
+  }, [isConnecting]);
+
+  useEffect(() => {
+    let raf = 0;
+    const tick = () => {
+      const sel = storeApi.getState().nodesSelectionActive;
+      if (sel) document.body.classList.add('cursor-selecting');
+      else document.body.classList.remove('cursor-selecting');
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [storeApi]);
+
   const onConnectEnd = useCallback((event, connectionState) => {
     setIsConnecting(false);
     if (connectionState && !connectionState.toHandle) {

@@ -370,7 +370,7 @@ function BaseNode({ id, type, data, selected }) {
           borderRadius: 16,
           animation: isEntering ? 'nodeEnter 0.35s var(--ease-out)' : 'none',
           transition: 'border-color 0.22s var(--ease-out), box-shadow 0.22s var(--ease-out)',
-          cursor: isDisabled ? 'default' : 'pointer',
+          cursor: isDisabled ? 'not-allowed' : 'default',
           overflow: 'hidden',
           boxShadow: cardShadow,
         }}
