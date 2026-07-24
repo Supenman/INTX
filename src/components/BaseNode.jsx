@@ -5,6 +5,7 @@ import { useActiveNode } from '../ActiveNodeContext';
 import { useTheme } from '../ThemeContext';
 import { getNodeSize } from '../utils/nodeSize';
 import NodeDrawer from './NodeDrawer';
+import NodeToolbar from './NodeToolbar';
 import ResizeHandle from './ResizeHandle';
 import { ASPECT_RATIOS } from '../utils/dimensions';
 
@@ -345,6 +346,7 @@ function BaseNode({ id, type, data, selected }) {
           handleNodeContextMenu(e, id);
         }
       }}>
+      <NodeToolbar id={id} selected={selected} />
       <div
         ref={cardRef}
         className={`node-card node-type-${type}${selected ? ' selected' : ''}`}

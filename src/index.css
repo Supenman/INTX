@@ -751,6 +751,55 @@ html[data-theme="light"] {
   to { opacity: 1; }
 }
 
+/* ── Node Floating Toolbar ───────────────────────────── */
+
+.node-floating-toolbar {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  background: var(--panel-bg-strong);
+  backdrop-filter: var(--panel-blur);
+  border: 1px solid var(--sidebar-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.node-floating-toolbar.is-visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateX(-50%) translateY(0);
+}
+
+.nft-btn {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--sidebar-icon);
+  cursor: pointer;
+  transition: background 0.12s var(--ease-out), color 0.12s var(--ease-out);
+}
+
+.nft-btn:hover {
+  background: var(--sidebar-item-bg-hover);
+  color: var(--text-primary);
+}
+
 /* ============================================
    Group Node — 视觉与 .react-flow__nodesselection-rect::before 一致,
    唯一区别:dashed → solid
