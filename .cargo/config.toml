@@ -1,0 +1,3 @@
+[env]
+# Force MSVC 14.44 toolchain — required by ONNX Runtime's prebuilt binaries
+VCToolsVersion = "14.44.35207"

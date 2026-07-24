@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useReactFlow } from '@xyflow/react';
+import { invoke } from '@tauri-apps/api/core';
 import { useActiveNode } from '../ActiveNodeContext';
 import FullscreenOverlay from './FullscreenOverlay';
 import ZoomableImage from './ZoomableImage';
@@ -33,6 +34,18 @@ const CropIcon = () => (
   </svg>
 );
 
+const HdIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="7" /><circle cx="12" cy="12" r="2" fill="currentColor" />
+  </svg>
+);
+
+const AutoIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+  </svg>
+);
+
 const DuplicateIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
     <rect x="9" y="9" width="13" height="13" rx="2" />
@@ -63,6 +76,7 @@ export default function NodeToolbar({ id, type }) {
 
   const [showFullscreen, setShowFullscreen] = useState(false);
   const [showCrop, setShowCrop] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(null); // 'upscale' | 'matting' | null
 
   const handleDelete = useCallback((e) => {
     e.stopPropagation();
@@ -119,6 +133,62 @@ export default function NodeToolbar({ id, type }) {
     [getNodes, setNodes, id],
   );
 
+  const saveDataUrlToNode = useCallback(
+    (resultUrl, label) => {
+      const now = Date.now();
+      const currentNodes = getNodes();
+      const current = currentNodes.find((n) => n.id === id);
+      if (!current) return;
+      const pos = current.position;
+      const newNode = {
+        ...JSON.parse(JSON.stringify(current)),
+        id: `node_${now}`,
+        position: { x: pos.x + (current.measured?.width || 220) + 40, y: pos.y },
+        selected: false,
+        data: {
+          ...JSON.parse(JSON.stringify(current.data)),
+          images: [{ url: resultUrl, name: (current.data?.title || 'image') + ' ' + label, type: 'image' }],
+        },
+      };
+      setNodes((nds) => [...nds, newNode]);
+    },
+    [getNodes, setNodes, id],
+  );
+
+  const handleUpscale = useCallback(
+    async (e) => {
+      e.stopPropagation();
+      if (isProcessing || !imageUrl) return;
+      setIsProcessing('upscale');
+      try {
+        const resultDataUrl = await invoke('upscale_image', { path: imageUrl });
+        saveDataUrlToNode(resultDataUrl, '高清');
+      } catch (err) {
+        console.error('Upscale failed:', err);
+      } finally {
+        setIsProcessing(null);
+      }
+    },
+    [isProcessing, imageUrl, id, saveDataUrlToNode],
+  );
+
+  const handleMatting = useCallback(
+    async (e) => {
+      e.stopPropagation();
+      if (isProcessing || !imageUrl) return;
+      setIsProcessing('matting');
+      try {
+        const resultDataUrl = await invoke('matting_image', { path: imageUrl });
+        saveDataUrlToNode(resultDataUrl, '主体');
+      } catch (err) {
+        console.error('Matting failed:', err);
+      } finally {
+        setIsProcessing(null);
+      }
+    },
+    [isProcessing, imageUrl, id, saveDataUrlToNode],
+  );
+
   return (
     <>
       <div className={`node-floating-toolbar${isVisible ? ' is-visible' : ''}`}>
@@ -138,6 +208,12 @@ export default function NodeToolbar({ id, type }) {
                 <DownloadIcon />
               </button>
             )}
+            <button className="nft-btn" onClick={handleUpscale} title={isProcessing === 'upscale' ? '超分处理中...' : '高清超分'} disabled={isProcessing !== null}>
+              <HdIcon />
+            </button>
+            <button className="nft-btn" onClick={handleMatting} title={isProcessing === 'matting' ? '主体识别中...' : '自动识别主体'} disabled={isProcessing !== null}>
+              <AutoIcon />
+            </button>
             <div className="nft-divider" />
           </>
         )}
