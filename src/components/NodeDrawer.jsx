@@ -159,7 +159,6 @@ function getPrevChar(root) {
 function renderPromptToRoot(text, root, sourceNodes) {
   root.innerHTML = '';
   if (!text) {
-    root.innerHTML = '<br>';
     return;
   }
   const segments = text.split(REF_SPLIT);
