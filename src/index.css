@@ -1252,6 +1252,186 @@ html[data-theme="light"] {
   background: var(--panel-btn-bg-hover);
 }
 
+/* ── Fullscreen Overlay ─────────────────────── */
+
+.fs-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.78);
+  backdrop-filter: blur(8px);
+  animation: fadeIn 0.18s var(--ease-out);
+}
+
+.fs-overlay-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 10;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+  transition: background 0.12s var(--ease-out);
+}
+.fs-overlay-close:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.fs-overlay-body {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Zoomable Image ─────────────────────────── */
+
+.zi-controls {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 10px;
+  backdrop-filter: blur(12px);
+  z-index: 10001;
+}
+
+.zi-btn {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+  transition: background 0.12s var(--ease-out);
+}
+.zi-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.12); }
+.zi-btn:disabled { opacity: 0.3; cursor: default; }
+
+.zi-percent {
+  min-width: 44px;
+  padding: 0 6px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s var(--ease-out);
+}
+.zi-percent:hover { background: rgba(255, 255, 255, 0.12); }
+
+/* ── Crop Editor ────────────────────────────── */
+
+.crop-editor {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  outline: none;
+}
+
+.crop-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(12px);
+  z-index: 10;
+}
+
+.crop-toolbar-btn {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+  transition: background 0.12s var(--ease-out);
+}
+.crop-toolbar-btn:hover { background: rgba(255, 255, 255, 0.12); }
+
+.crop-toolbar-divider {
+  width: 1px;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.12);
+  flex-shrink: 0;
+}
+
+.crop-aspect-btn {
+  padding: 4px 10px;
+  height: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s var(--ease-out), color 0.12s var(--ease-out), border-color 0.12s var(--ease-out);
+}
+.crop-aspect-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.9);
+}
+.crop-aspect-btn.active {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.crop-toolbar-spacer { flex: 1; }
+
+.crop-confirm-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+  height: 30px;
+  border: none;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s var(--ease-out);
+}
+.crop-confirm-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.28); }
+.crop-confirm-btn:disabled { opacity: 0.3; cursor: default; }
+
+
 /* Trigger button — used inside CanvasDropdown trigger slot */
 .nd-trigger {
   display: inline-flex;

@@ -1,5 +1,9 @@
+import { useState, useCallback } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import { useActiveNode } from '../ActiveNodeContext';
+import FullscreenOverlay from './FullscreenOverlay';
+import ZoomableImage from './ZoomableImage';
+import CropEditor from './CropEditor';
 
 const FullscreenIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -23,6 +27,12 @@ const DownloadIcon = () => (
   </svg>
 );
 
+const CropIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M6 2v14a2 2 0 0 0 2 2h14M18 22V8a2 2 0 0 0-2-2H2" />
+  </svg>
+);
+
 const DuplicateIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
     <rect x="9" y="9" width="13" height="13" rx="2" />
@@ -43,7 +53,7 @@ function getImageUrl(node) {
 }
 
 export default function NodeToolbar({ id, type }) {
-  const { activeNodeId, handleReplaceMedia } = useActiveNode() || {};
+  const { activeNodeId, handleReplaceMedia, nodes: ctxNodes } = useActiveNode() || {};
   const { deleteElements, getNodes, setNodes } = useReactFlow();
   const selectedCount = getNodes().filter((n) => n.selected).length;
   const isVisible = activeNodeId === id && selectedCount <= 1;
@@ -51,67 +61,97 @@ export default function NodeToolbar({ id, type }) {
   const node = getNodes().find((n) => n.id === id);
   const imageUrl = getImageUrl(node);
 
-  const handleDelete = (e) => {
+  const [showFullscreen, setShowFullscreen] = useState(false);
+  const [showCrop, setShowCrop] = useState(false);
+
+  const handleDelete = useCallback((e) => {
     e.stopPropagation();
     deleteElements({ nodes: [{ id }] });
-  };
+  }, [deleteElements, id]);
 
-  const handleDuplicate = (e) => {
+  const handleDuplicate = useCallback((e) => {
     e.stopPropagation();
-    const node = getNodes().find((n) => n.id === id);
-    if (!node) return;
+    const n = getNodes().find((nd) => nd.id === id);
+    if (!n) return;
     const cloned = {
-      ...JSON.parse(JSON.stringify(node)),
+      ...JSON.parse(JSON.stringify(n)),
       id: `node_${Date.now()}`,
-      position: { x: node.position.x + 80, y: node.position.y + 80 },
+      position: { x: n.position.x + 80, y: n.position.y + 80 },
       selected: false,
     };
     setNodes((nds) => [...nds, cloned]);
-  };
+  }, [getNodes, setNodes, id]);
 
-  const handleFullscreen = (e) => {
-    e.stopPropagation();
-    if (imageUrl) window.open(imageUrl, '_blank');
-  };
-
-  const handleDownload = (e) => {
+  const handleDownload = useCallback((e) => {
     e.stopPropagation();
     if (!imageUrl) return;
     const a = document.createElement('a');
     a.href = imageUrl;
     a.download = node?.data?.title || 'image';
     a.click();
-  };
+  }, [imageUrl, node]);
 
-  const handleReplace = (e) => {
+  const handleReplace = useCallback((e) => {
     e.stopPropagation();
     handleReplaceMedia?.(id);
-  };
+  }, [handleReplaceMedia, id]);
+
+  const handleCropSave = useCallback(
+    (dataUrl, metadata) => {
+      const now = Date.now();
+      const currentNodes = getNodes();
+      const current = currentNodes.find((n) => n.id === id);
+      if (!current) return;
+      const pos = current.position;
+      const newNode = {
+        ...JSON.parse(JSON.stringify(current)),
+        id: `node_${now}`,
+        position: { x: pos.x + (current.measured?.width || 220) + 40, y: pos.y },
+        selected: false,
+        data: {
+          ...JSON.parse(JSON.stringify(current.data)),
+          images: [{ url: dataUrl, name: (current.data?.title || 'image') + ' 裁切', type: 'image' }],
+          result: { type: 'image', url: dataUrl, width: metadata?.width, height: metadata?.height },
+        },
+      };
+      setNodes((nds) => [...nds, newNode]);
+    },
+    [getNodes, setNodes, id],
+  );
 
   return (
-    <div className={`node-floating-toolbar${isVisible ? ' is-visible' : ''}`}>
-      {isSourceImage && imageUrl && (
-        <>
-          <button className="nft-btn" onClick={handleFullscreen} title="全屏预览">
-            <FullscreenIcon />
-          </button>
-          <button className="nft-btn" onClick={handleReplace} title="替换图片">
-            <ReplaceIcon />
-          </button>
-          {!imageUrl.startsWith('blob:') && (
-            <button className="nft-btn" onClick={handleDownload} title="下载">
-              <DownloadIcon />
+    <>
+      <div className={`node-floating-toolbar${isVisible ? ' is-visible' : ''}`}>
+        {isSourceImage && imageUrl && (
+          <>
+            <button className="nft-btn" onClick={() => setShowFullscreen(true)} title="全屏预览">
+              <FullscreenIcon />
             </button>
-          )}
-          <div className="nft-divider" />
-        </>
-      )}
-      <button className="nft-btn" onClick={handleDuplicate} title="复制节点">
-        <DuplicateIcon />
-      </button>
-      <button className="nft-btn" onClick={handleDelete} title="删除节点">
-        <DeleteIcon />
-      </button>
-    </div>
+            <button className="nft-btn" onClick={handleReplace} title="替换图片">
+              <ReplaceIcon />
+            </button>
+            <button className="nft-btn" onClick={() => setShowCrop(true)} title="裁切">
+              <CropIcon />
+            </button>
+            {!imageUrl.startsWith('blob:') && (
+              <button className="nft-btn" onClick={handleDownload} title="下载">
+                <DownloadIcon />
+              </button>
+            )}
+            <div className="nft-divider" />
+          </>
+        )}
+        <button className="nft-btn" onClick={handleDuplicate} title="复制节点">
+          <DuplicateIcon />
+        </button>
+        <button className="nft-btn" onClick={handleDelete} title="删除节点">
+          <DeleteIcon />
+        </button>
+      </div>
+      <FullscreenOverlay isOpen={showFullscreen} onClose={() => setShowFullscreen(false)}>
+        <ZoomableImage src={imageUrl} alt="预览" />
+      </FullscreenOverlay>
+      <CropEditor isOpen={showCrop} imageUrl={imageUrl} onClose={() => setShowCrop(false)} onSave={handleCropSave} />
+    </>
   );
 }
