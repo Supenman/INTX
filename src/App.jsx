@@ -1061,6 +1061,7 @@ function AppContent() {
   const handleNodeClick = useCallback((event, nodeId) => {
     event.stopPropagation();
     const node = nodes.find(n => n.id === nodeId);
+    setActiveNodeId(activeNodeId === nodeId ? null : nodeId);
     if (node?.type?.startsWith('source-')) {
       if (node.data?.result) return;
       if (node.type === 'source-text' || node.type === 'source-markdown') {
@@ -1077,8 +1078,20 @@ function AppContent() {
       mediaFileInputRef.current?.click();
       return;
     }
-    setActiveNodeId(activeNodeId === nodeId ? null : nodeId);
   }, [activeNodeId, nodes]);
+
+  const handleReplaceMedia = useCallback((nodeId) => {
+    const node = latestNodes.current.find((n) => n.id === nodeId);
+    if (!node?.type?.startsWith('source-')) return;
+    const acceptMap = {
+      'source-image': 'image/*',
+      'source-video': 'video/*',
+      'source-audio': 'audio/*',
+    };
+    mediaFileInputRef.current.accept = acceptMap[node.type] || '*/*';
+    pendingMediaNodeIdRef.current = nodeId;
+    mediaFileInputRef.current?.click();
+  }, []);
 
   const handleCloseDrawer = useCallback(() => {
     setActiveNodeId(null);
@@ -1417,20 +1430,17 @@ function AppContent() {
     return () => document.body.classList.remove('cursor-drawing');
   }, [isConnecting]);
 
-  useEffect(() => {
-    let raf = 0;
-    const tick = () => {
-      const sel = storeApi.getState().nodesSelectionActive;
-      if (sel) document.body.classList.add('cursor-selecting');
-      else document.body.classList.remove('cursor-selecting');
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [storeApi]);
+  const handleSelectionStart = useCallback(() => {
+    document.body.classList.add('cursor-selecting');
+  }, []);
+
+  const handleSelectionEnd = useCallback(() => {
+    document.body.classList.remove('cursor-selecting');
+  }, []);
 
   const onConnectEnd = useCallback((event, connectionState) => {
     setIsConnecting(false);
+    connectionSourceRef.current = null;
     if (connectionState && !connectionState.toHandle) {
       setMenuState({
         visible: true,
@@ -2005,7 +2015,7 @@ function AppContent() {
 
   return (
     <ConnectionContext.Provider value={contextValue}>
-      <ActiveNodeContext.Provider value={{ activeNodeId, handleNodeClick, handleSubmit, handleNodeTypeChange, handleUpdateResult, handleRenameNode, handleUpdateNodeData, handleResizeNode, handleOpenSettings, handleNodeContextMenu, apiProviders, nodeStates, nodes: latestNodes.current, edges: latestEdges.current }}>
+      <ActiveNodeContext.Provider value={{ activeNodeId, handleNodeClick, handleSubmit, handleNodeTypeChange, handleUpdateResult, handleRenameNode, handleUpdateNodeData, handleResizeNode, handleOpenSettings, handleNodeContextMenu, handleReplaceMedia, apiProviders, nodeStates, nodes: latestNodes.current, edges: latestEdges.current }}>
       <div style={{ width: '100%', height: '100%' }}
             onDragOver={handleDragOver}
             onDrop={handleFileDrop}>
@@ -2041,6 +2051,8 @@ function AppContent() {
           maxZoom={2.5}
           onNodeDragStart={handleNodeDragStart}
           onNodeDragStop={handleNodeDragStop}
+          onSelectionStart={handleSelectionStart}
+          onSelectionEnd={handleSelectionEnd}
           connectionLineStyle={{
             stroke: 'var(--accent)',
             strokeWidth: 1.5,

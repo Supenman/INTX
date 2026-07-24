@@ -346,7 +346,7 @@ function BaseNode({ id, type, data, selected }) {
           handleNodeContextMenu(e, id);
         }
       }}>
-      <NodeToolbar id={id} selected={selected} />
+      <NodeToolbar id={id} selected={selected} type={type} />
       <div
         ref={cardRef}
         className={`node-card node-type-${type}${selected ? ' selected' : ''}`}
@@ -823,7 +823,7 @@ function BaseNode({ id, type, data, selected }) {
       {!isSourceType && <StyledHandle type="target" position={Position.Left} id="target" nodeId={id} isNodeHovered={isHovered} isNodeActive={isActive} accent={accent} />}
       <StyledHandle type="source" position={Position.Right} id="source" nodeId={id} isNodeHovered={isHovered} isNodeActive={isActive} accent={accent} />
 
-      {isActive && (
+      {isActive && !isSourceType && (
         <NodeDrawer
           node={{ id, type, data, connectedSourceNodes }}
           apiProviders={apiProviders}
