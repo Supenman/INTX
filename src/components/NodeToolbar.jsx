@@ -77,6 +77,7 @@ export default function NodeToolbar({ id, type }) {
   const [showFullscreen, setShowFullscreen] = useState(false);
   const [showCrop, setShowCrop] = useState(false);
   const [isProcessing, setIsProcessing] = useState(null); // 'upscale' | 'matting' | null
+  const [errorMsg, setErrorMsg] = useState(null);
 
   const handleDelete = useCallback((e) => {
     e.stopPropagation();
@@ -162,9 +163,11 @@ export default function NodeToolbar({ id, type }) {
       setIsProcessing('upscale');
       try {
         const resultDataUrl = await invoke('upscale_image', { path: imageUrl });
+        setErrorMsg(null);
         saveDataUrlToNode(resultDataUrl, '高清');
       } catch (err) {
         console.error('Upscale failed:', err);
+        setErrorMsg('超分失败: ' + (err?.message || err || '未知错误'));
       } finally {
         setIsProcessing(null);
       }
@@ -179,9 +182,11 @@ export default function NodeToolbar({ id, type }) {
       setIsProcessing('matting');
       try {
         const resultDataUrl = await invoke('matting_image', { path: imageUrl });
+        setErrorMsg(null);
         saveDataUrlToNode(resultDataUrl, '主体');
       } catch (err) {
         console.error('Matting failed:', err);
+        setErrorMsg('抠图失败: ' + (err?.message || err || '未知错误'));
       } finally {
         setIsProcessing(null);
       }
@@ -224,6 +229,11 @@ export default function NodeToolbar({ id, type }) {
           <DeleteIcon />
         </button>
       </div>
+      {errorMsg && (
+        <div className="nft-error" onClick={() => setErrorMsg(null)}>
+          {errorMsg}
+        </div>
+      )}
       <FullscreenOverlay isOpen={showFullscreen} onClose={() => setShowFullscreen(false)}>
         <ZoomableImage src={imageUrl} alt="预览" />
       </FullscreenOverlay>
