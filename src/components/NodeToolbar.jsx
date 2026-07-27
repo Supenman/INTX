@@ -159,14 +159,19 @@ export default function NodeToolbar({ id, type }) {
   const handleUpscale = useCallback(
     async (e) => {
       e.stopPropagation();
-      if (isProcessing || !imageUrl) return;
+      if (isProcessing || !imageUrl) {
+        alert('返回: imageUrl=' + (imageUrl || '(空)'));
+        return;
+      }
       setIsProcessing('upscale');
       try {
+        alert('调用 invoke upscale_image...');
         const resultDataUrl = await invoke('upscale_image', { path: imageUrl });
         setErrorMsg(null);
         saveDataUrlToNode(resultDataUrl, '高清');
       } catch (err) {
         console.error('Upscale failed:', err);
+        alert('错误: ' + (err?.toString?.() || JSON.stringify(err)));
         setErrorMsg('超分失败: ' + (err?.message || err || '未知错误'));
       } finally {
         setIsProcessing(null);
@@ -178,14 +183,19 @@ export default function NodeToolbar({ id, type }) {
   const handleMatting = useCallback(
     async (e) => {
       e.stopPropagation();
-      if (isProcessing || !imageUrl) return;
+      if (isProcessing || !imageUrl) {
+        alert('返回: imageUrl=' + (imageUrl || '(空)'));
+        return;
+      }
       setIsProcessing('matting');
       try {
+        alert('调用 invoke matting_image...');
         const resultDataUrl = await invoke('matting_image', { path: imageUrl });
         setErrorMsg(null);
         saveDataUrlToNode(resultDataUrl, '主体');
       } catch (err) {
         console.error('Matting failed:', err);
+        alert('错误: ' + (err?.toString?.() || JSON.stringify(err)));
         setErrorMsg('抠图失败: ' + (err?.message || err || '未知错误'));
       } finally {
         setIsProcessing(null);
