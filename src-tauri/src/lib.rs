@@ -16,6 +16,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             models::upscale_image,
             models::matting_image,
+            models::check_model_exists,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

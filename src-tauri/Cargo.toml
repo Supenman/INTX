@@ -26,3 +26,4 @@ image = { version = "0.25", default-features = false, features = ["png", "jpeg"]
 tokio = { version = "1", features = ["full"] }
 reqwest = { version = "0.12", features = ["stream"] }
 base64 = "0.22"
+futures-util = "0.3"
