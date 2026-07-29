@@ -11,7 +11,7 @@ BeastTV-React/
 │   │   ├── BaseNode.jsx               # 基础节点组件（图片/视频/文本/素材）
 │   │   ├── GroupNode.jsx              # 组合节点容器
 │   │   ├── NodeDrawer.jsx             # 节点抽屉面板（与节点一体化）
-│   │   ├── NodeToolbar.jsx            # 节点浮动工具栏（复制/删除/全屏/裁切/超分）
+│   │   ├── NodeToolbar.jsx            # 节点浮动工具栏（图片/视频/通用操作）
 │   │   ├── NodeContextMenu.jsx         # 右键菜单
 │   │   ├── SelectionBboxToolbar.jsx   # 多选/组悬浮工具栏
 │   │   ├── PageToolbar.jsx            # 页面工具栏（项目/撤销/重做/历史）
@@ -23,6 +23,10 @@ BeastTV-React/
 │   │   ├── FullscreenOverlay.jsx      # 全屏预览覆盖层
 │   │   ├── ZoomableImage.jsx          # 可缩放图片查看器
 │   │   ├── CropEditor.jsx             # 裁切编辑器
+│   │   ├── GridCropEditor.jsx         # 自定义宫格裁切编辑器
+│   │   ├── MattingEditor.jsx          # 遮罩编辑器（画笔/橡皮擦）
+│   │   ├── StoryboardNode.jsx         # 宫格分镜节点（拖出/拖入/覆盖）
+│   │   ├── NodeDownloadDialog.jsx     # 模型下载/推理进度对话框
 │   │   ├── ProjectSelector.jsx        # 项目选择器
 │   │   └── primitives/
 │   │       └── CanvasDropdown.jsx     # 画布原生下拉
@@ -117,16 +121,19 @@ python main.py
 
 选中单个节点时，在节点上方显示浮动工具栏，按节点类型提供不同操作：
 
-| 按钮 | 图片 | 文字 | 视频 | 图片素材 |
-|------|------|------|------|---------|
-| 复制节点 | ✅ | ✅ | ✅ | ✅ |
-| 删除节点 | ✅ | ✅ | ✅ | ✅ |
-| 全屏预览 | | | | ✅ |
-| 替换图片 | | | | ✅ |
-| 裁切编辑器 | | | | ✅ |
-| 下载 | | | | ✅ |
-| 高清超分 | | | | ✅ |
-| 主体抠图 | | | | ✅ |
+| 按钮 | 图片 | 文字 | 视频 | 图片素材 | 视频素材 |
+|------|------|------|------|---------|---------|
+| 复制节点 | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 删除节点 | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 全屏预览 | | | | ✅ | |
+| 替换图片/视频 | | | | ✅ | ✅ |
+| 裁切编辑器 | | | | ✅ | |
+| 宫格裁切（4/9/16/25/自定义） | | | | ✅ | |
+| 下载 | | | | ✅ | |
+| 高清超分 (ONNX) | | | | ✅ | |
+| 主体抠图 (ONNX) | | | | ✅ | |
+| 遮罩编辑 | | | | ✅ | |
+| 截取当前帧 | | | | | ✅ |
 
 ### 裁切编辑器（CropEditor）
 
@@ -134,6 +141,21 @@ python main.py
 - 8 方向手柄调整选区
 - 6 种宽高比预设：自由、1:1、4:3、16:9、3:4、9:16
 - 确认后 canvas 渲染，自动创建新素材节点
+
+### 宫格裁切（GridCropEditor + StoryboardNode）
+
+- **预设宫格**：4/9/16/25 宫格一键生成分镜节点
+- **自定义裁切**：点击图像添加横/竖分割线，拖拽调整位置，生成非均匀宫格
+- **宫格节点编辑**：双击进入编辑模式
+- **格→画布提取**：编辑态下拖出格子到画布，自动裁切生成新素材节点
+- **画布→格填充**：拖拽素材节点到空宫格，图片自动填入该格
+- **尺寸自适应**：宫格节点自动匹配源素材的宽高比
+
+### 遮罩编辑（MattingEditor）
+
+- 画笔与橡皮擦模式，拖拽修改主体遮罩
+- 桶填充工具一键填充未覆盖区域
+- 交互式查看模式切换（源图/遮罩/结果）
 
 ### 全屏预览（FullscreenOverlay + ZoomableImage）
 
@@ -235,7 +257,7 @@ python main.py
 
 - Rust 后端通过 `#[tauri::command]` 暴露 `upscale_image` 和 `matting_image`
 - 前端通过 `@tauri-apps/api/core` 的 `invoke()` 调用
-- 模型从 HuggingFace 自动下载到 `app_data_dir/models/`
+- 模型从 HuggingFace 自动下载到 `项目根/models/`（优先）或 `app_data_dir/models/`
 - 需 VS 2022 + MSVC 14.44 编译（见 `tauri-dev.bat`）
 
 ### 关键文件
@@ -245,6 +267,10 @@ python main.py
 - [src/components/NodeDrawer.jsx](src/components/NodeDrawer.jsx) — 节点抽屉
 - [src/components/NodeToolbar.jsx](src/components/NodeToolbar.jsx) — 节点浮动工具栏
 - [src/components/CropEditor.jsx](src/components/CropEditor.jsx) — 裁切编辑器
+- [src/components/GridCropEditor.jsx](src/components/GridCropEditor.jsx) — 自定义宫格裁切编辑器
+- [src/components/MattingEditor.jsx](src/components/MattingEditor.jsx) — 遮罩编辑器
+- [src/components/StoryboardNode.jsx](src/components/StoryboardNode.jsx) — 宫格分镜节点
+- [src/components/NodeDownloadDialog.jsx](src/components/NodeDownloadDialog.jsx) — 模型下载进度
 - [src/components/FullscreenOverlay.jsx](src/components/FullscreenOverlay.jsx) — 全屏预览
 - [src/components/ZoomableImage.jsx](src/components/ZoomableImage.jsx) — 缩放图片查看器
 - [src/components/SelectionBboxToolbar.jsx](src/components/SelectionBboxToolbar.jsx) — 多选工具栏
