@@ -80,7 +80,7 @@ cd ..
 ```bash
 npm run dev
 ```
-前端运行在: http://localhost:5173
+前端运行在: http://localhost:7351
 
 **桌面版（需 VS 2022 + MSVC 14.44）**:
 ```bash
@@ -96,7 +96,7 @@ npx tauri dev
 cd backend
 python main.py
 ```
-后端运行在: http://127.0.0.1:8000
+后端运行在: http://127.0.0.1:7352
 
 ### 3. 配置 API
 

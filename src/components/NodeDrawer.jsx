@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, cloneElement } from 'react';
 import { createPortal } from 'react-dom';
 import { NODE_TYPE_REGISTRY } from '../domain/nodeTypes';
 import { getAvailableModels } from '../utils/modelUtils';
-import { ASPECT_RATIOS, RESOLUTIONS } from '../utils/dimensions';
+import { ASPECT_RATIOS, RESOLUTIONS, RESOLUTIONS_IMAGE } from '../utils/dimensions';
 import { useActiveNode } from '../ActiveNodeContext';
 import CanvasDropdown from './primitives/CanvasDropdown';
 
@@ -19,7 +19,8 @@ const RATIO_VIZ = (ratio) => {
   );
 };
 
-function AspectResSelector({ aspectRatio, resolution, onRatio, onRes }) {
+function AspectResSelector({ aspectRatio, resolution, duration, onRatio, onRes, onDur, resolutionOptions }) {
+  const resOptions = resolutionOptions || RESOLUTIONS;
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -32,19 +33,26 @@ function AspectResSelector({ aspectRatio, resolution, onRatio, onRes }) {
     return () => { document.removeEventListener('mousedown', down); document.removeEventListener('keydown', key); };
   }, [open]);
 
+  const isVideo = duration != null && onDur;
+  const labelSuffix = isVideo ? `${aspectRatio} · ${resolution} · ${duration}s` : `${aspectRatio} · ${resolution}`;
+
   return (
     <div ref={ref} style={{ position: 'relative', display: 'inline-block' }}>
       <button
         type="button"
         className="nd-trigger"
         onClick={(e) => { e.stopPropagation(); setOpen(v => !v); }}
-        style={{ ...triggerBtnBase }}
-        title={`${aspectRatio} · ${resolution}`}
+        style={{ ...triggerBtnBase, minWidth: isVideo ? 200 : 150, maxWidth: 'none' }}
+        title={labelSuffix}
       >
         <span style={{ display: 'inline-flex', alignItems: 'center', fontSize: 11 }}>{RATIO_VIZ(ASPECT_RATIOS.find(r => r.label === aspectRatio)?.ratio || 1)}</span>
-        <span className="nd-trigger-text">{aspectRatio}</span>
+        <span className="nd-trigger-text" style={{ display: 'inline-block', maxWidth: 'none', overflow: 'visible' }}>{aspectRatio}</span>
         <span style={{ opacity: 0.35, fontWeight: 400 }}>·</span>
-        <span className="nd-trigger-text">{resolution}</span>
+        <span className="nd-trigger-text" style={{ display: 'inline-block', maxWidth: 'none', overflow: 'visible' }}>{resolution}</span>
+        {isVideo && (<>
+          <span style={{ opacity: 0.35, fontWeight: 400 }}>·</span>
+          <span className="nd-trigger-text" style={{ display: 'inline-block', maxWidth: 'none', overflow: 'visible' }}>{duration}s</span>
+        </>)}
         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.55, transform: open ? 'rotate(180deg)' : 'none', transition: 'all 0.15s ease', flexShrink: 0 }}>
           <polyline points="6 9 12 15 18 9" />
         </svg>
@@ -83,7 +91,7 @@ function AspectResSelector({ aspectRatio, resolution, onRatio, onRes }) {
           <div className="nd-aspectres-section">
             <div className="nd-aspectres-label">分辨率</div>
             <div className="nd-aspectres-seg">
-              {RESOLUTIONS.map((r) => {
+              {resOptions.map((r) => {
                 const sel = r.label === resolution;
                 return (
                   <button
@@ -96,6 +104,27 @@ function AspectResSelector({ aspectRatio, resolution, onRatio, onRes }) {
               })}
             </div>
           </div>
+          {isVideo && (
+            <>
+              <div className="nd-aspectres-sep" />
+              <div className="nd-aspectres-section">
+                <div className="nd-aspectres-label">时长</div>
+                <div className="nd-aspectres-grid nd-aspectres-dur">
+                  {[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15].map((d) => {
+                    const sel = String(d) === String(duration);
+                    return (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => onDur(String(d))}
+                        className={'nd-aspectres-durbtn' + (sel ? ' is-selected' : '')}
+                      >{d}s</button>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>
@@ -284,10 +313,10 @@ function renderPromptToRoot(text, root, sourceNodes) {
 function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
   const [prompt, setPrompt] = useState(node?.data?.prompt || '');
   const [duration, setDuration] = useState(node?.data?.duration || '5');
-  const [fps, setFps] = useState(node?.data?.fps || '30');
   const [aspectRatio, setAspectRatio] = useState(node?.data?.aspectRatio || '16:9');
-  const [resolution, setResolution] = useState(node?.data?.resolution || '1K');
+  const [resolution, setResolution] = useState(node?.data?.resolution || (node.type === 'image' ? '1080' : '720'));
   const [model, setModel] = useState(node?.data?.model || '');
+  const [generationCount, setGenerationCount] = useState(node?.data?.generationCount || 1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [drawerDir, setDrawerDir] = useState('bottom');
   const [hoveredDockIdx, setHoveredDockIdx] = useState(null);
@@ -324,12 +353,12 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
   useEffect(() => {
     setPrompt(node?.data?.prompt || '');
     setDuration(node?.data?.duration || '5');
-    setFps(node?.data?.fps || '30');
     setAspectRatio(node?.data?.aspectRatio || '16:9');
-    setResolution(node?.data?.resolution || '1K');
+    setResolution(node?.data?.resolution || (node?.type === 'image' ? '1080' : '720'));
+    setGenerationCount(node?.data?.generationCount || 1);
     const availableModels = getAvailableModels(node?.type, apiProviders);
     setModel(node?.data?.model || availableModels?.[0] || '');
-  }, [node?.id, node?.data?.prompt, node?.data?.duration, node?.data?.fps, node?.data?.aspectRatio, node?.data?.resolution, node?.data?.model, node?.type, apiProviders]);
+  }, [node?.id, node?.data?.prompt, node?.data?.duration, node?.data?.aspectRatio, node?.data?.resolution, node?.data?.model, node?.type, apiProviders]);
 
   // Drawer direction
   useEffect(() => {
@@ -337,7 +366,7 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
       const rect = drawerRef.current.getBoundingClientRect();
       setDrawerDir(rect.bottom > window.innerHeight - 16 ? 'top' : 'bottom');
     }
-  }, [prompt, aspectRatio, model, resolution, duration, fps]);
+  }, [prompt, aspectRatio, model, resolution, duration]);
 
   // Sync prompt → DOM when prompt changes externally
   useEffect(() => {
@@ -394,11 +423,12 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
       resolution,
       model,
       nodeType: node.type,
-      ...(node.type === 'video' ? { duration, fps } : {}),
+      generationCount,
+      ...(node.type === 'video' ? { duration } : {}),
     };
     onSubmit(node.id, submitData);
     setTimeout(() => setIsSubmitting(false), 500);
-  }, [prompt, aspectRatio, resolution, model, node, onSubmit, duration, fps, validSourceNodes]);
+  }, [prompt, aspectRatio, resolution, model, node, onSubmit, duration, generationCount, validSourceNodes]);
 
   const handleTypeChange = (newType) => {
     onNodeTypeChange && onNodeTypeChange(newType);
@@ -406,14 +436,9 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
 
   const handleAspectRatioChange = (newRatio) => {
     setAspectRatio(newRatio);
-    const submitData = {
-      prompt,
-      aspectRatio: newRatio,
-      resolution,
-      model,
-      ...(node.type === 'video' ? { duration, fps } : {}),
-    };
-    onSubmit(node.id, submitData);
+    if (handleUpdateNodeData && node?.id) {
+      handleUpdateNodeData(node.id, { aspectRatio: newRatio });
+    }
   };
 
   const availableModels = getAvailableModels(node.type, apiProviders);
@@ -705,19 +730,6 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
           )}
         </div>
 
-        {node.type === 'video' && (
-          <div className="nd-params">
-            <div className="nd-param">
-              <div className="nd-param-label">时长 (s)</div>
-              <input type="number" className="nd-param-input" value={duration} onChange={(e) => setDuration(e.target.value)} min="1" max="60" />
-            </div>
-            <div className="nd-param">
-              <div className="nd-param-label">帧率 (fps)</div>
-              <input type="number" className="nd-param-input" value={fps} onChange={(e) => setFps(e.target.value)} min="15" max="60" />
-            </div>
-          </div>
-        )}
-
         <div className="nd-footer">
           <div className="nd-footer-left">
             <CanvasDropdown
@@ -768,8 +780,24 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
               <AspectResSelector
                 aspectRatio={aspectRatio}
                 resolution={resolution}
+                duration={node.type === 'video' ? duration : null}
                 onRatio={handleAspectRatioChange}
                 onRes={(r) => setResolution(r)}
+                onDur={node.type === 'video' ? (d) => setDuration(d) : null}
+                resolutionOptions={node.type === 'image' ? RESOLUTIONS_IMAGE : RESOLUTIONS}
+              />
+            )}
+
+            {node.type === 'image' && (
+              <CanvasDropdown
+                value={generationCount}
+                onChange={(n) => setGenerationCount(n)}
+                options={[1, 2, 3, 4].map((n) => ({ value: n, label: `×${n}` }))}
+                trigger={<span className="nd-trigger-text">×{generationCount}</span>}
+                buttonStyle={triggerBtnBase}
+                position="bottom"
+                menuStyle={{ fontSize: 11, padding: '4px 0', minWidth: 60 }}
+                itemStyle={{ padding: '5px 10px', fontSize: 11, display: 'flex', justifyContent: 'space-between', gap: 10 }}
               />
             )}
           </div>

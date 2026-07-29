@@ -1,5 +1,26 @@
 [
   {
+    "id": "new-1785307322848",
+    "name": "新平台",
+    "base_url": "https://api-inference.modelscope.cn/v1",
+    "protocol": "openai",
+    "image_request_mode": "openai",
+    "image_generation_endpoint": "",
+    "image_edit_endpoint": "",
+    "enabled": true,
+    "primary": false,
+    "image_models": [],
+    "chat_models": [],
+    "video_models": [],
+    "model_protocols": {},
+    "ms_loras": [],
+    "ms_defaults_version": 0,
+    "rh_apps": [],
+    "rh_workflows": [],
+    "volcengine_project_name": "default",
+    "volcengine_region": "cn-north-1"
+  },
+  {
     "id": "modelscope",
     "name": "ModelScope",
     "base_url": "https://api-inference.modelscope.cn/v1",
@@ -8,47 +29,24 @@
     "image_generation_endpoint": "",
     "image_edit_endpoint": "",
     "enabled": true,
-    "primary": true,
+    "primary": false,
     "image_models": [
       "Tongyi-MAI/Z-Image-Turbo",
       "Qwen/Qwen-Image-2512",
-      "MusePublic/Qwen-Image-Edit",
-      "Qwen/Qwen-Image-Edit"
+      "Qwen/Qwen-Image-Edit-2511",
+      "black-forest-labs/FLUX.2-klein-9B"
     ],
     "chat_models": [
-      "Qwen/Qwen3-235B-A22B"
+      "Qwen/Qwen3-235B-A22B",
+      "Qwen/Qwen3-VL-235B-A22B-Instruct",
+      "MiniMax/MiniMax-M2.7:MiniMax"
     ],
-    "video_models": [],
+    "video_models": [
+      "dsaadsadsadasdasd"
+    ],
     "model_protocols": {},
     "ms_loras": [],
     "ms_defaults_version": 1,
-    "rh_apps": [],
-    "rh_workflows": [],
-    "volcengine_project_name": "default",
-    "volcengine_region": "cn-north-1"
-  },
-  {
-    "id": "yunwu",
-    "name": "云雾",
-    "base_url": "https://api3.wlai.vip/v1",
-    "protocol": "openai",
-    "image_request_mode": "openai",
-    "image_generation_endpoint": "",
-    "image_edit_endpoint": "",
-    "enabled": false,
-    "primary": false,
-    "image_models": [
-      "gpt-image-2"
-    ],
-    "chat_models": [
-      "deepseek-v4-flash"
-    ],
-    "video_models": [
-      "MiniMax-Hailuo-02"
-    ],
-    "model_protocols": {},
-    "ms_loras": [],
-    "ms_defaults_version": 0,
     "rh_apps": [],
     "rh_workflows": [],
     "volcengine_project_name": "default",
@@ -62,7 +60,7 @@
     "image_request_mode": "openai",
     "image_generation_endpoint": "",
     "image_edit_endpoint": "",
-    "enabled": false,
+    "enabled": true,
     "primary": false,
     "image_models": [],
     "chat_models": [],
@@ -83,7 +81,7 @@
     "image_request_mode": "openai",
     "image_generation_endpoint": "",
     "image_edit_endpoint": "",
-    "enabled": false,
+    "enabled": true,
     "primary": false,
     "image_models": [],
     "chat_models": [],

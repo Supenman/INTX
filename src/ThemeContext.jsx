@@ -1,26 +1,15 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useEffect } from 'react';
 
-const ThemeContext = createContext({ isDark: true, toggleTheme: () => {} });
+const ThemeContext = createContext({ isDark: true });
 
 export function ThemeProvider({ children }) {
-  const [isDark, setIsDark] = useState(() => {
-    if (typeof document !== 'undefined') {
-      return document.documentElement.getAttribute('data-theme') !== 'light';
-    }
-    return true;
-  });
-
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
-  }, [isDark]);
-
-  const toggleTheme = useCallback(() => {
-    setIsDark((prev) => !prev);
+    document.documentElement.setAttribute('data-theme', 'dark');
   }, []);
 
   return (
-    <ThemeContext.Provider value={{ isDark, toggleTheme }}>
+    <ThemeContext.Provider value={{ isDark: true }}>
       {children}
     </ThemeContext.Provider>
   );

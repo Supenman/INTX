@@ -1,27 +1,7 @@
 import { useState } from 'react';
-import { useTheme } from '../ThemeContext';
 
-function Sidebar({ toggleTheme, onOpenProjectSelector, canUndo, canRedo, onUndo, onRedo, onOpenSettings, showMinimap, onToggleMinimap, historyOpen, onToggleHistory, historyEntryCount }) {
+function Sidebar({ onOpenProjectSelector, canUndo, canRedo, onUndo, onRedo, onOpenSettings, showMinimap, onToggleMinimap, historyOpen, onToggleHistory, historyEntryCount }) {
   const [hoveredItem, setHoveredItem] = useState(null);
-  const { isDark } = useTheme();
-
-  const themeIcon = isDark ? (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="5" />
-      <line x1="12" y1="1" x2="12" y2="3" />
-      <line x1="12" y1="21" x2="12" y2="23" />
-      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-      <line x1="1" y1="12" x2="3" y2="12" />
-      <line x1="21" y1="12" x2="23" y2="12" />
-      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-    </svg>
-  ) : (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-    </svg>
-  );
 
   return (
     <nav style={sidebarStyle} aria-label="BeastTV 工具栏">
@@ -128,17 +108,7 @@ function Sidebar({ toggleTheme, onOpenProjectSelector, canUndo, canRedo, onUndo,
         <span style={{ ...tooltipStyle, opacity: hoveredItem === 'minimap' ? 1 : 0, transform: `translateY(-50%) ${hoveredItem === 'minimap' ? 'translateX(4px)' : ''}` }}>小地图 M</span>
       </button>
 
-      <button
-        onClick={toggleTheme}
-        style={{ ...getItemStyle(hoveredItem === 'theme') }}
-        onMouseEnter={() => setHoveredItem('theme')}
-        onMouseLeave={() => setHoveredItem(null)}
-        aria-label="切换主题"
-      >
-        {themeIcon}
-        <span style={{ ...tooltipStyle, opacity: hoveredItem === 'theme' ? 1 : 0, transform: `translateY(-50%) ${hoveredItem === 'theme' ? 'translateX(4px)' : ''}` }}>切换主题</span>
-      </button>
-    </nav>
+      </nav>
   );
 }
 

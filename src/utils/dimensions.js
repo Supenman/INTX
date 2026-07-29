@@ -9,11 +9,17 @@ export const ASPECT_RATIOS = [
 ];
 
 export const RESOLUTIONS = [
-  { label: '512', size: 512 },
-  { label: '768', size: 768 },
-  { label: '1K', size: 1024 },
-  { label: '1.5K', size: 1536 },
-  { label: '2K', size: 2048 },
+  { label: '480', size: 480 },
+  { label: '720', size: 720 },
+  { label: '1080', size: 1080 },
+  { label: '4K', size: 2160 },
+];
+
+// 图片节点专用分辨率档位（默认 1080）
+export const RESOLUTIONS_IMAGE = [
+  { label: '1080', size: 1080 },
+  { label: '2160', size: 2160 },
+  { label: '3840', size: 3840 },
 ];
 
 export function getAspectPixelSize(label, baseSize = 512) {

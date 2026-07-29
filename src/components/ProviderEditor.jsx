@@ -501,14 +501,16 @@ const actionRowStyle = {
   padding: '10px 0',
 };
 
-const deleteBtnStyle = {
-  height: 32, padding: '0 14px', borderRadius: 8, border: `1px solid ${colorVar.border}`,
-  background: 'transparent', color: 'var(--text-primary)', fontSize: 12,
-  fontWeight: 700, cursor: 'pointer',
-};
-
 const saveBtnStyle = {
   height: 32, padding: '0 18px', borderRadius: 8, border: 'none',
-  background: colorVar.accent, color: 'var(--text-primary)', fontSize: 12,
+  background: 'var(--accent)', color: 'var(--bg-primary)', fontSize: 12,
+  fontWeight: 700, cursor: 'pointer', transition: motion.fast,
+};
+const deleteBtnStyle = {
+  height: 32, padding: '0 14px', borderRadius: 8,
+  border: `1px solid ${colorVar.border}`,
+  background: 'var(--panel)',
+  color: 'var(--text-secondary)', fontSize: 12,
   fontWeight: 700, cursor: 'pointer',
+  transition: motion.fast,
 };

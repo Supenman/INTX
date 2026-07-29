@@ -8,16 +8,16 @@ echo.
 
 set "FOUND=0"
 
-:: Backend (port 8000)
-for /f "tokens=5" %%A in ('netstat -ano ^| findstr /R /C:":8000 .*LISTENING"') do (
+:: Backend (port 7352)
+for /f "tokens=5" %%A in ('netstat -ano ^| findstr /R /C:":7352 .*LISTENING"') do (
   set "FOUND=1"
   echo Stopping backend (PID %%A)...
   taskkill /PID %%A /F >nul 2>nul
   echo   Backend stopped.
 )
 
-:: Frontend (port 5173)
-for /f "tokens=5" %%A in ('netstat -ano ^| findstr /R /C:":5173 .*LISTENING"') do (
+:: Frontend (port 7351)
+for /f "tokens=5" %%A in ('netstat -ano ^| findstr /R /C:":7351 .*LISTENING"') do (
   set "FOUND=1"
   echo Stopping frontend (PID %%A)...
   taskkill /PID %%A /F >nul 2>nul

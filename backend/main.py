@@ -759,6 +759,8 @@ class GeneratePayload(BaseModel):
 _RESOLUTION_MAP = {
     "512": 512, "768": 768, "1K": 1024,
     "1.5K": 1536, "2K": 2048,
+    "480": 480, "720": 720, "1080": 1080,
+    "2160": 2160, "3840": 3840, "4K": 2160,
 }
 _ASPECT_RATIO_MAP = {
     "1:1": 1, "4:3": 4/3, "3:4": 3/4,
@@ -1129,4 +1131,4 @@ app.mount("/api/media", StaticFiles(directory=MEDIA_DIR), name="media")
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=7352)

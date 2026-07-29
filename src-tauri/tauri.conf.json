@@ -5,14 +5,14 @@
   "identifier": "com.beasttv.app",
   "build": {
     "frontendDist": "../dist",
-    "devUrl": "http://localhost:5173",
+    "devUrl": "http://localhost:7351",
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build"
   },
   "app": {
     "windows": [
       {
-        "title": "BeastTV - 无限画布",
+        "title": "BeastTV - \u65e0\u9650\u753b\u5e03",
         "width": 1400,
         "height": 900,
         "minWidth": 800,

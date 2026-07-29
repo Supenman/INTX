@@ -329,7 +329,7 @@ function AppContent() {
     });
     setEdges((eds) => applyEdgeChanges(changes, eds));
   }, [snapThreshold]);
-  const { isDark, toggleTheme } = useTheme();
+  const { isDark } = useTheme();
   const [activeNodeId, setActiveNodeId] = useState(null);
   const [nodeIdCounter, setNodeIdCounter] = useState(initialState.counter);
   const [currentProjectId, setCurrentProjectId] = useState(null);
@@ -808,6 +808,7 @@ function AppContent() {
       : type === 'source-video' ? '视频素材' : type === 'source-audio' ? '音频素材'
       : type === 'source-markdown' ? 'Markdown 素材' : '节点';
     const aspectRatio = '16:9';
+    const resolution = type === 'image' ? '1080' : type === 'video' ? '720' : '720';
     const { width, height } = getNodeSize(aspectRatio, type, {});
 
     const newNode = {
@@ -817,7 +818,7 @@ function AppContent() {
         title,
         prompt: '',
         images: [],
-        ...(type.startsWith('source-') ? {} : { aspectRatio, resolution: '1K', model: '' }),
+        ...(type.startsWith('source-') ? {} : { aspectRatio, resolution, model: '' }),
         ...(type === 'video' ? { duration: '5', fps: '30' } : {}),
       },
     };
@@ -916,7 +917,7 @@ function AppContent() {
                 prompt: entry.prompt || '',
                 model: entry.model || '',
                 aspectRatio: entry.aspectRatio || '16:9',
-                resolution: entry.resolution || '1K',
+                resolution: entry.resolution || (entry.nodeType === 'image' ? '1080' : '720'),
                 images: entry.result?.url
                   ? [{ url: entry.result.url, name: entry.title || entry.nodeType, type: entry.result.type || 'image' }]
                   : [],
@@ -1580,11 +1581,23 @@ function AppContent() {
 
   const handleUpdateNodeData = useCallback((nodeId, dataPatch) => {
     setNodes(nds => nds.map(n => {
-      if (n.id === nodeId) {
-        return { ...n, data: { ...n.data, ...dataPatch } };
+      if (n.id !== nodeId) return n;
+      const nextData = { ...n.data, ...dataPatch };
+      // If aspect ratio changed, reflow node dimensions
+      let width = n.width, height = n.height;
+      if (dataPatch?.aspectRatio) {
+        const { width: w, height: h } = getNodeSize(dataPatch.aspectRatio, n.type);
+        width = w; height = h;
       }
-      return n;
+      return { ...n, width, height, data: nextData };
     }));
+    // Clear any lingering processing/error state on a pure param change
+    if (dataPatch && !('prompt' in dataPatch)) {
+      setNodeStates(prev => {
+        if (!prev[nodeId]) return prev;
+        return { ...prev, [nodeId]: { ...prev[nodeId], processing: false, progress: 0, error: null } };
+      });
+    }
   }, [setNodes]);
 
   const handleResizeNode = useCallback((nodeId, width, height) => {
@@ -2170,8 +2183,6 @@ function AppContent() {
             onDragOver={handleDragOver}
             onDrop={handleFileDrop}>
         <Sidebar
-          toggleTheme={toggleTheme}
-          currentTheme={isDark ? 'dark' : 'light'}
           onOpenProjectSelector={handleOpenProjectSelector}
           canUndo={canUndo}
           canRedo={canRedo}

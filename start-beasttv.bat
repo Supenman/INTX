@@ -69,18 +69,18 @@ start /B "" cmd /c "pushd "%ROOT%backend" && "%PYTHON%" main.py" > backend.log 2
 timeout /t 2 /nobreak >nul
 
 :: Frontend in the foreground
-echo Backend:  http://127.0.0.1:8000  (log: backend.log)
-echo Frontend: http://localhost:5173
+echo Backend:  http://127.0.0.1:7352  (log: backend.log)
+echo Frontend: http://localhost:7351
 echo.
 echo Close this window to stop all services.
 echo.
-start "" "http://localhost:5173"
+start "" "http://localhost:7351"
 pushd "%ROOT%" && npm run dev
 
 :: Ctrl+C fallback — clean up backend if npm exits first
 echo.
 echo Stopping backend...
-for /f "tokens=5" %%A in ('netstat -ano ^| findstr /R /C:":8000 .*LISTENING"') do (
+for /f "tokens=5" %%A in ('netstat -ano ^| findstr /R /C:":7352 .*LISTENING"') do (
   taskkill /PID %%A /F >nul 2>nul
 )
 echo All services stopped.

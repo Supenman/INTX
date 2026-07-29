@@ -398,12 +398,14 @@ const providerMetaStyle = {
 
 const toggleTrackStyle = (enabled) => ({
   width: 28, height: 16, borderRadius: 8, flexShrink: 0,
-  background: enabled ? 'var(--text-primary)' : colorVar.border,
+  background: enabled ? 'var(--accent-soft)' : 'var(--panel)',
+  border: `1px solid ${enabled ? 'var(--accent)' : 'var(--border-color)'}`,
   cursor: 'pointer', position: 'relative', transition: motion.fast,
 });
 
 const toggleThumbStyle = (enabled) => ({
-  width: 12, height: 12, borderRadius: '50%', background: 'var(--text-primary)',
+  width: 12, height: 12, borderRadius: '50%',
+  background: enabled ? 'var(--accent)' : 'var(--text-secondary)',
   position: 'absolute', top: 2,
   left: enabled ? 14 : 2,
   transition: motion.fast,
