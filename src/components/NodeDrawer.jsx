@@ -6,6 +6,102 @@ import { ASPECT_RATIOS, RESOLUTIONS } from '../utils/dimensions';
 import { useActiveNode } from '../ActiveNodeContext';
 import CanvasDropdown from './primitives/CanvasDropdown';
 
+// Combined aspect-ratio + resolution selector. One pill triggers a popover
+// with two sections (ratio grid, resolution segmented) instead of two drops.
+const RATIO_VIZ = (ratio) => {
+  const box = ratio >= 1
+    ? { w: 18, h: Math.round(18 / ratio) }
+    : { h: 18, w: Math.round(18 * ratio) };
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, flexShrink: 0 }}>
+      <span style={{ width: box.w, height: box.h, border: '1.5px solid currentColor', borderRadius: 2, opacity: 0.85 }} />
+    </span>
+  );
+};
+
+function AspectResSelector({ aspectRatio, resolution, onRatio, onRes }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const down = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const key = (e) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', down);
+    document.addEventListener('keydown', key);
+    return () => { document.removeEventListener('mousedown', down); document.removeEventListener('keydown', key); };
+  }, [open]);
+
+  return (
+    <div ref={ref} style={{ position: 'relative', display: 'inline-block' }}>
+      <button
+        type="button"
+        className="nd-trigger"
+        onClick={(e) => { e.stopPropagation(); setOpen(v => !v); }}
+        style={{ ...triggerBtnBase }}
+        title={`${aspectRatio} · ${resolution}`}
+      >
+        <span style={{ display: 'inline-flex', alignItems: 'center', fontSize: 11 }}>{RATIO_VIZ(ASPECT_RATIOS.find(r => r.label === aspectRatio)?.ratio || 1)}</span>
+        <span className="nd-trigger-text">{aspectRatio}</span>
+        <span style={{ opacity: 0.35, fontWeight: 400 }}>·</span>
+        <span className="nd-trigger-text">{resolution}</span>
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.55, transform: open ? 'rotate(180deg)' : 'none', transition: 'all 0.15s ease', flexShrink: 0 }}>
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+      {open && (
+        <div
+          className="nd-aspectres-pop"
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: 'absolute', bottom: 'calc(100% + 6px)', left: 0,
+            zIndex: 1000,
+          }}
+        >
+          <div className="nd-aspectres-section">
+            <div className="nd-aspectres-label">比例</div>
+            <div className="nd-aspectres-grid">
+              {ASPECT_RATIOS.map((r) => {
+                const sel = r.label === aspectRatio;
+                return (
+                  <button
+                    key={r.label}
+                    type="button"
+                    onClick={() => onRatio(r.label)}
+                    className={'nd-aspectres-ratio' + (sel ? ' is-selected' : '')}
+                    style={{ color: sel ? 'var(--accent)' : 'var(--text-secondary)' }}
+                    title={r.label}
+                  >
+                    <span className="nd-aspectres-viz">{RATIO_VIZ(r.ratio)}</span>
+                    <span style={{ fontSize: 9 }}>{r.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div className="nd-aspectres-sep" />
+          <div className="nd-aspectres-section">
+            <div className="nd-aspectres-label">分辨率</div>
+            <div className="nd-aspectres-seg">
+              {RESOLUTIONS.map((r) => {
+                const sel = r.label === resolution;
+                return (
+                  <button
+                    key={r.label}
+                    type="button"
+                    onClick={() => onRes(r.label)}
+                    className={'nd-aspectres-res' + (sel ? ' is-selected' : '')}
+                  >{r.label}</button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const triggerBtnBase = {
   display: 'flex',
   alignItems: 'center',
@@ -669,29 +765,12 @@ function NodeDrawer({ node, apiProviders, onSubmit, onNodeTypeChange }) {
             )}
 
             {node.type !== 'text' && (
-              <>
-                <CanvasDropdown
-                  value={aspectRatio}
-                  onChange={handleAspectRatioChange}
-                  options={ASPECT_RATIOS.map((r) => ({ value: r.label, label: r.label }))}
-                  trigger={<span className="nd-trigger-text">{aspectRatio}</span>}
-                  buttonStyle={triggerBtnBase}
-                  position="bottom"
-                  menuStyle={{ fontSize: 11, padding: '4px 0', minWidth: 80 }}
-                  itemStyle={{ padding: '5px 10px', fontSize: 11 }}
-                />
-
-                <CanvasDropdown
-                  value={resolution}
-                  onChange={(r) => setResolution(r)}
-                  options={RESOLUTIONS.map((r) => ({ value: r.label, label: r.label }))}
-                  trigger={<span className="nd-trigger-text">{resolution}</span>}
-                  buttonStyle={triggerBtnBase}
-                  position="bottom"
-                  menuStyle={{ fontSize: 11, padding: '4px 0', minWidth: 80 }}
-                  itemStyle={{ padding: '5px 10px', fontSize: 11 }}
-                />
-              </>
+              <AspectResSelector
+                aspectRatio={aspectRatio}
+                resolution={resolution}
+                onRatio={handleAspectRatioChange}
+                onRes={(r) => setResolution(r)}
+              />
             )}
           </div>
 

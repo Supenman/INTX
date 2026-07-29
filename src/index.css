@@ -1765,6 +1765,79 @@ html[data-theme="light"] {
 .nd-trigger.is-accent { color: var(--accent); }
 .nd-trigger.is-accent:hover { color: var(--accent-strong); background: var(--accent-soft); }
 
+/* Combined aspect-ratio + resolution popover */
+.nd-aspectres-pop {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border-strong);
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.28);
+  padding: 8px;
+  min-width: 168px;
+  backdrop-filter: blur(12px);
+}
+.nd-aspectres-section { display: flex; flex-direction: column; gap: 5px; }
+.nd-aspectres-label {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  padding: 0 2px;
+}
+.nd-aspectres-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+.nd-aspectres-ratio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  height: 40px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.12s var(--ease-out), border-color 0.12s var(--ease-out);
+  font-family: inherit;
+}
+.nd-aspectres-ratio:hover {
+  background: var(--panel-btn-bg-hover);
+  border-color: var(--panel-border);
+}
+.nd-aspectres-ratio.is-selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.nd-aspectres-viz { line-height: 0; }
+.nd-aspectres-sep {
+  height: 1px;
+  background: var(--panel-border);
+  margin: 7px 0;
+}
+.nd-aspectres-seg { display: flex; gap: 3px; }
+.nd-aspectres-res {
+  flex: 1;
+  height: 26px;
+  border: 1px solid var(--panel-border);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.12s var(--ease-out), color 0.12s var(--ease-out);
+}
+.nd-aspectres-res:hover { background: var(--panel-btn-bg-hover); color: var(--text-primary); }
+.nd-aspectres-res.is-selected {
+  background: var(--accent);
+  color: var(--bg-primary);
+  border-color: var(--accent);
+}
+
 /* Submit — up arrow + "生成" text, 28px tall, accent-soft baseline */
 .nd-submit {
   flex-shrink: 0;
