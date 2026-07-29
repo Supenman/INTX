@@ -572,10 +572,8 @@ function BaseNode({ id, type, data, selected }) {
                 <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: isSourceType ? 0 : 12, overflow: 'hidden', background: 'rgba(0,0,0,0.18)' }}>
                   <video
                     src={data.result.url}
-                    controls={!isSourceType}
-                    autoPlay={isSourceType}
-                    loop={isSourceType}
-                    muted={isSourceType}
+                    controls={true}
+                    muted
                     playsInline
                     style={{
                       width: '100%',

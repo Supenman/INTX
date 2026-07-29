@@ -869,6 +869,288 @@ html[data-theme="light"] {
   word-break: break-word;
 }
 
+/* ── Model Download Dialog ─────────────────── */
+
+.mdd-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 25000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(6px);
+  animation: fadeIn 0.15s var(--ease-out);
+}
+
+.mdd-prompt {
+  width: 340px;
+  padding: 20px;
+  background: var(--panel-bg-strong);
+  backdrop-filter: var(--panel-blur);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  box-shadow: var(--panel-shadow);
+  text-align: center;
+}
+
+.mdd-prompt-icon {
+  font-size: 32px;
+  margin-bottom: 8px;
+}
+
+.mdd-prompt-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+
+.mdd-prompt-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+
+.mdd-prompt-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.mdd-btn {
+  height: 34px;
+  padding: 0 18px;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.12s var(--ease-out);
+  font-family: inherit;
+  outline: none;
+}
+
+.mdd-btn-primary {
+  background: rgba(255, 255, 255, 0.85);
+  color: rgba(0, 0, 0, 0.85);
+}
+.mdd-btn-primary:hover {
+  background: #fff;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+}
+
+.mdd-btn-secondary {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+.mdd-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+.mdd-downloading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 24px 32px;
+  min-width: 200px;
+  background: var(--panel-bg-strong);
+  backdrop-filter: var(--panel-blur);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  box-shadow: var(--panel-shadow);
+}
+
+.mdd-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(255, 255, 255, 0.12);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Matting Editor ────────────────────────── */
+
+.me-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 30000;
+  display: flex;
+  flex-direction: column;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(6px);
+}
+
+.me-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(12px);
+  z-index: 10;
+  flex-shrink: 0;
+}
+
+.me-btn {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.me-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.12); color: #fff; }
+.me-btn:disabled { opacity: 0.25; cursor: default; }
+
+.me-tool-btn.active {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
+.me-divider {
+  width: 1px;
+  height: 22px;
+  background: rgba(255, 255, 255, 0.10);
+  flex-shrink: 0;
+}
+
+.me-spacer { flex: 1; }
+
+.me-save-btn {
+  width: auto;
+  padding: 0 14px;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 7px;
+}
+.me-save-btn:hover { background: rgba(255, 255, 255, 0.25) !important; }
+
+.me-size-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.me-size-label {
+  min-width: 22px;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+  text-align: center;
+}
+
+.me-size-range {
+  width: 80px;
+  height: 4px;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+.me-size-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  border: none;
+  cursor: pointer;
+}
+
+.me-stage {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+}
+
+.me-zoom {
+  transition: transform 0.08s ease-out;
+}
+
+.me-viewport {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+}
+
+.me-image {
+  display: block;
+  max-width: 90vw;
+  max-height: calc(90vh - 60px);
+}
+
+.me-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.me-zoom-indicator {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  padding: 5px 10px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.me-zoom-indicator:hover { background: rgba(0, 0, 0, 0.6); }
+
+.mdd-downloading-text {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.85);
+  font-weight: 500;
+}
+
+.mdd-progress-wrap {
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.10);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.mdd-progress-bar {
+  height: 100%;
+  background: #fff;
+  border-radius: 2px;
+  transition: width 0.2s var(--ease-out);
+}
+
+.mdd-progress-pct {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 500;
+}
+
 .nft-divider {
   width: 1px;
   height: 16px;
@@ -1510,4 +1792,10 @@ html[data-theme="light"] {
   color: var(--text-tertiary);
   cursor: wait;
   opacity: 0.6;
+}
+
+/* Hide dragged node when hovering over storyboard (ghost preview) */
+.sb-drop-hidden {
+  opacity: 0 !important;
+  pointer-events: none !important;
 }

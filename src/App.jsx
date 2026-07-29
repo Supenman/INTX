@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ReactFlow,
   addEdge,
@@ -22,6 +23,7 @@ import SourceImageNode from './components/SourceImageNode';
 import SourceVideoNode from './components/SourceVideoNode';
 import SourceAudioNode from './components/SourceAudioNode';
 import SourceMarkdownNode from './components/SourceMarkdownNode';
+import StoryboardNode from './components/StoryboardNode';
 import GridBackground from './components/GridBackground';
 import Sidebar from './components/Sidebar';
 import NodeTypeMenu from './components/NodeTypeMenu';
@@ -127,6 +129,7 @@ function AppContent() {
   const { getNodesBounds } = useReactFlow();
   const [guideLines, setGuideLines] = useState([]);
   const [selectedNodeCount, setSelectedNodeCount] = useState(0);
+  const [dropGhost, setDropGhost] = useState(null); // {url, x, y} for drag-in preview
   const draggingNodeRef = useRef(null);
   const [nodes, setNodes] = useState(initialState.nodes);
   const [edges, setEdges] = useState(initialState.edges);
@@ -1602,6 +1605,48 @@ function AppContent() {
     };
   }, []);
 
+  // Drag-over storyboard → show small ghost, hide real node (like AI-Canvas)
+  const ghostNodeRef = useRef(null);
+  const handleNodeDrag = useCallback((event, node) => {
+    if (node.type === 'group' || node.type === 'storyboard') { clearGhost(); return; }
+    const nodeEl = document.querySelector(`.react-flow__node[data-id="${node.id}"]`);
+    if (!nodeEl) { clearGhost(); return; }
+    const r = nodeEl.getBoundingClientRect();
+    const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    const stack = document.elementsFromPoint(cx, cy);
+    let found = null;
+    let url = null;
+    for (const el of stack) {
+      const c = el.closest?.('[data-sb-idx]');
+      if (c) {
+        if (c.closest(`.react-flow__node[data-id="${node.id}"]`)) continue;
+        if (!c.closest('.react-flow__node')) continue;
+        found = true;
+        const src = node.data?.images?.[0]?.url || node.data?.result?.url;
+        if (src) url = src;
+        break;
+      }
+    }
+    if (found && url) {
+      setDropGhost({ url, x: event.clientX, y: event.clientY });
+      if (ghostNodeRef.current !== node.id) {
+        nodeEl.classList.add('sb-drop-hidden');
+        ghostNodeRef.current = node.id;
+      }
+    } else {
+      clearGhost();
+    }
+  }, []);
+
+  const clearGhost = useCallback(() => {
+    if (ghostNodeRef.current) {
+      const el = document.querySelector(`.react-flow__node[data-id="${ghostNodeRef.current}"]`);
+      el?.classList.remove('sb-drop-hidden');
+      ghostNodeRef.current = null;
+    }
+    setDropGhost(null);
+  }, []);
+
   const handleNodeDragStop = useCallback((event, node) => {
     // Final snap correction: apply snapped position one last time.
     // React Flow emits a trailing dragging=false position change after
@@ -1746,10 +1791,66 @@ function AppContent() {
         }
         return nds;
       });
+
+      // Storyboard cell drop: match AI-Canvas — probe at dragged node center via elementsFromPoint
+      if (node?.type !== 'group' && node?.type !== 'storyboard') {
+        const nodeEl = document.querySelector(`.react-flow__node[data-id="${node.id}"]`);
+        let sbCell = null;
+        if (nodeEl) {
+          const r = nodeEl.getBoundingClientRect();
+          const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+          const stack = document.elementsFromPoint(cx, cy);
+          for (const el of stack) {
+            const c = el.closest?.('[data-sb-idx]');
+            if (c) {
+              // Skip if the cell belongs to the dragged node itself
+              if (c.closest(`.react-flow__node[data-id="${node.id}"]`)) continue;
+              sbCell = c;
+              break;
+            }
+          }
+        }
+        if (sbCell) {
+          const sbNodeEl = sbCell.closest('.react-flow__node');
+          const sbNodeId = sbNodeEl?.dataset?.id;
+          const cellIdx = parseInt(sbCell.getAttribute('data-sb-idx'), 10);
+          if (sbNodeId && !isNaN(cellIdx)) {
+            // Get the image URL from the dragged node
+            const draggedNode = latestNodes.current.find((n) => n.id === node.id);
+            if (draggedNode) {
+              const imgUrl = draggedNode.data?.images?.[0]?.url || draggedNode.data?.result?.url;
+              if (imgUrl) {
+                setNodes((nds) => {
+                  const sb = nds.find((n) => n.id === sbNodeId);
+                  const rows = sb?.data?.gridRows || 2;
+                  const cols = sb?.data?.gridCols || 2;
+                  const total = rows * cols;
+                  const curOv = Array.isArray(sb?.data?.cellOverrides) ? sb.data.cellOverrides : [];
+                  const curEx = Array.isArray(sb?.data?.extractedCells) ? sb.data.extractedCells : [];
+                  const nextOv = curOv.slice();
+                  while (nextOv.length < total) nextOv.push(null);
+                  const nextEx = curEx.slice();
+                  while (nextEx.length < total) nextEx.push(false);
+                  nextOv[cellIdx] = { url: imgUrl };
+                  nextEx[cellIdx] = false; // clear the "extracted" mark so override can show
+                  return nds
+                    .map((n) =>
+                      n.id === sbNodeId
+                        ? { ...n, data: { ...n.data, cellOverrides: nextOv, extractedCells: nextEx } }
+                        : n,
+                    )
+                    .filter((n) => n.id !== node.id);
+                });
+              }
+            }
+          }
+        }
+      }
     }
+    clearGhost();
     setGuideLines([]);
     draggingNodeRef.current = null;
-  }, [snapThreshold, setNodes]);
+  }, [snapThreshold, setNodes, clearGhost]);
 
   const onSelectionChange = useCallback(({ nodes }) => {
     setSelectedNodeCount(nodes.length);
@@ -1926,6 +2027,7 @@ function AppContent() {
     'source-audio': (props) => <SourceAudioNode {...props} />,
     'source-markdown': (props) => <SourceMarkdownNode {...props} />,
     group: (props) => <GroupNode {...props} />,
+    storyboard: (props) => <StoryboardNode {...props} />,
   }), []);
 
   const contextValue = useMemo(() => ({ isConnecting }), [isConnecting]);
@@ -2013,6 +2115,54 @@ function AppContent() {
     return { minX, minY, maxX, maxY, count: sel.length, hasGroup: false };
   }, [nodes]);
 
+  // Listen for storyboard cell extraction events
+  useEffect(() => {
+    const handler = (e) => {
+      const { dataUrl, label, nodeId, clientX, clientY } = e.detail || {};
+      if (!dataUrl) return;
+      const src = latestNodes.current.find((n) => n.id === nodeId);
+      const inst = reactFlowInstanceRef.current;
+      let flowPos;
+      if (inst && typeof clientX === 'number' && typeof clientY === 'number') {
+        flowPos = inst.screenToFlowPosition({ x: clientX, y: clientY });
+      } else {
+        const pos = src?.position || { x: 200, y: 200 };
+        flowPos = { x: pos.x + 300, y: pos.y };
+      }
+      const now = Date.now();
+      setNodes((nds) => [
+        ...nds, {
+          id: `node_${now}`,
+          type: 'source-image',
+          position: { x: flowPos.x - 100, y: flowPos.y - 100 },
+          selected: false,
+          data: { images: [{ url: dataUrl, name: label, type: 'image' }], result: { type: 'image', url: dataUrl } },
+        },
+      ]);
+      // Mark cell as extracted in the storyboard node — use boolean array (matching AI-Canvas)
+      setNodes((nds) => nds.map((n) => {
+        if (n.id === nodeId && e.detail.idx != null) {
+          const rows = n.data?.gridRows || 2;
+          const cols = n.data?.gridCols || 2;
+          const total = rows * cols;
+          const cur = Array.isArray(n.data?.extractedCells) ? n.data.extractedCells : [];
+          const ex = cur.slice();
+          while (ex.length < total) ex.push(false);
+          ex[e.detail.idx] = true;
+          // If this cell had an override (dragging out a filled-in image), clear it
+          const ov = Array.isArray(n.data?.cellOverrides) ? n.data.cellOverrides : [];
+          const nextOv = ov.slice();
+          while (nextOv.length < total) nextOv.push(null);
+          if (e.detail.isOverride) nextOv[e.detail.idx] = null;
+          return { ...n, data: { ...n.data, extractedCells: ex, cellOverrides: nextOv } };
+        }
+        return n;
+      }));
+    };
+    window.addEventListener('sb-extract', handler);
+    return () => window.removeEventListener('sb-extract', handler);
+  }, [setNodes]);
+
   return (
     <ConnectionContext.Provider value={contextValue}>
       <ActiveNodeContext.Provider value={{ activeNodeId, handleNodeClick, handleSubmit, handleNodeTypeChange, handleUpdateResult, handleRenameNode, handleUpdateNodeData, handleResizeNode, handleOpenSettings, handleNodeContextMenu, handleReplaceMedia, apiProviders, nodeStates, nodes: latestNodes.current, edges: latestEdges.current }}>
@@ -2050,6 +2200,7 @@ function AppContent() {
           minZoom={0.15}
           maxZoom={2.5}
           onNodeDragStart={handleNodeDragStart}
+          onNodeDrag={handleNodeDrag}
           onNodeDragStop={handleNodeDragStop}
           onSelectionStart={handleSelectionStart}
           onSelectionEnd={handleSelectionEnd}
@@ -2117,6 +2268,12 @@ function AppContent() {
           <Controls position="bottom-right" showInteractive={false} style={{ bottom: 48, right: 8 }} />
           <AlignmentGuides guides={guideLines} />
         </ReactFlow>
+        {dropGhost && createPortal(
+          <div style={{ position: 'fixed', left: dropGhost.x - 35, top: dropGhost.y - 35, width: 70, height: 70, borderRadius: 8, overflow: 'hidden', pointerEvents: 'none', zIndex: 99999, boxShadow: '0 8px 32px rgba(0,0,0,0.3)', opacity: 0.85, backgroundImage: `url(${dropGhost.url})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
+            <div style={{ position: 'absolute', bottom: 2, right: 2, padding: '1px 5px', borderRadius: 3, fontSize: 8, fontWeight: 600, background: 'var(--accent)', color: '#fff' }}>↳</div>
+          </div>,
+          document.body
+        )}
         </div>
         <SelectionBboxToolbar
           bbox={toolbarBbox}
