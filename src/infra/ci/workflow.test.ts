@@ -16,7 +16,9 @@ const read = (rel: string) => readFileSync(ROOT + rel, 'utf8');
 const readJson = <T>(rel: string): T => JSON.parse(read(rel)) as T;
 
 const WORKFLOW = '.github/workflows/ci.yml';
+const PACKAGE_WINDOWS = '.github/workflows/package-windows.yml';
 const workflow = read(WORKFLOW);
+const winWorkflow = read(PACKAGE_WINDOWS);
 const pkg = readJson<{
   packageManager?: string;
   engines?: { node?: string };
@@ -26,14 +28,17 @@ const helpers = read('e2e/helpers.mjs');
 const probe = read('e2e/resolve-chromium.sh');
 
 /** 去掉整行注释，免得说明文字里的命令被当成真的 CI 步骤。 */
-const code = workflow.split('\n').filter((line) => !/^\s*#/.test(line)).join('\n');
+const stripComments = (text: string) => text.split('\n').filter((line) => !/^\s*#/.test(line)).join('\n');
+const code = stripComments(workflow);
+const winCode = stripComments(winWorkflow);
 
 /** workflow 里所有 `pnpm <cmd>`；install 是 pnpm 内置命令，不是 package script。 */
-function pnpmCommands(): string[] {
-  return [...code.matchAll(/\bpnpm\s+([a-z][a-z0-9:_-]*)/g)]
+function pnpmCommandsIn(text: string): string[] {
+  return [...text.matchAll(/\bpnpm\s+([a-z][a-z0-9:_-]*)/g)]
     .map((m) => m[1])
     .filter((v): v is string => Boolean(v));
 }
+const pnpmCommands = () => pnpmCommandsIn(code);
 
 /** workflow 中所有单行 run 步骤（多行 `run: |` 只取首行，够用）。 */
 function runSteps(): string[] {
@@ -89,6 +94,13 @@ describe('CI workflow 与工程脚本对齐', () => {
     expect(declared).toBeGreaterThanOrEqual(minimum);
   });
 
+  it('eslint 忽略桌面构建产物，本地 tauri build 之后 pnpm verify 不会挂', () => {
+    // 真实踩过：codegen 生成的压缩 JS 带控制字符，eslint . 会解析报错
+    const eslint = read('eslint.config.js');
+    expect(eslint).toContain("'src-tauri/target'");
+    expect(eslint).toContain("'src-tauri/gen'");
+  });
+
   it('CI 不另起常驻 dev server，也不覆盖 E2E 端口', () => {
     // e2e/run.mjs 自己拉起并收掉 7351；再手动开一个会撞 --strictPort
     expect(runSteps().some((s) => s.includes('pnpm dev'))).toBe(false);
@@ -125,5 +137,40 @@ describe('CI 与 E2E 的浏览器 / 产物契约一致', () => {
     expect(code).toContain('path: e2e/output/');
     expect(code).toContain('if: failure()');
     expect(helpers).toContain("new URL('./output/', import.meta.url)");
+  });
+});
+
+describe('Windows 安装包 workflow', () => {
+  it('文件存在，且跑在 windows-latest', () => {
+    expect(existsSync(ROOT + PACKAGE_WINDOWS)).toBe(true);
+    expect(winWorkflow).toContain('runs-on: windows-latest');
+  });
+
+  it('调用的 pnpm script 都真实存在，且冻结锁文件安装', () => {
+    const cmds = pnpmCommandsIn(winCode);
+    expect(cmds.length).toBeGreaterThan(0);
+    const bogus = cmds.filter((c) => c !== 'install' && !(c in pkg.scripts));
+    expect(bogus).toEqual([]);
+    expect(cmds).toContain('tauri:build');
+    expect(winCode).toContain('pnpm install --frozen-lockfile');
+  });
+
+  it('只在手动 / v2 分支 / tag 触发，不跟日常 push 一起编 Rust', () => {
+    expect(winWorkflow).toContain('workflow_dispatch:');
+    expect(winWorkflow).toContain('branches: [v2]');
+    expect(winWorkflow).toMatch(/tags: \['v\*'\]/);
+  });
+
+  it('产物包含 msi 与 nsis exe，且缺文件直接判失败', () => {
+    expect(winCode).toContain('bundle/msi/*.msi');
+    expect(winCode).toContain('bundle/nsis/*.exe');
+    expect(winCode).toContain('if-no-files-found: error');
+  });
+
+  it('Node 版本与主 CI 一致，pnpm 版本同样只由 packageManager 决定', () => {
+    const nodeVer = (t: string) => /node-version:\s*(\d+)/.exec(t)?.[1];
+    expect(nodeVer(winCode)).toBe(nodeVer(code));
+    expect(winCode).toContain('pnpm/action-setup@v4');
+    expect(winCode).not.toMatch(/with:\s*\n\s*version:\s*\d/);
   });
 });

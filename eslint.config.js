@@ -5,7 +5,9 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
 
 export default tseslint.config(
-  { ignores: ['dist', 'node_modules', 'coverage'] },
+  // src-tauri/target 与 gen 是 Rust / Tauri 构建产物；codegen 会生成带控制字符的
+  // 压缩 JS，不排除的话「本地跑过一次 tauri build 之后 pnpm verify 就挂」。
+  { ignores: ['dist', 'node_modules', 'coverage', 'src-tauri/target', 'src-tauri/gen'] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ['**/*.{ts,tsx}'],
