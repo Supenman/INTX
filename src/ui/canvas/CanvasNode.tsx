@@ -1,10 +1,12 @@
-import { memo, useMemo } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
-import { getNodeDefinition, type ProjectNode } from '@/domain';
+import { extFromMime, getNodeDefinition, parseGrid, type ProjectNode } from '@/domain';
 import { latestTaskForNode, retryTask, useTaskStore } from '@/app/stores/taskStore';
 import { useAssetStore } from '@/app/stores/assetStore';
 import { setNodeParam, useGraphStore } from '@/app/stores/graphStore';
+import { buildStoryboardPng, readAssetBytes } from '@/app/useCases/storyboardExport';
 import { BlobImage } from '@/ui/common/BlobImage';
+import { downloadBlob, downloadBytes } from '@/ui/common/download';
 
 /**
  * 通用节点渲染。
@@ -49,6 +51,30 @@ export const CanvasNode = memo(function CanvasNode({ id, data, selected }: NodeP
     }
     return out;
   }, [allAssets, derivedIds]);
+
+  // 导出动作的局部反馈。不塞进 taskStore：下载不是生成任务，
+  // 塞进去会污染任务日志和崩溃恢复的语义。
+  const [exportError, setExportError] = useState<string | null>(null);
+  const reportExportError = (message: string) => {
+    setExportError(message);
+    window.setTimeout(() => setExportError(null), 4000);
+  };
+  const exportGrid = async () => {
+    const r = await buildStoryboardPng(id);
+    if (!r.ok) {
+      reportExportError(r.message);
+      return;
+    }
+    downloadBlob(r.blob, r.filename);
+  };
+  const saveCell = async (assetId: string, index: number) => {
+    const r = await readAssetBytes(assetId);
+    if (!r.ok) {
+      reportExportError(r.message);
+      return;
+    }
+    downloadBytes(r.bytes, r.mime, `分镜-第${index + 1}格.${extFromMime(r.mime)}`);
+  };
 
   if (!def) {
     return (
@@ -146,26 +172,48 @@ export const CanvasNode = memo(function CanvasNode({ id, data, selected }: NodeP
               </span>
             </div>
             {derived.length > 0 && (
-              <div className={`node-grid grid-${String(node.params.grid ?? '2x2')}`}>
+              <div
+                className="node-grid"
+                style={{ gridTemplateColumns: `repeat(${parseGrid(String(node.params.grid ?? '2x2')).cols}, 1fr)` }}
+              >
                 {derived.map((entry, i) =>
                   entry ? (
                     <div className="grid-cell" key={entry.asset.id}>
                       <BlobImage entry={entry} />
                       <span>{i + 1}</span>
+                      <button
+                        className="grid-cell-save nodrag"
+                        title={`另存第 ${i + 1} 格`}
+                        onClick={() => void saveCell(entry.asset.id, i)}
+                      >
+                        ↓
+                      </button>
                     </div>
                   ) : null,
                 )}
               </div>
             )}
-            {busy ? (
-              <button className="node-generate-btn nodrag danger-btn" onClick={() => onCancel(id)}>
-                取消
-              </button>
-            ) : (
-              <button className="node-generate-btn nodrag" onClick={() => onGenerate(id)}>
-                拆分
-              </button>
-            )}
+            <div className="node-actions">
+              {busy ? (
+                <button className="node-generate-btn nodrag danger-btn" onClick={() => onCancel(id)}>
+                  取消
+                </button>
+              ) : (
+                <button className="node-generate-btn nodrag" onClick={() => onGenerate(id)}>
+                  拆分
+                </button>
+              )}
+              {derived.length > 0 && (
+                <button
+                  className="node-secondary-btn nodrag"
+                  title="把全部分格拼成一张 PNG 下载"
+                  onClick={() => void exportGrid()}
+                >
+                  导出拼图
+                </button>
+              )}
+            </div>
+            {exportError && <div className="node-export-error">{exportError}</div>}
           </>
         )}
 

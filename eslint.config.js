@@ -46,4 +46,10 @@ export default tseslint.config(
     languageOptions: { globals: { ...globals.node } },
     rules: { 'no-restricted-imports': 'off' },
   },
+  {
+    // E2E 是 Node 脚本，不是浏览器代码；领域层的"禁止 IO"约束也不适用。
+    files: ['e2e/**/*.mjs'],
+    languageOptions: { globals: { ...globals.node } },
+    rules: { 'no-restricted-imports': 'off' },
+  },
 );

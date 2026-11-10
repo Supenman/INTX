@@ -7,6 +7,7 @@ import {
   contentPath,
   extFromMime,
   normalizeError,
+  parseGrid,
   resolvePrompt,
   sha256Hex,
   type Asset,
@@ -256,10 +257,9 @@ export async function runGeneration(
   }
 }
 
+/** 格数只问 domain 的 parseGrid，避免生成、提示词、导出各算一套。 */
 export function gridCount(grid: string): number {
-  const m = /^(\d+)x(\d+)$/.exec(grid);
-  if (!m) return 1;
-  return Math.max(1, Math.min(16, Number(m[1]) * Number(m[2])));
+  return parseGrid(grid).total;
 }
 
 /** 节点当前任务的最近一次状态，用于 UI 判断能否再次点击。 */

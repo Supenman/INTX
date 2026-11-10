@@ -21,3 +21,6 @@ pnpm-debug.log*
 # 本地数据（S3 起会用到的任务落盘文件）
 data/
 *.jsonl
+
+# E2E 截图与导出样本
+e2e/output/*

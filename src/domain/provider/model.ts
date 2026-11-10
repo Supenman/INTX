@@ -1,4 +1,5 @@
 import type { AssetKind } from '../asset/model';
+import { parseGrid } from '../node/grid';
 
 /**
  * Provider —— 厂商适配器的领域契约。
@@ -101,8 +102,9 @@ export function storyboardPrompt(script: string, grid: string, style: string, ce
 
   // 用户按行写了分镜就按行分配；否则让模型自己均分
   const shot = lines.length > 0 ? lines[cell % lines.length] : `第 ${cell + 1} 格`;
-  // 1x4 表示"一行四格"，其余按"行×列"读
-  const [cols = '1', rows = '1'] = grid.split('x');
+  // grid 统一是「行 x 列」：1x4 是一条 1 行 4 列的条漫。
+  // 以前这里把第一个数当列，会把条漫描述成「4 行 1 列」。
+  const { rows, cols } = parseGrid(grid);
   const orientation = `${rows} 行 ${cols} 列`;
 
   return [

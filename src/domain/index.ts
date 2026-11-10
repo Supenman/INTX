@@ -84,6 +84,14 @@ export {
   type MissingInputCode,
   type ParamIssue,
 } from './node/validate';
+export {
+  MAX_GRID_CELLS,
+  gridLayout,
+  parseGrid,
+  type GridCellRect,
+  type GridLayout,
+  type GridShape,
+} from './node/grid';
 
 // 资产哈希
 export { contentPath, extFromMime, sha256Hex } from './asset/hash';
