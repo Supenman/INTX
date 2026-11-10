@@ -13,6 +13,7 @@ const SPECS = [
   ['生成闭环', './specs/generation.mjs'],
   ['撤销/取消/恢复/导入导出', './specs/recovery.mjs'],
   ['200 节点压力', './specs/stress-200.mjs'],
+  ['素材编辑/裁切/遮罩', './specs/material-edit.mjs'],
 ];
 
 async function reachable() {

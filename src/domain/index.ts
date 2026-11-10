@@ -25,8 +25,25 @@ export {
   type AssetErrorCode,
   type AssetKind,
   type AssetOrigin,
+  type AssetOriginEdit,
   type CreateAssetInput,
 } from './asset/model';
+
+// 裁切几何
+export {
+  ASPECT_PRESETS,
+  MIN_CROP_SIZE,
+  aspectValue,
+  cropFromDrag,
+  cropToPixels,
+  fitAspect,
+  normalizeCrop,
+  normalizedRatio,
+  type AspectId,
+  type CropRect,
+  type NormalizedPoint,
+  type PixelRect,
+} from './asset/crop';
 
 // 任务
 export {

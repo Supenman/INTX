@@ -22,7 +22,13 @@ export interface AssetOriginImport {
   type: 'import';
 }
 
-export type AssetOrigin = AssetOriginTask | AssetOriginImport;
+/** 由已有资产加工而来（裁切、遮罩等）。记住来源，将来才能追溯派生链。 */
+export interface AssetOriginEdit {
+  type: 'edit';
+  sourceAssetId: string;
+}
+
+export type AssetOrigin = AssetOriginTask | AssetOriginImport | AssetOriginEdit;
 
 export interface Asset {
   id: string;
@@ -106,6 +112,9 @@ export function createAsset(input: CreateAssetInput): Result<Asset, AssetError> 
   }
   if (input.origin.type === 'task' && !input.origin.taskId) {
     return err({ code: 'invalid_origin', message: '任务来源缺少 taskId' });
+  }
+  if (input.origin.type === 'edit' && !input.origin.sourceAssetId) {
+    return err({ code: 'invalid_origin', message: '编辑来源缺少 sourceAssetId' });
   }
 
   const asset: Asset = {

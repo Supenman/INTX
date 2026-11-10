@@ -62,6 +62,18 @@ describe('createAsset', () => {
     if (!r.ok) expect(r.error.code).toBe('invalid_origin');
   });
 
+  it('编辑产物记住来源资产，可追溯派生链', () => {
+    const r = createAsset({ ...base, origin: { type: 'edit', sourceAssetId: 'as-parent' } });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value.origin).toEqual({ type: 'edit', sourceAssetId: 'as-parent' });
+  });
+
+  it('拒绝缺少来源的编辑产物', () => {
+    const r = createAsset({ ...base, origin: { type: 'edit', sourceAssetId: '' } });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.code).toBe('invalid_origin');
+  });
+
   it('可选字段不写入 undefined', () => {
     const r = createAsset(base);
     expect(r.ok).toBe(true);

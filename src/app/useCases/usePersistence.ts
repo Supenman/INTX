@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { collectAssetIndex } from '@/app/useCases/assetLibrary';
+import { collectAssetIndex, isHydratingAssets } from '@/app/useCases/assetLibrary';
 import { loadProjectFile } from '@/app/useCases/projectFile';
 import { restoreTasks, startTaskLog } from '@/app/useCases/taskRecovery';
 import { resolveRuntime } from '@/infra/runtime';
 import { hydrateProject, indexedDbRepository, snapshotProject } from '@/infra/repository/projectRepository';
 import { useGraphStore } from '@/app/stores/graphStore';
+import { useAssetStore } from '@/app/stores/assetStore';
 import type { IntegrityIssue } from '@/domain';
 
 /**
@@ -96,16 +97,35 @@ export function usePersistence(): PersistenceState {
   }, [saveNow]);
 
   useEffect(() => {
-    const unsub = useGraphStore.subscribe((curr, prev) => {
+    const schedule = () => {
       if (!readyRef.current) return;
-      if (curr.nodes === prev.nodes && curr.edges === prev.edges) return;
       window.clearTimeout(timerRef.current);
       timerRef.current = window.setTimeout(() => {
         void saveNow();
       }, SAVE_DEBOUNCE_MS);
+    };
+
+    const unsubGraph = useGraphStore.subscribe((curr, prev) => {
+      if (curr.nodes === prev.nodes && curr.edges === prev.edges) return;
+      schedule();
     });
+
+    /**
+     * 资产索引也要订阅。
+     *
+     * 以前只订阅画布：生成任务走 attachAssets() 会顺带改节点，所以碰巧能存上。
+     * 素材编辑（裁切 / 遮罩）只往资产库加一条、不碰任何节点，
+     * 只订阅画布的话刷新后新资产就消失了。E2E 会专门验这一步。
+     */
+    const unsubAssets = useAssetStore.subscribe((curr, prev) => {
+      if (curr.assets === prev.assets) return;
+      if (isHydratingAssets()) return;
+      schedule();
+    });
+
     return () => {
-      unsub();
+      unsubGraph();
+      unsubAssets();
       window.clearTimeout(timerRef.current);
     };
   }, [saveNow]);

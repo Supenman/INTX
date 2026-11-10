@@ -1006,3 +1006,126 @@ button {
 .node-status.canceled {
   color: var(--text-3);
 }
+
+/* ---------- 素材编辑器（裁切 / 遮罩） ---------- */
+
+.material-editor {
+  width: min(720px, calc(100vw - 60px));
+  max-height: calc(100vh - 40px);
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.material-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.material-head strong {
+  font-size: 15px;
+}
+
+.material-head .mono {
+  color: var(--text-3);
+  margin-right: auto;
+}
+
+.material-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 8px 16px 0;
+}
+
+.material-tabs button {
+  padding: 7px 14px;
+  font-size: 13px;
+  color: var(--text-2);
+  border-bottom: 2px solid transparent;
+}
+
+.material-tabs button.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.material-tools {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 48px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.material-aspect {
+  cursor: pointer;
+  border: 1px solid var(--border);
+}
+
+.material-aspect.accent {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.material-hint {
+  margin-left: auto;
+}
+
+.material-brush {
+  width: 130px;
+  accent-color: var(--accent);
+}
+
+.material-stage {
+  display: grid;
+  place-items: center;
+  padding: 14px 16px;
+  background: #0a0a09;
+  max-height: calc(100vh - 280px);
+  overflow: auto;
+}
+
+.material-canvas {
+  display: block;
+  cursor: crosshair;
+  touch-action: none;
+  max-width: none;
+}
+
+.material-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+}
+
+.material-feedback {
+  margin-right: auto;
+  font-size: 12px;
+  color: var(--ok);
+}
+
+.material-feedback.bad {
+  color: var(--danger);
+}
+
+.material-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.preview-edit {
+  border-color: var(--accent);
+  color: var(--accent);
+}

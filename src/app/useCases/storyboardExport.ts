@@ -2,6 +2,7 @@ import { gridLayout } from '@/domain';
 import { useAssetStore, type AssetEntry } from '@/app/stores/assetStore';
 import { useGraphStore } from '@/app/stores/graphStore';
 import { resolveRuntime } from '@/infra/runtime';
+import { decodeImage, makeCanvas, toPng } from './imageCanvas';
 
 /**
  * 分镜产物导出（S4 第一块）。
@@ -34,29 +35,6 @@ export async function readAssetBytes(assetId: string): Promise<AssetBytes> {
   return { ok: true, bytes, mime: entry.asset.mime || 'application/octet-stream' };
 }
 
-/** 用 HTMLImageElement 解码，比 createImageBitmap 兼容性好，且不用手动 close。 */
-function loadImage(bytes: ArrayBuffer, mime: string): Promise<HTMLImageElement> {
-  const url = URL.createObjectURL(new Blob([bytes], { type: mime }));
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      resolve(img);
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error('图片解码失败'));
-    };
-    img.src = url;
-  });
-}
-
-function toPng(canvas: HTMLCanvasElement): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('PNG 编码失败'))), 'image/png');
-  });
-}
-
 /**
  * 把节点的分格按 gridLayout 拼成一张 PNG。
  *
@@ -85,18 +63,13 @@ export async function buildStoryboardPng(nodeId: string): Promise<StoryboardPng>
     for (const entry of entries) {
       const bytes = await runtime.blobs.get(entry.blobKey);
       if (!bytes) return { ok: false, message: `第 ${images.length + 1} 格的文件丢失了` };
-      images.push(await loadImage(bytes, entry.asset.mime));
+      images.push(await decodeImage(bytes, entry.asset.mime));
     }
 
     const first = images[0]!;
     const layout = gridLayout(String(node.params.grid ?? '2x2'), first.naturalWidth, first.naturalHeight, GRID_GAP);
 
-    const canvas = document.createElement('canvas');
-    canvas.width = layout.width;
-    canvas.height = layout.height;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return { ok: false, message: '浏览器不支持 Canvas 2D' };
-
+    const { canvas, ctx } = makeCanvas(layout.width, layout.height);
     ctx.fillStyle = '#0a0a09';
     ctx.fillRect(0, 0, layout.width, layout.height);
     const drawn = Math.min(images.length, layout.cells.length);

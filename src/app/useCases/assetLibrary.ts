@@ -14,19 +14,44 @@ import { loadProjectFile } from './projectFile';
  * 属于"文件丢了"。不静默跳过，而是记进 missing，让 UI 能提示用户
  * ——旧代码在这种情况下会渲染出一片空白，连报错都没有。
  */
+let hydratingCount = 0;
+
+/**
+ * 启动装载期间的 putAsset 不该触发自动保存。
+ *
+ * 这个 effect 与项目恢复的 effect 是并行的：恢复流程一旦标记「就绪」，
+ * 资产还在逐条 await blobs.has() 的时候，每条 putAsset 都会唤醒保存订阅，
+ * 而那时画布可能还没 hydrate —— 一次防抖写回就会把空画布盖掉存档。
+ */
+export function isHydratingAssets(): boolean {
+  return hydratingCount > 0;
+}
+
 export async function hydrateAssetsFromProject(runtime: Runtime): Promise<{ missing: string[] }> {
   const project = await loadProjectIndex();
-  const missing: string[] = [];
+  return hydrateAssetList(runtime, project);
+}
 
-  for (const asset of project) {
-    const ok = await runtime.blobs.has(asset.hash);
-    if (!ok) {
-      missing.push(asset.id);
-      continue;
+/** 拆出可单测的装载循环：单测不必碰 IndexedDB 也能验证门控标志。 */
+export async function hydrateAssetList(
+  runtime: Runtime,
+  project: readonly Asset[],
+): Promise<{ missing: string[] }> {
+  hydratingCount += 1;
+  try {
+    const missing: string[] = [];
+    for (const asset of project) {
+      const ok = await runtime.blobs.has(asset.hash);
+      if (!ok) {
+        missing.push(asset.id);
+        continue;
+      }
+      putAsset({ asset, blobKey: asset.hash });
     }
-    putAsset({ asset, blobKey: asset.hash });
+    return { missing };
+  } finally {
+    hydratingCount -= 1;
   }
-  return { missing };
 }
 
 /**
