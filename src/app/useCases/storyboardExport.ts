@@ -2,7 +2,7 @@ import { gridLayout } from '@/domain';
 import { useAssetStore, type AssetEntry } from '@/app/stores/assetStore';
 import { useGraphStore } from '@/app/stores/graphStore';
 import { resolveRuntime } from '@/infra/runtime';
-import { decodeImage, makeCanvas, toPng } from './imageCanvas';
+import { decodeImage, makeCanvas, toPng } from '@/infra/imaging/canvas';
 
 /**
  * 分镜产物导出（S4 第一块）。

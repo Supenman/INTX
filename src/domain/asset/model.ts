@@ -28,7 +28,15 @@ export interface AssetOriginEdit {
   sourceAssetId: string;
 }
 
-export type AssetOrigin = AssetOriginTask | AssetOriginImport | AssetOriginEdit;
+/** 放大产物：记住倍率与后端，避免同一张图被反复放大、也便于追溯。 */
+export interface AssetOriginUpscale {
+  type: 'upscale';
+  sourceAssetId: string;
+  scale: number;
+  backend: string;
+}
+
+export type AssetOrigin = AssetOriginTask | AssetOriginImport | AssetOriginEdit | AssetOriginUpscale;
 
 export interface Asset {
   id: string;
@@ -115,6 +123,9 @@ export function createAsset(input: CreateAssetInput): Result<Asset, AssetError> 
   }
   if (input.origin.type === 'edit' && !input.origin.sourceAssetId) {
     return err({ code: 'invalid_origin', message: '编辑来源缺少 sourceAssetId' });
+  }
+  if (input.origin.type === 'upscale' && !input.origin.sourceAssetId) {
+    return err({ code: 'invalid_origin', message: '放大产物缺少 sourceAssetId' });
   }
 
   const asset: Asset = {

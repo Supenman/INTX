@@ -18,6 +18,18 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // 拆开 vendor：单个 chunk 超过 500 kB 时 Vite 会告警，而且
+        // 画布库与 react 几乎不变，独立 chunk 能让浏览器长期缓存。
+        manualChunks: {
+          react: ['react', 'react-dom', 'react-dom/client', 'react/jsx-runtime'],
+          flow: ['@xyflow/react'],
+        },
+      },
+    },
+  },
   test: {
     globals: true,
     environment: 'node',

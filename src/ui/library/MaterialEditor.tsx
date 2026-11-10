@@ -4,27 +4,44 @@ import {
   aspectValue,
   cropFromDrag,
   fitAspect,
+  UPSCALE_SCALES,
   type AspectId,
   type CropRect,
   type NormalizedPoint,
+  type UpscaleScale,
 } from '@/domain';
 import type { AssetEntry } from '@/app/stores/assetStore';
 import { resolveRuntime } from '@/infra/runtime';
-import { decodeImage } from '@/app/useCases/imageCanvas';
+import { decodeImage } from '@/infra/imaging/canvas';
+import { probeUpscalers } from '@/infra/upscale';
 import { saveCrop, saveMask, type MaskStroke } from '@/app/useCases/materialEdit';
+import { upscaleAsset } from '@/app/useCases/upscaleAsset';
 import { downloadBlob } from '@/ui/common/download';
 
 /**
- * 素材编辑器：裁切 + 遮罩。
+ * 素材编辑器：裁切 + 遮罩 + 放大。
  *
  * canvas 只负责「按显示尺寸画出来给人看」，导出时 app 层会按**原图像素**
  * 重新绘制一遍。所有交互坐标都是归一化的，缩放显示不会让裁切框跑偏。
+ *
+ * 放大这一栏特意把后端探测结果摊开给用户：正式路线是 Tauri 本地 ONNX，
+ * 条件不具备时自动回退到参考重采样。不把插值放大冒充 AI 超分。
  */
 
-type Mode = 'crop' | 'mask';
+type Mode = 'crop' | 'mask' | 'upscale';
 
 const MAX_W = 660;
 const MAX_H = 430;
+
+interface BackendInfo {
+  label: string;
+  ai: boolean;
+  fallback: boolean;
+  ready: boolean;
+  missing: { label: string; message: string; hint?: string }[];
+}
+
+const PROBING: BackendInfo = { label: '探测中…', ai: false, fallback: false, ready: false, missing: [] };
 
 function clamp01(n: number): number {
   return Math.max(0, Math.min(1, n));
@@ -42,6 +59,8 @@ export function MaterialEditor({ entry, onClose }: { entry: AssetEntry; onClose:
   const [dragStart, setDragStart] = useState<NormalizedPoint | null>(null);
   const [strokes, setStrokes] = useState<MaskStroke[]>([]);
   const [brush, setBrush] = useState(0.03);
+  const [upscaleScale, setUpscaleScale] = useState<UpscaleScale>(2);
+  const [backend, setBackend] = useState<BackendInfo>(PROBING);
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
 
@@ -67,6 +86,38 @@ export function MaterialEditor({ entry, onClose }: { entry: AssetEntry; onClose:
       cancelled = true;
     };
   }, [entry.blobKey, entry.asset.mime]);
+
+  // 后端能力是异步探测的（Tauri / 模型文件），打开编辑器就查一次。
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const probes = await probeUpscalers();
+      if (cancelled) return;
+      const index = probes.findIndex((p) => p.availability.ok);
+      const active = index >= 0 ? probes[index]!.adapter : null;
+      const missing = probes.flatMap((p) =>
+        p.availability.ok
+          ? []
+          : [
+              {
+                label: p.adapter.label,
+                message: p.availability.missing.message,
+                hint: p.availability.missing.hint,
+              },
+            ],
+      );
+      setBackend({
+        label: active?.label ?? '没有可用的放大后端',
+        ai: active?.ai ?? false,
+        fallback: index > 0,
+        ready: active !== null,
+        missing,
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const display = useMemo(() => {
     if (!size.width || !size.height) return { width: 0, height: 0 };
@@ -109,7 +160,7 @@ export function MaterialEditor({ entry, onClose }: { entry: AssetEntry; onClose:
         { x: x + w, y: y + h },
       ];
       for (const c of corners) ctx.fillRect(c.x - 3, c.y - 3, 6, 6);
-    } else {
+    } else if (mode === 'mask') {
       ctx.strokeStyle = 'rgba(255,107,53,0.9)';
       ctx.fillStyle = 'rgba(255,107,53,0.9)';
       ctx.lineCap = 'round';
@@ -134,6 +185,7 @@ export function MaterialEditor({ entry, onClose }: { entry: AssetEntry; onClose:
         ctx.stroke();
       }
     }
+    // upscale 模式：只显示原图，不叠加任何取景框或笔迹
   }, [img, display.width, display.height, mode, crop, strokes]);
 
   const pointAt = (ev: ReactPointerEvent<HTMLCanvasElement>): NormalizedPoint | null => {
@@ -146,6 +198,7 @@ export function MaterialEditor({ entry, onClose }: { entry: AssetEntry; onClose:
   };
 
   const onPointerDown = (ev: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (mode === 'upscale') return;
     const pt = pointAt(ev);
     if (!pt) return;
     ev.currentTarget.setPointerCapture(ev.pointerId);
@@ -159,6 +212,7 @@ export function MaterialEditor({ entry, onClose }: { entry: AssetEntry; onClose:
   };
 
   const onPointerMove = (ev: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (mode === 'upscale') return;
     const pt = pointAt(ev);
     if (!pt) return;
     if (mode === 'crop') {
@@ -186,6 +240,22 @@ export function MaterialEditor({ entry, onClose }: { entry: AssetEntry; onClose:
     if (!img) return;
     setBusy(true);
     setFeedback(null);
+
+    if (mode === 'upscale') {
+      const r = await upscaleAsset(entry.asset.id, upscaleScale);
+      setBusy(false);
+      if (!r.ok) {
+        setFeedback(`✕ ${r.message}${r.hint ? ` · ${r.hint}` : ''}`);
+        return;
+      }
+      downloadBlob(r.blob, r.filename);
+      setFeedback(
+        `已存入资产库 · ${r.width}×${r.height} · ${r.backendLabel}` +
+          `${r.reused ? ' · 内容已存在，复用字节' : ''} · ${r.elapsedMs}ms`,
+      );
+      return;
+    }
+
     const r = mode === 'crop' ? await saveCrop(entry.asset.id, crop) : await saveMask(entry.asset.id, strokes);
     setBusy(false);
     if (!r.ok) {
@@ -195,6 +265,16 @@ export function MaterialEditor({ entry, onClose }: { entry: AssetEntry; onClose:
     downloadBlob(r.blob, r.filename);
     setFeedback(`已存入资产库 · ${r.width}×${r.height}${r.reused ? ' · 内容已存在，复用字节' : ''}`);
   };
+
+  const primaryLabel = busy
+    ? mode === 'upscale'
+      ? '放大中…'
+      : '处理中…'
+    : mode === 'crop'
+      ? '另存为新素材'
+      : mode === 'mask'
+        ? '导出蒙版'
+        : `放大 ${upscaleScale}× 并存为新素材`;
 
   return (
     <div className="panel-mask" onClick={onClose}>
@@ -214,10 +294,13 @@ export function MaterialEditor({ entry, onClose }: { entry: AssetEntry; onClose:
           <button className={mode === 'mask' ? 'active' : ''} onClick={() => setMode('mask')}>
             遮罩（局部重绘用）
           </button>
+          <button className={mode === 'upscale' ? 'active' : ''} onClick={() => setMode('upscale')}>
+            放大 / 超分
+          </button>
         </div>
 
         <div className="material-tools">
-          {mode === 'crop' ? (
+          {mode === 'crop' && (
             <>
               <span className="muted small">比例</span>
               {ASPECT_PRESETS.map((p) => (
@@ -232,7 +315,8 @@ export function MaterialEditor({ entry, onClose }: { entry: AssetEntry; onClose:
               ))}
               <span className="muted small material-hint">在图上拖出取景框</span>
             </>
-          ) : (
+          )}
+          {mode === 'mask' && (
             <>
               <span className="muted small">笔刷</span>
               <input
@@ -252,7 +336,50 @@ export function MaterialEditor({ entry, onClose }: { entry: AssetEntry; onClose:
               <span className="muted small material-hint">导出黑白蒙版，尺寸与原图一致</span>
             </>
           )}
+          {mode === 'upscale' && (
+            <>
+              <span className="muted small">倍率</span>
+              {UPSCALE_SCALES.map((s) => (
+                <button
+                  key={s}
+                  className={`upscale-scale chip ${upscaleScale === s ? 'accent' : ''}`}
+                  data-scale={s}
+                  onClick={() => setUpscaleScale(s)}
+                >
+                  {s}×
+                </button>
+              ))}
+              <span className="muted small material-hint">整图放大，产物入资产库</span>
+            </>
+          )}
         </div>
+
+        {mode === 'upscale' && (
+          <div className="upscale-panel">
+            <div className="upscale-backend">
+              <span className="muted small">当前后端</span>
+              <strong>{backend.label}</strong>
+              <span className={`chip ${backend.ai ? '' : 'warn'}`}>
+                {backend.ai ? 'AI 超分' : '演示级 · 非 AI'}
+              </span>
+              {backend.fallback && <span className="muted small">已自动回退</span>}
+            </div>
+            <p className="muted small">
+              正式路线是 <b>Tauri 本地 ONNX</b>（桌面优先，不引入服务端）。模型与推理都留在本机；
+              当前环境不具备条件时回退到参考重采样，用来跑通闭环，产物同样按内容哈希入库。
+            </p>
+            {backend.missing.length > 0 && (
+              <ul className="upscale-missing">
+                {backend.missing.map((m) => (
+                  <li key={m.label}>
+                    <b>{m.label}</b> · {m.message}
+                    {m.hint && <span className="muted"> — {m.hint}</span>}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
 
         <div className="material-stage">
           {loadError ? (
@@ -278,8 +405,12 @@ export function MaterialEditor({ entry, onClose }: { entry: AssetEntry; onClose:
           <button className="btn ghost small" onClick={onClose}>
             关闭
           </button>
-          <button className="btn small material-primary" disabled={busy || !img} onClick={() => void run()}>
-            {busy ? '处理中…' : mode === 'crop' ? '另存为新素材' : '导出蒙版'}
+          <button
+            className="btn small material-primary"
+            disabled={busy || !img || (mode === 'upscale' && !backend.ready)}
+            onClick={() => void run()}
+          >
+            {primaryLabel}
           </button>
         </div>
       </div>

@@ -26,6 +26,7 @@ export {
   type AssetKind,
   type AssetOrigin,
   type AssetOriginEdit,
+  type AssetOriginUpscale,
   type CreateAssetInput,
 } from './asset/model';
 
@@ -112,6 +113,20 @@ export {
 
 // 资产哈希
 export { contentPath, extFromMime, sha256Hex } from './asset/hash';
+
+// 超分契约
+export {
+  UPSCALE_SCALES,
+  isUpscaleScale,
+  upscaledSize,
+  type UpscaleAdapter,
+  type UpscaleAvailability,
+  type UpscaleImage,
+  type UpscaleRequest,
+  type UpscaleScale,
+  type UpscaleUnavailable,
+  type UpscaleUnavailableCode,
+} from './upscale/model';
 
 // 厂商契约
 export {

@@ -55,7 +55,7 @@ export function AssetLibrary() {
                   setPreview(null);
                 }}
               >
-                编辑 · 裁切
+                编辑 · 裁切 / 放大
               </button>
               <button
                 className="btn small"

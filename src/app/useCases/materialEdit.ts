@@ -8,7 +8,7 @@ import {
 } from '@/domain';
 import { findAssetByHash, getAsset, putAsset, type AssetEntry } from '@/app/stores/assetStore';
 import { resolveRuntime } from '@/infra/runtime';
-import { decodeImage, makeCanvas, toPng } from './imageCanvas';
+import { decodeImage, makeCanvas, toPng } from '@/infra/imaging/canvas';
 
 /**
  * 素材编辑（S4 第二块）：裁切与遮罩。

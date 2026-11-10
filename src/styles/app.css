@@ -1129,3 +1129,62 @@ button {
   border-color: var(--accent);
   color: var(--accent);
 }
+
+/* ── 放大 / 超分 ───────────────────────────────────────── */
+.upscale-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 16px 12px;
+  border-bottom: 1px solid var(--border);
+  max-height: 168px;
+  overflow: auto;
+}
+
+.upscale-backend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.upscale-backend strong {
+  font-size: 13px;
+}
+
+.upscale-panel p {
+  margin: 0;
+  line-height: 1.65;
+}
+
+.upscale-missing {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: var(--text-2);
+}
+
+.upscale-missing b {
+  color: var(--text);
+}
+
+.upscale-scale {
+  cursor: pointer;
+  border: 1px solid var(--border);
+}
+
+.upscale-scale.accent {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.material-editor:has(.upscale-panel) .material-stage {
+  max-height: calc(100vh - 420px);
+}
+
+.material-feedback {
+  max-width: 58%;
+  line-height: 1.45;
+}

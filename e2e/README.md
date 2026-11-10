@@ -23,7 +23,7 @@ INTX_E2E_URL=http://127.0.0.1:9999/ pnpm e2e   # 指向别处
 | `specs/generation.mjs` | 文字→生成出图、分镜逐格 4/4、拼图导出与单格另存（校验 PNG 魔数与尺寸）、刷新后画布与资产库还原 |
 | `specs/recovery.mjs` | 撤销/重做、清空可撤销、取消生成走 `canceled`、崩溃恢复提示、`.intx` 导出→清空→导入、包内不含 `apiKey` |
 | `specs/stress-200.mjs` | 200 节点独立坐标、拖拽/缩放/平移、整图快照撤销、刷新恢复 200 节点 |
-| `specs/material-edit.mjs` | 16:9 裁切输出像素比、黑白蒙版尺寸等于原图、两种产物都进资产库且**刷新后不丢** |
+| `specs/material-edit.mjs` | 16:9 裁切输出像素比、黑白蒙版尺寸等于原图、放大 2× 尺寸严格等于原图 ×2 且后端如实标注「演示级 · 非 AI」、三类产物都进资产库且**刷新后不丢** |
 
 每条关键结果都有 `check()` 断言，控制台出现任何 `pageerror` / `console.error` 一律判失败（`finish()`）。截图与导出的 `.intx` 落在 `e2e/output/`，已被 gitignore。
 

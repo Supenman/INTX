@@ -74,6 +74,31 @@ describe('createAsset', () => {
     if (!r.ok) expect(r.error.code).toBe('invalid_origin');
   });
 
+  it('放大产物记住来源、倍率与后端', () => {
+    const r = createAsset({
+      ...base,
+      origin: { type: 'upscale', sourceAssetId: 'as-parent', scale: 2, backend: 'tauri-onnx' },
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.value.origin).toEqual({
+        type: 'upscale',
+        sourceAssetId: 'as-parent',
+        scale: 2,
+        backend: 'tauri-onnx',
+      });
+    }
+  });
+
+  it('拒绝缺少来源的放大产物', () => {
+    const r = createAsset({
+      ...base,
+      origin: { type: 'upscale', sourceAssetId: '', scale: 2, backend: 'x' },
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.code).toBe('invalid_origin');
+  });
+
   it('可选字段不写入 undefined', () => {
     const r = createAsset(base);
     expect(r.ok).toBe(true);

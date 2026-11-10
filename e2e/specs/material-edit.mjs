@@ -2,10 +2,12 @@ import { readFileSync } from 'node:fs';
 import { openPage, finish, check, OUTPUT_DIR } from '../helpers.mjs';
 
 /**
- * 素材编辑：裁切 + 遮罩 + 刷新恢复。
+ * 素材编辑：裁切 + 遮罩 + 放大 + 刷新恢复。
  *
  * 最后一条断言是本组的关键：以前自动保存只订阅画布变化，
  * 编辑产物只加资产、不碰节点，刷新后会凭空消失。
+ * 放大这一栏同时验证「后端如实标注」：浏览器里没有桌面壳与模型，
+ * 必须回退并显示「演示级 · 非 AI」，不许把插值放大包装成超分。
  */
 const PNG_MAGIC = '89504e470d0a1a0a';
 
@@ -119,14 +121,44 @@ export async function run() {
   console.log('   资产数:', afterMask);
   check(afterMask === before + 2, '蒙版也应进入资产库');
 
-  // ── 5. 刷新恢复：编辑产物不能丢 ──
+  // ── 5. 放大：浏览器里回退参考实现，尺寸严格等于原图 × 2 ──
+  await p.locator('.material-tabs button').nth(2).click();
+  await p.locator('.upscale-panel').waitFor();
+  await p.waitForFunction(() => {
+    const b = document.querySelector('.material-primary');
+    return b instanceof HTMLButtonElement && !b.disabled;
+  });
+  const backendText = (await p.locator('.upscale-backend').innerText()).replace(/\s+/g, ' ');
+  console.log('5) 超分后端:', backendText.slice(0, 140));
+  check(backendText.includes('参考重采样') || backendText.includes('本地 ONNX'), '应显示当前生效的放大后端');
+  check(backendText.includes('演示级'), '回退实现必须如实标注非 AI');
+  const missingText = (await p.locator('.upscale-missing').innerText()).replace(/\s+/g, ' ');
+  console.log('   待补齐:', missingText.slice(0, 140));
+  check(missingText.includes('Tauri') || missingText.includes('桌面'), '应列出正式路线还差什么');
+
+  const upDl = p.waitForEvent('download');
+  await p.locator('.material-primary').click();
+  const upFile = await upDl;
+  const upPath = OUTPUT_DIR + 'material-upscale.png';
+  await upFile.saveAs(upPath);
+  const up = pngInfo(upPath);
+  console.log(`   放大: ${upFile.suggestedFilename()} ${up.bytes} 字节 ${up.width}x${up.height}`);
+  check(up.magic === PNG_MAGIC, '放大结果应是有效 PNG');
+  check(up.width === srcW * 2 && up.height === srcH * 2, '2× 放大尺寸必须严格等于原图 × 2');
+  await p.waitForTimeout(500);
+  const afterUp = await p.locator('.asset-thumb').count();
+  console.log('   资产数:', afterUp);
+  check(afterUp === before + 3, '放大产物应进入资产库');
+  await p.screenshot({ path: OUTPUT_DIR + 'material-upscale-ui.png' });
+
+  // ── 6. 刷新恢复：三类编辑产物都不能丢 ──
   await p.locator('.material-head .icon-btn').click();
   await p.waitForTimeout(1400);
   await p.reload({ waitUntil: 'networkidle' });
   await p.waitForTimeout(2200);
   const afterReload = await p.locator('.asset-thumb').count();
-  console.log('5) 刷新后资产数:', afterReload);
-  check(afterReload === before + 2, '编辑产物必须随项目文件恢复，而不是只活在内存里');
+  console.log('6) 刷新后资产数:', afterReload);
+  check(afterReload === before + 3, '编辑/放大产物必须随项目文件恢复，而不是只活在内存里');
   await p.screenshot({ path: OUTPUT_DIR + 'material-reload.png' });
 
   finish('素材编辑', errs);

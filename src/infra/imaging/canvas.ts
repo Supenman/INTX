@@ -1,9 +1,12 @@
 /**
  * 图片解码 / Canvas 绘制的公共薄封装。
  *
- * 分镜拼图与素材编辑都要「读字节 → 解码 → 画到 canvas → 编码 PNG」。
- * 上一轮拼图里各写了一份 loadImage/toPng，这轮抽出共用：
- * 同一份语义只有一个来源，别让两处对 ObjectURL 的释放时机各写各的。
+ * 分镜拼图、素材编辑、超分参考实现都要「读字节 → 解码 → 画到 canvas → 编码 PNG」。
+ * 上一轮拼图里各写了一份 loadImage/toPng，抽出共用：同一份语义只有一个来源，
+ * 别让多处对 ObjectURL 的释放时机各写各的。
+ *
+ * 放在 infra 而不是 app：这几个函数用的是浏览器 DOM API（Image / Canvas / URL），
+ * 属于宿主能力。infra 的适配器要用它时不会造成 infra → app 的反向依赖。
  */
 
 /** 用 HTMLImageElement 解码，比 createImageBitmap 兼容性好，且不用手动 close。 */
