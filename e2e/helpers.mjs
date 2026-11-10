@@ -10,11 +10,14 @@ export const OUTPUT_DIR = fileURLToPath(new URL('./output/', import.meta.url));
 function findChromium() {
   const fromEnv = process.env.CHROMIUM_PATH;
   if (fromEnv && existsSync(fromEnv)) return fromEnv;
+  // 顺序与 e2e/resolve-chromium.sh 保持一致，并由 ciConfig.test.ts 对账。
+  // Google Chrome 排前面：Ubuntu 24.04 的 /usr/bin/chromium-browser 是 snap
+  // 转接脚本，存在且可执行却起不来，优先命中它会让 E2E 以一种很难懂的方式失败。
   const candidates = [
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/google-chrome',
     '/usr/bin/chromium',
     '/usr/bin/chromium-browser',
-    '/usr/bin/google-chrome',
-    '/usr/bin/google-chrome-stable',
     '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
   ];
   return candidates.find((p) => existsSync(p));

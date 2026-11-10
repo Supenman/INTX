@@ -1,0 +1,68 @@
+name: CI
+
+# 桌面壳的 Rust 编译（pnpm tauri:check）故意不在这里跑：
+# GitHub-hosted runner 缺 webkit2gtk-4.1 / appindicator，Cargo.lock 也还没生成。
+# 桌面侧目前由 tauriConfig.test.ts 做静态配置对账，真机构建留给装好系统依赖的开发机。
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: 类型 / lint / 单测 / 构建
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      # 版本从 package.json 的 packageManager 字段读，避免 CI 与本地各装一个 pnpm
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: 安装依赖（冻结锁文件）
+        run: pnpm install --frozen-lockfile
+      - name: typecheck + lint + 单测
+        run: pnpm verify
+      - name: 生产构建（含 Tauri 动态 import 的打包验证）
+        run: pnpm build
+
+  e2e:
+    name: 浏览器 E2E（五组）
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: 安装依赖（冻结锁文件）
+        run: pnpm install --frozen-lockfile
+      - name: 定位系统 Chromium
+        run: |
+          set -euo pipefail
+          CHROME="$(bash e2e/resolve-chromium.sh)"
+          echo "CHROMIUM_PATH=$CHROME" >> "$GITHUB_ENV"
+          echo "使用 $CHROME：$("$CHROME" --version)"
+      # e2e/run.mjs 自己拉起并收掉 dev server，CI 里不要再手动 pnpm dev
+      - name: 跑五组 E2E
+        run: pnpm e2e
+      - name: 失败时上传 E2E 产物
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-output-${{ github.run_id }}
+          path: e2e/output/
+          if-no-files-found: ignore
+          retention-days: 7
