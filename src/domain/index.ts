@@ -68,6 +68,7 @@ export {
   getNodeDefinition,
   listByCategory,
   listNodeDefinitions,
+  overrideNode,
   registerNode,
   requireNodeDefinition,
   subscribeRegistry,

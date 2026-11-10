@@ -102,19 +102,32 @@ export function snapshotProject(name = '未命名项目'): ProjectFile {
   };
 }
 
-/** 把项目文件装载进 store，并返回完整性告警供 UI 展示。 */
+/**
+ * 把项目文件装载进 store，并返回完整性告警供 UI 展示。
+ *
+ * 未知节点类型**不装载**：没有 NodeDefinition 就不知道该渲染什么、
+ * 有哪些端口，硬塞进画布会得到一个点不动的空壳。
+ * 用户看到的是告警 + 其余画布照常可用，而不是整页白屏。
+ */
 export function hydrateProject(file: ProjectFile): { issues: ReturnType<typeof checkIntegrity> } {
-  const graphNodes = file.nodes.map((n) => ({
-    ...n,
-    // 兼容旧版本可能缺失的尺寸
-    size: n.size ?? { width: 280, height: 220 },
-  }));
+  const knownNodeKinds = new Set(listNodeDefinitions().map((d) => d.kind));
+
+  const graphNodes = file.nodes
+    .filter((n) => knownNodeKinds.has(n.defKind))
+    .map((n) => ({
+      ...n,
+      // 兼容旧版本可能缺失的尺寸
+      size: n.size ?? { width: 280, height: 220 },
+    }));
+  const loadedIds = new Set(graphNodes.map((n) => n.id));
+  // 只保留两端都装载成功的连线，悬挂边不进入图
+  const graphEdges = file.edges.filter((e) => loadedIds.has(e.source) && loadedIds.has(e.target));
 
   useGraphStore.setState((s) => {
     s.nodes = {};
     s.edges = {};
     for (const n of graphNodes) s.nodes[n.id] = n;
-    for (const e of file.edges) s.edges[e.id] = e;
+    for (const e of graphEdges) s.edges[e.id] = e;
   });
 
   useTaskStore.setState(() => {
@@ -123,7 +136,6 @@ export function hydrateProject(file: ProjectFile): { issues: ReturnType<typeof c
     return { tasks };
   });
 
-  const knownNodeKinds = new Set(listNodeDefinitions().map((d) => d.kind));
-  const issues = checkIntegrity({ file: { ...file, nodes: graphNodes }, knownNodeKinds });
+  const issues = checkIntegrity({ file, knownNodeKinds });
   return { issues };
 }
