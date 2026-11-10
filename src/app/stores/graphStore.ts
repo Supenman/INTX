@@ -1,0 +1,267 @@
+import { create } from 'zustand';
+import { immer } from 'zustand/middleware/immer';
+import {
+  createId,
+  defaultParams,
+  requireNodeDefinition,
+  validateConnection,
+  type PortType,
+  type ProjectEdge,
+  type ProjectNode,
+} from '@/domain';
+
+/**
+ * 图状态。
+ *
+ * 与旧架构的差别：所有节点/连线都在这里，用 immer 做结构化更新，
+ * 组件通过 selector 只订阅自己那一条（`s.nodes[id]`），
+ * 拖一个节点不会让另外 199 个重渲染。
+ *
+ * 注意 id → 实体的字典结构。数组在增删时会让所有 selector 的引用变化，
+ * 字典不会。
+ */
+
+export interface GraphState {
+  nodes: Record<string, ProjectNode>;
+  edges: Record<string, ProjectEdge>;
+  /** 最近创建的节点 id，用于自动聚焦 */
+  lastCreatedId: string | null;
+}
+
+export interface AddNodeInput {
+  defKind: string;
+  position: { x: number; y: number };
+  size?: { width: number; height: number };
+  params?: Record<string, string | number | boolean | null>;
+}
+
+export interface ConnectResult {
+  ok: boolean;
+  edgeId?: string;
+  issues?: { code: string; message: string }[];
+}
+
+/** 节点默认尺寸，按类型区分（生成节点要宽一些才放得下预览）。 */
+function defaultSize(defKind: string): { width: number; height: number } {
+  switch (defKind) {
+    case 'generate':
+      return { width: 340, height: 260 };
+    case 'storyboard':
+      return { width: 320, height: 320 };
+    case 'text-input':
+      return { width: 300, height: 220 };
+    default:
+      return { width: 280, height: 220 };
+  }
+}
+
+export const useGraphStore = create<GraphState>()(
+  immer(() => ({
+    nodes: {},
+    edges: {},
+    lastCreatedId: null,
+  })),
+);
+
+// —— 纯操作函数，方便被用例层调用与测试 ——
+
+/**
+ * 新节点的摆放策略。
+ *
+ * 所有新节点都落在"视口中心"会完全重叠：用户第一次连点三个节点，
+ * 只能看到最上面那个，而且被压住的节点连端口都点不到（实测如此）。
+ *
+ * 这里按"网格占位"摆放：找到第一个没被占用的格子。
+ * 步长取最小节点宽度 + 间距，保证不同节点之间不会重叠。
+ */
+const GRID_STEP_X = 380;
+const GRID_STEP_Y = 320;
+// 两列足够：三列会把第三个节点推到视口外，用户以为没加上
+const GRID_COLS = 2;
+
+function findFreeSlot(position: { x: number; y: number }, occupied: readonly { x: number; y: number }[]): { x: number; y: number } {
+  const isFree = (p: { x: number; y: number }) =>
+    occupied.every((o) => Math.abs(o.x - p.x) >= GRID_STEP_X - 20 || Math.abs(o.y - p.y) >= GRID_STEP_Y - 20);
+
+  for (let row = 0; row < 50; row += 1) {
+    for (let col = 0; col < GRID_COLS; col += 1) {
+      const candidate = { x: position.x + col * GRID_STEP_X, y: position.y + row * GRID_STEP_Y };
+      if (isFree(candidate)) return candidate;
+    }
+  }
+  return position;
+}
+
+export function addNode(input: AddNodeInput): string {
+  const def = requireNodeDefinition(input.defKind);
+  const id = createId('nd');
+  useGraphStore.setState((s) => {
+    const occupied = Object.values(s.nodes).map((n) => n.position);
+    s.nodes[id] = {
+      id,
+      defKind: def.kind,
+      position: findFreeSlot(input.position, occupied),
+      size: input.size ?? defaultSize(def.kind),
+      params: { ...defaultParams(def), ...(input.params ?? {}) },
+    };
+    s.lastCreatedId = id;
+  });
+  return id;
+}
+
+export function removeNodes(ids: readonly string[]): void {
+  useGraphStore.setState((s) => {
+    const set = new Set(ids);
+    for (const id of set) delete s.nodes[id];
+    for (const [edgeId, edge] of Object.entries(s.edges)) {
+      if (set.has(edge.source) || set.has(edge.target)) delete s.edges[edgeId];
+    }
+  });
+}
+
+/**
+ * 把 React Flow 计算后的节点数组写回 store。
+ *
+ * 单向数据流：store 是唯一事实来源 → applyNodeChanges 计算 → 写回。
+ * 只同步我们关心的字段（position / size），避免 React Flow 的临时字段污染项目模型。
+ */
+export function applyNodeChangesToStore(
+  next: readonly {
+    id: string;
+    position: { x: number; y: number };
+    width?: number;
+    height?: number;
+    measured?: { width?: number; height?: number };
+  }[],
+): void {
+  useGraphStore.setState((s) => {
+    for (const n of next) {
+      const node = s.nodes[n.id];
+      if (!node) continue;
+      node.position = { x: n.position.x, y: n.position.y };
+      const w = n.measured?.width ?? n.width;
+      const h = n.measured?.height ?? n.height;
+      if (typeof w === 'number' && typeof h === 'number' && w > 0 && h > 0) {
+        node.size = { width: w, height: h };
+      }
+    }
+  });
+}
+
+export function moveNode(id: string, position: { x: number; y: number }): void {
+  useGraphStore.setState((s) => {
+    const node = s.nodes[id];
+    if (!node) return;
+    // 位置没变就不要写：拖拽过程中 React Flow 会高频派发变更，
+    // 无条件 setState 会引发大量无意义的重渲染，进而打断内部交互状态。
+    if (node.position.x === position.x && node.position.y === position.y) return;
+    node.position = { ...position };
+  });
+}
+
+export function setNodeParam(id: string, key: string, value: string | number | boolean | null): void {
+  useGraphStore.setState((s) => {
+    const node = s.nodes[id];
+    if (node) node.params[key] = value;
+  });
+}
+
+export function setNodeAsset(id: string, assetId: string | undefined): void {
+  useGraphStore.setState((s) => {
+    const node = s.nodes[id];
+    if (node) node.assetId = assetId;
+  });
+}
+
+/**
+ * 建立连线——语义校验的唯一入口。
+ *
+ * 旧代码的连线只记 source → target，能不能连靠运行时猜。
+ * 这里在建立之前就问端口：类型对不对、容量够不够、是不是自连。
+ */
+export function connectNodes(intent: {
+  sourceNodeId: string;
+  sourcePortId: string;
+  targetNodeId: string;
+  targetPortId: string;
+}): ConnectResult {
+  const { nodes, edges } = useGraphStore.getState();
+  const sourceNode = nodes[intent.sourceNodeId];
+  const targetNode = nodes[intent.targetNodeId];
+  if (!sourceNode || !targetNode) {
+    return { ok: false, issues: [{ code: 'unknown_port', message: '连线的一端不存在' }] };
+  }
+
+  const sourceDef = requireNodeDefinition(sourceNode.defKind);
+  const targetDef = requireNodeDefinition(targetNode.defKind);
+  const sourcePort = sourceDef.outputPorts.find((p) => p.id === intent.sourcePortId);
+  const targetPort = targetDef.inputPorts.find((p) => p.id === intent.targetPortId);
+
+  const sourceType: PortType = sourcePort
+    ? (sourcePort.accepts.find((t) => t !== 'any') ?? 'any')
+    : 'any';
+
+  const existing = Object.values(edges).map((e) => ({
+    sourceNodeId: e.source,
+    sourcePortId: e.sourcePort,
+    targetNodeId: e.target,
+    targetPortId: e.targetPort,
+  }));
+
+  const issues = validateConnection({
+    intent,
+    sourcePort,
+    targetPort,
+    sourceType,
+    existingEdges: existing,
+  });
+  if (issues.length > 0) {
+    // 重复连线（同端点）直接视为已存在，不报错也不新增
+    const duplicate = Object.values(edges).some(
+      (e) =>
+        e.source === intent.sourceNodeId &&
+        e.sourcePort === intent.sourcePortId &&
+        e.target === intent.targetNodeId &&
+        e.targetPort === intent.targetPortId,
+    );
+    if (duplicate) return { ok: true, edgeId: 'duplicate' };
+    return { ok: false, issues };
+  }
+
+  const edgeId = createId('eg');
+  useGraphStore.setState((s) => {
+    s.edges[edgeId] = {
+      id: edgeId,
+      source: intent.sourceNodeId,
+      sourcePort: intent.sourcePortId,
+      target: intent.targetNodeId,
+      targetPort: intent.targetPortId,
+    };
+  });
+  return { ok: true, edgeId };
+}
+
+export function removeEdge(edgeId: string): void {
+  useGraphStore.setState((s) => {
+    delete s.edges[edgeId];
+  });
+}
+
+/** 清空图（新建项目时用）。 */
+export function resetGraph(): void {
+  useGraphStore.setState((s) => {
+    s.nodes = {};
+    s.edges = {};
+    s.lastCreatedId = null;
+  });
+}
+
+/** 从项目文件装载。 */
+export function hydrateGraph(nodes: ProjectNode[], edges: ProjectEdge[]): void {
+  useGraphStore.setState((s) => {
+    s.nodes = {};
+    s.edges = {};
+    for (const n of nodes) s.nodes[n.id] = n;
+    for (const e of edges) s.edges[e.id] = e;
+  });
+}

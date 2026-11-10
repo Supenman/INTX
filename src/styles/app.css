@@ -1,0 +1,432 @@
+:root {
+  --bg: #0e0e0d;
+  --bg-grid: #171716;
+  --panel: #1a1a19;
+  --panel-raised: #232322;
+  --border: #2e2e2c;
+  --border-strong: #3d3d3a;
+  --text: #ededeb;
+  --text-2: #a3a39d;
+  --text-3: #6e6e69;
+  --accent: #ff6b35;
+  --accent-soft: rgba(255, 107, 53, 0.12);
+  --ok: #4ade80;
+  --warn: #fbbf24;
+  --danger: #f87171;
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 14px;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --mono: 'SF Mono', ui-monospace, 'JetBrains Mono', Menlo, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: inherit;
+}
+
+/* ---------- 布局 ---------- */
+
+.app {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  height: 100%;
+}
+
+.sidebar {
+  border-right: 1px solid var(--border);
+  padding: 16px 12px;
+  overflow-y: auto;
+  background: var(--panel);
+}
+
+.brand {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: var(--accent);
+  padding: 0 8px 16px;
+}
+
+.sidebar h3 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-3);
+  margin: 18px 8px 8px;
+  font-weight: 600;
+}
+
+.node-picker button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  margin-bottom: 2px;
+  transition: background 0.14s var(--ease), color 0.14s var(--ease);
+}
+
+.node-picker button:hover {
+  background: var(--panel-raised);
+  color: var(--text);
+}
+
+/* ---------- 画布 ---------- */
+
+.canvas-wrap {
+  position: relative;
+  background: var(--bg);
+}
+
+.react-flow__background {
+  background: var(--bg);
+}
+
+.react-flow__edge-path {
+  stroke: var(--border-strong);
+  stroke-width: 1.5;
+}
+
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: var(--accent);
+}
+
+.react-flow__handle {
+  width: 9px;
+  height: 9px;
+  background: var(--panel-raised);
+  border: 1.5px solid var(--border-strong);
+  transition: border-color 0.14s var(--ease), background 0.14s var(--ease);
+}
+
+.react-flow__handle:hover,
+.react-flow__handle.connectingto {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+/* ---------- 节点 ---------- */
+
+.node {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  transition: border-color 0.14s var(--ease), box-shadow 0.14s var(--ease);
+}
+
+.node.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.node-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-2);
+  flex-shrink: 0;
+}
+
+.node-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-3);
+}
+
+.node-dot.generate {
+  background: var(--accent);
+}
+
+.node-head {
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+.node-body {
+  padding: 10px 12px 12px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  font-size: 13px;
+  color: var(--text-2);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.node-prompt {
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+}
+
+.node-empty {
+  color: var(--text-3);
+  font-style: normal;
+  font-size: 12.5px;
+}
+
+.node-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.node-field b {
+  color: var(--text-2);
+  font-weight: 500;
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+
+.node-status {
+  margin-top: auto;
+  font-size: 11.5px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.node-status .bar {
+  height: 2px;
+  background: var(--border-strong);
+  border-radius: 1px;
+  flex: 1;
+  overflow: hidden;
+}
+
+.node-status .bar i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.4s var(--ease);
+}
+
+/* 不确定态：没有真进度时用扫光，不编造百分比 */
+.node-status .bar.indeterminate i {
+  width: 35%;
+  animation: sweep 1.4s var(--ease) infinite;
+}
+
+@keyframes sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(340%);
+  }
+}
+
+.node-generate-btn {
+  margin-top: 4px;
+  background: var(--panel-raised);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+  font-weight: 500;
+  align-self: flex-start;
+  transition: background 0.14s var(--ease), border-color 0.14s var(--ease);
+}
+
+.node-generate-btn:hover:not(:disabled) {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.node-generate-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ---------- 连线错误提示 ---------- */
+
+.conn-error {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  background: #2a1717;
+  border: 1px solid #5c2a2a;
+  color: #fca5a5;
+  padding: 10px 16px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  max-width: 560px;
+  z-index: 20;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.conn-error button {
+  color: #fca5a5;
+  opacity: 0.6;
+  font-size: 16px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.conn-error button:hover {
+  opacity: 1;
+}
+
+/* ---------- 工具条 ---------- */
+
+.toolbar {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 10;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.chip {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 12px;
+  color: var(--text-2);
+  font-family: var(--mono);
+}
+
+.chip b {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.chip.accent {
+  color: var(--accent);
+  border-color: rgba(255, 107, 53, 0.3);
+}
+
+/* ---------- 空态 ---------- */
+
+.empty-hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  pointer-events: none;
+  color: var(--text-3);
+}
+
+.empty-hint strong {
+  font-size: 15px;
+  color: var(--text-2);
+  font-weight: 600;
+}
+
+.empty-hint span {
+  font-size: 12.5px;
+}
+
+/* ---------- React Flow 控件与缩略图（覆盖默认白底） ---------- */
+
+.react-flow__controls {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  box-shadow: none;
+}
+
+.react-flow__controls-button {
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  fill: var(--text-2);
+  width: 26px;
+  height: 26px;
+}
+
+.react-flow__controls-button:hover {
+  background: var(--panel-raised);
+}
+
+.react-flow__controls-button svg {
+  fill: var(--text-2);
+}
+
+.react-flow__minimap {
+  background: var(--panel) !important;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.react-flow__minimap-mask {
+  fill: rgba(8, 8, 7, 0.72);
+}
+
+.react-flow__attribution {
+  display: none;
+}
+
+/* ---------- 端口必须永远在内容之上 ----------
+   否则节点内容的背景会盖住 handle 的命中区，
+   表现是「鼠标点在端口圆点上却抓到的是节点内容」，
+   进而无法开始拖拽连线。 */
+.react-flow__handle {
+  z-index: 5;
+}
+
+/* .node 必须是定位元素，端口才能以它为基准绝对定位 */
+.node {
+  position: relative;
+}
+
+/* 端口在静态时保持低调，仅在悬停或连线时高亮 */
+.react-flow__handle.connectingfrom {
+  background: var(--accent);
+  border-color: var(--accent);
+}
