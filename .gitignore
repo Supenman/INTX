@@ -24,3 +24,7 @@ data/
 
 # E2E 截图与导出样本
 e2e/output/*
+
+# Tauri 构建产物（Rust target、自动生成的 schema / 打包器工程）
+src-tauri/target/
+src-tauri/gen/

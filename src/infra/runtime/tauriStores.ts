@@ -8,11 +8,13 @@ import type { BlobStore, ProviderStore } from '@/app/stores/providerStore';
  *   <appDataDir>/config.json      厂商配置（含 key，仅本机）
  *   <appDataDir>/blobs/ab/<hash>.png   产物字节，按内容寻址
  *
- * 用动态 import 是为了浏览器构建时不必安装 @tauri-apps/plugin-fs/plugin-store
- * 也能跑（未安装则回退，不会在打包阶段报错）。
- * 真正的桌面构建需要：
- *   pnpm add @tauri-apps/api @tauri-apps/plugin-fs @tauri-apps/plugin-store
- *   并在 tauri.conf.json 里开放相应 capability 权限。
+ * 依赖已在 package.json 里正式安装，capability 见 src-tauri/capabilities/default.json。
+ * 这里用**字符串字面量**的动态 import，让 Vite 真正把包打进产物：
+ * 早期为了避免「包没装时打包报错」曾用变量模块名 + @vite-ignore，
+ * 但那样浏览器/webview 里就是一个无法解析的裸模块说明符，loadFs() 永远返回 null，
+ * 桌面端所有存储会静默降级——壳建好了却等于没接上。
+ * 浏览器下 isTauri() 为 false，根本不会调用 loadFs()，动态 chunk 不被加载；
+ * 且 @tauri-apps/api/core 只在函数内访问 window.__TAURI_INTERNALS__，顶层 import 是安全的。
  */
 
 export interface FsModule {
@@ -30,12 +32,32 @@ export function isTauri(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
 
+/**
+ * 确保 $APPDATA 存在。
+ *
+ * Tauri 官方文档明确写着：AppConfig/AppData 等应用目录「需要应用在运行时自行创建」，
+ * 否则第一次写文件就会失败。之前 tauriProviderStore.save() 和 tauriTaskLog.append()
+ * 直接往根目录写 config.json / tasks.jsonl，从没建过目录——浏览器回退用 IndexedDB
+ * 所以一直没暴露，接上桌面壳才会炸。
+ *
+ * 用 mkdir('blobs', {recursive:true}) 而不是对空路径 mkdir：递归会连带创建 $APPDATA，
+ * 且 'blobs' 是 scope 内明确的相对路径，不会触发路径越权。幂等，可重复调用。
+ */
+export async function ensureAppData(): Promise<boolean> {
+  const fs = await loadFs();
+  if (!fs) return false;
+  try {
+    await fs.mkdir('blobs', { baseDir: fs.BaseDirectory.AppData, recursive: true });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function loadFs(): Promise<FsModule | null> {
   try {
-    // 用变量做模块名：未安装该包时打包器不会报解析失败，
-    // 浏览器构建与 CI 都不需要为了桌面壳去装依赖。
-    const name = '@tauri-apps/plugin-fs';
-    const mod: unknown = await import(/* @vite-ignore */ name);
+    // 字面量而非变量：Vite 需要能静态解析，才能在产物里生成可加载的 chunk。
+    const mod: unknown = await import('@tauri-apps/plugin-fs');
     return mod as FsModule;
   } catch {
     return null;

@@ -1,0 +1,20 @@
+[package]
+name = "intx"
+version = "0.1.0"
+description = "INTX — 本地优先的 AI 创作画布"
+authors = ["INTX"]
+edition = "2021"
+rust-version = "1.90"
+
+# 桌面壳只负责开窗口 + 挂 fs 插件。业务逻辑全在前端，
+# 这里不放任何推理/网络代码，避免两套实现各自解释同一份数据。
+[lib]
+name = "intx_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7.4", features = [] }
+
+[dependencies]
+tauri = { version = "2.12.5", features = [] }
+tauri-plugin-fs = "2.7.1"

@@ -81,9 +81,9 @@ export const tauriOnnxAdapter: UpscaleAdapter = {
     if (req.signal?.aborted) return err({ code: 'aborted', message: '已取消放大' });
 
     try {
-      // 变量名做动态 import：浏览器构建不需要装 Tauri 包，也不会解析失败。
-      const name = '@tauri-apps/api/core';
-      const mod: unknown = await import(/* @vite-ignore */ name);
+      // 字面量动态 import：让 Vite 把 @tauri-apps/api/core 打进可加载的 chunk。
+      // 变量模块名 + @vite-ignore 会留下一个 webview 无法解析的裸说明符。
+      const mod: unknown = await import('@tauri-apps/api/core');
       const invoke = (mod as { invoke?: (cmd: string, args: Record<string, unknown>) => Promise<unknown> }).invoke;
       if (!invoke) {
         return err({ code: 'no_runtime', message: '未找到 Tauri invoke', hint: 'pnpm add @tauri-apps/api' });

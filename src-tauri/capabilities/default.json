@@ -1,0 +1,20 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "INTX 桌面窗口：只放行前端存储实际用到的 fs 命令，范围锁在 $APPDATA 内。新增 fs 调用必须同步 tauriConfig.test.ts 的清单。",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "fs:allow-exists",
+    "fs:allow-read-file",
+    "fs:allow-read-text-file",
+    "fs:allow-write-file",
+    "fs:allow-write-text-file",
+    "fs:allow-mkdir",
+    "fs:allow-remove",
+    {
+      "identifier": "fs:scope",
+      "allow": ["$APPDATA", "$APPDATA/**"]
+    }
+  ]
+}
