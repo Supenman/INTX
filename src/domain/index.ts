@@ -146,6 +146,19 @@ export {
 // 节点默认尺寸（新建节点与旧数据导入共用）
 export { defaultNodeSize } from './node/size';
 
+// 画布布局（对齐 / 等距 / 自动整理，UI 与导入共用一份算法）
+export {
+  LAYOUT_STEP_X,
+  LAYOUT_STEP_Y,
+  alignNodes,
+  autoLayout,
+  distributeNodes,
+  type AlignMode,
+  type AutoLayoutOptions,
+  type DistributeAxis,
+  type PositionMap,
+} from './node/layout';
+
 // 项目 schema
 export {
   CURRENT_SCHEMA_VERSION,

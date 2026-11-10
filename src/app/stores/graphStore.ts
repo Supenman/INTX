@@ -1,12 +1,20 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import {
+  LAYOUT_STEP_X,
+  LAYOUT_STEP_Y,
+  alignNodes,
+  autoLayout,
   createId,
   defaultNodeSize,
   defaultParams,
+  distributeNodes,
   requireNodeDefinition,
   validateConnection,
+  type AlignMode,
+  type DistributeAxis,
   type PortType,
+  type PositionMap,
   type ProjectEdge,
   type ProjectNode,
 } from '@/domain';
@@ -64,8 +72,8 @@ export const useGraphStore = create<GraphState>()(
  * 这里按"网格占位"摆放：找到第一个没被占用的格子。
  * 步长取最小节点宽度 + 间距，保证不同节点之间不会重叠。
  */
-const GRID_STEP_X = 380;
-const GRID_STEP_Y = 320;
+// 间距由 domain/node/layout.ts 单一定义：自动整理与「找空位摆放」必须用同一份，
+// 否则整理完立刻再加节点就会落在别的节点身上。
 /**
  * 两列。三列会把第三个节点推到视口外，用户以为没加上；
  * 行数也不设上限，纵向滚动是自然的（横向不会）。
@@ -75,7 +83,7 @@ const GRID_COLS = 2;
 
 function findFreeSlot(position: { x: number; y: number }, occupied: readonly { x: number; y: number }[]): { x: number; y: number } {
   const isFree = (p: { x: number; y: number }) =>
-    occupied.every((o) => Math.abs(o.x - p.x) >= GRID_STEP_X - 20 || Math.abs(o.y - p.y) >= GRID_STEP_Y - 20);
+    occupied.every((o) => Math.abs(o.x - p.x) >= LAYOUT_STEP_X - 20 || Math.abs(o.y - p.y) >= LAYOUT_STEP_Y - 20);
 
   /**
    * 行数不能写死。50 行 × 2 列只够 100 格：第 101 个节点之后会全部退回
@@ -85,7 +93,7 @@ function findFreeSlot(position: { x: number; y: number }, occupied: readonly { x
   const maxRows = Math.max(50, Math.ceil(occupied.length / GRID_COLS) + 2);
   for (let row = 0; row < maxRows; row += 1) {
     for (let col = 0; col < GRID_COLS; col += 1) {
-      const candidate = { x: position.x + col * GRID_STEP_X, y: position.y + row * GRID_STEP_Y };
+      const candidate = { x: position.x + col * LAYOUT_STEP_X, y: position.y + row * LAYOUT_STEP_Y };
       if (isFree(candidate)) return candidate;
     }
   }
@@ -119,6 +127,150 @@ export function removeNodes(ids: readonly string[]): void {
       if (set.has(edge.source) || set.has(edge.target)) delete s.edges[edgeId];
     }
   });
+}
+
+/**
+ * 批量写位置。整批算**一次**编辑、一次 checkpoint，
+ * 对齐 8 个节点不该让 Ctrl+Z 按 8 次才退回原样。
+ */
+export function setNodePositions(positions: PositionMap, label: string): void {
+  const current = useGraphStore.getState().nodes;
+  // 布局纯函数返回的是完整目标位置，这里只挑真正变了的：
+  // 否则「整理一次什么都没变」也会往历史里塞一条记录。
+  const changed: PositionMap = {};
+  for (const [id, p] of Object.entries(positions)) {
+    const node = current[id];
+    if (!node) continue;
+    if (node.position.x !== p.x || node.position.y !== p.y) changed[id] = { x: p.x, y: p.y };
+  }
+  if (Object.keys(changed).length === 0) return;
+  checkpoint(label);
+  useGraphStore.setState((s) => {
+    for (const [id, p] of Object.entries(changed)) {
+      const node = s.nodes[id];
+      if (node) node.position = { x: p.x, y: p.y };
+    }
+  });
+}
+
+export function alignSelected(ids: readonly string[], mode: AlignMode): void {
+  const { nodes } = useGraphStore.getState();
+  setNodePositions(alignNodes(Object.values(nodes), ids, mode), '对齐节点');
+}
+
+export function distributeSelected(ids: readonly string[], axis: DistributeAxis): void {
+  const { nodes } = useGraphStore.getState();
+  setNodePositions(distributeNodes(Object.values(nodes), ids, axis), '等距分布');
+}
+
+export function autoArrange(scopeIds?: readonly string[]): void {
+  const { nodes, edges } = useGraphStore.getState();
+  setNodePositions(
+    autoLayout(Object.values(nodes), Object.values(edges), { scopeIds }),
+    '自动整理节点',
+  );
+}
+
+/**
+ * 复制节点。返回新 id 列表，供 UI 把选中态切到副本上。
+ *
+ * 产物字段（assetId / derivedAssetIds）跟着复制：资产按内容哈希共享 blob，
+ * 多一个引用不会多写一份文件；但 lastTaskId 不复制，否则副本会显示
+ * 别人那次生成的状态，用户会以为副本也跑过任务。
+ * 两端都在选区里的连线一并复制，复制出来仍是一张可运行的子图。
+ */
+export function duplicateNodes(ids: readonly string[], offset = { x: 40, y: 40 }): string[] {
+  const snapshot = useGraphStore.getState();
+  const valid = ids.filter((id) => snapshot.nodes[id]);
+  if (valid.length === 0) return [];
+
+  checkpoint(valid.length === 1 ? '复制节点' : `复制 ${valid.length} 个节点`);
+  const idMap = new Map<string, string>();
+  for (const id of valid) idMap.set(id, createId('nd'));
+
+  useGraphStore.setState((s) => {
+    for (const id of valid) {
+      const src = snapshot.nodes[id];
+      const newId = idMap.get(id);
+      if (!src || !newId) continue;
+      s.nodes[newId] = {
+        id: newId,
+        defKind: src.defKind,
+        position: { x: src.position.x + offset.x, y: src.position.y + offset.y },
+        size: { ...src.size },
+        params: { ...src.params },
+        ...(src.assetId ? { assetId: src.assetId } : {}),
+        ...(src.derivedAssetIds ? { derivedAssetIds: [...src.derivedAssetIds] } : {}),
+      };
+    }
+    for (const e of Object.values(snapshot.edges)) {
+      const ns = idMap.get(e.source);
+      const nt = idMap.get(e.target);
+      if (!ns || !nt) continue;
+      const edgeId = createId('eg');
+      s.edges[edgeId] = {
+        id: edgeId,
+        source: ns,
+        sourcePort: e.sourcePort,
+        target: nt,
+        targetPort: e.targetPort,
+      };
+    }
+    const first = valid[0] ? idMap.get(valid[0]) : undefined;
+    if (first) s.lastCreatedId = first;
+  });
+  return valid.map((id) => idMap.get(id)).filter((v): v is string => Boolean(v));
+}
+
+/** 画布内部剪贴板的快照：Ctrl+C 时存，Ctrl+V 时读。不进项目文件。 */
+export interface ClipboardSnapshot {
+  nodes: readonly ProjectNode[];
+  edges: readonly ProjectEdge[];
+}
+
+/**
+ * 粘贴。与 duplicateNodes 的差别是：源节点可能已经被删掉了，
+ * 所以用的是调用方保存的快照，而不是从现有 store 里取。
+ * 同样复制内部连线，同样不复制 lastTaskId。
+ */
+export function pasteNodes(snapshot: ClipboardSnapshot, offset = { x: 40, y: 40 }): string[] {
+  if (snapshot.nodes.length === 0) return [];
+  checkpoint(snapshot.nodes.length === 1 ? '粘贴节点' : `粘贴 ${snapshot.nodes.length} 个节点`);
+
+  const idMap = new Map<string, string>();
+  for (const n of snapshot.nodes) idMap.set(n.id, createId('nd'));
+
+  useGraphStore.setState((s) => {
+    for (const n of snapshot.nodes) {
+      const newId = idMap.get(n.id);
+      if (!newId) continue;
+      s.nodes[newId] = {
+        id: newId,
+        defKind: n.defKind,
+        position: { x: n.position.x + offset.x, y: n.position.y + offset.y },
+        size: { ...n.size },
+        params: { ...n.params },
+        ...(n.assetId ? { assetId: n.assetId } : {}),
+        ...(n.derivedAssetIds ? { derivedAssetIds: [...n.derivedAssetIds] } : {}),
+      };
+    }
+    for (const e of snapshot.edges) {
+      const ns = idMap.get(e.source);
+      const nt = idMap.get(e.target);
+      if (!ns || !nt) continue;
+      const edgeId = createId('eg');
+      s.edges[edgeId] = {
+        id: edgeId,
+        source: ns,
+        sourcePort: e.sourcePort,
+        target: nt,
+        targetPort: e.targetPort,
+      };
+    }
+    const first = snapshot.nodes[0] ? idMap.get(snapshot.nodes[0].id) : undefined;
+    if (first) s.lastCreatedId = first;
+  });
+  return snapshot.nodes.map((n) => idMap.get(n.id)).filter((v): v is string => Boolean(v));
 }
 
 /**

@@ -102,6 +102,8 @@ export async function run() {
   const inRange = [z0, z1, z2].every((z) => z !== null && z >= 0.2 && z <= 2);
   console.log(`3) 缩放: ${Date.now() - tZoom}ms | zoom ${z0}→${z1}→${z2} | 放大=${z1 > z0} 缩小=${z2 < z1} 范围正常=${inRange}`);
   check(z1 > z0 && z2 < z1 && inRange, '缩放方向应正确且不越界');
+  // 默认「区域选择」下左键拖空白是框选，测平移要先切到抓手（顺带验工具开关）
+  await p.locator('.mode-switch button').nth(1).click();
   const vpBeforePan = await vp();
   const tPan = Date.now();
   await p.mouse.move(1000, 700);
@@ -112,6 +114,7 @@ export async function run() {
   const panned = (await vp()) !== vpBeforePan;
   console.log(`   平移: ${Date.now() - tPan}ms | viewport变化=${panned}`);
   check(panned, '平移应改变 viewport');
+  await p.locator('.mode-switch button').nth(0).click();
 
   // ── 4. 200 节点整图快照下的撤销 / 重做 ──
   const undoResult = await p.evaluate(async () => {

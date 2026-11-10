@@ -6,6 +6,22 @@ import { chromium } from 'playwright-core';
 export const BASE_URL = process.env.INTX_E2E_URL ?? 'http://127.0.0.1:7351/';
 export const OUTPUT_DIR = fileURLToPath(new URL('./output/', import.meta.url));
 
+/**
+ * 所有开过的 browser 都登记在这里。
+ *
+ * 之前某个 spec 断言失败时不会走到自己的 `await b.close()`，Playwright 的
+ * 连接还活着，node 进程就一直不退出——整轮 E2E 会挂十几分钟直到被外层
+ * timeout 杀掉，日志还因为管道缓冲什么都看不到。run.mjs 在 finally 里
+ * 调 closeAllBrowsers() 兜底，失败也要能干净收场。
+ */
+const openBrowsers = new Set();
+
+export async function closeAllBrowsers() {
+  const pending = [...openBrowsers];
+  openBrowsers.clear();
+  await Promise.all(pending.map((b) => b.close().catch(() => {})));
+}
+
 /** 用系统 Chromium，避免为了跑 E2E 再下载一份浏览器。 */
 function findChromium() {
   const fromEnv = process.env.CHROMIUM_PATH;
@@ -35,6 +51,8 @@ export async function openPage(contextOptions = {}) {
     executablePath: findChromium(),
     args: ['--no-sandbox', '--disable-dev-shm-usage'],
   });
+  openBrowsers.add(browser);
+  browser.on('disconnected', () => openBrowsers.delete(browser));
   const context = await browser.newContext({
     viewport: { width: 1440, height: 900 },
     acceptDownloads: true,
@@ -48,6 +66,10 @@ export async function openPage(contextOptions = {}) {
     };
   });
   const page = await context.newPage();
+  // 默认 30s 太长：一个选错的选择器就能让整轮 E2E 挂十几分钟，而且
+  // page.evaluate 里的动态 import 不受它约束。统一压到 15s，失败要快。
+  page.setDefaultTimeout(15000);
+  page.setDefaultNavigationTimeout(30000);
   const errors = [];
   page.on('pageerror', (e) => errors.push('PAGEERR ' + e.message));
   page.on('console', (m) => {

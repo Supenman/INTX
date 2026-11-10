@@ -9,14 +9,37 @@ import {
   useReactFlow,
   type Connection,
   type Edge,
+  type EdgeChange,
   type Node,
   type NodeChange,
   type NodeTypes,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
-import { getNodeDefinition, listByCategory, validateConnection, type PortSpec, type PortType } from '@/domain';
-import { addNode, connectNodes, moveNode, resetGraph, useGraphStore } from '@/app/stores/graphStore';
+import {
+  getNodeDefinition,
+  listByCategory,
+  validateConnection,
+  type AlignMode,
+  type DistributeAxis,
+  type PortSpec,
+  type PortType,
+} from '@/domain';
+import {
+  addNode,
+  alignSelected,
+  autoArrange,
+  connectNodes,
+  distributeSelected,
+  duplicateNodes,
+  moveNode,
+  pasteNodes,
+  removeEdge,
+  removeNodes,
+  resetGraph,
+  useGraphStore,
+  type ClipboardSnapshot,
+} from '@/app/stores/graphStore';
 import { useAssetStore } from '@/app/stores/assetStore';
 import { canRedo, canUndo, redo, undo, useHistoryStore } from '@/app/stores/historyStore';
 import { persistProviders, useProviderStore } from '@/app/stores/providerStore';
@@ -31,8 +54,17 @@ import { AssetLibrary } from '@/ui/library/AssetLibrary';
 import { SettingsPanel } from '@/ui/settings/SettingsPanel';
 import { LegacyImportDialog } from '@/ui/common/LegacyImportDialog';
 import { CanvasNode, type CanvasNodeData } from './CanvasNode';
+import { AddMenu, CanvasStarter, ModeSwitch, SelectionToolbar, type ToolMode } from './CanvasTools';
 
 const nodeTypes: NodeTypes = { canvasNode: CanvasNode };
+
+interface MenuState {
+  x: number;
+  y: number;
+  /** 点击处在 flow 坐标系里的位置，新节点落在这里 */
+  fx: number;
+  fy: number;
+}
 
 export function Canvas() {
   return (
@@ -50,6 +82,13 @@ function CanvasInner() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [legacyOpen, setLegacyOpen] = useState(false);
 
+  // 画布基本功的状态：工具模式、选区、右键菜单、内部剪贴板
+  const [toolMode, setToolMode] = useState<ToolMode>('select');
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectedEdgeIds, setSelectedEdgeIds] = useState<string[]>([]);
+  const [menu, setMenu] = useState<MenuState | null>(null);
+  const clipboardRef = useRef<ClipboardSnapshot | null>(null);
+  const [clipboardCount, setClipboardCount] = useState(0);
 
   /**
    * 连线校验的提示时机。
@@ -60,6 +99,7 @@ function CanvasInner() {
   const draggingRef = useRef(false);
   const pendingIssueRef = useRef<string | null>(null);
   const errTimerRef = useRef<number | undefined>(undefined);
+  const toastTimerRef = useRef<number | undefined>(undefined);
 
   const nodesMap = useGraphStore((s) => s.nodes);
   const edgesMap = useGraphStore((s) => s.edges);
@@ -83,6 +123,12 @@ function CanvasInner() {
     errTimerRef.current = window.setTimeout(() => setConnError(null), 5200);
   }, []);
 
+  const flash = useCallback((message: string) => {
+    setToast(message);
+    window.clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = window.setTimeout(() => setToast(null), 2400);
+  }, []);
+
   const onGenerate = useCallback(
     (nodeId: string) => {
       void stableGenerate.current(nodeId).then((r) => {
@@ -93,14 +139,87 @@ function CanvasInner() {
     [showError],
   );
 
-  /**
-   * Ctrl/Cmd+Z 撤销、Ctrl/Cmd+Shift+Z 或 Ctrl+Y 重做。
-   *
-   * 输入框里要放行：用户在一个文本框里打字时按 Ctrl+Z，期望的是浏览器
-   * 原生的"撤销这次输入"，不是把整个节点删掉。这个边界不处理会很难受。
-   */
+  // ── 画布动作 ──────────────────────────────────────────────
+
+  const duplicateSelection = useCallback(() => {
+    if (selectedIds.length === 0) return;
+    const created = duplicateNodes(selectedIds);
+    setSelectedIds(created);
+    flash(`已复制 ${created.length} 个节点`);
+  }, [selectedIds, flash]);
+
+  const copySelection = useCallback(() => {
+    if (selectedIds.length === 0) return;
+    const { nodes, edges } = useGraphStore.getState();
+    const picked = selectedIds.map((id) => nodes[id]).filter((n): n is NonNullable<typeof n> => Boolean(n));
+    if (picked.length === 0) return;
+    const ids = new Set(picked.map((n) => n.id));
+    clipboardRef.current = {
+      nodes: picked.map((n) => JSON.parse(JSON.stringify(n)) as typeof n),
+      edges: Object.values(edges)
+        .filter((e) => ids.has(e.source) && ids.has(e.target))
+        .map((e) => ({ ...e })),
+    };
+    setClipboardCount(picked.length);
+    flash(`已复制 ${picked.length} 个节点到剪贴板`);
+  }, [selectedIds, flash]);
+
+  const pasteClipboard = useCallback(() => {
+    const clip = clipboardRef.current;
+    if (!clip || clip.nodes.length === 0) return;
+    const created = pasteNodes(clip);
+    setSelectedIds(created);
+    flash(`已粘贴 ${created.length} 个节点`);
+  }, [flash]);
+
+  const deleteSelection = useCallback(() => {
+    if (selectedIds.length === 0 && selectedEdgeIds.length === 0) return;
+    if (selectedIds.length > 0) removeNodes(selectedIds);
+    for (const id of selectedEdgeIds) removeEdge(id);
+    setSelectedIds([]);
+    setSelectedEdgeIds([]);
+  }, [selectedIds, selectedEdgeIds]);
+
+  /** 按从左到右的顺序，把相邻节点用它们第一个可用端口连起来。 */
+  const chainSelection = useCallback(() => {
+    const { nodes } = useGraphStore.getState();
+    const ordered = selectedIds
+      .filter((id) => nodes[id])
+      .sort((a, b) => (nodes[a]?.position.x ?? 0) - (nodes[b]?.position.x ?? 0));
+    let linked = 0;
+    for (let i = 0; i + 1 < ordered.length; i += 1) {
+      const src = nodes[ordered[i] ?? ''];
+      const dst = nodes[ordered[i + 1] ?? ''];
+      if (!src || !dst) continue;
+      const sourcePort = getNodeDefinition(src.defKind)?.outputPorts[0];
+      const targetPort = getNodeDefinition(dst.defKind)?.inputPorts[0];
+      if (!sourcePort || !targetPort) continue;
+      const r = connectNodes({
+        sourceNodeId: src.id,
+        sourcePortId: sourcePort.id,
+        targetNodeId: dst.id,
+        targetPortId: targetPort.id,
+      });
+      if (r.ok) linked += 1;
+    }
+    flash(linked > 0 ? `已连接 ${linked} 组相邻节点` : '这些节点之间没有可用的端口组合');
+  }, [selectedIds, flash]);
+
+  const arrange = useCallback(
+    (scopeOnly: boolean) => {
+      autoArrange(scopeOnly && selectedIds.length >= 2 ? selectedIds : undefined);
+      flash(scopeOnly ? '已整理选区' : '已自动整理画布');
+    },
+    [selectedIds, flash],
+  );
+
+  /** Ctrl/Cmd+Z / D / C / V，Escape 关菜单。输入框里放行原生撤销。 */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setMenu(null);
+        return;
+      }
       if (!(e.ctrlKey || e.metaKey)) return;
       const target = e.target as HTMLElement | null;
       const inField =
@@ -117,11 +236,20 @@ function CanvasInner() {
       } else if ((key === 'z' && e.shiftKey) || key === 'y') {
         e.preventDefault();
         redo();
+      } else if (key === 'd') {
+        e.preventDefault();
+        duplicateSelection();
+      } else if (key === 'c') {
+        e.preventDefault();
+        copySelection();
+      } else if (key === 'v') {
+        e.preventDefault();
+        pasteClipboard();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [duplicateSelection, copySelection, pasteClipboard]);
 
   // 启动时把厂商配置与资产索引装起来
   useEffect(() => {
@@ -144,9 +272,9 @@ function CanvasInner() {
    *
    * 正解是两者都要：node 对象按 id 做记忆化（同一节点、同样的数据 → 同一个对象），
    * 图结构变化时增删，数据变化时只换那一个节点的引用。
-   * React Flow 拿到的是稳定数组，只有真正变的节点会重渲染。
    */
   const nodeCache = useRef(new Map<string, Node>());
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const rfNodes = useMemo(() => {
     const cache = nodeCache.current;
     const alive = new Set<string>();
@@ -155,12 +283,14 @@ function CanvasInner() {
     for (const n of Object.values(nodesMap)) {
       alive.add(n.id);
       const data = { node: n, onGenerate, onCancel } satisfies CanvasNodeData;
+      const isSelected = selectedSet.has(n.id);
       const prev = cache.get(n.id);
       if (
         prev &&
         prev.data.node === n &&
         prev.data.onGenerate === onGenerate &&
-        prev.data.onCancel === onCancel
+        prev.data.onCancel === onCancel &&
+        prev.selected === isSelected
       ) {
         list.push(prev);
         continue;
@@ -170,6 +300,7 @@ function CanvasInner() {
         type: 'canvasNode',
         position: n.position,
         data,
+        selected: isSelected,
         initialWidth: n.size.width,
         initialHeight: n.size.height,
       };
@@ -178,15 +309,58 @@ function CanvasInner() {
     }
     for (const id of cache.keys()) if (!alive.has(id)) cache.delete(id);
     return list;
-  }, [nodesMap, onGenerate, onCancel]);
+  }, [nodesMap, onGenerate, onCancel, selectedSet]);
 
   /**
-   * 画布 → store。只关心位置变化，其余交还给 store 的幂等判断，
-   * 避免每次拖拽都写一遍没变的东西。
+   * 画布 → store。受控模式下选中态必须由我们写回 nodes，
+   * 所以 select / remove 两类变更都要处理，只处理 position 会让节点永远选不中。
    */
   const onNodesChange = useCallback((changes: NodeChange[]) => {
+    const removed: string[] = [];
+    let selectionChanged = false;
     for (const c of changes) {
       if (c.type === 'position' && c.position) moveNode(c.id, c.position);
+      else if (c.type === 'remove') removed.push(c.id);
+      else if (c.type === 'select') selectionChanged = true;
+    }
+    if (selectionChanged) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        for (const c of changes) {
+          if (c.type !== 'select') continue;
+          if (c.selected) next.add(c.id);
+          else next.delete(c.id);
+        }
+        return [...next];
+      });
+    }
+    if (removed.length > 0) {
+      removeNodes(removed);
+      setSelectedIds((prev) => prev.filter((id) => !removed.includes(id)));
+    }
+  }, []);
+
+  const onEdgesChange = useCallback((changes: EdgeChange[]) => {
+    const removed: string[] = [];
+    let selectionChanged = false;
+    for (const c of changes) {
+      if (c.type === 'remove') removed.push(c.id);
+      else if (c.type === 'select') selectionChanged = true;
+    }
+    if (selectionChanged) {
+      setSelectedEdgeIds((prev) => {
+        const next = new Set(prev);
+        for (const c of changes) {
+          if (c.type !== 'select') continue;
+          if (c.selected) next.add(c.id);
+          else next.delete(c.id);
+        }
+        return [...next];
+      });
+    }
+    for (const id of removed) removeEdge(id);
+    if (removed.length > 0) {
+      setSelectedEdgeIds((prev) => prev.filter((id) => !removed.includes(id)));
     }
   }, []);
 
@@ -269,19 +443,30 @@ function CanvasInner() {
 
   /**
    * 新节点从「当前视口左上角」开始排，不居中原点。
-   *
-   * 踩坑记录：以前用视口中心当原点，节点按网格往下排，
-   * 第 3、4 个就掉到屏幕下面去了——用户以为没加上，其实是看不见。
-   * 从左上角排，两列往下长，任何尺寸窗口都能看到前两个。
+   * 从右键菜单 / 起始框添加时，改成落在点击处。
    */
   const spawnNode = useCallback(
-    (defKind: string) => {
-      const origin = screenToFlowPosition({ x: 300, y: 110 });
+    (defKind: string, at?: { x: number; y: number }) => {
+      const origin = at ?? screenToFlowPosition({ x: 300, y: 110 });
       addNode({ defKind, position: origin });
     },
     [screenToFlowPosition],
   );
 
+  const openAddMenu = useCallback(
+    (clientX: number, clientY: number) => {
+      const flow = screenToFlowPosition({ x: clientX, y: clientY });
+      setMenu({
+        x: Math.max(8, Math.min(clientX, window.innerWidth - 250)),
+        y: Math.max(8, Math.min(clientY, window.innerHeight - 360)),
+        fx: flow.x,
+        fy: flow.y,
+      });
+    },
+    [screenToFlowPosition],
+  );
+
+  const selectedEdgeSet = useMemo(() => new Set(selectedEdgeIds), [selectedEdgeIds]);
   const edges: Edge[] = useMemo(
     () =>
       Object.values(edgesMap).map((e) => ({
@@ -290,11 +475,13 @@ function CanvasInner() {
         sourceHandle: e.sourcePort,
         target: e.target,
         targetHandle: e.targetPort,
+        selected: selectedEdgeSet.has(e.id),
       })),
-    [edgesMap],
+    [edgesMap, selectedEdgeSet],
   );
 
   const nodeCount = Object.keys(nodesMap).length;
+  const demoMode = useProviderStore((s) => s.configs.length === 0 || s.configs.every((c) => c.adapter === 'mock'));
 
   return (
     <div className="app">
@@ -369,6 +556,14 @@ function CanvasInner() {
           <button className="chip chip-btn" onClick={() => setSettingsOpen(true)}>
             厂商 <b>{providerCount}</b>
           </button>
+          <button className="chip chip-btn" onClick={() => arrange(false)} title="按依赖层级与媒体泳道整理全部节点，可撤销">
+            自动整理
+          </button>
+          {demoMode && (
+            <span className="chip warn" title="当前只配置了本地演示厂商，生成的是占位图，不是真实作品">
+              演示模式 · 不出真图
+            </span>
+          )}
           <span className="chip" title={persistence.error ?? undefined}>
             {persistence.status === 'saved' && '已保存'}
             {persistence.status === 'saving' && '保存中…'}
@@ -389,11 +584,24 @@ function CanvasInner() {
           {toast && <span className="chip accent">{toast}</span>}
         </div>
 
+        <ModeSwitch mode={toolMode} onChange={setToolMode} />
+
+        <SelectionToolbar
+          count={selectedIds.length}
+          onAlign={(mode: AlignMode) => alignSelected(selectedIds, mode)}
+          onDistribute={(axis: DistributeAxis) => distributeSelected(selectedIds, axis)}
+          onDuplicate={duplicateSelection}
+          onDelete={deleteSelection}
+          onChain={chainSelection}
+          onAutoArrange={() => arrange(true)}
+        />
+
         <ReactFlow
           nodes={rfNodes}
           edges={edges}
           nodeTypes={nodeTypes}
           onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           isValidConnection={isValidConnection}
           onConnectStart={() => {
@@ -406,11 +614,26 @@ function CanvasInner() {
               pendingIssueRef.current = null;
             }
           }}
+          onPaneClick={() => setMenu(null)}
+          onPaneContextMenu={(e) => {
+            e.preventDefault();
+            openAddMenu(e.clientX, e.clientY);
+          }}
+          onNodeContextMenu={(e, node) => {
+            e.preventDefault();
+            if (!selectedIds.includes(node.id)) setSelectedIds([node.id]);
+            openAddMenu(e.clientX, e.clientY);
+          }}
+          selectionOnDrag={toolMode === 'select'}
+          panOnDrag={toolMode === 'hand' ? true : [1]}
+          panActivationKeyCode="Space"
+          selectionKeyCode="Shift"
+          deleteKeyCode={['Delete', 'Backspace']}
+          zoomOnDoubleClick={false}
           defaultViewport={{ x: 0, y: 0, zoom: 1 }}
           proOptions={{ hideAttribution: true }}
           minZoom={0.2}
           maxZoom={2}
-          deleteKeyCode={null}
         >
           <Background variant={BackgroundVariant.Dots} gap={22} size={1} color="#262624" />
           <Controls showInteractive={false} />
@@ -419,11 +642,35 @@ function CanvasInner() {
 
         {nodeCount === 0 && (
           <div className="empty-hint">
-            <strong>从左栏添加节点开始</strong>
-            <span>「文字输入」的出口 → 「生成」的提示词入口</span>
-            <span>再把「素材」连到「参考素材」—— 只能接图或视频</span>
-            <span style={{ opacity: 0.7 }}>默认已配好本地演示厂商，点「生成」就能出图</span>
+            <CanvasStarter
+              onOpen={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                openAddMenu(e.clientX, e.clientY);
+              }}
+            />
           </div>
+        )}
+
+        {menu && (
+          <AddMenu
+            x={menu.x}
+            y={menu.y}
+            canPaste={clipboardCount > 0}
+            onPaste={() => {
+              pasteClipboard();
+              setMenu(null);
+            }}
+            onAutoArrange={() => {
+              arrange(false);
+              setMenu(null);
+            }}
+            onPick={(kind) => {
+              spawnNode(kind, { x: menu.fx, y: menu.fy });
+              setMenu(null);
+            }}
+            onClose={() => setMenu(null)}
+          />
         )}
 
         {connError && (
@@ -440,8 +687,7 @@ function CanvasInner() {
             onClose={() => setSettingsOpen(false)}
             onSaved={() => {
               void persistProviders();
-              setToast('厂商配置已保存');
-              window.setTimeout(() => setToast(null), 2200);
+              flash('厂商配置已保存');
             }}
           />
         )}
@@ -449,10 +695,7 @@ function CanvasInner() {
         {legacyOpen && (
           <LegacyImportDialog
             onClose={() => setLegacyOpen(false)}
-            onImported={(msg) => {
-              setToast(msg);
-              window.setTimeout(() => setToast(null), 3200);
-            }}
+            onImported={(msg) => flash(msg)}
           />
         )}
       </div>

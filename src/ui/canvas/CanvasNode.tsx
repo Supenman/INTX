@@ -3,7 +3,8 @@ import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { extFromMime, getNodeDefinition, parseGrid, type ProjectNode } from '@/domain';
 import { latestTaskForNode, retryTask, useTaskStore } from '@/app/stores/taskStore';
 import { useAssetStore } from '@/app/stores/assetStore';
-import { setNodeParam, useGraphStore } from '@/app/stores/graphStore';
+import { removeNodes, setNodeParam, useGraphStore } from '@/app/stores/graphStore';
+import { useProviderStore } from '@/app/stores/providerStore';
 import { buildStoryboardPng, readAssetBytes } from '@/app/useCases/storyboardExport';
 import { BlobImage } from '@/ui/common/BlobImage';
 import { downloadBlob, downloadBytes } from '@/ui/common/download';
@@ -33,6 +34,11 @@ export const CanvasNode = memo(function CanvasNode({ id, data, selected }: NodeP
    */
   const primary = useAssetStore((s) => (node.assetId ? s.assets[node.assetId] : undefined));
   const hasPrimary = primary !== undefined;
+  // 只有演示厂商时明确告诉用户这不是真图；接了真厂商后标注自动消失。
+  // 必须放在下面 `if (!def) return` 之前，否则 hooks 顺序会变。
+  const demoMode = useProviderStore(
+    (s) => s.configs.length === 0 || s.configs.every((c) => c.adapter === 'mock'),
+  );
   const derivedIds = node.derivedAssetIds;
   const allAssets = useAssetStore((s) => s.assets);
   // 上游文本连进来时，卡片上显示的就是真正会被送去生成的那段文字
@@ -96,6 +102,17 @@ export const CanvasNode = memo(function CanvasNode({ id, data, selected }: NodeP
       className={`node${selected ? ' selected' : ''}`}
       style={{ width: node.size.width, minHeight: node.size.height }}
     >
+      <button
+        className="node-delete-btn nodrag"
+        title="删除节点 (Delete)"
+        aria-label="删除节点"
+        onClick={(e) => {
+          e.stopPropagation();
+          removeNodes([id]);
+        }}
+      >
+        ×
+      </button>
       {def.inputPorts.map((port, i) => (
         <Handle
           key={port.id}
@@ -110,6 +127,11 @@ export const CanvasNode = memo(function CanvasNode({ id, data, selected }: NodeP
       <div className="node-head">
         <span className={`node-dot${def.category === 'generate' ? ' generate' : ''}`} />
         {def.title}
+        {demoMode && hasPrimary && (
+          <span className="node-demo-badge" title="本地演示厂商生成的是占位图，不是真实作品">
+            演示产物
+          </span>
+        )}
       </div>
 
       <div className="node-body">
@@ -141,6 +163,11 @@ export const CanvasNode = memo(function CanvasNode({ id, data, selected }: NodeP
               <span>产出</span>
               <b>{outputKind}</b>
             </div>
+            {outputKind !== 'image' && (
+              <div className="node-empty" title="当前只实现了图片生成适配器">
+                演示厂商只出图片，选「{outputKind}」不会产出对应媒体
+              </div>
+            )}
             <div className="node-field">
               <span>宽高比</span>
               <b>{String(node.params.aspectRatio ?? '1:1')}</b>

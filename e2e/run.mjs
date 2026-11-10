@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
+import { closeAllBrowsers } from './helpers.mjs';
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 // output/ 被 gitignore，clone 下来不一定存在；截图/导出前先建好
@@ -15,6 +16,7 @@ const SPECS = [
   ['200 节点压力', './specs/stress-200.mjs'],
   ['素材编辑/裁切/遮罩', './specs/material-edit.mjs'],
   ['旧版数据迁移', './specs/legacy-import.mjs'],
+  ['画布基本功/删除/框选/对齐', './specs/canvas-basics.mjs'],
 ];
 
 async function reachable() {
@@ -75,6 +77,9 @@ try {
   }
 } finally {
   stop();
+  // 失败的 spec 没走到自己的 b.close()，Playwright 连接会吊住整个 node 进程。
+  // 统一兜底关掉，保证 E2E 无论全绿还是失败都能按时退出并 flush 日志。
+  await closeAllBrowsers();
 }
 
 console.log(`\n===== E2E 汇总: ${passed}/${SPECS.length} 通过 =====`);

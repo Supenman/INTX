@@ -37,7 +37,7 @@ jobs:
         run: pnpm build
 
   e2e:
-    name: 浏览器 E2E（五组）
+    name: 浏览器 E2E（六组）
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -56,7 +56,7 @@ jobs:
           echo "CHROMIUM_PATH=$CHROME" >> "$GITHUB_ENV"
           echo "使用 $CHROME：$("$CHROME" --version)"
       # e2e/run.mjs 自己拉起并收掉 dev server，CI 里不要再手动 pnpm dev
-      - name: 跑五组 E2E
+      - name: 跑六组 E2E
         run: pnpm e2e
       - name: 失败时上传 E2E 产物
         if: failure()
