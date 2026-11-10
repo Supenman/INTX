@@ -42,6 +42,16 @@ describe('graphStore', () => {
     }
   });
 
+  it('200 个节点连续新增仍然各有独立坐标', () => {
+    const ids = Array.from({ length: 200 }, () =>
+      addNode({ defKind: 'generate', position: { x: 100, y: 100 } }),
+    );
+    const positions = ids.map((id) => state().nodes[id]!.position);
+    const unique = new Set(positions.map((p) => `${p.x},${p.y}`));
+    expect(Object.keys(state().nodes)).toHaveLength(200);
+    expect(unique.size, '网格行数写死会让第 101 个之后的节点堆在原点').toBe(200);
+  });
+
   it('未注册的节点类型直接抛错', () => {
     expect(() => addNode({ defKind: 'ghost', position: { x: 0, y: 0 } })).toThrow(/未注册/);
   });

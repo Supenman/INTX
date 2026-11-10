@@ -15,7 +15,7 @@ import type { BlobStore, ProviderStore } from '@/app/stores/providerStore';
  *   并在 tauri.conf.json 里开放相应 capability 权限。
  */
 
-interface FsModule {
+export interface FsModule {
   BaseDirectory: { AppData: number };
   exists(path: string, opts?: { baseDir?: number }): Promise<boolean>;
   readTextFile(path: string, opts?: { baseDir?: number }): Promise<string>;
@@ -30,7 +30,7 @@ export function isTauri(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
 
-async function loadFs(): Promise<FsModule | null> {
+export async function loadFs(): Promise<FsModule | null> {
   try {
     // 用变量做模块名：未安装该包时打包器不会报解析失败，
     // 浏览器构建与 CI 都不需要为了桌面壳去装依赖。

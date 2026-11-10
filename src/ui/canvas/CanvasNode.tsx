@@ -16,10 +16,11 @@ import { BlobImage } from '@/ui/common/BlobImage';
 export interface CanvasNodeData extends Record<string, unknown> {
   node: ProjectNode;
   onGenerate: (nodeId: string) => void;
+  onCancel: (nodeId: string) => void;
 }
 
 export const CanvasNode = memo(function CanvasNode({ id, data, selected }: NodeProps) {
-  const { node, onGenerate } = data as CanvasNodeData;
+  const { node, onGenerate, onCancel } = data as CanvasNodeData;
   const def = getNodeDefinition(node.defKind);
 
   const task = useTaskStore((s) => latestTaskForNode(s.tasks, id));
@@ -118,20 +119,15 @@ export const CanvasNode = memo(function CanvasNode({ id, data, selected }: NodeP
               <span>宽高比</span>
               <b>{String(node.params.aspectRatio ?? '1:1')}</b>
             </div>
-            <button
-              className="node-generate-btn nodrag"
-              disabled={busy}
-              onClick={() => {
-                // 断言：按钮只在定义允许时出现，点了却调不动说明这里漏了 onGenerate
-                if (typeof onGenerate !== 'function') {
-                  console.error('onGenerate 不是函数，节点数据注入有问题', data);
-                  return;
-                }
-                onGenerate(id);
-              }}
-            >
-              {task?.status === 'running' ? '生成中…' : hasPrimary ? '重新生成' : '生成'}
-            </button>
+            {busy ? (
+              <button className="node-generate-btn nodrag danger-btn" onClick={() => onCancel(id)}>
+                取消
+              </button>
+            ) : (
+              <button className="node-generate-btn nodrag" onClick={() => onGenerate(id)}>
+                {hasPrimary ? '重新生成' : '生成'}
+              </button>
+            )}
           </>
         )}
 
@@ -161,19 +157,15 @@ export const CanvasNode = memo(function CanvasNode({ id, data, selected }: NodeP
                 )}
               </div>
             )}
-            <button
-              className="node-generate-btn nodrag"
-              disabled={busy}
-              onClick={() => {
-                if (typeof onGenerate !== 'function') {
-                  console.error('onGenerate 不是函数，节点数据注入有问题', data);
-                  return;
-                }
-                onGenerate(id);
-              }}
-            >
-              {task?.status === 'running' ? '拆图中…' : '拆分'}
-            </button>
+            {busy ? (
+              <button className="node-generate-btn nodrag danger-btn" onClick={() => onCancel(id)}>
+                取消
+              </button>
+            ) : (
+              <button className="node-generate-btn nodrag" onClick={() => onGenerate(id)}>
+                拆分
+              </button>
+            )}
           </>
         )}
 
@@ -258,6 +250,14 @@ function TaskStatusLine({ task }: { task: ReturnType<typeof latestTaskForNode> }
     return (
       <div className="node-status" style={{ color: 'var(--warn)' }}>
         <span>排队中</span>
+      </div>
+    );
+  }
+
+  if (task.status === 'canceled') {
+    return (
+      <div className="node-status canceled" title={task.error?.message}>
+        <span>已取消{task.error ? ` · ${task.error.message}` : ''}</span>
       </div>
     );
   }

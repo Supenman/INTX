@@ -1,5 +1,5 @@
 import { CURRENT_SCHEMA_VERSION, checkIntegrity, migrate, trimForSave, type ProjectFile, type ProjectNode } from '@/domain';
-import { useGraphStore } from '@/app/stores/graphStore';
+import { hydrateGraph, useGraphStore } from '@/app/stores/graphStore';
 import { useTaskStore } from '@/app/stores/taskStore';
 import { listNodeDefinitions } from '@/domain';
 
@@ -124,12 +124,8 @@ export function hydrateProject(file: ProjectFile): { issues: ReturnType<typeof c
   // 只保留两端都装载成功的连线，悬挂边不进入图
   const graphEdges = file.edges.filter((e) => loadedIds.has(e.source) && loadedIds.has(e.target));
 
-  useGraphStore.setState((s) => {
-    s.nodes = {};
-    s.edges = {};
-    for (const n of graphNodes) s.nodes[n.id] = n;
-    for (const e of graphEdges) s.edges[e.id] = e;
-  });
+  // 走统一的装载入口：它会清掉历史，避免"打开项目后按 Ctrl+Z 画布变空"
+  hydrateGraph(graphNodes, graphEdges);
 
   useTaskStore.setState(() => {
     const tasks: Record<string, (typeof file.tasks)[number]> = {};

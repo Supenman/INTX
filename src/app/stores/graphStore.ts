@@ -9,6 +9,7 @@ import {
   type ProjectEdge,
   type ProjectNode,
 } from '@/domain';
+import { checkpoint, clearHistory } from './historyStore';
 
 /**
  * 图状态。
@@ -87,7 +88,13 @@ function findFreeSlot(position: { x: number; y: number }, occupied: readonly { x
   const isFree = (p: { x: number; y: number }) =>
     occupied.every((o) => Math.abs(o.x - p.x) >= GRID_STEP_X - 20 || Math.abs(o.y - p.y) >= GRID_STEP_Y - 20);
 
-  for (let row = 0; row < 50; row += 1) {
+  /**
+   * 行数不能写死。50 行 × 2 列只够 100 格：第 101 个节点之后会全部退回
+   * `position` 堆在同一个点（200 节点实测有 103 个节点完全重叠，端口点不到、
+   * 拖拽也被上层节点截走）。按已有节点数动态推导行数，保证总有空格可落。
+   */
+  const maxRows = Math.max(50, Math.ceil(occupied.length / GRID_COLS) + 2);
+  for (let row = 0; row < maxRows; row += 1) {
     for (let col = 0; col < GRID_COLS; col += 1) {
       const candidate = { x: position.x + col * GRID_STEP_X, y: position.y + row * GRID_STEP_Y };
       if (isFree(candidate)) return candidate;
@@ -98,6 +105,7 @@ function findFreeSlot(position: { x: number; y: number }, occupied: readonly { x
 
 export function addNode(input: AddNodeInput): string {
   const def = requireNodeDefinition(input.defKind);
+  checkpoint(`添加节点：${def.title}`);
   const id = createId('nd');
   useGraphStore.setState((s) => {
     const occupied = Object.values(s.nodes).map((n) => n.position);
@@ -114,6 +122,7 @@ export function addNode(input: AddNodeInput): string {
 }
 
 export function removeNodes(ids: readonly string[]): void {
+  if (ids.length > 0) checkpoint(ids.length === 1 ? '删除节点' : `删除 ${ids.length} 个节点`);
   useGraphStore.setState((s) => {
     const set = new Set(ids);
     for (const id of set) delete s.nodes[id];
@@ -153,22 +162,26 @@ export function applyNodeChangesToStore(
 }
 
 export function moveNode(id: string, position: { x: number; y: number }): void {
+  const current = useGraphStore.getState().nodes[id];
+  if (!current) return;
+  // 位置没变就不要写：拖拽过程中 React Flow 会高频派发变更，
+  // 无条件 setState 会引发大量无意义的重渲染，进而打断内部交互状态。
+  if (current.position.x === position.x && current.position.y === position.y) return;
+  checkpoint('移动节点', `move:${id}`);
   useGraphStore.setState((s) => {
     const node = s.nodes[id];
     if (!node) return;
-    // 位置没变就不要写：拖拽过程中 React Flow 会高频派发变更，
-    // 无条件 setState 会引发大量无意义的重渲染，进而打断内部交互状态。
-    if (node.position.x === position.x && node.position.y === position.y) return;
     node.position = { ...position };
   });
 }
 
 export function setNodeParam(id: string, key: string, value: string | number | boolean | null): void {
+  const node = useGraphStore.getState().nodes[id];
+  if (!node || node.params[key] === value) return;
+  checkpoint('修改参数', `param:${id}:${key}`);
   useGraphStore.setState((s) => {
-    const node = s.nodes[id];
-    if (!node) return;
-    if (node.params[key] === value) return;
-    node.params[key] = value;
+    const n = s.nodes[id];
+    if (n) n.params[key] = value;
   });
 }
 
@@ -252,6 +265,7 @@ export function connectNodes(intent: {
     return { ok: false, issues };
   }
 
+  checkpoint('建立连线');
   const edgeId = createId('eg');
   useGraphStore.setState((s) => {
     /**
@@ -280,13 +294,19 @@ export function connectNodes(intent: {
 }
 
 export function removeEdge(edgeId: string): void {
+  if (!useGraphStore.getState().edges[edgeId]) return;
+  checkpoint('断开连线');
   useGraphStore.setState((s) => {
     delete s.edges[edgeId];
   });
 }
 
-/** 清空图（新建项目时用）。 */
+/**
+ * 清空图。这是最容易误触的操作，所以**必须可撤销**——
+ * 旧代码点一下就没了，只能从头重做。
+ */
 export function resetGraph(): void {
+  checkpoint('清空画布');
   useGraphStore.setState((s) => {
     s.nodes = {};
     s.edges = {};
@@ -294,8 +314,12 @@ export function resetGraph(): void {
   });
 }
 
-/** 从项目文件装载。 */
+/**
+ * 从项目文件装载。装载不是一次"编辑"，不能进历史，
+ * 否则用户刚打开应用按一下 Ctrl+Z，画布就空了。
+ */
 export function hydrateGraph(nodes: ProjectNode[], edges: ProjectEdge[]): void {
+  clearHistory();
   useGraphStore.setState((s) => {
     s.nodes = {};
     s.edges = {};

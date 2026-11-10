@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { runGeneration, type RunResult } from './runGeneration';
+import { CANCEL_MESSAGE, runGeneration, type RunResult } from './runGeneration';
 
 /**
  * 生成用例的 React 适配层。
@@ -37,7 +37,8 @@ export function useRunGeneration(): UseRunGeneration {
   }, []) as UseRunGeneration;
 
   generate.cancel = useCallback((nodeId: string) => {
-    aborters.current.get(nodeId)?.abort();
+    // 带 reason：适配器会把它抛出去，用例层据此区分"取消"和"失败"
+    aborters.current.get(nodeId)?.abort(new Error(CANCEL_MESSAGE));
   }, []);
 
   return generate;

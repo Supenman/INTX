@@ -17,7 +17,7 @@ import {
   type ProviderAdapter,
 } from '@/domain';
 import { attachAssets, useGraphStore } from '@/app/stores/graphStore';
-import { markFailed, markPhase, markProgress, markRunning, markSucceeded, submitTask, useTaskStore } from '@/app/stores/taskStore';
+import { markCanceled, markFailed, markPhase, markProgress, markRunning, markSucceeded, submitTask, useTaskStore } from '@/app/stores/taskStore';
 import { findAssetByHash, putAsset, useAssetStore } from '@/app/stores/assetStore';
 import { useProviderStore, pickModel } from '@/app/stores/providerStore';
 import { adapterFor } from '@/infra/provider';
@@ -37,6 +37,8 @@ import { resolveRuntime } from '@/infra/runtime';
  *  6. 产物按内容哈希落盘，同图不存第二份
  *  7. 节点记住产物 assetId，画布直接渲染
  */
+
+export const CANCEL_MESSAGE = '已取消生成';
 
 export interface RunResult {
   ok: boolean;
@@ -243,6 +245,11 @@ export async function runGeneration(
 
     return { ok: true, taskId, assetIds: assets.map((a) => a.id) };
   } catch (e) {
+    // 取消不是失败：走 canceled 终态，别把「用户主动停」记成一次错误
+    if (controller.signal.aborted) {
+      markCanceled(taskId);
+      return { ok: false, taskId, message: CANCEL_MESSAGE };
+    }
     const err = normalizeError(e);
     markFailed(taskId, err);
     return { ok: false, taskId, message: err.message };

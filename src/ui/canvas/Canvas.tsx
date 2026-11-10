@@ -18,12 +18,15 @@ import '@xyflow/react/dist/style.css';
 import { getNodeDefinition, listByCategory, validateConnection, type PortSpec, type PortType } from '@/domain';
 import { addNode, connectNodes, moveNode, resetGraph, useGraphStore } from '@/app/stores/graphStore';
 import { useAssetStore } from '@/app/stores/assetStore';
+import { canRedo, canUndo, redo, undo, useHistoryStore } from '@/app/stores/historyStore';
 import { persistProviders, useProviderStore } from '@/app/stores/providerStore';
 import { hydrateAssetsFromProject } from '@/app/useCases/assetLibrary';
 import { useRunGeneration } from '@/app/useCases/useRunGeneration';
+import { CANCEL_MESSAGE } from '@/app/useCases/runGeneration';
 import { usePersistence } from '@/app/useCases/usePersistence';
 import { adapterFor } from '@/infra/provider';
 import { resolveRuntime } from '@/infra/runtime';
+import { exportProject, importProject, pickFile } from '@/app/useCases/projectPackage';
 import { AssetLibrary } from '@/ui/library/AssetLibrary';
 import { SettingsPanel } from '@/ui/settings/SettingsPanel';
 import { CanvasNode, type CanvasNodeData } from './CanvasNode';
@@ -60,12 +63,17 @@ function CanvasInner() {
   const edgesMap = useGraphStore((s) => s.edges);
   const providerCount = useProviderStore((s) => s.configs.length);
   const assetCount = useAssetStore((s) => Object.keys(s.assets).length);
+  const undoDepth = useHistoryStore((s) => s.past.length);
+  const redoDepth = useHistoryStore((s) => s.future.length);
 
   const persistence = usePersistence();
   const generate = useRunGeneration();
   // 传给节点的回调必须是稳定引用：它进了 memo 节点，一变整片重渲染
   const stableGenerate = useRef(generate);
   stableGenerate.current = generate;
+  const onCancel = useCallback((nodeId: string) => {
+    stableGenerate.current.cancel(nodeId);
+  }, []);
 
   const showError = useCallback((message: string) => {
     setConnError(message);
@@ -76,11 +84,42 @@ function CanvasInner() {
   const onGenerate = useCallback(
     (nodeId: string) => {
       void stableGenerate.current(nodeId).then((r) => {
-        if (!r.ok && r.message) showError(r.message);
+        // 取消是用户主动动作，不该弹一条红色错误
+        if (!r.ok && r.message && r.message !== CANCEL_MESSAGE) showError(r.message);
       });
     },
     [showError],
   );
+
+  /**
+   * Ctrl/Cmd+Z 撤销、Ctrl/Cmd+Shift+Z 或 Ctrl+Y 重做。
+   *
+   * 输入框里要放行：用户在一个文本框里打字时按 Ctrl+Z，期望的是浏览器
+   * 原生的"撤销这次输入"，不是把整个节点删掉。这个边界不处理会很难受。
+   */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const target = e.target as HTMLElement | null;
+      const inField =
+        target?.tagName === 'INPUT' ||
+        target?.tagName === 'TEXTAREA' ||
+        target?.tagName === 'SELECT' ||
+        target?.isContentEditable === true;
+      if (inField) return;
+
+      const key = e.key.toLowerCase();
+      if (key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      } else if ((key === 'z' && e.shiftKey) || key === 'y') {
+        e.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   // 启动时把厂商配置与资产索引装起来
   useEffect(() => {
@@ -113,9 +152,14 @@ function CanvasInner() {
 
     for (const n of Object.values(nodesMap)) {
       alive.add(n.id);
-      const data = { node: n, onGenerate } satisfies CanvasNodeData;
+      const data = { node: n, onGenerate, onCancel } satisfies CanvasNodeData;
       const prev = cache.get(n.id);
-      if (prev && prev.data.node === n && prev.data.onGenerate === onGenerate) {
+      if (
+        prev &&
+        prev.data.node === n &&
+        prev.data.onGenerate === onGenerate &&
+        prev.data.onCancel === onCancel
+      ) {
         list.push(prev);
         continue;
       }
@@ -132,7 +176,7 @@ function CanvasInner() {
     }
     for (const id of cache.keys()) if (!alive.has(id)) cache.delete(id);
     return list;
-  }, [nodesMap, onGenerate]);
+  }, [nodesMap, onGenerate, onCancel]);
 
   /**
    * 画布 → store。只关心位置变化，其余交还给 store 的幂等判断，
@@ -282,7 +326,9 @@ function CanvasInner() {
 
         <h3>项目</h3>
         <div className="node-picker">
-          <button onClick={resetGraph} style={{ color: 'var(--danger)' }} title="清空画布（资产库不受影响）">
+          <button onClick={() => void exportProject()}>导出 .intx</button>
+          <button onClick={() => void importProject(pickFile, showError)}>导入 .intx</button>
+          <button onClick={resetGraph} style={{ color: 'var(--danger)' }} title="可撤销；资产库不受影响">
             清空画布
           </button>
         </div>
@@ -290,6 +336,22 @@ function CanvasInner() {
 
       <div className="canvas-wrap">
         <div className="toolbar">
+          <button
+            className="chip chip-btn"
+            onClick={undo}
+            disabled={undoDepth === 0}
+            title={canUndo() ? '撤销 (Ctrl+Z)' : '没有可撤销的操作'}
+          >
+            ↶ 撤销
+          </button>
+          <button
+            className="chip chip-btn"
+            onClick={redo}
+            disabled={redoDepth === 0}
+            title={canRedo() ? '重做 (Ctrl+Shift+Z)' : '没有可重做的操作'}
+          >
+            ↷ 重做
+          </button>
           <span className="chip">
             节点 <b>{nodeCount}</b>
           </span>
@@ -309,6 +371,11 @@ function CanvasInner() {
             {persistence.status === 'idle' && '就绪'}
             {persistence.status === 'error' && <span style={{ color: 'var(--danger)' }}>保存失败</span>}
           </span>
+          {persistence.interruptedTasks > 0 && (
+            <span className="chip warn" title="上次退出时未完成的任务已收敛为「已取消」，可点生成重新跑">
+              上次有 {persistence.interruptedTasks} 个任务未跑完
+            </span>
+          )}
           {persistence.integrityIssues.length > 0 && (
             <span className="chip warn" title={persistence.integrityIssues.map((i) => i.message).join('\n')}>
               存档告警 {persistence.integrityIssues.length}

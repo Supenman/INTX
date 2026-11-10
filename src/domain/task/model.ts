@@ -201,6 +201,11 @@ export function transition(task: Task, to: TaskStatus, opts: TransitionOptions =
   if (to === 'failed') {
     next.error = opts.error ?? { code: 'unknown', message: '未知错误', retryable: true };
   }
+  // 取消也可以带原因（例如「应用重启，任务没跑完」）。
+  // 没有原因时保持 null，别编一个。
+  if (to === 'canceled' && opts.error) {
+    next.error = opts.error;
+  }
   if (opts.resultAssetIds) {
     next.resultAssetIds = [...opts.resultAssetIds];
   }

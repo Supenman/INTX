@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { collectAssetIndex } from '@/app/useCases/assetLibrary';
 import { loadProjectFile } from '@/app/useCases/projectFile';
+import { restoreTasks, startTaskLog } from '@/app/useCases/taskRecovery';
+import { resolveRuntime } from '@/infra/runtime';
 import { hydrateProject, indexedDbRepository, snapshotProject } from '@/infra/repository/projectRepository';
 import { useGraphStore } from '@/app/stores/graphStore';
 import type { IntegrityIssue } from '@/domain';
@@ -22,6 +24,8 @@ export interface PersistenceState {
   status: SaveStatus;
   error: string | null;
   integrityIssues: IntegrityIssue[];
+  /** 上次启动时，有多少任务是"应用退出没跑完"被收敛掉的 */
+  interruptedTasks: number;
   saveNow: () => Promise<boolean>;
 }
 
@@ -29,6 +33,7 @@ export function usePersistence(): PersistenceState {
   const [status, setStatus] = useState<SaveStatus>('loading');
   const [error, setError] = useState<string | null>(null);
   const [integrityIssues, setIntegrityIssues] = useState<IntegrityIssue[]>([]);
+  const [interruptedTasks, setInterruptedTasks] = useState(0);
 
   const timerRef = useRef<number | undefined>(undefined);
   const readyRef = useRef(false);
@@ -52,14 +57,29 @@ export function usePersistence(): PersistenceState {
 
   useEffect(() => {
     let cancelled = false;
+    let stopLog: (() => void) | undefined;
+
     void (async () => {
       try {
+        // 1) 项目文件：节点、连线、任务缓存
         const file = await loadProjectFile();
         if (cancelled) return;
         if (file && file.nodes.length > 0) {
           const { issues } = hydrateProject(file);
           setIntegrityIssues(issues);
         }
+
+        // 2) 任务日志：权威状态，覆盖缓存，把没跑完的任务收敛掉
+        const runtime = await resolveRuntime();
+        if (cancelled) return;
+        const report = await restoreTasks(runtime.tasks);
+        if (report.interrupted > 0) {
+          setInterruptedTasks(report.interrupted);
+          void saveNow(); // 让项目文件里的缓存也同步成终态
+        }
+
+        // 3) 恢复完成之后才开订阅，否则恢复动作会被自己写回日志
+        if (!cancelled) stopLog = startTaskLog(runtime.tasks);
         setStatus('idle');
       } catch (e) {
         if (cancelled) return;
@@ -71,8 +91,9 @@ export function usePersistence(): PersistenceState {
     })();
     return () => {
       cancelled = true;
+      stopLog?.();
     };
-  }, []);
+  }, [saveNow]);
 
   useEffect(() => {
     const unsub = useGraphStore.subscribe((curr, prev) => {
@@ -89,5 +110,5 @@ export function usePersistence(): PersistenceState {
     };
   }, [saveNow]);
 
-  return { status, error, integrityIssues, saveNow };
+  return { status, error, integrityIssues, interruptedTasks, saveNow };
 }

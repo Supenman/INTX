@@ -918,3 +918,26 @@ button {
 .placeholder {
   font-family: var(--mono);
 }
+
+/* ---------- 撤销 / 取消 ---------- */
+
+.chip-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.danger-btn {
+  border-color: #5c2a2a;
+  color: #fca5a5;
+  background: #2a1717;
+}
+
+.danger-btn:hover:not(:disabled) {
+  background: #3a1e1e;
+  border-color: var(--danger);
+  color: #fff;
+}
+
+.node-status.canceled {
+  color: var(--text-3);
+}

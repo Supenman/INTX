@@ -8,6 +8,15 @@
  * 碰撞概率高得离谱——旧代码就有这个问题，导致偶发"图变成了别的图"。
  */
 
+/** Node fallback 的最小形状。自己声明而不是 `typeof import('node:crypto')`，避免 lint 规则报错。 */
+interface HasherLike {
+  update(data: Uint8Array): HasherLike;
+  digest(encoding: 'hex'): string;
+}
+interface NodeCryptoLike {
+  createHash(algorithm: string): HasherLike;
+}
+
 /** 纯字节的十六进制哈希。浏览器用 WebCrypto，Node 用 node:crypto。 */
 export async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
   const subtle = globalThis.crypto?.subtle;
@@ -15,9 +24,11 @@ export async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
     const digest = await subtle.digest('SHA-256', bytes);
     return toHex(new Uint8Array(digest));
   }
-  // 测试环境（node 且未注入 webcrypto）才会走到这里
-  const { createHash } = await import('node:crypto');
-  return createHash('sha256').update(new Uint8Array(bytes)).digest('hex');
+  // 测试环境（node 且未注入 webcrypto）才会走到这里。模块名用变量 +
+  // @vite-ignore，避免打包器把 node:crypto 打进浏览器产物并刷一条警告。
+  const name = 'node:crypto';
+  const mod = (await import(/* @vite-ignore */ name)) as NodeCryptoLike;
+  return mod.createHash('sha256').update(new Uint8Array(bytes)).digest('hex');
 }
 
 function toHex(bytes: Uint8Array): string {
