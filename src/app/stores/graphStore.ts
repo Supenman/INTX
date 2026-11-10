@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import {
   createId,
+  defaultNodeSize,
   defaultParams,
   requireNodeDefinition,
   validateConnection,
@@ -42,19 +43,7 @@ export interface ConnectResult {
   issues?: { code: string; message: string }[];
 }
 
-/** 节点默认尺寸，按类型区分（生成节点要宽一些才放得下预览）。 */
-function defaultSize(defKind: string): { width: number; height: number } {
-  switch (defKind) {
-    case 'generate':
-      return { width: 340, height: 260 };
-    case 'storyboard':
-      return { width: 320, height: 320 };
-    case 'text-input':
-      return { width: 300, height: 220 };
-    default:
-      return { width: 280, height: 220 };
-  }
-}
+// 节点默认尺寸统一由 domain/node/size.ts 提供：新建节点与旧数据导入共用一份定义。
 
 export const useGraphStore = create<GraphState>()(
   immer(() => ({
@@ -113,7 +102,7 @@ export function addNode(input: AddNodeInput): string {
       id,
       defKind: def.kind,
       position: findFreeSlot(input.position, occupied),
-      size: input.size ?? defaultSize(def.kind),
+      size: input.size ?? defaultNodeSize(def.kind),
       params: { ...defaultParams(def), ...(input.params ?? {}) },
     };
     s.lastCreatedId = id;

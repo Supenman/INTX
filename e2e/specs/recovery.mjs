@@ -96,9 +96,14 @@ export async function run() {
   await p.locator('.node-picker button').last().click();
   await p.waitForTimeout(300);
   console.log('   清空后节点数:', await count());
-  const chooser = p.waitForEvent('filechooser');
-  await p.locator('.node-picker button', { hasText: '导入' }).click();
-  (await chooser).setFiles(path);
+  // 精确匹配：后来新增的「导入旧版数据」按钮会让 hasText:'导入' 命中两个。
+  // 两个 promise 一起交给 Promise.all，click 失败时不会出现悬空的 waitForEvent
+  // 在 30 秒后变成未捕获异常把整个 runner 带崩。
+  const [chooser] = await Promise.all([
+    p.waitForEvent('filechooser'),
+    p.getByRole('button', { name: '导入 .intx', exact: true }).click(),
+  ]);
+  chooser.setFiles(path);
   await p.waitForTimeout(1400);
   const imported = await count();
   const importedEdges = await p.locator('.react-flow__edge').count();

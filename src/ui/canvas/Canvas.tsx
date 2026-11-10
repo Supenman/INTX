@@ -29,6 +29,7 @@ import { resolveRuntime } from '@/infra/runtime';
 import { exportProject, importProject, pickFile } from '@/app/useCases/projectPackage';
 import { AssetLibrary } from '@/ui/library/AssetLibrary';
 import { SettingsPanel } from '@/ui/settings/SettingsPanel';
+import { LegacyImportDialog } from '@/ui/common/LegacyImportDialog';
 import { CanvasNode, type CanvasNodeData } from './CanvasNode';
 
 const nodeTypes: NodeTypes = { canvasNode: CanvasNode };
@@ -47,6 +48,7 @@ function CanvasInner() {
   const [connError, setConnError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [legacyOpen, setLegacyOpen] = useState(false);
 
 
   /**
@@ -328,6 +330,9 @@ function CanvasInner() {
         <div className="node-picker">
           <button onClick={() => void exportProject()}>导出 .intx</button>
           <button onClick={() => void importProject(pickFile, showError)}>导入 .intx</button>
+          <button onClick={() => setLegacyOpen(true)} title="从旧版 BeastTV / INTX 的 localStorage 或 JSON 文件迁移">
+            导入旧版数据
+          </button>
           <button onClick={resetGraph} style={{ color: 'var(--danger)' }} title="可撤销；资产库不受影响">
             清空画布
           </button>
@@ -437,6 +442,16 @@ function CanvasInner() {
               void persistProviders();
               setToast('厂商配置已保存');
               window.setTimeout(() => setToast(null), 2200);
+            }}
+          />
+        )}
+
+        {legacyOpen && (
+          <LegacyImportDialog
+            onClose={() => setLegacyOpen(false)}
+            onImported={(msg) => {
+              setToast(msg);
+              window.setTimeout(() => setToast(null), 3200);
             }}
           />
         )}

@@ -143,6 +143,9 @@ export {
   type ProviderConfig,
 } from './provider/model';
 
+// 节点默认尺寸（新建节点与旧数据导入共用）
+export { defaultNodeSize } from './node/size';
+
 // 项目 schema
 export {
   CURRENT_SCHEMA_VERSION,
@@ -159,3 +162,23 @@ export {
   type ProjectMeta,
   type ProjectNode,
 } from './schema/project';
+
+// 旧版 BeastTV / INTX 数据迁移（S5）
+export {
+  LEGACY_CANVAS_KEY,
+  LEGACY_CURRENT_KEY,
+  LEGACY_PROJECT_INDEX_KEY,
+  LEGACY_PROJECT_PREFIX,
+  migrateLegacy,
+  parseLegacyText,
+  type LegacyDocument,
+  type LegacyEdge,
+  type LegacyMigrateOptions,
+  type LegacyMigration,
+  type LegacyNode,
+  type LegacyNote,
+  type LegacyNoteCode,
+  type LegacyParseOptions,
+  type LegacyReport,
+  type LegacySourceKind,
+} from './schema/legacy';
