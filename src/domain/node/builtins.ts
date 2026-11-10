@@ -7,7 +7,7 @@ import type { NodeDefinition } from '../node/definition';
  * - text-input   文字输入（产 text）
  * - asset        素材（产 image/video/audio/text，由导入的资产决定）
  * - generate     生成（吃 prompt + 参考素材，产 image/video/text）
- * - storyboard   分镜宫格（v0.2 接入，这里先占据"可扩展"的证明位）
+ * - storyboard   分镜宫格（一段分镜文本 → 多张分格图，一篇 N 格）
  *
  * 注意 generate 的输入口 `reference` 是 multiple 的，
  * 因为多参考图是这类工具的刚需；而 `prompt` 只接一路。
@@ -113,12 +113,25 @@ export const generateNode: NodeDefinition = {
 export const storyboardNode: NodeDefinition = {
   kind: 'storyboard',
   title: '分镜宫格',
-  category: 'utility',
+  category: 'generate',
   inputPorts: [
-    { id: 'source', label: '源图', accepts: ['image'], multiple: false, required: true },
+    { id: 'script', label: '分镜文本', accepts: ['text'], multiple: false, required: true },
+    {
+      id: 'reference',
+      label: '角色参考',
+      accepts: ['image'],
+      multiple: true,
+      required: false,
+    },
   ],
   outputPorts: [
-    { id: 'cell', label: '分格', accepts: ['image'], multiple: true, required: false },
+    {
+      id: 'out',
+      label: '分格',
+      accepts: ['image'],
+      multiple: true,
+      required: false,
+    },
   ],
   params: [
     {
@@ -129,8 +142,28 @@ export const storyboardNode: NodeDefinition = {
         { value: '2x2', label: '4 宫格' },
         { value: '3x3', label: '9 宫格' },
         { value: '4x4', label: '16 宫格' },
+        { value: '1x4', label: '条漫 4 格' },
       ],
-      defaultValue: '3x3',
+      defaultValue: '2x2',
+    },
+    {
+      kind: 'select',
+      id: 'aspectRatio',
+      label: '单格比例',
+      options: [
+        { value: '1:1', label: '1:1' },
+        { value: '3:4', label: '3:4' },
+        { value: '9:16', label: '9:16' },
+        { value: '16:9', label: '16:9' },
+      ],
+      defaultValue: '1:1',
+    },
+    {
+      kind: 'text',
+      id: 'style',
+      label: '画风',
+      placeholder: '可选，例如「赛璐璐动画，浅色背景」',
+      defaultValue: '',
     },
   ],
 };

@@ -75,6 +75,33 @@ export {
   unregisterNode,
 } from './node/registry';
 export { assetNode, builtinNodes, generateNode, storyboardNode, textInputNode } from './node/builtins';
+export {
+  checkPrompt,
+  checkRequiredInputs,
+  resolvePrompt,
+  type ConnectionLookup,
+  type MissingInput,
+  type MissingInputCode,
+  type ParamIssue,
+} from './node/validate';
+
+// 资产哈希
+export { contentPath, extFromMime, sha256Hex } from './asset/hash';
+
+// 厂商契约
+export {
+  canGenerate,
+  capabilityAssetKind,
+  modelsFor,
+  storyboardPrompt,
+  type GeneratedItem,
+  type GenerationHandlers,
+  type GenerationRequest,
+  type ModelSpec,
+  type ProviderAdapter,
+  type ProviderCapability,
+  type ProviderConfig,
+} from './provider/model';
 
 // 项目 schema
 export {

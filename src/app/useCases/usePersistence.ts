@@ -1,10 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  DEFAULT_PROJECT_ID,
-  hydrateProject,
-  indexedDbRepository,
-  snapshotProject,
-} from '@/infra/repository/projectRepository';
+import { collectAssetIndex } from '@/app/useCases/assetLibrary';
+import { loadProjectFile } from '@/app/useCases/projectFile';
+import { hydrateProject, indexedDbRepository, snapshotProject } from '@/infra/repository/projectRepository';
 import { useGraphStore } from '@/app/stores/graphStore';
 import type { IntegrityIssue } from '@/domain';
 
@@ -13,6 +10,8 @@ import type { IntegrityIssue } from '@/domain';
  *
  * 对旧实现的改进：旧版把项目塞进 localStorage，写失败只 console.warn，
  * 用户以为存住了。这里把保存状态显式暴露给 UI，失败能被看见。
+ *
+ * 顺序：先装资产索引，再装画布 —— 反过来的话节点会先渲染一次空缩略图。
  */
 
 export type SaveStatus = 'loading' | 'idle' | 'saving' | 'saved' | 'error';
@@ -23,7 +22,6 @@ export interface PersistenceState {
   status: SaveStatus;
   error: string | null;
   integrityIssues: IntegrityIssue[];
-  /** 手动保存，返回是否成功 */
   saveNow: () => Promise<boolean>;
 }
 
@@ -38,7 +36,10 @@ export function usePersistence(): PersistenceState {
   const saveNow = useCallback(async (): Promise<boolean> => {
     setStatus('saving');
     try {
-      await indexedDbRepository.save(snapshotProject());
+      const file = snapshotProject();
+      // 资产清单与画布一起落盘：少了它，重开时产物就成了孤儿
+      file.assets = collectAssetIndex();
+      await indexedDbRepository.save(file);
       setStatus('saved');
       setError(null);
       return true;
@@ -49,12 +50,11 @@ export function usePersistence(): PersistenceState {
     }
   }, []);
 
-  // 启动恢复
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
-        const file = await indexedDbRepository.load(DEFAULT_PROJECT_ID);
+        const file = await loadProjectFile();
         if (cancelled) return;
         if (file && file.nodes.length > 0) {
           const { issues } = hydrateProject(file);
@@ -63,7 +63,6 @@ export function usePersistence(): PersistenceState {
         setStatus('idle');
       } catch (e) {
         if (cancelled) return;
-        // 恢复失败不阻塞使用：保留空画布，但把原因说出来
         setError(e instanceof Error ? e.message : '恢复项目失败');
         setStatus('error');
       } finally {
@@ -75,11 +74,9 @@ export function usePersistence(): PersistenceState {
     };
   }, []);
 
-  // 变更后防抖保存
   useEffect(() => {
     const unsub = useGraphStore.subscribe((curr, prev) => {
       if (!readyRef.current) return;
-      // 只有节点/连线变化才值得写盘，纯位置拖动等也算变化
       if (curr.nodes === prev.nodes && curr.edges === prev.edges) return;
       window.clearTimeout(timerRef.current);
       timerRef.current = window.setTimeout(() => {

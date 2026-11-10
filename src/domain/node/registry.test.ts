@@ -40,7 +40,7 @@ describe('registry', () => {
   it('按分类查询', () => {
     registerBuiltins();
     expect(listByCategory('source').map((d) => d.kind)).toEqual(['text-input', 'asset']);
-    expect(listByCategory('generate').map((d) => d.kind)).toEqual(['generate']);
+    expect(listByCategory('generate').map((d) => d.kind)).toEqual(['generate', 'storyboard']);
   });
 
   it('新类型可以直接注册进来（扩展性不被焊死）', () => {

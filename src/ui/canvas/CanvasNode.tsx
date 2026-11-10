@@ -1,7 +1,10 @@
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { getNodeDefinition, type ProjectNode } from '@/domain';
-import { latestTaskForNode, useTaskStore } from '@/app/stores/taskStore';
+import { latestTaskForNode, retryTask, useTaskStore } from '@/app/stores/taskStore';
+import { useAssetStore } from '@/app/stores/assetStore';
+import { setNodeParam, useGraphStore } from '@/app/stores/graphStore';
+import { BlobImage } from '@/ui/common/BlobImage';
 
 /**
  * 通用节点渲染。
@@ -21,6 +24,31 @@ export const CanvasNode = memo(function CanvasNode({ id, data, selected }: NodeP
 
   const task = useTaskStore((s) => latestTaskForNode(s.tasks, id));
 
+  /**
+   * 产物订阅。注意这两个 hook 必须在提前返回之前调用，
+   * 否则「未知节点」那条分支会改变 hooks 顺序，React 会直接抛错。
+   */
+  const primary = useAssetStore((s) => (node.assetId ? s.assets[node.assetId] : undefined));
+  const hasPrimary = primary !== undefined;
+  const derivedIds = node.derivedAssetIds;
+  const allAssets = useAssetStore((s) => s.assets);
+  // 上游文本连进来时，卡片上显示的就是真正会被送去生成的那段文字
+  const upstreamText = useGraphStore((s) => incomingText(s.edges, s.nodes, node.id, 'text'));
+  /**
+   * 注意不要就地 .map().filter() 生成新数组：
+   * 每渲染一次一个新引用，尽管不影响正确性，但会让下游比较全部失效。
+   * useMemo 依赖 derivedIds 与资产表本身（immer 保证未变时引用不变）。
+   */
+  const derived = useMemo(() => {
+    if (!derivedIds) return [];
+    const out = [];
+    for (const aid of derivedIds) {
+      const found = allAssets[aid];
+      if (found) out.push(found);
+    }
+    return out;
+  }, [allAssets, derivedIds]);
+
   if (!def) {
     return (
       <div className="node selected">
@@ -32,7 +60,9 @@ export const CanvasNode = memo(function CanvasNode({ id, data, selected }: NodeP
 
   const prompt = typeof node.params.prompt === 'string' ? node.params.prompt : '';
   const content = typeof node.params.content === 'string' ? node.params.content : '';
+
   const outputKind = typeof node.params.outputKind === 'string' ? node.params.outputKind : 'image';
+  const busy = task?.status === 'running' || task?.status === 'queued';
 
   return (
     <div
@@ -57,12 +87,29 @@ export const CanvasNode = memo(function CanvasNode({ id, data, selected }: NodeP
 
       <div className="node-body">
         {node.defKind === 'text-input' && (
-          <div className="node-prompt">{content || <span className="node-empty">还没有内容</span>}</div>
+          <div className="node-prompt">
+            {upstreamText ? (
+              <span className="node-upstream">{upstreamText}</span>
+            ) : (
+              content || <span className="node-empty">在下方输入，或从别的节点接入</span>
+            )}
+            <textarea
+              className="node-textarea nodrag"
+              value={content}
+              placeholder="写点什么…"
+              onChange={(e) => setNodeParam(id, 'content', e.target.value)}
+            />
+          </div>
         )}
 
         {node.defKind === 'generate' && (
           <>
             <div className="node-prompt">{prompt || <span className="node-empty">还没有提示词</span>}</div>
+            {primary && (
+              <div className="node-result">
+                <BlobImage entry={primary} />
+              </div>
+            )}
             <div className="node-field">
               <span>产出</span>
               <b>{outputKind}</b>
@@ -73,20 +120,61 @@ export const CanvasNode = memo(function CanvasNode({ id, data, selected }: NodeP
             </div>
             <button
               className="node-generate-btn nodrag"
-              disabled={task?.status === 'running' || task?.status === 'queued'}
-              onClick={() => onGenerate(id)}
+              disabled={busy}
+              onClick={() => {
+                // 断言：按钮只在定义允许时出现，点了却调不动说明这里漏了 onGenerate
+                if (typeof onGenerate !== 'function') {
+                  console.error('onGenerate 不是函数，节点数据注入有问题', data);
+                  return;
+                }
+                onGenerate(id);
+              }}
             >
-              {task?.status === 'running' ? '生成中…' : '生成'}
+              {task?.status === 'running' ? '生成中…' : hasPrimary ? '重新生成' : '生成'}
             </button>
           </>
         )}
 
         {node.defKind === 'asset' && (
-          <div className="node-empty">接入素材后这里显示预览</div>
+          <div className="node-preview">
+            {primary ? <BlobImage entry={primary} /> : <span className="node-empty">接入素材后这里显示预览</span>}
+          </div>
         )}
 
         {node.defKind === 'storyboard' && (
-          <div className="node-empty">接一张源图，按宫格切分</div>
+          <>
+            <div className="node-prompt">
+              一段分镜文本，按宫格拆成 N 张图
+              <span className="node-field-inline">
+                {String(node.params.grid ?? '2x2')} · {String(node.params.aspectRatio ?? '1:1')}
+              </span>
+            </div>
+            {derived.length > 0 && (
+              <div className={`node-grid grid-${String(node.params.grid ?? '2x2')}`}>
+                {derived.map((entry, i) =>
+                  entry ? (
+                    <div className="grid-cell" key={entry.asset.id}>
+                      <BlobImage entry={entry} />
+                      <span>{i + 1}</span>
+                    </div>
+                  ) : null,
+                )}
+              </div>
+            )}
+            <button
+              className="node-generate-btn nodrag"
+              disabled={busy}
+              onClick={() => {
+                if (typeof onGenerate !== 'function') {
+                  console.error('onGenerate 不是函数，节点数据注入有问题', data);
+                  return;
+                }
+                onGenerate(id);
+              }}
+            >
+              {task?.status === 'running' ? '拆图中…' : '拆分'}
+            </button>
+          </>
         )}
 
         <TaskStatusLine task={task} />
@@ -106,6 +194,23 @@ export const CanvasNode = memo(function CanvasNode({ id, data, selected }: NodeP
   );
 });
 
+/** 某个节点的某个输入口上接进来的文本，按连线顺序拼起来。 */
+function incomingText(
+  edges: Record<string, { target: string; targetPort: string; source: string }>,
+  nodes: Record<string, ProjectNode>,
+  nodeId: string,
+  portId: string,
+): string {
+  const parts: string[] = [];
+  for (const e of Object.values(edges)) {
+    if (e.target !== nodeId || e.targetPort !== portId) continue;
+    const src = nodes[e.source];
+    const t = src && typeof src.params.content === 'string' ? src.params.content.trim() : '';
+    if (t) parts.push(t);
+  }
+  return parts.join('\n');
+}
+
 function TaskStatusLine({ task }: { task: ReturnType<typeof latestTaskForNode> }) {
   if (!task) return null;
 
@@ -124,8 +229,19 @@ function TaskStatusLine({ task }: { task: ReturnType<typeof latestTaskForNode> }
 
   if (task.status === 'failed') {
     return (
-      <div className="node-status" style={{ color: 'var(--danger)' }} title={task.error?.message}>
-        <span>✕ {task.error?.message ?? '失败'}</span>
+      <div className="node-status failed" title={task.error?.message}>
+        <span className="err-text">✕ {task.error?.message ?? '失败'}</span>
+        {task.error?.retryable !== false && (
+          <button
+            className="link-btn nodrag"
+            onClick={() => {
+              // 重试 = 回到队列；真正的重跑由用户再点生成，避免隐式联网
+              retryTask(task.id);
+            }}
+          >
+            重置状态
+          </button>
+        )}
       </div>
     );
   }

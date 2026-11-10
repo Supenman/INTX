@@ -117,7 +117,10 @@ export function latestTaskForNode(tasks: Record<string, Task>, nodeId: string): 
   let best: Task | undefined;
   for (const t of Object.values(tasks)) {
     if (t.nodeId !== nodeId) continue;
-    if (!best || t.createdAt > best.createdAt) best = t;
+    // 同一毫秒内创建的任务 createdAt 相同，用 id 兜底比较避免前后不一致
+    if (!best || t.createdAt > best.createdAt || (t.createdAt === best.createdAt && t.id > best.id)) {
+      best = t;
+    }
   }
   return best;
 }

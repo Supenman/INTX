@@ -93,6 +93,7 @@ export function snapshotProject(name = '未命名项目'): ProjectFile {
         size: n.size,
         params: n.params,
         ...(n.assetId !== undefined ? { assetId: n.assetId } : {}),
+        ...(n.derivedAssetIds !== undefined ? { derivedAssetIds: n.derivedAssetIds } : {}),
         ...(n.lastTaskId !== undefined ? { lastTaskId: n.lastTaskId } : {}),
       }),
     ),

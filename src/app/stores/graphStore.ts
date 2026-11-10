@@ -76,7 +76,11 @@ export const useGraphStore = create<GraphState>()(
  */
 const GRID_STEP_X = 380;
 const GRID_STEP_Y = 320;
-// 两列足够：三列会把第三个节点推到视口外，用户以为没加上
+/**
+ * 两列。三列会把第三个节点推到视口外，用户以为没加上；
+ * 行数也不设上限，纵向滚动是自然的（横向不会）。
+ * 起点按视口左上角而不是中心计算，见 spawnNode。
+ */
 const GRID_COLS = 2;
 
 function findFreeSlot(position: { x: number; y: number }, occupied: readonly { x: number; y: number }[]): { x: number; y: number } {
@@ -162,7 +166,27 @@ export function moveNode(id: string, position: { x: number; y: number }): void {
 export function setNodeParam(id: string, key: string, value: string | number | boolean | null): void {
   useGraphStore.setState((s) => {
     const node = s.nodes[id];
-    if (node) node.params[key] = value;
+    if (!node) return;
+    if (node.params[key] === value) return;
+    node.params[key] = value;
+  });
+}
+
+/**
+ * 把任务产物挂到节点上。
+ *
+ * 这是唯一一处 `derivedAssetIds` 的来源。放在 store 里而不是用例里直接
+ * setState，是为了让「节点记录产物」这件事只有一个实现，
+ * 将来加"从资产库反查哪些节点用了这张图"时不必再翻用例代码。
+ */
+export function attachAssets(nodeId: string, assetIds: readonly string[]): void {
+  if (assetIds.length === 0) return;
+  useGraphStore.setState((s) => {
+    const node = s.nodes[nodeId];
+    if (!node) return;
+    const first = assetIds[0];
+    if (first) node.assetId = first;
+    node.derivedAssetIds = [...assetIds];
   });
 }
 
@@ -230,6 +254,20 @@ export function connectNodes(intent: {
 
   const edgeId = createId('eg');
   useGraphStore.setState((s) => {
+    /**
+     * 覆盖语义：单路输入口再连一根，应当替换而不是被拒绝。
+     *
+     * 踩坑记录：早期这里直接报 capacity_exceeded，用户想换个来源，必须先删线再连，
+     * 中间还有一个"没连上"的中间态。React Flow 自己也是替换语义，
+     * 两侧行为不一致比"多点一次"更让人困惑。
+     */
+    if (targetPort && !targetPort.multiple) {
+      for (const [id, e] of Object.entries(s.edges)) {
+        if (e.target === intent.targetNodeId && e.targetPort === intent.targetPortId) {
+          delete s.edges[id];
+        }
+      }
+    }
     s.edges[edgeId] = {
       id: edgeId,
       source: intent.sourceNodeId,

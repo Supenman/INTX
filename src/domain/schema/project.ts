@@ -32,7 +32,13 @@ export interface ProjectNode {
   size: NodeSize;
   params: Record<string, ParamValue>;
   /** 节点展示用产物。关键：只存 id，不内联 URL。 */
-  assetId?: string;
+  assetId?: string | null;
+  /**
+   * 本节点一次产出的全部资产（分镜会出 N 格）。
+   * `assetId` 是其中的主产物，用于节点缩略图；
+   * 下游连线按 `assetId` 取值，需要全部时读这里。
+   */
+  derivedAssetIds?: string[] | null;
   /** 最近一次任务 id，用于展示状态与重跑 */
   lastTaskId?: string;
 }
