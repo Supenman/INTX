@@ -74,7 +74,6 @@ describe('崩溃恢复', () => {
     const settled = settleInterrupted(running, 500);
     expect(settled.status).toBe('canceled');
     expect(settled.error?.message).toBe(INTERRUPTED_MESSAGE);
-    expect(settled.error?.retryable).toBe(true);
     expect(settled.finishedAt).toBe(500);
   });
 

@@ -47,7 +47,7 @@ export async function run() {
         });
         t.markRunning(id);
         if (extra.running) return id;
-        t.markFailed(id, { code, message: '模拟失败：' + code, retryable: false });
+        t.markFailed(id, { code, message: '模拟失败：' + code });
         if (extra.results) {
           const s = t.useTaskStore.getState();
           t.useTaskStore.setState({

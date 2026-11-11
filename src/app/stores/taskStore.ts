@@ -118,8 +118,7 @@ export function isTaskError(v: unknown): v is TaskError {
     typeof v === 'object' &&
     v !== null &&
     'code' in v &&
-    'retryable' in v &&
-    typeof (v as TaskError).retryable === 'boolean'
+    typeof (v as TaskError).code === 'string'
   );
 }
 

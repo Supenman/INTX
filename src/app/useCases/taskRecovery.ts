@@ -24,7 +24,7 @@ export function settleInterrupted(task: Task, now = Date.now()): Task {
   if (task.status !== 'queued' && task.status !== 'running') return task;
   const r = transition(task, 'canceled', {
     now,
-    error: { code: 'unknown', message: INTERRUPTED_MESSAGE, retryable: true },
+    error: { code: 'unknown', message: INTERRUPTED_MESSAGE },
   });
   return r.ok ? r.value : task;
 }

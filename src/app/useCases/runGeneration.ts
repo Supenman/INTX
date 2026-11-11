@@ -383,7 +383,7 @@ export async function runGeneration(
       const message = `上游已经出图了（这次已经计费），但存到本机失败。不要直接重试，那会再买一张；先清出磁盘空间。原始原因：${
         e.message
       }`;
-      markFailed(taskId, { code: 'local_save_failed', message, retryable: false });
+      markFailed(taskId, { code: 'local_save_failed', message });
       return { ok: false, taskId, message };
     }
 

@@ -57,8 +57,12 @@ export type ErrorCode =
 export interface TaskError {
   code: ErrorCode;
   message: string;
-  /** 是否值得原样重试。auth_failed 重试没用，要先改配置。 */
-  retryable: boolean;
+  /**
+   * 不再带重试布尔字段。是否可重发由 `domain/task/outcome.ts` 的
+   * `readTaskOutcome` 按 `code` + `phase` + `resultAssetIds` 三态推导，
+   * UI 只查 `regenerate: allowed | confirm | blocked`。布尔表达不了
+   * 「先确认 / 改条件后才能重发」这类中间态，正是上一轮清理掉 retryable 的原因。
+   */
 }
 
 /**
@@ -233,7 +237,7 @@ export function transition(task: Task, to: TaskStatus, opts: TransitionOptions =
     next.phase = null;
   }
   if (to === 'failed') {
-    next.error = opts.error ?? { code: 'unknown', message: '未知错误', retryable: true };
+    next.error = opts.error ?? { code: 'unknown', message: '未知错误' };
   }
   // 取消也可以带原因（例如「应用重启，任务没跑完」）。
   // 没有原因时保持 null，别编一个。
@@ -274,7 +278,6 @@ export function normalizeError(e: unknown, stage?: TaskPhase | null): TaskError 
     return {
       code: 'submission_uncertain',
       message: '可能已提交（没等到回复）。先去厂商后台确认有没有出图，直接重试可能扣两次钱',
-      retryable: false,
     };
   }
   return classified;
@@ -307,10 +310,10 @@ function classifyErrorText(raw: string): TaskError {
   const lower = raw.toLowerCase();
 
   if (lower.includes('401') || lower.includes('unauthorized') || lower.includes('api key')) {
-    return { code: 'auth_failed', message: '鉴权失败，请检查 API Key 配置', retryable: false };
+    return { code: 'auth_failed', message: '鉴权失败，请检查 API Key 配置' };
   }
   if (lower.includes('429') || lower.includes('rate limit')) {
-    return { code: 'rate_limited', message: '请求过于频繁，请稍后重试', retryable: true };
+    return { code: 'rate_limited', message: '请求过于频繁，请稍后重试' };
   }
   /**
    * HTTP 451 / unsafe：上游的安全审核拦下了**生成出来的图**，不是请求没发出去。
@@ -319,28 +322,27 @@ function classifyErrorText(raw: string): TaskError {
    * 糊着一段英文原文加 request id，用户既读不懂也不知道下一步该做什么。
    *
    * 不能归成 5xx 或 network：那不是「过一会儿再试」能解决的，原样重试大概率
-   * 还是同一张被拦的图。所以 retryable 给 false，让 UI 引导去改提示词。
+   * 还是同一张被拦的图。UI 按 outcome 的 `regenerate: confirm` 引导去改提示词。
    */
   if (/\b451\b/.test(raw) || lower.includes('unsafe') || lower.includes('moderation')) {
     return {
       code: 'content_rejected',
       message: '上游安全审核拦下了这次出图（HTTP 451），改一下提示词或换个 seed 再试',
-      retryable: false,
     };
   }
   if (lower.includes('content') && (lower.includes('policy') || lower.includes('reject'))) {
-    return { code: 'content_rejected', message: '内容被上游拒绝，请调整提示词', retryable: false };
+    return { code: 'content_rejected', message: '内容被上游拒绝，请调整提示词' };
   }
   if (lower.includes('timeout') || lower.includes('timed out')) {
-    return { code: 'timeout', message: '请求超时，可重试', retryable: true };
+    return { code: 'timeout', message: '请求超时，可重试' };
   }
   if (/\b5\d\d\b/.test(raw)) {
-    return { code: 'upstream_5xx', message: '上游服务异常，可稍后重试', retryable: true };
+    return { code: 'upstream_5xx', message: '上游服务异常，可稍后重试' };
   }
   if (lower.includes('network') || lower.includes('fetch failed') || lower.includes('econnrefused')) {
-    return { code: 'network', message: '网络不可达，请检查连接', retryable: true };
+    return { code: 'network', message: '网络不可达，请检查连接' };
   }
-  return { code: 'unknown', message: raw || '未知错误', retryable: true };
+  return { code: 'unknown', message: raw || '未知错误' };
 }
 
 /**

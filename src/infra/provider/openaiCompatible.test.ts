@@ -41,7 +41,6 @@ describe('openai 兼容适配器的错误处理', () => {
 
     const norm = normalizeError(err);
     expect(norm.code).toBe('auth_failed');
-    expect(norm.retryable).toBe(false);
   });
 
   it('上游返回 429 时归类为限流且可重试', async () => {
@@ -59,7 +58,6 @@ describe('openai 兼容适配器的错误处理', () => {
 
     const norm = normalizeError(err);
     expect(norm.code).toBe('rate_limited');
-    expect(norm.retryable).toBe(true);
   });
 
   it('未配 key 且不是本地地址时，请求根本不发出去', async () => {

@@ -9,6 +9,7 @@ import {
   transition,
   type GenerationParams,
 } from './model';
+import { readTaskOutcome } from './outcome';
 
 const params: GenerationParams = {
   kind: 'image',
@@ -87,7 +88,7 @@ describe('状态机', () => {
     const running = transition(makeTask(), 'running');
     if (!running.ok) throw new Error('setup');
     const failed = transition(running.value, 'failed', {
-      error: { code: 'timeout', message: 'x', retryable: true },
+      error: { code: 'timeout', message: 'x' },
     });
     if (!failed.ok) throw new Error('setup');
 
@@ -131,31 +132,27 @@ describe('setProgress', () => {
 });
 
 describe('normalizeError', () => {
-  it('鉴权失败不可重试', () => {
+  it('鉴权失败归类为 auth_failed', () => {
     const e = normalizeError(new Error('401 Unauthorized'));
     expect(e.code).toBe('auth_failed');
-    expect(e.retryable).toBe(false);
   });
 
-  it('限流可重试', () => {
+  it('限流归类为 rate_limited', () => {
     const e = normalizeError(new Error('429 rate limit exceeded'));
     expect(e.code).toBe('rate_limited');
-    expect(e.retryable).toBe(true);
   });
 
-  it('内容拒绝不可重试', () => {
+  it('内容拒绝归类为 content_rejected', () => {
     const e = normalizeError('content policy violation');
     expect(e.code).toBe('content_rejected');
-    expect(e.retryable).toBe(false);
   });
 
-  it('HTTP 451 生成结果被安全审核拦下，归入 content_rejected 且不给「原样重试」', () => {
+  it('HTTP 451 生成结果被安全审核拦下，归入 content_rejected 且引导改提示词', () => {
     // 真实原文：真机第一次出图时报的就是这一条
     const e = normalizeError(
       new Error('HTTP 451 The generated images appear to be unsafe. Try modifying the pronnpt or seeds.'),
     );
     expect(e.code).toBe('content_rejected');
-    expect(e.retryable).toBe(false);
     expect(e.message).toContain('451');
     expect(e.message).toContain('提示词');
     // 不能把英文原文直接甩给用户
@@ -167,10 +164,9 @@ describe('normalizeError', () => {
     expect(e.code).toBe('content_rejected');
   });
 
-  it('无法解析的内容仍归入 unknown 且可重试', () => {
+  it('无法解析的内容仍归入 unknown', () => {
     const e = normalizeError('some weird thing');
     expect(e.code).toBe('unknown');
-    expect(e.retryable).toBe(true);
   });
 });
 
@@ -181,10 +177,10 @@ describe('normalizeError', () => {
  * 点了就是两次扣费，而且第二张出来之后没人说得清哪张是哪次。
  */
 describe('normalizeError 的提交阶段判定', () => {
-  it('提交阶段超时 → 不确定，不给重试', () => {
+  it('提交阶段超时 → 不确定，落到 confirm（先去确认再重发）', () => {
     const e = normalizeError(new Error('request timeout'), 'submitting');
     expect(e.code).toBe('submission_uncertain');
-    expect(e.retryable).toBe(false);
+    expect(readTaskOutcome({ status: 'failed', error: { code: e.code } })?.regenerate).toBe('confirm');
     expect(e.message).toContain('扣两次');
   });
 
@@ -193,15 +189,15 @@ describe('normalizeError 的提交阶段判定', () => {
     expect(e.code).toBe('submission_uncertain');
   });
 
-  it('提交阶段连接被拒 → 请求没出去，仍然可重试', () => {
+  it('提交阶段连接被拒 → 请求没出去，可重发（allowed）', () => {
     const e = normalizeError(new Error('connect ECONNREFUSED 127.0.0.1:8317'), 'submitting');
     expect(e.code).toBe('network');
-    expect(e.retryable).toBe(true);
+    expect(readTaskOutcome({ status: 'failed', error: { code: e.code } })?.regenerate).toBe('allowed');
   });
 
-  it('域名解析失败 → 请求没出去，仍然可重试', () => {
+  it('域名解析失败 → 请求没出去，可重发（allowed）', () => {
     const e = normalizeError(new Error('getaddrinfo ENOTFOUND api.example.com'), 'submitting');
-    expect(e.retryable).toBe(true);
+    expect(readTaskOutcome({ status: 'failed', error: { code: e.code } })?.regenerate).toBe('allowed');
     expect(e.code).not.toBe('submission_uncertain');
   });
 
@@ -211,10 +207,10 @@ describe('normalizeError 的提交阶段判定', () => {
     expect(normalizeError(new Error('451 unsafe'), 'submitting').code).toBe('content_rejected');
   });
 
-  it('生成阶段超时仍是普通超时——上游已经在跑，没有「收没收到」的疑问', () => {
+  it('生成阶段超时仍是普通超时——可重发（allowed）', () => {
     const e = normalizeError(new Error('request timeout'), 'generating');
     expect(e.code).toBe('timeout');
-    expect(e.retryable).toBe(true);
+    expect(readTaskOutcome({ status: 'failed', error: { code: e.code } })?.regenerate).toBe('allowed');
   });
 
   it('不传阶段时行为与旧版一致，不误判', () => {
