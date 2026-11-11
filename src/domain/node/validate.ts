@@ -29,22 +29,58 @@ export interface ConnectionLookup {
   incomingEdgeCount: (targetNodeId: string, targetPortId: string) => number;
 }
 
+export interface RequiredInputOptions {
+  /**
+   * 端口 id → 节点自己在这个口上填的文字。
+   *
+   * 生成节点的 `prompt` 口允许**两种来源**：上游连线，或节点自己的输入框。
+   * 只查连线会误判：用户明明在框里写了提示词、点了生成，却被告诉
+   * 「提示词还没有连上」——而界面上那句话就写在他刚打完字的框下面。
+   *
+   * 分镜的 `script` 口不在此列：它只收上游文本（分镜文本要按段落切格，
+   * 不能是随手一行的本地草稿）。
+   */
+  localText?: Record<string, string>;
+}
+
+/**
+ * 哪些节点的哪个必填输入口，允许由**节点自己的参数**直接满足。
+ *
+ * 只有生成节点：提示词既可以连线接上游，也可以直接在框里写。分镜不在
+ * 其中——它的 `script` 要按段落切格，随手一行草稿跑出来的分镜没有意义。
+ *
+ * 这条知识必须留在 domain：写在用例里，迟早有人加新节点时忘掉，
+ * 于是又出现「用户写了提示词，点生成被告知还没连上」。
+ */
+export const LOCAL_TEXT_PORTS: Record<string, string> = { generate: 'prompt' };
+
+/** 取节点上能顶替必填口的那段本地文字（参数 id 与端口 id 同名）。 */
+export function localTextFor(node: ProjectNode): Record<string, string> {
+  const portId = LOCAL_TEXT_PORTS[node.defKind];
+  if (portId === undefined) return {};
+  const value = node.params[portId];
+  if (typeof value !== 'string' || value.trim() === '') return {};
+  return { [portId]: value };
+}
+
 /**
  * 检查节点提交前是否满足定义里的必填输入口。
  *
- * 只看端口是否被连上，不关心上游节点是否已有产物 ——
- * 上游没产物是"上游的问题"，会在上游自己的运行时暴露，
+ * 只看端口是否被连上（或是否有等价的本地输入），不关心上游节点是否已有
+ * 产物 —— 上游没产物是"上游的问题"，会在上游自己的运行时暴露，
  * 不应该让下游提前报一个看不懂的错。
  */
 export function checkRequiredInputs(
   node: ProjectNode,
   def: NodeDefinition,
   edges: ConnectionLookup,
+  opts?: RequiredInputOptions,
 ): MissingInput[] {
   const missing: MissingInput[] = [];
   for (const port of def.inputPorts) {
     if (!port.required) continue;
     if (edges.incomingEdgeCount(node.id, port.id) > 0) continue;
+    if ((opts?.localText?.[port.id] ?? '').trim() !== '') continue;
     missing.push({
       code: 'missing_required_input',
       portId: port.id,

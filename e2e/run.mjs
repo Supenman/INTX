@@ -20,6 +20,7 @@ const SPECS = [
   ['工具注册表/偏好/悬浮栏/连线语义', './specs/tool-registry.mjs'],
   ['P2 审计/出境/成本/复现', './specs/p2-audit.mjs'],
   ['P3 提示词放大编辑', './specs/prompt-editor.mjs'],
+  ['P3 @资产 引用', './specs/asset-ref.mjs'],
 ];
 
 async function reachable() {

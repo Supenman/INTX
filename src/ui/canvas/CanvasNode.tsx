@@ -6,6 +6,7 @@ import {
   isLongPrompt,
   parseGrid,
   resolvePrompt,
+  splitPromptSegments,
   textInputPortId,
   type ProjectNode,
 } from '@/domain';
@@ -200,7 +201,25 @@ export const CanvasNode = memo(function CanvasNode({ id, data, selected }: NodeP
               </div>
             )}
             <div className="node-prompt" data-testid="node-prompt">
-              {effectivePrompt || <span className="node-empty">还没有提示词</span>}
+              {effectivePrompt ? (
+                /*
+                 * `@资产` 引用在卡片上渲染成 chip，而不是把
+                 * `@[图片 d1ddc1](asset:as_xxx)` 原样摊给用户看。
+                 * chip 带 title 说明它怎么参与生成——不然用户只看到
+                 * 一个陌生的小标签，不知道图到底有没有被带进去。
+                 */
+                splitPromptSegments(effectivePrompt).map((seg, i) =>
+                  seg.type === 'text' ? (
+                    <span key={i}>{seg.text}</span>
+                  ) : (
+                    <span key={i} className="prompt-ref" title="作为参考素材发送">
+                      {seg.ref.label}
+                    </span>
+                  ),
+                )
+              ) : (
+                <span className="node-empty">还没有提示词</span>
+              )}
             </div>
             {/*
               长提示词在卡片里只能看见三行。给一个显式入口，而不是让用户

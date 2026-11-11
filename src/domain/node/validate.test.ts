@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { checkPrompt, checkRequiredInputs, resolvePrompt, textInputPortId, type ConnectionLookup } from './validate';
+import {
+  checkPrompt,
+  checkRequiredInputs,
+  localTextFor,
+  resolvePrompt,
+  textInputPortId,
+  type ConnectionLookup,
+} from './validate';
 import { generateNode, storyboardNode } from './builtins';
 import type { ProjectNode } from '../schema/project';
 
@@ -45,6 +52,34 @@ describe('提交前的连线校验', () => {
       lookup([]),
     );
     expect(issues.map((i) => i.portId)).toEqual(['script']);
+  });
+});
+
+/**
+ * 这条是 v2.7 真机点出来的：用户在生成节点里写了提示词、点生成，
+ * 被告知「必填输入「提示词」还没有连上」——而那句话就写在他刚打完字的
+ * 框下面。根因是必填校验只认连线。
+ */
+describe('本地参数可以顶替必填口', () => {
+  it('生成节点自己写了提示词就算满足，不必先连线', () => {
+    const n = node({ params: { prompt: '雨夜街口' } });
+    expect(checkRequiredInputs(n, generateNode, lookup([]), { localText: localTextFor(n) })).toEqual([]);
+  });
+
+  it('只写了空白仍然算没填', () => {
+    const n = node({ params: { prompt: '   \n ' } });
+    const issues = checkRequiredInputs(n, generateNode, lookup([]), { localText: localTextFor(n) });
+    expect(issues.map((i) => i.portId)).toEqual(['prompt']);
+  });
+
+  it('分镜节点不接受本地文本顶替，必须接上游', () => {
+    const n = node({ defKind: 'storyboard', params: { script: '第一格…', prompt: '第一格…' } });
+    const issues = checkRequiredInputs(n, storyboardNode, lookup([]), { localText: localTextFor(n) });
+    expect(issues.map((i) => i.portId)).toEqual(['script']);
+  });
+
+  it('localTextFor 只认登记过的节点类型', () => {
+    expect(localTextFor(node({ defKind: 'text-input', params: { prompt: 'x' } }))).toEqual({});
   });
 });
 

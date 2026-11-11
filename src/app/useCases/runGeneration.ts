@@ -1,6 +1,9 @@
 import {
+  applyAssetRefs,
   checkPrompt,
   checkRequiredInputs,
+  localTextFor,
+  parseAssetRefs,
   requireNodeDefinition,
   storyboardPrompt,
   createAsset,
@@ -74,6 +77,13 @@ async function loadBytes(assetId: string): Promise<{ mime: string; bytes: ArrayB
   return { mime: entry.asset.mime, bytes };
 }
 
+/** 读文本类资产的内容，供提示词内联。读不到返回 null，由调用方当缺失处理。 */
+async function loadAssetText(assetId: string): Promise<string | null> {
+  const loaded = await loadBytes(assetId);
+  if (!loaded) return null;
+  return new TextDecoder().decode(loaded.bytes);
+}
+
 /** 把产物写进资产库。同哈希直接复用，返回已有 assetId。 */
 async function persistItem(item: GeneratedItem, taskId: string): Promise<Asset> {
   const runtime = await resolveRuntime();
@@ -114,10 +124,16 @@ export async function runGeneration(
 
   const edges = useGraphStore.getState().edges;
   const requiredPort = textInputPortId(node.defKind);
-  const issues = checkRequiredInputs(node, requireNodeDefinition(node.defKind), {
-    incomingEdgeCount: (target, port) =>
-      Object.values(edges).filter((e) => e.target === target && e.targetPort === port).length,
-  });
+  const issues = checkRequiredInputs(
+    node,
+    requireNodeDefinition(node.defKind),
+    {
+      incomingEdgeCount: (target, port) =>
+        Object.values(edges).filter((e) => e.target === target && e.targetPort === port).length,
+    },
+    // 生成节点的提示词可以自己写，不必非连线。分镜的 `script` 口只收上游。
+    { localText: localTextFor(node) },
+  );
 
   // 分镜节点的文本来自上游，不接受本地输入；其余节点两者都行
   const upstreamText = incoming(nodeId, requiredPort)
@@ -125,12 +141,59 @@ export async function runGeneration(
     .filter((t): t is string => typeof t === 'string')
     .join('\n');
 
-  const prompt = resolvePrompt(node, upstreamText);
-  const promptIssue = checkPrompt(prompt);
-
+  const rawPrompt = resolvePrompt(node, upstreamText);
   if (issues.length > 0) {
     return { ok: false, message: issues.map((i) => i.message).join('；') };
   }
+
+  /**
+   * 提示词里的 `@资产` 引用。
+   *
+   * 图片/视频进参考图，文本资产把内容内联进提示词，然后把 token 从文本里
+   * 剥掉——厂商不认识这个语法，原样发过去只会变成一段噪音。
+   *
+   * 引用缺失时**直接失败**，不带病发请求。理由很实际：如果悄悄跳过，
+   * 用户以为自己带了参考图，拿到一张毫不相干的产物，还得回头猜是模型
+   * 不行还是自己写错了。报错至少指得准。
+   */
+  const assetRefs = parseAssetRefs(rawPrompt);
+  let prompt = rawPrompt;
+  let refAssetIds: string[] = [];
+  if (assetRefs.length > 0) {
+    const textBodies = new Map<string, string>();
+    for (const ref of assetRefs) {
+      const entry = useAssetStore.getState().assets[ref.assetId];
+      if (entry?.asset.kind !== 'text') continue;
+      const body = await loadAssetText(ref.assetId);
+      if (body !== null) textBodies.set(ref.assetId, body);
+    }
+    const resolvedRefs = applyAssetRefs(rawPrompt, assetRefs, {
+      kindOf: (id) => useAssetStore.getState().assets[id]?.asset.kind ?? null,
+      textOf: (id) => textBodies.get(id) ?? null,
+    });
+
+    if (resolvedRefs.missing.length > 0) {
+      const names = resolvedRefs.missing.map((r) => `「${r.label || r.assetId}」`).join('、');
+      return {
+        ok: false,
+        message: `提示词里引用的资产已不存在：${names}。它可能被删除了，删掉这段引用或重新选一个。`,
+      };
+    }
+    if (resolvedRefs.unsupported.length > 0) {
+      const names = resolvedRefs.unsupported.map((r) => `「${r.label || r.assetId}」`).join('、');
+      return { ok: false, message: `提示词里引用了暂不能作为参考素材的资产：${names}（目前支持图片、视频、文本）。` };
+    }
+
+    prompt = resolvedRefs.text;
+    refAssetIds = resolvedRefs.imageAssetIds;
+
+    // 只写了引用、没写描述：这时报「还没有提示词」会让人以为引用没生效。
+    if (prompt.trim() === '' && refAssetIds.length > 0) {
+      return { ok: false, message: '参考素材已经带上了，但还需要一句提示词说明你要什么' };
+    }
+  }
+
+  const promptIssue = checkPrompt(prompt);
   if (promptIssue) {
     return { ok: false, message: promptIssue.message };
   }
@@ -144,13 +207,22 @@ export async function runGeneration(
     return { ok: false, message: `没有可用的「${capability}」模型，请先在设置里添加厂商` };
   }
 
-  // 参考图：generate 用 reference 口，分镜用 reference 口（角色参考）
-  const refs = await Promise.all(
-    incoming(nodeId, 'reference')
-      .map((i) => i.assetId)
-      .filter((id): id is string => typeof id === 'string')
-      .map((id) => loadBytes(id)),
-  );
+  /**
+   * 参考素材 = 连线 + 提示词里的 `@` 引用。
+   *
+   * 顺序有语义（第一张常被厂商当主参考图），所以连线排在前面：拖线是更
+   * 明确的"我要这张当主参考"，`@` 是写在句子里的补充。两边重复引用同一张
+   * 图只留一次，否则会白占一个参考槽。
+   */
+  const connectedRefIds = incoming(nodeId, 'reference')
+    .map((i) => i.assetId)
+    .filter((id): id is string => typeof id === 'string');
+  const referenceAssetIds = [
+    ...connectedRefIds,
+    ...refAssetIds.filter((id) => !connectedRefIds.includes(id)),
+  ];
+
+  const refs = await Promise.all(referenceAssetIds.map((id) => loadBytes(id)));
 
   const count = node.defKind === 'storyboard' ? gridCount(String(node.params.grid ?? '2x2')) : 1;
 
@@ -162,9 +234,7 @@ export async function runGeneration(
       prompt,
       model: picked.modelId,
       providerId: picked.config.id,
-      inputAssetIds: incoming(nodeId, 'reference')
-        .map((i) => i.assetId)
-        .filter((id): id is string => typeof id === 'string'),
+      inputAssetIds: referenceAssetIds,
       aspectRatio: String(node.params.aspectRatio ?? '1:1'),
       ...(node.defKind === 'storyboard' ? { extras: { grid: String(node.params.grid ?? '2x2') } } : {}),
     },

@@ -30,6 +30,21 @@ export {
   type CreateAssetInput,
 } from './asset/model';
 
+// 提示词里的 @资产 引用
+export {
+  applyAssetRefs,
+  assetQueryAt,
+  assetRefLabel,
+  assetRefToken,
+  insertAssetRef,
+  parseAssetRefs,
+  splitPromptSegments,
+  type AssetRef,
+  type AssetRefLookup,
+  type AssetRefResolution,
+  type PromptSegment,
+} from './asset/ref';
+
 // 裁切几何
 export {
   ASPECT_PRESETS,
@@ -132,6 +147,7 @@ export {
 export {
   checkPrompt,
   checkRequiredInputs,
+  localTextFor,
   resolvePrompt,
   textInputPortId,
   type ConnectionLookup,
