@@ -51,8 +51,10 @@ export interface AuditSummary {
   canceled: number;
   egressCount: number;
   resultCount: number;
-  /** 所有有单价任务的成本合计；没有任何成本记录时为 null */
+  /** 主币种合计；没有任何成本记录时为 null。多币种时的完整明细见 costByCurrency。 */
   totalCost: CostRecord | null;
+  /** 按币种拆分的合计。USD 与 CNY 不能相加，所以分开列。 */
+  costByCurrency: CostRecord[];
 }
 
 function scopeOf(config: ProviderConfig | undefined): ProviderScope {
@@ -108,18 +110,6 @@ export function filterAudit(entries: readonly AuditEntry[], filter: AuditFilter)
   });
 }
 
-function addCost(a: CostRecord | null, b: CostRecord | null): CostRecord | null {
-  if (!a) return b;
-  if (!b) return a;
-  // 不同币种不做跨币种累加，直接以先到者为准（审计里应保证同一视图币种一致）
-  if (a.currency !== b.currency) return a;
-  return {
-    amount: Math.round((a.amount + b.amount) * 1e6) / 1e6,
-    currency: a.currency,
-    basis: '汇总',
-  };
-}
-
 export function summarizeAudit(entries: readonly AuditEntry[]): AuditSummary {
   let totalCost: CostRecord | null = null;
   let resultCount = 0;
@@ -127,6 +117,8 @@ export function summarizeAudit(entries: readonly AuditEntry[]): AuditSummary {
   let succeeded = 0;
   let failed = 0;
   let canceled = 0;
+  // 按币种分桶：USD 和 CNY 不能相加，混在一起要么丢数、要么给出一个假总额。
+  const buckets = new Map<string, number>();
 
   for (const e of entries) {
     if (e.status === 'succeeded') succeeded += 1;
@@ -134,8 +126,22 @@ export function summarizeAudit(entries: readonly AuditEntry[]): AuditSummary {
     else if (e.status === 'canceled') canceled += 1;
     if (e.dataEgress) egressCount += 1;
     resultCount += e.resultCount;
-    totalCost = addCost(totalCost, e.cost);
+
+    if (e.cost) {
+      buckets.set(e.cost.currency, (buckets.get(e.cost.currency) ?? 0) + e.cost.amount);
+    }
   }
+
+  const costByCurrency: CostRecord[] = [...buckets.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([currency, amount]) => ({
+      amount: Math.round(amount * 1e6) / 1e6,
+      currency,
+      basis: '汇总',
+    }));
+
+  // 单一币种时 totalCost 就是它；多币种时取条目最多的那种做「主币种」展示，其余走 costByCurrency
+  totalCost = costByCurrency.length > 0 ? costByCurrency[0]! : null;
 
   return {
     total: entries.length,
@@ -145,6 +151,7 @@ export function summarizeAudit(entries: readonly AuditEntry[]): AuditSummary {
     egressCount,
     resultCount,
     totalCost,
+    costByCurrency,
   };
 }
 

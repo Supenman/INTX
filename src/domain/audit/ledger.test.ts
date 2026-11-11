@@ -121,7 +121,36 @@ describe('summarizeAudit', () => {
 
   it('无成本记录时 totalCost 为 null', () => {
     const tasks: Task[] = [makeTask({ id: 'n1', status: 'succeeded', params: { kind: 'image', prompt: 'x', model: 'demo/image', providerId: 'demo', inputAssetIds: [] } })];
-    expect(summarizeAudit(buildAuditEntries(tasks, configs)).totalCost).toBeNull();
+    const summary = summarizeAudit(buildAuditEntries(tasks, configs));
+    expect(summary.totalCost).toBeNull();
+    expect(summary.costByCurrency).toEqual([]);
+  });
+
+  /**
+   * 回归：不同币种绝不累加。
+   *
+   * 旧实现 addCost 遇到币种不同就「以先到者为准」直接返回，后一笔钱被静默吞掉——
+   * 台账总额看着正常，实际少算了。这里钉住：USD 与 CNY 必须分开列。
+   */
+  it('多币种分开统计，不静默丢数也不相加', () => {
+    const tasks: Task[] = [
+      makeTask({
+        id: 'usd1', status: 'succeeded',
+        cost: { amount: 0.04, currency: 'USD', basis: 'image × 1' },
+        params: { kind: 'image', prompt: 'x', model: 'gpt-image-1', providerId: 'openai', inputAssetIds: [] },
+      }),
+      makeTask({
+        id: 'cny1', status: 'succeeded',
+        cost: { amount: 0.5, currency: 'CNY', basis: 'image × 1' },
+        params: { kind: 'image', prompt: 'y', model: 'seedream', providerId: 'volc', inputAssetIds: [] },
+      }),
+    ];
+    const summary = summarizeAudit(buildAuditEntries(tasks, configs));
+    const byCur = new Map(summary.costByCurrency.map((c) => [c.currency, c.amount]));
+    expect(byCur.get('USD')).toBe(0.04);
+    expect(byCur.get('CNY')).toBe(0.5);
+    // 不能出现一个把两种钱加起来的假总额（0.54）
+    expect(summary.costByCurrency).toHaveLength(2);
   });
 });
 

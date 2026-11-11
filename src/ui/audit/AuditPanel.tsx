@@ -51,11 +51,15 @@ export function AuditPanel({ onClose, onError, onFlash }: Props) {
     };
   }, []);
 
-  const entries = useMemo(
-    () => buildAuditEntries(tasks, useProviderStore.getState().configs),
-    // configs 通过 getState 取最新，避免重渲染抖动；tasks 变化即重算
-    [tasks],
-  );
+  /**
+   * 依赖必须带 configs。
+   *
+   * 踩坑记录：最初只写 [tasks]，是因为觉得「configs 用 getState() 取最新就不算依赖」。
+   * 但 useMemo 只有在依赖变化时才重算——用户在设置里把某厂商改成「内部」后不重开面板，
+   * 台账里的「出境」标记会一直是旧的。getState() 绕过了 React 的依赖追踪，
+   * eslint 的 exhaustive-deps 也看不到（它只认变量引用），于是 lint 全绿、逻辑是错的。
+   */
+  const entries = useMemo(() => buildAuditEntries(tasks, configs), [tasks, configs]);
   const filtered = useMemo(() => filterAudit(entries, filter), [entries, filter]);
   const summary = useMemo(() => summarizeAudit(filtered), [filtered]);
 
@@ -75,10 +79,10 @@ export function AuditPanel({ onClose, onError, onFlash }: Props) {
 
   async function exportRepro(taskId: string) {
     setBusy(taskId);
-    const ok = await exportReproForTask(taskId);
+    const err = await exportReproForTask(taskId);
     setBusy(null);
-    if (ok) onFlash('复现包已导出');
-    else onError('找不到该任务或它的产物');
+    if (err) onError(err);
+    else onFlash('复现包已导出');
   }
 
   async function importRepro() {
@@ -116,7 +120,9 @@ export function AuditPanel({ onClose, onError, onFlash }: Props) {
             <span className="chip">
               成本{' '}
               <b>
-                {summary.totalCost ? `${summary.totalCost.amount} ${summary.totalCost.currency}` : '—'}
+                {summary.costByCurrency.length === 0
+                  ? '—'
+                  : summary.costByCurrency.map((c) => `${c.amount} ${c.currency}`).join(' + ')}
               </b>
             </span>
           </div>

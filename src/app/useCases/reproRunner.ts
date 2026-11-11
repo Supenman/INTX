@@ -3,12 +3,14 @@ import {
   createAsset,
   extFromMime,
   findByHash,
+  type ProviderCapability,
   type ReproAsset,
   type ReproPackage,
 } from '@/domain';
 import { resolveRuntime } from '@/infra/runtime';
 import { addNode, connectNodes, setNodeAsset } from '@/app/stores/graphStore';
 import { putAsset, useAssetStore } from '@/app/stores/assetStore';
+import { useProviderStore } from '@/app/stores/providerStore';
 import { runGeneration, type RunResult } from '@/app/useCases/runGeneration';
 
 /**
@@ -54,9 +56,36 @@ async function landAsset(
 
 /**
  * 执行一次复现。返回与原生生成一致的 RunResult。
- * 失败（资产缺失/无可用厂商）由 runGeneration 负责给出人话错误消息。
+ *
+ * 厂商校验放在最前面，原因是一个很难察觉的静默错误：
+ * `runGeneration` 只按**模型名**挑厂商（`pickModel` 的 preferred 参数是模型 id），
+ * `params.providerId` 根本没被用到。于是复现包在另一台机器上打开时，
+ * 只要本机碰巧有同名模型（例如大家都配了 `gpt-image-1`），
+ * 就会用**别的厂商**出图，而且审计台账里记的也是那个错厂商——
+ * 「复现」悄悄变成了「用我的号重跑一遍」，提示词可能去了不该去的地方。
+ *
+ * 所以：原厂商不存在就直接拒绝并说清楚，不做任何猜测性替换。
  */
 export async function runReproPackage(pkg: ReproPackage): Promise<RunResult> {
+  const { configs } = useProviderStore.getState();
+  const original = configs.find((c) => c.id === pkg.params.providerId);
+  if (!original) {
+    const known = configs.map((c) => c.id).join('、') || '无';
+    return {
+      ok: false,
+      message: `复现包用的是厂商「${pkg.params.providerId}」，本机没有这个配置（现有：${known}）。先在设置里添加同名 id 的厂商，避免用别的厂商误跑。`,
+    };
+  }
+  const hasModel = original.models.some(
+    (m) => m.id === pkg.params.model && m.capabilities.includes(pkg.params.kind as ProviderCapability),
+  );
+  if (!hasModel) {
+    return {
+      ok: false,
+      message: `厂商「${original.name}」下找不到可做「${pkg.params.kind}」的模型 ${pkg.params.model}，请先在设置里补上。`,
+    };
+  }
+
   const runtime = await resolveRuntime();
 
   // 1) 参考图落盘并建素材节点
