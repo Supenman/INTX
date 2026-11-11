@@ -97,6 +97,7 @@ export {
   checkPrompt,
   checkRequiredInputs,
   resolvePrompt,
+  textInputPortId,
   type ConnectionLookup,
   type MissingInput,
   type MissingInputCode,

@@ -1,6 +1,13 @@
 import { memo, useMemo, useState } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
-import { extFromMime, getNodeDefinition, parseGrid, type ProjectNode } from '@/domain';
+import {
+  extFromMime,
+  getNodeDefinition,
+  parseGrid,
+  resolvePrompt,
+  textInputPortId,
+  type ProjectNode,
+} from '@/domain';
 import { latestTaskForNode, retryTask, useTaskStore } from '@/app/stores/taskStore';
 import { useAssetStore } from '@/app/stores/assetStore';
 import { removeNodes, setNodeParam, useGraphStore } from '@/app/stores/graphStore';
@@ -42,8 +49,14 @@ export const CanvasNode = memo(function CanvasNode({ id, data, selected }: NodeP
   );
   const derivedIds = node.derivedAssetIds;
   const allAssets = useAssetStore((s) => s.assets);
-  // 上游文本连进来时，卡片上显示的就是真正会被送去生成的那段文字
-  const upstreamText = useGraphStore((s) => incomingText(s.edges, s.nodes, node.id, 'text'));
+  /**
+   * 上游文本连进来时，卡片上显示的就是真正会被送去生成的那段文字。
+   * 端口名必须走 textInputPortId()：这里曾写死 'text'（文字节点的输出口），
+   * 于是生成节点的 'prompt' 口永远查不到东西，卡片一直说「还没有提示词」。
+   */
+  const upstreamText = useGraphStore((s) =>
+    incomingText(s.edges, s.nodes, node.id, textInputPortId(node.defKind)),
+  );
   /**
    * 注意不要就地 .map().filter() 生成新数组：
    * 每渲染一次一个新引用，尽管不影响正确性，但会让下游比较全部失效。
@@ -92,16 +105,28 @@ export const CanvasNode = memo(function CanvasNode({ id, data, selected }: NodeP
     );
   }
 
-  const prompt = typeof node.params.prompt === 'string' ? node.params.prompt : '';
+  /**
+   * 卡片上必须显示**真正会发给上游的那段文字**。
+   *
+   * 真机第一次跑就撞上这个坑：提示词是从上游文字节点连进来的，执行层用
+   * resolvePrompt(node, upstreamText) 拼出了请求、上游也确实收到了（回了
+   * HTTP 451），但卡片只读节点自己的 params.prompt，于是显示「还没有提示词」
+   * ——用户看到的是「明明没提示词却报错」，无从判断到底哪里出了问题。
+   * 显示层和执行层共用一个解析函数，才不会各说各话。
+   */
+  const effectivePrompt = resolvePrompt(node, upstreamText);
+  const promptFromUpstream = upstreamText.trim() !== '' && effectivePrompt === upstreamText.trim();
   const content = typeof node.params.content === 'string' ? node.params.content : '';
 
   const outputKind = typeof node.params.outputKind === 'string' ? node.params.outputKind : 'image';
   const busy = task?.status === 'running' || task?.status === 'queued';
 
+  // 节点是固定尺寸容器：不用 min-height，否则出图后长高会盖住下方节点，
+  // 用户点自己的按钮实际点到别人的卡片上（表现为「点了没反应」）。
   return (
     <div
       className={`node${selected ? ' selected' : ''}`}
-      style={{ width: node.size.width, minHeight: node.size.height }}
+      style={{ width: node.size.width, height: node.size.height }}
     >
       <button
         className="node-delete-btn nodrag"
@@ -145,11 +170,14 @@ export const CanvasNode = memo(function CanvasNode({ id, data, selected }: NodeP
 
       <div className="node-body">
         {node.defKind === 'text-input' && (
-          <div className="node-prompt">
-            {upstreamText ? (
-              <span className="node-upstream">{upstreamText}</span>
-            ) : (
-              content || <span className="node-empty">在下方输入，或从别的节点接入</span>
+          <div className="node-text">
+            {upstreamText && (
+              <>
+                <div className="node-prompt-src" title="上游接进来的文字会优先于你在下面写的内容">
+                  ↑ 来自上游文字节点
+                </div>
+                <div className="node-upstream">{upstreamText}</div>
+              </>
             )}
             <textarea
               className="node-textarea nodrag"
@@ -162,10 +190,23 @@ export const CanvasNode = memo(function CanvasNode({ id, data, selected }: NodeP
 
         {node.defKind === 'generate' && (
           <>
-            <div className="node-prompt">{prompt || <span className="node-empty">还没有提示词</span>}</div>
-            {primary && (
+            {promptFromUpstream && (
+              <div className="node-prompt-src" title="卡片显示的就是会发给上游的那段文字">
+                ↑ 提示词来自上游文字节点
+              </div>
+            )}
+            <div className="node-prompt">
+              {effectivePrompt || <span className="node-empty">还没有提示词</span>}
+            </div>
+            {primary ? (
               <div className="node-result">
                 <BlobImage entry={primary} />
+              </div>
+            ) : (
+              // 节点高度是固定的（出图前后不能变），没产物时给一个占位框，
+              // 否则卡片下半截是一大片说不出所以然的空白。
+              <div className="node-result empty">
+                <span className="node-empty">还没有产物</span>
               </div>
             )}
             <div className="node-field">

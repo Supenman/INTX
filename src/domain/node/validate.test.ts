@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkPrompt, checkRequiredInputs, resolvePrompt, type ConnectionLookup } from './validate';
+import { checkPrompt, checkRequiredInputs, resolvePrompt, textInputPortId, type ConnectionLookup } from './validate';
 import { generateNode, storyboardNode } from './builtins';
 import type { ProjectNode } from '../schema/project';
 
@@ -69,5 +69,25 @@ describe('提示词来源', () => {
   it('上游和本地都去掉首尾空白，避免把换行送进请求', () => {
     const n = node({ params: { prompt: '  本地  \n' } });
     expect(resolvePrompt(n, null)).toBe('本地');
+  });
+});
+
+describe('textInputPortId', () => {
+  it('生成节点收文本的口叫 prompt，不是文字节点的输出口 text', () => {
+    // 写错这一个是静默的：请求照样带着提示词发出去，只有卡片显示「还没有提示词」
+    expect(textInputPortId(generateNode.kind)).toBe('prompt');
+    expect(generateNode.inputPorts.some((p) => p.id === textInputPortId(generateNode.kind))).toBe(true);
+  });
+
+  it('分镜节点收文本的口叫 script', () => {
+    expect(textInputPortId(storyboardNode.kind)).toBe('script');
+    expect(storyboardNode.inputPorts.some((p) => p.id === textInputPortId(storyboardNode.kind))).toBe(true);
+  });
+
+  it('每个内置节点的文本口都能在自己的定义里找到', () => {
+    for (const def of [generateNode, storyboardNode]) {
+      const id = textInputPortId(def.kind);
+      expect(def.inputPorts.some((p) => p.id === id && p.accepts.includes('text'))).toBe(true);
+    }
   });
 });

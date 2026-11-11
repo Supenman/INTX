@@ -63,6 +63,21 @@ export interface ParamIssue {
 }
 
 /**
+ * 哪个输入口接文本。
+ *
+ * 生成节点叫 `prompt`，分镜节点叫 `script`。这个映射原本在两处各写一遍：
+ * `runGeneration()` 里写对了，`CanvasNode` 里却写死成 `'text'`——那是文字节点的
+ * **输出**口 id。后果不是报错，而是更糟的「静默不一致」：请求带着上游提示词
+ * 真的发了出去（真机回了 HTTP 451），卡片却一直显示「还没有提示词」，
+ * 用户看到「没提示词却报错」，根本无从判断问题在哪。
+ *
+ * 收成一个函数，显示层和执行层都从这里取，谁也别再猜端口名。
+ */
+export function textInputPortId(defKind: string): string {
+  return defKind === 'storyboard' ? 'script' : 'prompt';
+}
+
+/**
  * 生成节点允许「提示词」来自两个地方：上游连线，或节点自己的输入框。
  * 两者都有时以上游为准（连线是更明确的意图），这也是旧代码没做好的地方——
  * 旧代码同时读两处，谁覆盖谁取决于执行顺序。

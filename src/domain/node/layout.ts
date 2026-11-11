@@ -16,7 +16,11 @@ import type { NodePosition, ProjectEdge, ProjectNode } from '../schema/project';
 
 /** 与 grid.ts 的宫格语义无关，这里是画布节点间距。 */
 export const LAYOUT_STEP_X = 380;
-export const LAYOUT_STEP_Y = 320;
+/**
+ * 纵向步长必须 ≥ 最高节点（380）+ 呼吸间距，否则自动整理和落位避让
+ * 会把节点排得互相压住——高度不够时「不重叠」只是纸面上的。
+ */
+export const LAYOUT_STEP_Y = 410;
 
 export type AlignMode = 'left' | 'right' | 'top' | 'bottom' | 'center-x' | 'center-y';
 export type DistributeAxis = 'horizontal' | 'vertical';

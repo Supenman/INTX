@@ -240,6 +240,22 @@ export function normalizeError(e: unknown): TaskError {
   if (lower.includes('429') || lower.includes('rate limit')) {
     return { code: 'rate_limited', message: '请求过于频繁，请稍后重试', retryable: true };
   }
+  /**
+   * HTTP 451 / unsafe：上游的安全审核拦下了**生成出来的图**，不是请求没发出去。
+   * 第一次真机出图就撞上这条：原文是「The generated images appear to be unsafe.
+   * Try modifying the prompt or seeds.」旧代码不认识它，落进 unknown，于是卡片上
+   * 糊着一段英文原文加 request id，用户既读不懂也不知道下一步该做什么。
+   *
+   * 不能归成 5xx 或 network：那不是「过一会儿再试」能解决的，原样重试大概率
+   * 还是同一张被拦的图。所以 retryable 给 false，让 UI 引导去改提示词。
+   */
+  if (/\b451\b/.test(raw) || lower.includes('unsafe') || lower.includes('moderation')) {
+    return {
+      code: 'content_rejected',
+      message: '上游安全审核拦下了这次出图（HTTP 451），改一下提示词或换个 seed 再试',
+      retryable: false,
+    };
+  }
   if (lower.includes('content') && (lower.includes('policy') || lower.includes('reject'))) {
     return { code: 'content_rejected', message: '内容被上游拒绝，请调整提示词', retryable: false };
   }
