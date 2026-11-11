@@ -59,6 +59,7 @@ import { resolveRuntime } from '@/infra/runtime';
 import { exportProject, importProject, pickFile } from '@/app/useCases/projectPackage';
 import { AssetLibrary } from '@/ui/library/AssetLibrary';
 import { SettingsPanel } from '@/ui/settings/SettingsPanel';
+import { AuditPanel } from '@/ui/audit/AuditPanel';
 import { LegacyImportDialog } from '@/ui/common/LegacyImportDialog';
 import { CanvasNode, type CanvasNodeData } from './CanvasNode';
 import { AddMenu, CanvasStarter, ModeSwitch, SelectionToolbar, type ToolDispatch } from './CanvasTools';
@@ -88,6 +89,7 @@ function CanvasInner() {
   const [toast, setToast] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [legacyOpen, setLegacyOpen] = useState(false);
+  const [auditOpen, setAuditOpen] = useState(false);
 
   // 画布基本功的状态：工具模式、选区、右键菜单、内部剪贴板
   const [toolMode, setToolMode] = useState<ToolMode>('select');
@@ -617,6 +619,9 @@ function CanvasInner() {
 
         <h3>项目</h3>
         <div className="node-picker">
+          <button onClick={() => setAuditOpen(true)} title="查看生成审计台账：厂商、出处、成本、复现">
+            审计台账
+          </button>
           <button onClick={() => void exportProject()}>导出 .intx</button>
           <button onClick={() => void importProject(pickFile, showError)}>导入 .intx</button>
           <button onClick={() => setLegacyOpen(true)} title="从旧版 BeastTV / INTX 的 localStorage 或 JSON 文件迁移">
@@ -771,6 +776,10 @@ function CanvasInner() {
               flash('厂商配置已保存');
             }}
           />
+        )}
+
+        {auditOpen && (
+          <AuditPanel onClose={() => setAuditOpen(false)} onError={showError} onFlash={flash} />
         )}
 
         {legacyOpen && (

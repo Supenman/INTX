@@ -1727,3 +1727,105 @@ button {
     transition: none;
   }
 }
+
+/* ── 审计台账 ───────────────────────────────────────────── */
+.panel.wide {
+  max-width: 1120px;
+  width: 94vw;
+  max-height: 88vh;
+}
+.audit {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.audit-summary,
+.audit-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.audit-filters select {
+  background: var(--bg-1);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 13px;
+}
+.audit-table-wrap {
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.audit-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.audit-table th,
+.audit-table td {
+  padding: 7px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.audit-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-1);
+  color: var(--muted);
+  font-weight: 600;
+  z-index: 1;
+}
+.audit-table .prompt {
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.audit-table .mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--text-dim);
+}
+.audit-table .scope {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 11px;
+}
+.audit-table .scope.external {
+  background: rgba(229, 115, 115, 0.18);
+  color: #ff9b9b;
+}
+.audit-table .scope.internal {
+  background: rgba(110, 190, 130, 0.18);
+  color: #9be0ad;
+}
+.audit-table .status {
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+.audit-table .status.succeeded {
+  background: rgba(110, 190, 130, 0.2);
+  color: #9be0ad;
+}
+.audit-table .status.failed {
+  background: rgba(229, 115, 115, 0.2);
+  color: #ff9b9b;
+}
+.audit-table .status.canceled {
+  background: rgba(160, 160, 160, 0.18);
+  color: var(--muted);
+}
+.chip.ok {
+  color: #9be0ad;
+}
+.chip.danger {
+  color: #ff9b9b;
+}
+.chip.warn {
+  color: #f0c674;
+}

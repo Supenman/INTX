@@ -86,6 +86,7 @@ describe('项目存档往返', () => {
           error: null,
           upstreamRef: null,
           attempt: 1,
+          cost: null,
           createdAt: 100,
           startedAt: 110,
           finishedAt: 200,

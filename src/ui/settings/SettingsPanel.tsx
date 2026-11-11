@@ -134,6 +134,16 @@ export function SettingsPanel({ onClose, onSaved }: { onClose: () => void; onSav
                   />
                 </Field>
 
+                <Field label="数据归属" hint="外部厂商意味着提示词/图片会发到公司外；审计台账据此标注「出境」">
+                  <select
+                    value={draft.scope === 'internal' ? 'internal' : 'external'}
+                    onChange={(e) => patch({ scope: e.target.value as 'internal' | 'external' })}
+                  >
+                    <option value="external">外部（出境）</option>
+                    <option value="internal">内部（自部署）</option>
+                  </select>
+                </Field>
+
                 <h4>模型与能力</h4>
                 <p className="muted small">
                   能力由这里声明，不由模型名猜。节点需要什么就只列什么。

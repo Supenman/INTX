@@ -31,9 +31,18 @@ export function defaultProviders(): ProviderConfig[] {
       adapter: 'mock',
       baseUrl: '',
       apiKey: '',
+      // 演示不出境：标 internal，审计里不计入「数据出境」
+      scope: 'internal',
       models: [
-        { id: 'demo/image', label: '演示出图', capabilities: ['image'], aspectRatios: ['1:1', '16:9', '9:16'] },
-        { id: 'demo/text', label: '演示文本', capabilities: ['text'] },
+        {
+          id: 'demo/image',
+          label: '演示出图',
+          capabilities: ['image'],
+          aspectRatios: ['1:1', '16:9', '9:16'],
+          // 演示单价：仅用于展示成本归因链路，非真实账单
+          pricing: { perImage: 0.01, currency: 'USD' },
+        },
+        { id: 'demo/text', label: '演示文本', capabilities: ['text'], pricing: { per1kTokens: 0.005, currency: 'USD' } },
       ],
     },
   ];

@@ -5,6 +5,7 @@ import {
   storyboardPrompt,
   createAsset,
   contentPath,
+  estimateGenerationCost,
   extFromMime,
   normalizeError,
   parseGrid,
@@ -238,7 +239,17 @@ export async function runGeneration(
     }
 
     if (assets.length === 0) throw new Error('上游没有返回可用的产物');
-    markSucceeded(taskId, assets.map((a) => a.id));
+
+    // 成本估算：按模型单价 × 本次产出数量。没配单价则 cost 为 null，绝不编 0。
+    const spec = picked.config.models.find((m) => m.id === picked.modelId);
+    const cost = estimateGenerationCost({
+      pricing: spec?.pricing,
+      kind: capability === 'text' ? 'text' : capability,
+      outputCount: assets.length,
+      modelId: picked.modelId,
+      promptChars: prompt.length,
+    });
+    markSucceeded(taskId, assets.map((a) => a.id), cost);
 
     attachAssets(
       nodeId,

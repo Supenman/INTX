@@ -46,6 +46,20 @@ export interface TaskError {
   retryable: boolean;
 }
 
+/**
+ * 一次生成的成本估算。金额来自模型单价（见 ModelPricing）的本地估算，
+ * 不是厂商返回的精确账单——公司内部分摊看的是相对值。
+ *
+ * `basis` 记录「这笔钱怎么算出来的」，审计时能回溯，而不是一个孤立的数字。
+ * 没有单价可估时整条为 null，绝不编一个 0 假装「免费」。
+ */
+export interface CostRecord {
+  amount: number;
+  currency: string;
+  /** 例如 'image × 1 @ demo/image' 或 'text ≈ 240 tokens @ gpt-4o-mini' */
+  basis: string;
+}
+
 /** 生成参数快照。字段全部显式，不塞 unknown 开放字典。 */
 export interface GenerationParams {
   kind: TaskKind;
@@ -80,6 +94,8 @@ export interface Task {
   createdAt: number;
   startedAt: number | null;
   finishedAt: number | null;
+  /** 成本估算（见 CostRecord）。生成本地估算，未配置单价则为 null。 */
+  cost: CostRecord | null;
 }
 
 /** 哪些状态是终态——终态之间不允许再迁移。 */
@@ -132,6 +148,7 @@ export function createTask(input: CreateTaskInput): Task {
     createdAt: now,
     startedAt: null,
     finishedAt: null,
+    cost: null,
   };
 }
 
@@ -156,6 +173,8 @@ export interface TransitionOptions {
   phase?: TaskPhase | null;
   error?: TaskError | null;
   resultAssetIds?: string[];
+  /** 成本估算，成功时由用例层算好传入并冻结进任务。 */
+  cost?: CostRecord | null;
 }
 
 /**
@@ -208,6 +227,9 @@ export function transition(task: Task, to: TaskStatus, opts: TransitionOptions =
   }
   if (opts.resultAssetIds) {
     next.resultAssetIds = [...opts.resultAssetIds];
+  }
+  if (opts.cost !== undefined) {
+    next.cost = opts.cost;
   }
   if (opts.phase !== undefined && next.status === 'running') {
     next.phase = opts.phase;

@@ -20,6 +20,16 @@ import { parseGrid } from '../node/grid';
 
 export type ProviderCapability = 'text' | 'image' | 'video';
 
+/**
+ * 厂商的数据归属。
+ *
+ * 公司内部自用的核心关切之一就是「提示词/图片有没有发到公司外部」：
+ * 接了外部厂商（OpenAI、第三方中转、公有云）就是 `external`，
+ * 自部署在内部网络的就是 `internal`。审计台账据此标注每一次生成是否「出境」，
+ * 方便合规留痕。默认 `external`——宁可多标一次，也别漏标一次。
+ */
+export type ProviderScope = 'internal' | 'external';
+
 /** 一个厂商 = 一个 baseURL + 一把 key + 若干模型。 */
 export interface ProviderConfig {
   id: string;
@@ -29,6 +39,8 @@ export interface ProviderConfig {
   baseUrl: string;
   apiKey: string;
   models: ModelSpec[];
+  /** 该厂商的数据归属，决定审计里的「出境」标记。默认 external。 */
+  scope?: ProviderScope;
 }
 
 /** 模型的能力自述。UI 的模型下拉框只列出当前节点需要的模型。 */
@@ -42,6 +54,23 @@ export interface ModelSpec {
   aspectRatios?: readonly string[];
   /** 是否接受参考图（图生图/参考） */
   acceptsImages?: boolean;
+  /** 单价。没有就表示「无法估算成本」——审计里该次成本记 null，绝不编一个 0。 */
+  pricing?: ModelPricing;
+}
+
+/**
+ * 模型单价。本地估算用，不是厂商返回的精确账单。
+ *
+ * 公司内部分摊成本靠的是「按节点/任务/厂商相对分摊」，趋势和量级对就行，
+ * 不需要逐 token 精确到分。上游接口大多不返回 cost，硬要拿反而引入脆弱依赖。
+ */
+export interface ModelPricing {
+  /** 每张图 / 每段视频的单价 */
+  perImage?: number;
+  /** 每千 token 的单价（文本生成用） */
+  per1kTokens?: number;
+  /** 货币代码，如 'USD' / 'CNY' */
+  currency: string;
 }
 
 export interface GenerationRequest {

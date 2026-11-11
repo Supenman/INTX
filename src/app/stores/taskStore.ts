@@ -4,6 +4,7 @@ import {
   normalizeError,
   setProgress,
   transition,
+  type CostRecord,
   type GenerationParams,
   type Task,
   type TaskError,
@@ -70,9 +71,9 @@ export function markProgress(id: string, value: number | null): void {
   });
 }
 
-export function markSucceeded(id: string, resultAssetIds: string[]): void {
+export function markSucceeded(id: string, resultAssetIds: string[], cost?: CostRecord | null): void {
   patchTask(id, (t) => {
-    const r = transition(t, 'succeeded', { resultAssetIds });
+    const r = transition(t, 'succeeded', { resultAssetIds, cost });
     return r.ok ? r.value : t;
   });
 }

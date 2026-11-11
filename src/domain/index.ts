@@ -59,6 +59,7 @@ export {
   setProgress,
   transition,
   type CreateTaskInput,
+  type CostRecord,
   type ErrorCode,
   type GenerationParams,
   type Task,
@@ -68,6 +69,34 @@ export {
   type TaskStatus,
   type TaskTransitionError,
 } from './task/model';
+
+// 成本估算
+export { estimateGenerationCost, type EstimateCostInput } from './cost';
+
+// 审计台账
+export {
+  auditToCsv,
+  buildAuditEntries,
+  filterAudit,
+  summarizeAudit,
+  type AuditEntry,
+  type AuditFilter,
+  type AuditSummary,
+} from './audit/ledger';
+
+// 一键复现
+export {
+  REPRO_VERSION,
+  buildReproPackage,
+  parseRepro,
+  serializeRepro,
+  validateRepro,
+  type BuildReproInput,
+  type ReproAsset,
+  type ReproError,
+  type ReproErrorCode,
+  type ReproPackage,
+} from './repro/model';
 
 // 节点
 export { acceptsType, isValidConnection, validateConnection } from './node/port';
@@ -138,10 +167,12 @@ export {
   type GeneratedItem,
   type GenerationHandlers,
   type GenerationRequest,
+  type ModelPricing,
   type ModelSpec,
   type ProviderAdapter,
   type ProviderCapability,
   type ProviderConfig,
+  type ProviderScope,
 } from './provider/model';
 
 // 节点默认尺寸（新建节点与旧数据导入共用）
