@@ -110,6 +110,44 @@ export async function run() {
   check(swapped[0].source === ids[1], '换源后剩下的连线应来自第二个文字输入');
   check(swapped[0].source !== ids[0], '旧的那条边应被删掉');
 
+  // ── 3.5 卡片上显示的文字 = 真正发给上游的文字 ──
+  // 真机第一次出图就栽在这里：提示词从上游连进来，执行层拼进了请求、上游也真的
+  // 回了 HTTP 451，卡片却写着「还没有提示词」。用户看到「没提示词却报错」，
+  // 完全无从判断问题在哪。显示层与执行层必须共用 resolvePrompt()。
+  const upstreamCopy = '雨夜霓虹街口，35mm 抓拍质感';
+  await nodes().nth(1).locator('.node-textarea').fill(upstreamCopy);
+  await p.waitForTimeout(250);
+  const shownPrompt = await nodes().nth(2).locator('.node-prompt').innerText();
+  console.log('3.5) 生成卡片上显示的提示词:', shownPrompt.replace(/\n/g, ' '));
+  check(shownPrompt.includes(upstreamCopy), '生成卡片应显示从上游连进来的那段文字');
+  check(!shownPrompt.includes('还没有提示词'), '连线已把提示词送进来时，不该再显示「还没有提示词」');
+  check(
+    (await nodes().nth(2).locator('.node-prompt-src').count()) === 1,
+    '提示词来自上游时应标注来源，让用户知道这段字不是写在这个节点里的',
+  );
+
+  // ── 3.6 节点是固定尺寸容器，内部元素不许溢出 ──
+  // 只断言「文字显示对了」不够：曾经把产物区写成 flex-basis:auto，
+  // 它先按内容占位，把「生成」按钮整个挤出卡片底部——DOM 里按钮还在、
+  // 断言也过得去，但屏幕上根本点不到。这类问题只有量几何才抓得到。
+  const overflow = await p.evaluate(() => {
+    const out = [];
+    for (const card of document.querySelectorAll('.react-flow__node .node')) {
+      const box = card.getBoundingClientRect();
+      const inner = card.querySelectorAll(
+        '.node-head, .node-body, .node-result, .node-field, .node-generate-btn, .node-status, .node-prompt, .node-actions',
+      );
+      for (const el of inner) {
+        const r = el.getBoundingClientRect();
+        if (r.bottom > box.bottom + 1 || r.right > box.right + 1) {
+          out.push(`${String(el.className).split(' ')[0]} 超出卡片 ${Math.round(r.bottom - box.bottom)}px`);
+        }
+      }
+    }
+    return out;
+  });
+  check(overflow.length === 0, `节点内部元素溢出卡片（按钮会被裁掉）：${overflow.slice(0, 3).join('；')}`);
+
   // ── 4. 连线被拒时说人话，不把 image / text 这类内部枚举丢给用户 ──
   await p.locator('.node-picker button').nth(1).click(); // 素材节点（输出 image）
   await p.waitForTimeout(300);

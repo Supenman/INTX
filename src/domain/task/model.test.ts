@@ -148,6 +148,24 @@ describe('normalizeError', () => {
     expect(e.retryable).toBe(false);
   });
 
+  it('HTTP 451 生成结果被安全审核拦下，归入 content_rejected 且不给「原样重试」', () => {
+    // 真实原文：真机第一次出图时报的就是这一条
+    const e = normalizeError(
+      new Error('HTTP 451 The generated images appear to be unsafe. Try modifying the pronnpt or seeds.'),
+    );
+    expect(e.code).toBe('content_rejected');
+    expect(e.retryable).toBe(false);
+    expect(e.message).toContain('451');
+    expect(e.message).toContain('提示词');
+    // 不能把英文原文直接甩给用户
+    expect(e.message).not.toContain('unsafe');
+  });
+
+  it('只有 unsafe 没有状态码也能识别', () => {
+    const e = normalizeError(new Error('blocked: the output was flagged as unsafe'));
+    expect(e.code).toBe('content_rejected');
+  });
+
   it('无法解析的内容仍归入 unknown 且可重试', () => {
     const e = normalizeError('some weird thing');
     expect(e.code).toBe('unknown');

@@ -10,6 +10,7 @@ import {
   parseGrid,
   resolvePrompt,
   sha256Hex,
+  textInputPortId,
   type Asset,
   type GeneratedItem,
   type GenerationRequest,
@@ -111,7 +112,7 @@ export async function runGeneration(
   if (!node) return { ok: false, message: '节点不存在' };
 
   const edges = useGraphStore.getState().edges;
-  const requiredPort = node.defKind === 'storyboard' ? 'script' : 'prompt';
+  const requiredPort = textInputPortId(node.defKind);
   const issues = checkRequiredInputs(node, requireNodeDefinition(node.defKind), {
     incomingEdgeCount: (target, port) =>
       Object.values(edges).filter((e) => e.target === target && e.targetPort === port).length,
