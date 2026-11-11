@@ -102,7 +102,19 @@ export async function runReproPackage(pkg: ReproPackage): Promise<RunResult> {
     refNodeIds.push(nid);
   }
 
-  // 2) 重建生成节点，参数原样回填
+  // 2) 重建上游文字节点。
+  //    坑就在这：生成节点的 `prompt` 口是 required，而 checkRequiredInputs 只看
+  //    「有没有连线」，完全不认 params.prompt。只回填参数、建一个孤立的生成节点，
+  //    会被自己的校验拦住——点了没反应，连任务都不会建，所以审计台账里也不会留痕，
+  //    看起来像"复现成功了但什么都没发生"。原生拓扑本来就是「文字 → 生成」，
+  //    照原样重建才是真正的复现。
+  const textId = addNode({
+    defKind: 'text-input',
+    position: { x: 40, y: 60 + refNodeIds.length * 320 },
+    params: { content: pkg.params.prompt },
+  });
+
+  // 3) 重建生成节点，参数原样回填
   const genId = addNode({
     defKind: 'generate',
     position: { x: 440, y: 60 },
@@ -114,7 +126,14 @@ export async function runReproPackage(pkg: ReproPackage): Promise<RunResult> {
     },
   });
 
-  // 3) 把参考素材接到生成节点的 reference 口
+  connectNodes({
+    sourceNodeId: textId,
+    sourcePortId: 'text',
+    targetNodeId: genId,
+    targetPortId: 'prompt',
+  });
+
+  // 4) 把参考素材接到生成节点的 reference 口
   for (const nid of refNodeIds) {
     connectNodes({
       sourceNodeId: nid,
@@ -124,6 +143,6 @@ export async function runReproPackage(pkg: ReproPackage): Promise<RunResult> {
     });
   }
 
-  // 4) 走原生执行链路
+  // 5) 走原生执行链路
   return runGeneration(genId);
 }

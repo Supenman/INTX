@@ -19,6 +19,7 @@ import { exportReproForTask } from '@/app/useCases/reproExport';
 import { runReproPackage } from '@/app/useCases/reproRunner';
 import { pickFile } from '@/app/useCases/projectPackage';
 import { downloadBytes } from '@/ui/common/download';
+import { formatTime } from './format';
 
 /**
  * 审计台账面板。
@@ -202,7 +203,7 @@ export function AuditPanel({ onClose, onError, onFlash }: Props) {
               <tbody>
                 {filtered.map((e: AuditEntry) => (
                   <tr key={e.taskId}>
-                    <td className="mono">{new Date(e.createdAt).toLocaleString()}</td>
+                    <td className="mono">{formatTime(e.createdAt)}</td>
                     <td>
                       {e.providerName}
                       <small className={`scope ${e.providerScope}`}>{e.providerScope === 'external' ? '外部' : '内部'}</small>

@@ -33,7 +33,11 @@ export async function resolveRuntime(): Promise<Runtime> {
     if (!storageReady) console.warn('INTX: 无法创建 $APPDATA，桌面存储可能不可用');
     cached = {
       host: 'tauri',
-      providers: await tauriProviderStore(),
+      // 必须套 fallbackProviderStore，否则全新安装（config.json 不存在）加载出 0 个厂商，
+      // 点生成直接报「没有可用的 image 模型」，而顶栏还写着"演示模式"，自相矛盾。
+      // 浏览器端一直有这层兜底，桌面端漏了——真机首次安装才暴露。
+      // 取舍：把厂商全删光后重启会回到演示厂商（读到的空数组与"文件不存在"无法区分）。
+      providers: fallbackProviderStore(await tauriProviderStore()),
       blobs: await openTauriBlobStore(),
       tasks: await tauriTaskLog(),
       storageReady,

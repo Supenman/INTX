@@ -1,4 +1,4 @@
-import type { ProviderConfig } from '@/domain';
+import { contentPath, extFromMime, type ProviderConfig } from '@/domain';
 import type { BlobStore, ProviderStore } from '@/app/stores/providerStore';
 
 /**
@@ -84,38 +84,74 @@ export async function tauriProviderStore(): Promise<ProviderStore> {
   };
 }
 
+/** 内容寻址产物的扩展名候选。put 用 mime 精确算，get 只有哈希时按此顺序探测。 */
+export const BLOB_EXT_CANDIDATES = ['png', 'webp', 'jpg', 'jpeg', 'gif', 'mp4', 'webm', 'mp3', 'wav', 'bin'] as const;
+
+/**
+ * 相对路径的父目录；没有目录部分时返回 null。
+ * 绝不能用 `path.slice(0, path.lastIndexOf('/'))`：路径里没有 '/' 时
+ * lastIndexOf 返回 -1，slice(0,-1) 会砍掉最后一个字符，凭空建出一个垃圾目录。
+ * 上一版把 64 位哈希当路径时就踩了这个坑——$APPDATA 下多出 63 字符的空目录。
+ */
+export function parentDir(path: string): string | null {
+  const slash = path.lastIndexOf('/');
+  return slash > 0 ? path.slice(0, slash) : null;
+}
+
+/** 给定内容哈希，列出它在磁盘上的候选路径（与 contentPath 同构：assets/<前2位>/<hash>.<ext>）。 */
+export function hashCandidatePaths(hash: string): string[] {
+  const dir = `assets/${hash.slice(0, 2)}`;
+  return BLOB_EXT_CANDIDATES.map((ext) => `${dir}/${hash}.${ext}`);
+}
+
 export async function openTauriBlobStore(): Promise<BlobStore> {
   const fs = await loadFs();
   const opt = fs ? { baseDir: fs.BaseDirectory.AppData } : undefined;
 
-  const ensure = async (path: string) => {
+  const ensureDir = async (path: string) => {
     if (!fs || !opt) return;
-    const dir = path.slice(0, path.lastIndexOf('/'));
-    if (dir && !(await fs.exists(dir, opt))) {
-      await fs.mkdir(dir, { ...opt, recursive: true });
+    const dir = parentDir(path);
+    if (!dir) return;
+    if (!(await fs.exists(dir, opt))) await fs.mkdir(dir, { ...opt, recursive: true });
+  };
+
+  /**
+   * put 拿到 mime，能算出 contentPath(hash, ext)；但 get/has/remove 只有哈希，没有 mime。
+   * 本地 exists 是微秒级，逐个扩展名探测比给接口加参数更省事，也不会读错。
+   */
+  const resolvePath = async (key: string): Promise<string | null> => {
+    if (!fs || !opt) return null;
+    if (key.includes('/')) return (await fs.exists(key, opt)) ? key : null;
+    for (const candidate of hashCandidatePaths(key)) {
+      if (await fs.exists(candidate, opt)) return candidate;
     }
+    return null;
   };
 
   return {
-    async put(path, bytes, _mime) {
+    async put(key, bytes, mime) {
       if (!fs || !opt) throw new Error('未安装 @tauri-apps/plugin-fs，无法写入产物');
+      // key 通常是内容哈希；落盘路径必须与 asset.path / contentPath 完全一致，
+      // 否则「资产元数据里的 path」和「磁盘上的文件」对不上，超分读源图会失败。
+      const path = key.includes('/') ? key : contentPath(key, extFromMime(mime));
       if (await fs.exists(path, opt)) return; // 内容寻址：已存在即同一份，不重复写
-      await ensure(path);
+      await ensureDir(path);
       await fs.writeFile(path, new Uint8Array(bytes), opt);
     },
-    async get(path) {
+    async get(key) {
       if (!fs || !opt) return null;
-      if (!(await fs.exists(path, opt))) return null;
+      const path = await resolvePath(key);
+      if (!path) return null;
       const data = await fs.readFile(path, opt);
       return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer;
     },
-    async remove(path) {
+    async remove(key) {
       if (!fs || !opt) return;
-      if (await fs.exists(path, opt)) await fs.remove(path, opt);
+      const path = await resolvePath(key);
+      if (path) await fs.remove(path, opt);
     },
-    async has(path) {
-      if (!fs || !opt) return false;
-      return fs.exists(path, opt);
+    async has(key) {
+      return (await resolvePath(key)) !== null;
     },
   };
 }

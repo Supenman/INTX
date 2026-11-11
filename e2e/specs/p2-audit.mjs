@@ -132,6 +132,70 @@ export async function run() {
     `拒绝信息应说清缺哪个厂商，实际：${rejectMsg.message}`,
   );
 
+  // ── 5. 成功复现：必须重建上游文字节点并真的重跑 ─────────────────
+  // 真机上踩到的坑：生成节点的 prompt 口是 required，校验只看连线、不认 params.prompt。
+  // 早期只建一个孤立生成节点，被自己的校验拦住——点了没反应，连任务都不建，台账里也不留痕。
+  const repro = await p.evaluate(async () => {
+    const g = await window.__intxMod('/src/app/stores/graphStore.ts');
+    const t = await window.__intxMod('/src/app/stores/taskStore.ts');
+    const r = await window.__intxMod('/src/app/useCases/reproRunner.ts');
+
+    const before = {
+      nodes: Object.keys(g.useGraphStore.getState().nodes).length,
+      tasks: Object.keys(t.useTaskStore.getState().tasks).length,
+    };
+
+    const res = await r.runReproPackage({
+      version: 1,
+      exportedAt: Date.now(),
+      taskId: 'e2e_repro',
+      params: {
+        kind: 'image',
+        prompt: 'repro probe',
+        model: 'demo/image',
+        providerId: 'demo',
+        inputAssetIds: [],
+      },
+      references: [],
+      results: [],
+    });
+
+    for (let i = 0; i < 40; i += 1) {
+      const list = Object.values(t.useTaskStore.getState().tasks);
+      const done = list.every((x) => ['succeeded', 'failed', 'canceled'].includes(x.status));
+      if (list.length > before.tasks && done) break;
+      await new Promise((res2) => setTimeout(res2, 150));
+    }
+
+    const nodes = Object.values(g.useGraphStore.getState().nodes);
+    const tasks = Object.values(t.useTaskStore.getState().tasks);
+    const last = tasks[tasks.length - 1];
+    return {
+      ok: res.ok,
+      message: res.message ?? null,
+      before,
+      afterNodes: nodes.length,
+      kinds: nodes.map((n) => n.defKind),
+      edges: Object.values(g.useGraphStore.getState().edges).map((e) => ({ sp: e.sourcePort, tp: e.targetPort })),
+      taskCount: tasks.length,
+      lastTask: last ? { status: last.status, hasCost: Boolean(last.cost) } : null,
+    };
+  });
+
+  check(repro.ok === true, `复现应成功，实际：${repro.message}`);
+  check(
+    repro.afterNodes === repro.before.nodes + 2,
+    `复现应新建 2 个节点（文字+生成），实际 ${repro.before.nodes}→${repro.afterNodes}`,
+  );
+  check(repro.kinds.includes('text-input'), '复现必须重建上游文字节点，否则 prompt 口必填校验会拦住重跑');
+  check(
+    repro.edges.some((e) => e.sp === 'text' && e.tp === 'prompt'),
+    '文字节点必须连到生成节点的 prompt 口',
+  );
+  check(repro.taskCount > repro.before.tasks, '复现必须真的创建任务（执行链路要跑到）');
+  check(repro.lastTask?.status === 'succeeded', `复现任务应成功，实际 ${repro.lastTask?.status}`);
+  check(repro.lastTask?.hasCost === true, '复现任务应带成本记录');
+
   await p.screenshot({ path: `${process.env.INTX_OUT ?? 'e2e/output'}/p2-audit.png` });
   await finish('P2 审计/出境/成本/复现', errs);
 }

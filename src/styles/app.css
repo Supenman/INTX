@@ -1730,7 +1730,7 @@ button {
 
 /* ── 审计台账 ───────────────────────────────────────────── */
 .panel.wide {
-  max-width: 1120px;
+  max-width: 1240px;
   width: 94vw;
   max-height: 88vh;
 }
@@ -1767,7 +1767,7 @@ button {
 }
 .audit-table th,
 .audit-table td {
-  padding: 7px 10px;
+  padding: 6px 8px;
   text-align: left;
   border-bottom: 1px solid var(--border);
 }
@@ -1780,7 +1780,7 @@ button {
   z-index: 1;
 }
 .audit-table .prompt {
-  max-width: 280px;
+  max-width: 180px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1828,4 +1828,22 @@ button {
 }
 .chip.warn {
   color: #f0c674;
+}
+
+/* ── 原生表单控件在 WebKitGTK 下不认 CSS ─────────────────────
+ * Linux 桌面壳（webKitGTK）对 <select> 走系统主题渲染，background / color
+ * 会被直接忽略：深色界面上会渲染成白底、白字，四个筛选项全部看不见。
+ * Chromium（Windows WebView2 / 浏览器）默认就吃 CSS，所以这个缺陷只在
+ * Linux 真机上暴露。显式去掉原生外观并自绘箭头，三端表现一致。
+ */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238a8a8a' stroke-width='1.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+}
+.field select,
+.audit-filters select {
+  padding-right: 26px;
 }
