@@ -3,6 +3,7 @@ import { Handle, Position, type NodeProps } from '@xyflow/react';
 import {
   extFromMime,
   getNodeDefinition,
+  isLongPrompt,
   parseGrid,
   resolvePrompt,
   textInputPortId,
@@ -16,6 +17,7 @@ import { buildStoryboardPng, readAssetBytes } from '@/app/useCases/storyboardExp
 import { BlobImage } from '@/ui/common/BlobImage';
 import { downloadBlob, downloadBytes } from '@/ui/common/download';
 import { NodeHoverToolbar } from './NodeHoverToolbar';
+import { PromptEditor } from './PromptEditor';
 
 /**
  * 通用节点渲染。
@@ -75,6 +77,8 @@ export const CanvasNode = memo(function CanvasNode({ id, data, selected }: NodeP
   // 导出动作的局部反馈。不塞进 taskStore：下载不是生成任务，
   // 塞进去会污染任务日志和崩溃恢复的语义。
   const [exportError, setExportError] = useState<string | null>(null);
+  // 提示词放大编辑器是否打开。必须放在 `if (!def)` 之前，保持 hooks 顺序稳定。
+  const [promptOpen, setPromptOpen] = useState(false);
   const reportExportError = (message: string) => {
     setExportError(message);
     window.setTimeout(() => setExportError(null), 4000);
@@ -195,9 +199,24 @@ export const CanvasNode = memo(function CanvasNode({ id, data, selected }: NodeP
                 ↑ 提示词来自上游文字节点
               </div>
             )}
-            <div className="node-prompt">
+            <div className="node-prompt" data-testid="node-prompt">
               {effectivePrompt || <span className="node-empty">还没有提示词</span>}
             </div>
+            {/*
+              长提示词在卡片里只能看见三行。给一个显式入口，而不是让用户
+              去猜「这个框能不能滚」。短提示词也保留入口，只是不强调。
+            */}
+            <button
+              className={`node-prompt-expand nodrag${isLongPrompt(effectivePrompt) ? ' attention' : ''}`}
+              data-testid="prompt-expand"
+              title="放大编辑提示词"
+              onClick={(e) => {
+                e.stopPropagation();
+                setPromptOpen(true);
+              }}
+            >
+              {isLongPrompt(effectivePrompt) ? '放大编辑 · 内容较长' : '放大编辑'}
+            </button>
             {primary ? (
               <div className="node-result">
                 <BlobImage entry={primary} />
@@ -296,6 +315,22 @@ export const CanvasNode = memo(function CanvasNode({ id, data, selected }: NodeP
 
         <TaskStatusLine task={task} />
       </div>
+
+      {/*
+        浮层挂在节点内部，用 position:fixed 脱离节点坐标系。
+        不挂到 body：那需要 createPortal 并处理 ReactFlow 的缩放上下文，
+        对一个纯展示浮层不值得多这一层。
+      */}
+      {promptOpen && (
+        <PromptEditor
+          nodeTitle={def.title}
+          upstreamText={upstreamText || null}
+          ownPrompt={typeof node.params.prompt === 'string' ? node.params.prompt : ''}
+          onChange={(next) => setNodeParam(id, 'prompt', next)}
+          onClose={() => setPromptOpen(false)}
+          onGenerate={() => onGenerate(id)}
+        />
+      )}
 
       {def.outputPorts.map((port, i) => (
         <Handle

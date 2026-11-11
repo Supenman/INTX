@@ -1,0 +1,256 @@
+/* ── 审计台账 ───────────────────────────────────────────── */
+.panel.wide {
+  max-width: 1240px;
+  width: 94vw;
+  max-height: 88vh;
+}
+.audit {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.audit-summary,
+.audit-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.audit-filters select {
+  background: var(--bg-1);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 13px;
+}
+.audit-table-wrap {
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.audit-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.audit-table th,
+.audit-table td {
+  padding: 6px 8px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.audit-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-1);
+  color: var(--muted);
+  font-weight: 600;
+  z-index: 1;
+}
+.audit-table .prompt {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.audit-table .mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--text-dim);
+}
+.audit-table .scope {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 11px;
+}
+.audit-table .scope.external {
+  background: rgba(229, 115, 115, 0.18);
+  color: #ff9b9b;
+}
+.audit-table .scope.internal {
+  background: rgba(110, 190, 130, 0.18);
+  color: #9be0ad;
+}
+.audit-table .status {
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+.audit-table .status.succeeded {
+  background: rgba(110, 190, 130, 0.2);
+  color: #9be0ad;
+}
+.audit-table .status.failed {
+  background: rgba(229, 115, 115, 0.2);
+  color: #ff9b9b;
+}
+.audit-table .status.canceled {
+  background: rgba(160, 160, 160, 0.18);
+  color: var(--muted);
+}
+.chip.ok {
+  color: #9be0ad;
+}
+.chip.danger {
+  color: #ff9b9b;
+}
+.chip.warn {
+  color: #f0c674;
+}
+
+/* ── 原生表单控件在 WebKitGTK 下不认 CSS ─────────────────────
+ * Linux 桌面壳（webKitGTK）对 <select> 走系统主题渲染，background / color
+ * 会被直接忽略：深色界面上会渲染成白底、白字，四个筛选项全部看不见。
+ * Chromium（Windows WebView2 / 浏览器）默认就吃 CSS，所以这个缺陷只在
+ * Linux 真机上暴露。显式去掉原生外观并自绘箭头，三端表现一致。
+ */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238a8a8a' stroke-width='1.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+}
+.field select,
+.audit-filters select {
+  padding-right: 26px;
+}
+
+/* ── 提示词放大编辑 ─────────────────────────────────────────
+ * 节点卡片是固定尺寸容器，正文只放得下三行；长提示词在这里展开编辑。
+ * 卡片内的入口按钮做得很轻，避免和「生成」抢注意力。
+ */
+.node-prompt-expand {
+  align-self: flex-start;
+  margin-top: -4px;
+  padding: 2px 7px;
+  font-size: 11px;
+  color: var(--text-3);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  flex: 0 0 auto;
+  transition: color 0.12s var(--ease), border-color 0.12s var(--ease);
+}
+
+.node-prompt-expand:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+/* 内容较长时给一点存在感：用户这时最需要它，但不用红色喊人 */
+.node-prompt-expand.attention {
+  color: var(--accent);
+  border-color: rgba(255, 107, 53, 0.45);
+}
+
+.prompt-editor {
+  width: min(860px, calc(100vw - 56px));
+  height: min(620px, calc(100vh - 56px));
+  max-height: none;
+}
+
+.prompt-editor .panel-head h2 {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.prompt-editor-count {
+  font-size: 11.5px;
+  font-weight: 500;
+  font-family: var(--mono);
+  color: var(--text-3);
+  letter-spacing: 0;
+}
+
+.prompt-editor-count[data-empty='true'] {
+  color: var(--text-3);
+  opacity: 0.7;
+}
+
+.prompt-editor-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 18px 8px;
+  min-height: 0;
+  flex: 1;
+}
+
+.prompt-editor-note {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-2);
+  background: rgba(255, 176, 32, 0.08);
+  border: 1px solid rgba(255, 176, 32, 0.32);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  flex: 0 0 auto;
+}
+
+.prompt-editor-note.weak {
+  color: var(--text-3);
+  background: transparent;
+  border-color: var(--border);
+}
+
+.prompt-editor-note .link-btn {
+  margin-left: 6px;
+}
+
+.prompt-editor-textarea {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  resize: none;
+  padding: 12px 14px;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.75;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  outline: none;
+}
+
+.prompt-editor-textarea:focus {
+  border-color: var(--accent);
+}
+
+/* 只读态不要橙色高亮：那是"可编辑、已聚焦"的视觉语言，
+   用在这里会让用户以为还能改，点了才发现没反应。 */
+.prompt-editor-textarea[readonly]:focus {
+  border-color: var(--border-strong);
+}
+
+/* 只读态要一眼看出「改不了」，否则用户会以为输入框坏了 */
+.prompt-editor-textarea[readonly] {
+  color: var(--text-2);
+  background: var(--panel-raised);
+  cursor: default;
+}
+
+.prompt-editor-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 18px 14px;
+  border-top: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+
+.prompt-editor-hint {
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
+.prompt-editor-actions {
+  display: flex;
+  gap: 8px;
+}

@@ -123,6 +123,13 @@ export {
 } from './node/registry';
 export { assetNode, builtinNodes, generateNode, storyboardNode, textInputNode } from './node/builtins';
 export {
+  PROMPT_LONG_THRESHOLD,
+  isLongPrompt,
+  promptEditorState,
+  promptLength,
+  type PromptEditorState,
+} from './node/prompt';
+export {
   checkPrompt,
   checkRequiredInputs,
   resolvePrompt,
