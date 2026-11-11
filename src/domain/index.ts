@@ -159,6 +159,44 @@ export {
   type PositionMap,
 } from './node/layout';
 
+// 连线语义（单路输入换源 + 错误人话化）
+export {
+  describePortIssue,
+  describePortIssues,
+  effectiveExistingEdges,
+  portTypeLabel,
+} from './node/connection';
+
+// 声明式工具注册表（P1：按钮行为数据化，UI 只做解析与渲染）
+export type {
+  AddNodeCommand,
+  MenuSection,
+  ToolCategory,
+  ToolContext,
+  ToolDefinition,
+  ToolEntry,
+  ToolMode,
+  ToolNodeContext,
+  ToolSwitchOption,
+  ToolbarId,
+  ToolbarPrefs,
+} from './tool/definition';
+export {
+  defaultToolbarPrefs,
+  getToolbarTools,
+  LEGACY_TOOL_IDS,
+  migrateToolbarPrefs,
+  registerTools,
+  resetToolRegistry,
+  resolveAddNodeMenuCommands,
+  resolveToolbarEntries,
+  resolveToolbarTools,
+  unregisterTool,
+} from './tool/registry';
+export { CANVAS_MODE_OPTIONS, builtinTools, installBuiltinTools } from './tool/definitions';
+export { canvasStarterCopy, resolveCanvasEmptyState } from './tool/canvasStarter';
+export type { CanvasEmptyState, CanvasEmptyStateInput, CanvasStarterCopy } from './tool/canvasStarter';
+
 // 项目 schema
 export {
   CURRENT_SCHEMA_VERSION,

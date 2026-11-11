@@ -1,0 +1,254 @@
+import { registerTools } from './registry';
+import type { ToolDefinition } from './definition';
+
+/**
+ * INTX 内置工具。
+ *
+ * 一条定义 = 按钮的全部行为：什么时候出现（applicable）、什么时候灰掉
+ * （disabled）、当前是否激活（active / switchValue）、点了做什么（action）。
+ * 组件不再为「生成节点才显示生成按钮」这类判断写 if。
+ */
+
+export const CANVAS_MODE_OPTIONS = [
+  { id: 'box-select', label: '区域选择', value: 'select' },
+  { id: 'hand', label: '抓手', value: 'hand' },
+] as const;
+
+export const builtinTools: readonly ToolDefinition[] = [
+  // ── 主工具栏 ──────────────────────────────────────────────
+  {
+    id: 'tool-canvas-mode',
+    toolbar: 'main',
+    category: 'navigation',
+    label: '抓手 / 框选',
+    hint: '区域选择：空白处拖动框选节点；抓手：拖动画布平移（空格或中键可临时平移）',
+    defaultVisible: true,
+    defaultOrder: 5,
+    action: 'set-tool-mode',
+    switchOptions: CANVAS_MODE_OPTIONS,
+    switchValue: (ctx) => ctx.toolMode,
+  },
+  {
+    id: 'undo',
+    toolbar: 'main',
+    category: 'edit',
+    label: '↶ 撤销',
+    hint: '撤销 (Ctrl+Z)',
+    defaultVisible: true,
+    defaultOrder: 10,
+    action: 'undo',
+    disabled: (ctx) => !ctx.canUndo,
+  },
+  {
+    id: 'redo',
+    toolbar: 'main',
+    category: 'edit',
+    label: '↷ 重做',
+    hint: '重做 (Ctrl+Shift+Z)',
+    defaultVisible: true,
+    defaultOrder: 20,
+    action: 'redo',
+    disabled: (ctx) => !ctx.canRedo,
+  },
+  {
+    id: 'arrange-all',
+    toolbar: 'main',
+    category: 'layout',
+    label: '自动整理',
+    hint: '按依赖层级与媒体泳道整理全部节点，可撤销',
+    defaultVisible: true,
+    defaultOrder: 30,
+    action: 'arrange',
+    payload: { scope: 'all' },
+  },
+  {
+    id: 'open-settings',
+    toolbar: 'main',
+    category: 'navigation',
+    label: '厂商',
+    hint: '打开厂商设置',
+    defaultVisible: true,
+    defaultOrder: 40,
+    action: 'open-settings',
+  },
+  {
+    id: 'clear-canvas',
+    toolbar: 'main',
+    category: 'danger',
+    label: '清空画布',
+    hint: '清空全部节点，可撤销；资产库不受影响',
+    defaultVisible: false,
+    defaultOrder: 50,
+    danger: true,
+    action: 'clear',
+  },
+
+  // ── 多选悬浮栏 ────────────────────────────────────────────
+  ...(['left', 'center-x', 'right', 'top', 'center-y', 'bottom'] as const).map(
+    (mode, i): ToolDefinition => ({
+      id: `align-${mode}`,
+      toolbar: 'selection',
+      category: 'layout',
+      label: {
+        left: '左对齐',
+        'center-x': '水平居中',
+        right: '右对齐',
+        top: '顶对齐',
+        'center-y': '垂直居中',
+        bottom: '底对齐',
+      }[mode],
+      hint: `${{ left: '左', 'center-x': '水平', right: '右', top: '顶', 'center-y': '垂直', bottom: '底' }[mode]}对齐选中节点`,
+      defaultVisible: true,
+      defaultOrder: 10 + i * 10,
+      action: 'align',
+      payload: { mode },
+    }),
+  ),
+  {
+    id: 'distribute-horizontal',
+    toolbar: 'selection',
+    category: 'layout',
+    label: '水平等距',
+    hint: '水平等距（至少 3 个节点）',
+    defaultVisible: true,
+    defaultOrder: 70,
+    action: 'distribute',
+    payload: { axis: 'horizontal' },
+    disabled: (ctx) => ctx.selectedCount < 3,
+  },
+  {
+    id: 'distribute-vertical',
+    toolbar: 'selection',
+    category: 'layout',
+    label: '垂直等距',
+    hint: '垂直等距（至少 3 个节点）',
+    defaultVisible: true,
+    defaultOrder: 80,
+    action: 'distribute',
+    payload: { axis: 'vertical' },
+    disabled: (ctx) => ctx.selectedCount < 3,
+  },
+  {
+    id: 'chain-selection',
+    toolbar: 'selection',
+    category: 'selection',
+    label: '批量连接',
+    hint: '按从左到右的顺序依次连接可用端口',
+    defaultVisible: true,
+    defaultOrder: 90,
+    action: 'chain',
+  },
+  {
+    id: 'arrange-selection',
+    toolbar: 'selection',
+    category: 'layout',
+    label: '整理选区',
+    hint: '按依赖层级与媒体泳道整理选中节点，可撤销',
+    defaultVisible: true,
+    defaultOrder: 100,
+    action: 'arrange',
+    payload: { scope: 'selection' },
+  },
+  {
+    id: 'duplicate-selection',
+    toolbar: 'selection',
+    category: 'edit',
+    label: '复制',
+    hint: '复制一份 (Ctrl+D)',
+    defaultVisible: true,
+    defaultOrder: 110,
+    action: 'duplicate',
+  },
+  {
+    id: 'delete-selection',
+    toolbar: 'selection',
+    category: 'danger',
+    label: '删除',
+    hint: '删除选中节点 (Delete)',
+    defaultVisible: true,
+    defaultOrder: 120,
+    danger: true,
+    action: 'delete',
+  },
+
+  // ── 节点悬浮栏 ────────────────────────────────────────────
+  {
+    id: 'node-duplicate',
+    toolbar: 'node-hover',
+    category: 'edit',
+    label: '复制',
+    hint: '复制这个节点 (Ctrl+D)',
+    defaultVisible: true,
+    defaultOrder: 10,
+    action: 'duplicate-node',
+    applicable: (ctx) => ctx.node !== null,
+  },
+  {
+    id: 'node-generate',
+    toolbar: 'node-hover',
+    category: 'node',
+    label: '生成',
+    hint: '用当前参数生成产物',
+    defaultVisible: true,
+    defaultOrder: 20,
+    action: 'generate-node',
+    applicable: (ctx) => ctx.node?.category === 'generate' && !ctx.node.busy,
+  },
+  {
+    id: 'node-cancel',
+    toolbar: 'node-hover',
+    category: 'node',
+    label: '取消',
+    hint: '取消当前生成任务',
+    defaultVisible: true,
+    defaultOrder: 21,
+    action: 'cancel-node',
+    applicable: (ctx) => ctx.node?.category === 'generate' && ctx.node.busy,
+  },
+  {
+    id: 'node-delete',
+    toolbar: 'node-hover',
+    category: 'danger',
+    label: '删除',
+    hint: '移除这个节点 (Delete)',
+    defaultVisible: true,
+    defaultOrder: 30,
+    danger: true,
+    action: 'delete-node',
+    applicable: (ctx) => ctx.node !== null,
+  },
+
+  // ── 添加菜单里的画布动作（节点条目由节点注册表动态生成） ──
+  {
+    id: 'menu-paste',
+    toolbar: 'add-node-menu',
+    category: 'edit',
+    label: '粘贴',
+    hint: '剪贴板为空，先按 Ctrl+C 复制节点',
+    defaultVisible: true,
+    defaultOrder: 900,
+    section: 'canvas',
+    action: 'paste',
+    disabled: (ctx) => ctx.clipboardCount === 0,
+  },
+  {
+    id: 'menu-arrange',
+    toolbar: 'add-node-menu',
+    category: 'layout',
+    label: '自动整理节点',
+    hint: '按依赖层级与媒体泳道整理全部节点',
+    defaultVisible: true,
+    defaultOrder: 910,
+    section: 'canvas',
+    action: 'arrange',
+    payload: { scope: 'all' },
+  },
+];
+
+/**
+ * 由入口装配时调用；注册是幂等的，HMR 重复执行不会长出重复按钮。
+ * 必须同步：异步注册会让首帧渲染时注册表还是空的，工具栏直接消失。
+ */
+export function installBuiltinTools(): void {
+  registerTools(builtinTools);
+}
