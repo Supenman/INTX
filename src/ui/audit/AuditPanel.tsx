@@ -14,6 +14,7 @@ import {
 import { foldEvents } from '@/infra/repository/taskLog';
 import { resolveRuntime } from '@/infra/runtime';
 import { useProviderStore } from '@/app/stores/providerStore';
+import { useTaskStore } from '@/app/stores/taskStore';
 import { exportReproForTask } from '@/app/useCases/reproExport';
 import { runReproPackage } from '@/app/useCases/reproRunner';
 import { pickFile } from '@/app/useCases/projectPackage';
@@ -35,16 +36,34 @@ interface Props {
 
 export function AuditPanel({ onClose, onError, onFlash }: Props) {
   const configs = useProviderStore((s) => s.configs);
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [logTasks, setLogTasks] = useState<Task[]>([]);
   const [filter, setFilter] = useState<AuditFilter>({});
   const [busy, setBusy] = useState<string | null>(null);
+
+  /**
+   * 台账数据源 = 任务日志（跨会话历史） + 内存里的任务表（实时状态）。
+   *
+   * 踩坑记录：最初只读日志，实测刚生成完就打开面板，那一条还是 `running`——
+   * 因为 startTaskLog 有 250ms 防抖，写 IndexedDB / tasks.jsonl 也是异步的。
+   * 用户看到「刚刚明明成功了，台账却说在跑」，会直接不信这个面板。
+   *
+   * 所以以内存 taskStore 为准覆盖同 id 的记录：它才是内存里的实时真相，
+   * 日志只负责把「这个会话之前的」历史补回来。审计 = 历史 ∪ 实时，缺一不可。
+   */
+  const liveTasks = useTaskStore((s) => s.tasks);
+  const merged = useMemo(() => {
+    const byId = new Map<string, Task>();
+    for (const t of logTasks) byId.set(t.id, t);
+    for (const t of Object.values(liveTasks)) byId.set(t.id, t);
+    return [...byId.values()];
+  }, [logTasks, liveTasks]);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       const runtime = await resolveRuntime();
       const events = await runtime.tasks.readEvents();
-      if (!cancelled) setTasks(foldEvents(events));
+      if (!cancelled) setLogTasks(foldEvents(events));
     })();
     return () => {
       cancelled = true;
@@ -59,7 +78,7 @@ export function AuditPanel({ onClose, onError, onFlash }: Props) {
    * 台账里的「出境」标记会一直是旧的。getState() 绕过了 React 的依赖追踪，
    * eslint 的 exhaustive-deps 也看不到（它只认变量引用），于是 lint 全绿、逻辑是错的。
    */
-  const entries = useMemo(() => buildAuditEntries(tasks, configs), [tasks, configs]);
+  const entries = useMemo(() => buildAuditEntries(merged, configs), [merged, configs]);
   const filtered = useMemo(() => filterAudit(entries, filter), [entries, filter]);
   const summary = useMemo(() => summarizeAudit(filtered), [filtered]);
 

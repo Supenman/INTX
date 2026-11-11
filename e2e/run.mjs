@@ -18,6 +18,7 @@ const SPECS = [
   ['旧版数据迁移', './specs/legacy-import.mjs'],
   ['画布基本功/删除/框选/对齐', './specs/canvas-basics.mjs'],
   ['工具注册表/偏好/悬浮栏/连线语义', './specs/tool-registry.mjs'],
+  ['P2 审计/出境/成本/复现', './specs/p2-audit.mjs'],
 ];
 
 async function reachable() {
