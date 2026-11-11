@@ -371,3 +371,80 @@ select {
   text-overflow: ellipsis;
   vertical-align: bottom;
 }
+
+/* ── 批量重命名 ─────────────────────────────────────────── */
+.batch-rename {
+  width: min(460px, calc(100vw - 48px));
+}
+
+.batch-rename-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 18px 4px;
+}
+
+.batch-rename-label {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.batch-rename-input {
+  width: 100%;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  outline: none;
+}
+
+.batch-rename-input:focus {
+  border-color: var(--accent);
+}
+
+.batch-rename-hint {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.batch-rename-hint code {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--panel-raised);
+  border: 1px solid var(--border);
+}
+
+/* 预览：让用户在点「重命名」之前看见结果，避免改错还得撤销十次 */
+.batch-rename-preview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.batch-rename-chip {
+  font-size: 12px;
+  font-family: var(--mono);
+  padding: 2px 7px;
+  border-radius: 4px;
+  color: var(--text-2);
+  background: var(--panel-raised);
+  border: 1px solid var(--border);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.batch-rename-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 18px 14px;
+}

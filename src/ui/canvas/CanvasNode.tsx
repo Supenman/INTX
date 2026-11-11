@@ -1,9 +1,11 @@
-import { memo, useMemo, useState } from 'react';
+import { memo, useMemo, useRef, useState } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import {
+  MAX_NODE_TITLE,
   extFromMime,
   getNodeDefinition,
   isLongPrompt,
+  nodeTitle,
   parseGrid,
   resolvePrompt,
   splitPromptSegments,
@@ -12,7 +14,7 @@ import {
 } from '@/domain';
 import { latestTaskForNode, retryTask, useTaskStore } from '@/app/stores/taskStore';
 import { useAssetStore } from '@/app/stores/assetStore';
-import { removeNodes, setNodeParam, useGraphStore } from '@/app/stores/graphStore';
+import { removeNodes, setNodeParam, setNodeTitle, useGraphStore } from '@/app/stores/graphStore';
 import { useProviderStore } from '@/app/stores/providerStore';
 import { buildStoryboardPng, readAssetBytes } from '@/app/useCases/storyboardExport';
 import { BlobImage } from '@/ui/common/BlobImage';
@@ -38,6 +40,33 @@ export const CanvasNode = memo(function CanvasNode({ id, data, selected }: NodeP
   const def = getNodeDefinition(node.defKind);
 
   const task = useTaskStore((s) => latestTaskForNode(s.tasks, id));
+
+  /**
+   * 标题编辑态。放在最前面，和产物订阅一样必须在提前返回之前调用。
+   *
+   * 用 `useRef` 记「正在提交」，因为 Enter 和失焦会连着触发两次（Enter 提交后
+   * 输入框卸载、浏览器补一个 blur）。没有这道锁会写两次同名，虽然结果一样，
+   * 但会多记一条撤销历史——用户按一次 Ctrl+Z 发现没变化，就会以为撤销坏了。
+   */
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState('');
+  const titleCommitting = useRef(false);
+
+  function beginTitleEdit(): void {
+    setTitleDraft(nodeTitle(node, def?.title ?? ''));
+    setEditingTitle(true);
+  }
+
+  function commitTitle(): void {
+    if (titleCommitting.current) return;
+    titleCommitting.current = true;
+    setEditingTitle(false);
+    setNodeTitle(id, titleDraft);
+    // 下一个事件循环再解锁，保证同一轮里的 blur 被吃掉
+    queueMicrotask(() => {
+      titleCommitting.current = false;
+    });
+  }
 
   /**
    * 产物订阅。注意这两个 hook 必须在提前返回之前调用，
@@ -165,7 +194,60 @@ export const CanvasNode = memo(function CanvasNode({ id, data, selected }: NodeP
 
       <div className="node-head">
         <span className={`node-dot${def.category === 'generate' ? ' generate' : ''}`} />
-        {def.title}
+        {editingTitle ? (
+          <input
+            className="node-title-input nodrag nowheel"
+            value={titleDraft}
+            autoFocus
+            maxLength={MAX_NODE_TITLE}
+            aria-label="节点名称"
+            // 聚焦即全选：改名时多数是整句重写，不用先手动删干净
+            onFocus={(e) => e.target.select()}
+            onChange={(e) => setTitleDraft(e.target.value)}
+            onBlur={commitTitle}
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              // 画布快捷键（Delete / 方向键）不能穿透到输入框外面
+              e.stopPropagation();
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                commitTitle();
+              }
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                setEditingTitle(false);
+              }
+            }}
+          />
+        ) : (
+          <>
+            <span
+              className={`node-title${node.title ? '' : ' default'}`}
+              title={node.title ? '点击改名' : '点击给这个节点起个名字'}
+              onClick={(e) => {
+                e.stopPropagation();
+                beginTitleEdit();
+              }}
+            >
+              {nodeTitle(node, def.title)}
+            </span>
+            {/*
+              铅笔入口。单击标题也能改，但「能点」是我知道的，用户不知道——
+              没有可见入口，改名功能等于不存在。只在悬停时出现，不占常态空间。
+            */}
+            <button
+              className="node-title-edit nodrag"
+              title="重命名"
+              aria-label="重命名节点"
+              onClick={(e) => {
+                e.stopPropagation();
+                beginTitleEdit();
+              }}
+            >
+              ✎
+            </button>
+          </>
+        )}
         {demoMode && hasPrimary && (
           <span className="node-demo-badge" title="本地演示厂商生成的是占位图，不是真实作品">
             演示产物
@@ -399,6 +481,30 @@ function TaskStatusLine({ task }: { task: ReturnType<typeof latestTaskForNode> }
   }
 
   if (task.status === 'failed') {
+    /**
+     * 「提交不确定」不是失败，是**未知**：请求可能已经到上游了。
+     * 这里不给重试按钮，因为重试可能让上游再出一张、再扣一次；
+     * 只给「我确认过了，没出图」，把决定权交回用户。
+     */
+    if (task.error?.code === 'submission_uncertain') {
+      return (
+        <div
+          className="node-status failed"
+          title="请求发出后没等到回复。上游可能已经收到并开始出图，也可能没有。先去厂商后台看一眼账单和任务列表，再决定是否重发。"
+        >
+          <span className="err-text">? {task.error.message}</span>
+          <button
+            className="link-btn nodrag"
+            onClick={() => {
+              // 用户自己确认过上游没出图，这时候才允许把状态重置回队列
+              retryTask(task.id);
+            }}
+          >
+            确认没过，可重发
+          </button>
+        </div>
+      );
+    }
     return (
       <div className="node-status failed" title={task.error?.message}>
         <span className="err-text">✕ {task.error?.message ?? '失败'}</span>

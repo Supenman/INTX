@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { addNode, connectNodes, resetGraph, setNodeParam, useGraphStore } from '@/app/stores/graphStore';
+import { addNode, connectNodes, resetGraph, setNodeParam, setNodeTitle, useGraphStore } from '@/app/stores/graphStore';
 import { useTaskStore } from '@/app/stores/taskStore';
 import { hydrateProject, snapshotProject } from '@/infra/repository/projectRepository';
 import { migrate, CURRENT_SCHEMA_VERSION } from '@/domain/schema/project';
@@ -120,5 +120,37 @@ describe('项目存档往返', () => {
     const r = migrate({ schemaVersion: 999, project: { id: 'a', name: 'b' }, nodes: [], edges: [], assets: [] });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error.code).toBe('future_version');
+  });
+});
+
+/**
+ * 白名单式序列化最容易漏的就是「新加的可选字段」：界面上改得好好的，
+ * 存档里没写，刷新才丢。这条测试只守一件事——snapshot 之后能原样读回来。
+ *
+ * 加任何新的节点字段，都应该在这里补一行。
+ */
+describe('节点字段的存盘往返', () => {
+  it('节点标题能存能读', () => {
+    resetAll();
+    const id = addNode({ defKind: 'generate', position: { x: 0, y: 0 } });
+    setNodeTitle(id, '主视觉');
+
+    const saved = snapshotProject();
+    expect(saved.nodes[0]?.title).toBe('主视觉');
+
+    const migrated = migrate(JSON.parse(JSON.stringify(saved)));
+    expect(migrated.ok).toBe(true);
+    if (!migrated.ok) return;
+
+    resetAll();
+    hydrateProject(migrated.value);
+    expect(useGraphStore.getState().nodes[id]?.title).toBe('主视觉');
+  });
+
+  it('没起名的节点不写空字段，存档不臃肿', () => {
+    resetAll();
+    addNode({ defKind: 'generate', position: { x: 0, y: 0 } });
+    const saved = snapshotProject();
+    expect('title' in (saved.nodes[0] ?? {})).toBe(false);
   });
 });

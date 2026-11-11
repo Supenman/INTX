@@ -63,6 +63,8 @@ import { AuditPanel } from '@/ui/audit/AuditPanel';
 import { LegacyImportDialog } from '@/ui/common/LegacyImportDialog';
 import { CanvasNode, type CanvasNodeData } from './CanvasNode';
 import { AddMenu, CanvasStarter, ModeSwitch, SelectionToolbar, type ToolDispatch } from './CanvasTools';
+import { useBatchRename } from './useBatchRename';
+import { useChainSelection } from './useChainSelection';
 
 const nodeTypes: NodeTypes = { canvasNode: CanvasNode };
 
@@ -196,30 +198,11 @@ function CanvasInner() {
     setSelectedEdgeIds([]);
   }, [selectedIds, selectedEdgeIds]);
 
+  /** 批量改名。状态和浮层都在 hook 里，Canvas 只留一个入口和一个挂载点。 */
+  const batchRename = useBatchRename(selectedIds, flash);
+
   /** 按从左到右的顺序，把相邻节点用它们第一个可用端口连起来。 */
-  const chainSelection = useCallback(() => {
-    const { nodes } = useGraphStore.getState();
-    const ordered = selectedIds
-      .filter((id) => nodes[id])
-      .sort((a, b) => (nodes[a]?.position.x ?? 0) - (nodes[b]?.position.x ?? 0));
-    let linked = 0;
-    for (let i = 0; i + 1 < ordered.length; i += 1) {
-      const src = nodes[ordered[i] ?? ''];
-      const dst = nodes[ordered[i + 1] ?? ''];
-      if (!src || !dst) continue;
-      const sourcePort = getNodeDefinition(src.defKind)?.outputPorts[0];
-      const targetPort = getNodeDefinition(dst.defKind)?.inputPorts[0];
-      if (!sourcePort || !targetPort) continue;
-      const r = connectNodes({
-        sourceNodeId: src.id,
-        sourcePortId: sourcePort.id,
-        targetNodeId: dst.id,
-        targetPortId: targetPort.id,
-      });
-      if (r.ok) linked += 1;
-    }
-    flash(linked > 0 ? `已连接 ${linked} 组相邻节点` : '这些节点之间没有可用的端口组合');
-  }, [selectedIds, flash]);
+  const chainSelection = useChainSelection(selectedIds, flash);
 
   const arrange = useCallback(
     (scopeOnly: boolean) => {
@@ -557,6 +540,9 @@ function CanvasInner() {
         case 'chain':
           chainSelection();
           break;
+        case 'rename':
+          batchRename.open();
+          break;
         case 'duplicate':
           duplicateSelection();
           break;
@@ -579,6 +565,7 @@ function CanvasInner() {
       arrange,
       selectedIds,
       chainSelection,
+      batchRename,
       duplicateSelection,
       deleteSelection,
       spawnNode,
@@ -689,6 +676,7 @@ function CanvasInner() {
         <ModeSwitch ctx={toolCtx} prefs={prefs} onAction={onAction} />
 
         <SelectionToolbar ctx={toolCtx} prefs={prefs} onAction={onAction} />
+        {batchRename.node}
 
         <ReactFlow
           nodes={rfNodes}

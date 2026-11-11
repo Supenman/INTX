@@ -150,6 +150,16 @@ export const builtinTools: readonly ToolDefinition[] = [
     payload: { scope: 'selection' },
   },
   {
+    id: 'rename-selection',
+    toolbar: 'selection',
+    category: 'edit',
+    label: '批量改名',
+    hint: '用一个模板给选中节点统一编号，顺序按画布从上到下、从左到右',
+    defaultVisible: true,
+    defaultOrder: 105,
+    action: 'rename',
+  },
+  {
     id: 'duplicate-selection',
     toolbar: 'selection',
     category: 'edit',

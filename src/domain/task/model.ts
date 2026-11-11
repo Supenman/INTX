@@ -37,6 +37,21 @@ export type ErrorCode =
   | 'upstream_5xx'
   | 'network'
   | 'invalid_params'
+  /**
+   * 上游已经出图（这次已计费），但存到本机失败。
+   *
+   * 必须和普通 `unknown` 分开：普通失败重试是"再试一次"，这个重试是"再买一张"。
+   * 归成 unknown 的时候，用户看到「未知错误，可重试」，一点就又花一次钱。
+   */
+  | 'local_save_failed'
+  /**
+   * 请求**可能**已经到了上游，只是本地没等到响应。
+   *
+   * 这一条是照 BeefTV 的 `submission_uncertain` 补的：提交阶段的超时/网关错误
+   * 和「生成阶段超时」是两件事，前者上游可能已经出图并计费。这时直接重试会扣
+   * 两次钱，所以它不是「可重试」，而是「先去确认」。
+   */
+  | 'submission_uncertain'
   | 'unknown';
 
 export interface TaskError {
@@ -252,8 +267,43 @@ export function setProgress(task: Task, value: number | null): Result<Task, Task
 }
 
 /** 把任意异常归一化成 TaskError。适配器抛什么都能收敛到可展示的结构。 */
-export function normalizeError(e: unknown): TaskError {
+export function normalizeError(e: unknown, stage?: TaskPhase | null): TaskError {
   const raw = e instanceof Error ? e.message : String(e);
+  const classified = classifyErrorText(raw);
+  if (stage === 'submitting' && mayHaveLeftLocal(classified, raw)) {
+    return {
+      code: 'submission_uncertain',
+      message: '可能已提交（没等到回复）。先去厂商后台确认有没有出图，直接重试可能扣两次钱',
+      retryable: false,
+    };
+  }
+  return classified;
+}
+
+/**
+ * 这些信号说明请求**根本没离开本机**：端口没开、域名解析不了、路由不可达。
+ * 只有这几种情况下，提交阶段失败才是可以放心重试的。
+ */
+const NEVER_LEFT_LOCAL = /econnrefused|econnreset|enotfound|eai_again|getaddrinfo|network is unreachable|dns/i;
+
+/**
+ * 提交阶段（`stage === 'submitting'`）的这个错误，有没有可能是「上游收到了、
+ * 只是响应没回来」？
+ *
+ * 判断依据是**上游有没有明确表态过**：
+ *  - 401/429/451 这类 4xx 是上游明确拒绝，它收到并处理了，不是不确定；
+ *  - 超时、5xx（含 Cloudflare 524）、连接中途断开、未知异常，上游可能已经在跑；
+ *  - 连接被拒/解析失败，请求没出去，安全。
+ */
+function mayHaveLeftLocal(classified: TaskError, raw: string): boolean {
+  if (classified.code === 'auth_failed' || classified.code === 'rate_limited' || classified.code === 'content_rejected') {
+    return false;
+  }
+  if (classified.code === 'invalid_params') return false;
+  return !NEVER_LEFT_LOCAL.test(raw.toLowerCase());
+}
+
+function classifyErrorText(raw: string): TaskError {
   const lower = raw.toLowerCase();
 
   if (lower.includes('401') || lower.includes('unauthorized') || lower.includes('api key')) {
@@ -291,6 +341,22 @@ export function normalizeError(e: unknown): TaskError {
     return { code: 'network', message: '网络不可达，请检查连接', retryable: true };
   }
   return { code: 'unknown', message: raw || '未知错误', retryable: true };
+}
+
+/**
+ * 审核失败之后，提示词一个字都没改就再点一次，上游必然会再拦一次。
+ * 那一次是纯粹白花的钱，所以在本地就拦下，不用等它跑一趟再失败。
+ *
+ * 注意只比提示词，不比 seed：换成同一个 prompt 的新 seed 仍可能被拦，但
+ * 有些厂商确实认 seed 差异，不能替用户做这个判断，只拦「一字未改」。
+ */
+export function unchangedAfterModeration(
+  previous: TaskError | null | undefined,
+  previousPrompt: string,
+  currentPrompt: string,
+): boolean {
+  if (!previous || previous.code !== 'content_rejected') return false;
+  return previousPrompt === currentPrompt;
 }
 
 /** 任务产出的主要资产类型。 */

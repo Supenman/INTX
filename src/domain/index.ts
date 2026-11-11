@@ -73,6 +73,7 @@ export {
   normalizeError,
   setProgress,
   transition,
+  unchangedAfterModeration,
   type CreateTaskInput,
   type CostRecord,
   type ErrorCode,
@@ -87,6 +88,10 @@ export {
 
 // 成本估算
 export { estimateGenerationCost, type EstimateCostInput } from './cost';
+
+// 节点标题与导出命名
+export { MAX_NODE_TITLE, expandBatchTitle, nodeTitle, sanitizeNodeTitle } from './node/title';
+export { EXPORT_ROW_BAND_PX, buildExportFileName, sanitizeFileNamePart, sortForExport } from './asset/export';
 
 // 审计台账
 export {

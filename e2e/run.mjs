@@ -21,6 +21,7 @@ const SPECS = [
   ['P2 审计/出境/成本/复现', './specs/p2-audit.mjs'],
   ['P3 提示词放大编辑', './specs/prompt-editor.mjs'],
   ['P3 @资产 引用', './specs/asset-ref.mjs'],
+  ['P3 节点改名/批量编号', './specs/rename.mjs'],
 ];
 
 async function reachable() {

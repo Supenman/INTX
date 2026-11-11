@@ -126,6 +126,73 @@
   border-radius: var(--radius) var(--radius) 0 0;
 }
 
+/* 节点名。单击可改，所以要给出「可点」的信号：悬停时下划线 + 文字变亮。 */
+.node-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: text;
+  border-radius: 3px;
+  padding: 0 2px;
+  margin: 0 -2px;
+}
+
+.node-title.default {
+  color: var(--text-3);
+  font-weight: 500;
+}
+
+.node:hover .node-title {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* 铅笔入口只在悬停时出现：常态显示会让每张卡片都有两个图标，太吵 */
+.node-title-edit {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--text-3);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.node:hover .node-title-edit,
+.node.selected .node-title-edit,
+.node-title-edit:focus-visible {
+  opacity: 1;
+}
+
+.node-title-edit:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+  background: var(--panel-raised);
+}
+
+/* 改名输入框：和标题同字号，占住剩余宽度，不改变节点头高度 */
+.node-title-input {
+  flex: 1;
+  min-width: 0;
+  height: 20px;
+  padding: 0 4px;
+  font: inherit;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  outline: none;
+}
+
 .node-body {
   padding: 10px 12px 12px;
   flex: 1;

@@ -10,8 +10,11 @@ import {
   defaultParams,
   distributeNodes,
   effectiveExistingEdges,
+  expandBatchTitle,
   freeBatchOffset,
   requireNodeDefinition,
+  sanitizeNodeTitle,
+  sortForExport,
   validateConnection,
   type AlignMode,
   type DistributeAxis,
@@ -344,6 +347,52 @@ export function setNodeParam(id: string, key: string, value: string | number | b
     const n = s.nodes[id];
     if (n) n.params[key] = value;
   });
+}
+
+/**
+ * 给节点改名。
+ *
+ * 传空串等于「取消自定义名」，回退到类型名——这比允许一个空标题更合理：
+ * 空标题在卡片上是一片空白，用户会以为节点坏了。
+ */
+export function setNodeTitle(nodeId: string, title: string): void {
+  const cleaned = sanitizeNodeTitle(title);
+  const node = useGraphStore.getState().nodes[nodeId];
+  if (!node) return;
+  // 没变化就不记撤销历史：否则用户按 Ctrl+Z 发现什么都没变，会以为撤销坏了
+  if ((node.title ?? '') === cleaned) return;
+  checkpoint('重命名节点', `title:${nodeId}`);
+  useGraphStore.setState((s) => {
+    const target = s.nodes[nodeId];
+    if (!target) return;
+    if (cleaned) {
+      target.title = cleaned;
+    } else {
+      delete target.title;
+    }
+  });
+}
+
+/**
+ * 批量改名：把选中的节点按一个模板统一编号。
+ *
+ * 顺序用导出同一套坐标排序（上→下、左→右），不是选中的先后。
+ * 理由一样：用户说的「第 3 个」指的是画布上第三张，不是他点击的第三下。
+ */
+export function renameNodesByPattern(nodeIds: readonly string[], pattern: string): number {
+  const { nodes } = useGraphStore.getState();
+  const picked = nodeIds.map((id) => nodes[id]).filter((n): n is ProjectNode => Boolean(n));
+  if (picked.length === 0) return 0;
+  const ordered = sortForExport(picked, (n) => n.position);
+  checkpoint(`批量重命名 ${ordered.length} 个节点`);
+  useGraphStore.setState((s) => {
+    ordered.forEach((node, i) => {
+      const target = s.nodes[node.id];
+      if (!target) return;
+      target.title = sanitizeNodeTitle(expandBatchTitle(pattern, i + 1, ordered.length));
+    });
+  });
+  return ordered.length;
 }
 
 /**

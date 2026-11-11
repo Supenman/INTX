@@ -4,6 +4,7 @@ import {
   createTask,
   isTerminal,
   normalizeError,
+  unchangedAfterModeration,
   setProgress,
   transition,
   type GenerationParams,
@@ -170,5 +171,73 @@ describe('normalizeError', () => {
     const e = normalizeError('some weird thing');
     expect(e.code).toBe('unknown');
     expect(e.retryable).toBe(true);
+  });
+});
+
+/**
+ * 提交不确定（照 BeefTV 的 `submission_uncertain` 补的）。
+ *
+ * 这组测试守的是一件事：**别让用户在「上游可能已经出图」的情况下点重试**。
+ * 点了就是两次扣费，而且第二张出来之后没人说得清哪张是哪次。
+ */
+describe('normalizeError 的提交阶段判定', () => {
+  it('提交阶段超时 → 不确定，不给重试', () => {
+    const e = normalizeError(new Error('request timeout'), 'submitting');
+    expect(e.code).toBe('submission_uncertain');
+    expect(e.retryable).toBe(false);
+    expect(e.message).toContain('扣两次');
+  });
+
+  it('提交阶段 524（网关超时）也算不确定', () => {
+    const e = normalizeError(new Error('HTTP 524: A timeout occurred'), 'submitting');
+    expect(e.code).toBe('submission_uncertain');
+  });
+
+  it('提交阶段连接被拒 → 请求没出去，仍然可重试', () => {
+    const e = normalizeError(new Error('connect ECONNREFUSED 127.0.0.1:8317'), 'submitting');
+    expect(e.code).toBe('network');
+    expect(e.retryable).toBe(true);
+  });
+
+  it('域名解析失败 → 请求没出去，仍然可重试', () => {
+    const e = normalizeError(new Error('getaddrinfo ENOTFOUND api.example.com'), 'submitting');
+    expect(e.retryable).toBe(true);
+    expect(e.code).not.toBe('submission_uncertain');
+  });
+
+  it('提交阶段被明确拒绝（401/429/451）不算不确定', () => {
+    expect(normalizeError(new Error('401 Unauthorized'), 'submitting').code).toBe('auth_failed');
+    expect(normalizeError(new Error('429 too many requests'), 'submitting').code).toBe('rate_limited');
+    expect(normalizeError(new Error('451 unsafe'), 'submitting').code).toBe('content_rejected');
+  });
+
+  it('生成阶段超时仍是普通超时——上游已经在跑，没有「收没收到」的疑问', () => {
+    const e = normalizeError(new Error('request timeout'), 'generating');
+    expect(e.code).toBe('timeout');
+    expect(e.retryable).toBe(true);
+  });
+
+  it('不传阶段时行为与旧版一致，不误判', () => {
+    expect(normalizeError(new Error('request timeout')).code).toBe('timeout');
+  });
+});
+
+describe('unchangedAfterModeration', () => {
+  const rejected = normalizeError(new Error('451 unsafe'));
+
+  it('审核失败且提示词一字未改 → 拦下', () => {
+    expect(unchangedAfterModeration(rejected, 'a cat', 'a cat')).toBe(true);
+  });
+
+  it('改了提示词 → 放行', () => {
+    expect(unchangedAfterModeration(rejected, 'a cat', 'a cat, fluffy')).toBe(false);
+  });
+
+  it('上一次不是审核失败 → 不拦', () => {
+    expect(unchangedAfterModeration(normalizeError(new Error('timeout')), 'a cat', 'a cat')).toBe(false);
+  });
+
+  it('没有历史失败 → 不拦', () => {
+    expect(unchangedAfterModeration(null, 'a cat', 'a cat')).toBe(false);
   });
 });

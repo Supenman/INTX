@@ -28,6 +28,15 @@ export interface ProjectNode {
   id: string;
   /** 指向 NodeDefinition.kind */
   defKind: string;
+  /**
+   * 用户给这个节点起的名字。缺省（或只有空白）时回退到 `NodeDefinition.title`。
+   *
+   * 必须和类型名分开：`defKind` 决定它是什么，`title` 只决定它叫什么。
+   * 十个图片节点都叫「图片生成」的时候，导出和重命名都无从下手。
+   *
+   * 可选字段，旧项目文件不用迁移——读不到就当没起过名。
+   */
+  title?: string;
   position: NodePosition;
   size: NodeSize;
   params: Record<string, ParamValue>;

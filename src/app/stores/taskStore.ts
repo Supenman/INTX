@@ -80,7 +80,12 @@ export function markSucceeded(id: string, resultAssetIds: string[], cost?: CostR
 
 export function markFailed(id: string, error: unknown): void {
   patchTask(id, (t) => {
-    const normalized: TaskError = isTaskError(error) ? error : normalizeError(error);
+    /**
+     * 带上出错时所处的阶段。提交阶段的超时和生成阶段的超时不是一回事：
+     * 前者上游可能已经收单并计费，直接重试会扣两次钱（见 domain 的
+     * `submission_uncertain`）。所以阶段必须传进去，不能在外面归一化。
+     */
+    const normalized: TaskError = isTaskError(error) ? error : normalizeError(error, t.phase);
     const r = transition(t, 'failed', { error: normalized });
     return r.ok ? r.value : t;
   });

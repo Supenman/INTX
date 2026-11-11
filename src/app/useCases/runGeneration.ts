@@ -15,6 +15,7 @@ import {
   resolvePrompt,
   sha256Hex,
   textInputPortId,
+  unchangedAfterModeration,
   type Asset,
   type GeneratedItem,
   type GenerationRequest,
@@ -23,7 +24,7 @@ import {
   type ProviderAdapter,
 } from '@/domain';
 import { attachAssets, useGraphStore } from '@/app/stores/graphStore';
-import { markCanceled, markFailed, markPhase, markProgress, markRunning, markSucceeded, submitTask, useTaskStore } from '@/app/stores/taskStore';
+import { markCanceled, markFailed, markPhase, markProgress, markRunning, markSucceeded, submitTask, latestTaskForNode, useTaskStore } from '@/app/stores/taskStore';
 import { findAssetByHash, putAsset, useAssetStore } from '@/app/stores/assetStore';
 import { useProviderStore, pickModel } from '@/app/stores/providerStore';
 import { adapterFor } from '@/infra/provider';
@@ -84,6 +85,19 @@ async function loadAssetText(assetId: string): Promise<string | null> {
   return new TextDecoder().decode(loaded.bytes);
 }
 
+/**
+ * 产物已经拿到手，只是写不进本地磁盘。
+ *
+ * 单独一个类型是为了在 catch 里把它从「普通失败」里挑出来：这时上游已经按张
+ * 计过费了，重试等于再买一张，所以不能给「可重试」这个结论。
+ */
+class MediaSaveError extends Error {
+  constructor(cause: unknown) {
+    super(`产物保存失败：${cause instanceof Error ? cause.message : String(cause)}`);
+    this.name = 'MediaSaveError';
+  }
+}
+
 /** 把产物写进资产库。同哈希直接复用，返回已有 assetId。 */
 async function persistItem(item: GeneratedItem, taskId: string): Promise<Asset> {
   const runtime = await resolveRuntime();
@@ -104,7 +118,11 @@ async function persistItem(item: GeneratedItem, taskId: string): Promise<Asset> 
   });
   if (!created.ok) throw new Error(created.error.message);
 
-  await runtime.blobs.put(hash, item.bytes, item.mime);
+  try {
+    await runtime.blobs.put(hash, item.bytes, item.mime);
+  } catch (e) {
+    throw new MediaSaveError(e);
+  }
   putAsset({ asset: created.value, blobKey: hash });
   return created.value;
 }
@@ -198,6 +216,18 @@ export async function runGeneration(
     return { ok: false, message: promptIssue.message };
   }
 
+  /**
+   * 审核失败后一字未改地重发，等于把同一笔钱再花一次去换同一个拒绝。
+   * 这里在本地拦下，而不是等上游跑一趟再失败——省的是真金白银，不是时间。
+   */
+  const previous = latestTaskForNode(useTaskStore.getState().tasks, nodeId);
+  if (previous && unchangedAfterModeration(previous.error, previous.params.prompt, prompt)) {
+    return {
+      ok: false,
+      message: '提示词和上次被审核拦下时一模一样，重发大概率还是同一张被拒的图。改一句再试。',
+    };
+  }
+
   const capability: ProviderCapability =
     node.defKind === 'storyboard' ? 'image' : capabilityOf(node.params as Record<string, unknown>);
 
@@ -262,10 +292,16 @@ export async function runGeneration(
   const config: ProviderConfig = picked.config;
   const aspectRatio = String(node.params.aspectRatio ?? '1:1');
 
+  /**
+   * 已经拿到的产物。放在 try 外面是为了让 catch 也能看见：
+   * 分镜逐格生成时第 3 格失败，前 2 格上游已经按张计过费，
+   * 不能因为「这一单没跑完」就让它们连同节点一起消失。
+   */
+  const assets: Asset[] = [];
+
   try {
     markRunning(taskId);
 
-    const assets: Asset[] = [];
 
     if (node.defKind === 'storyboard') {
       /**
@@ -330,12 +366,37 @@ export async function runGeneration(
   } catch (e) {
     // 取消不是失败：走 canceled 终态，别把「用户主动停」记成一次错误
     if (controller.signal.aborted) {
+      // 取消之前已经出的格子照样挂上去，不然那几张既花了钱又看不见
+      if (assets.length > 0) attachAssets(nodeId, assets.map((a) => a.id));
       markCanceled(taskId);
       return { ok: false, taskId, message: CANCEL_MESSAGE };
     }
-    const err = normalizeError(e);
-    markFailed(taskId, err);
-    return { ok: false, taskId, message: err.message };
+
+    // 部分成功：先把已出的挂上，再报错。顺序不能反——反了会闪一下空白
+    if (assets.length > 0) attachAssets(nodeId, assets.map((a) => a.id));
+
+    /**
+     * 产物已出、只是没存下来。这条单独处理，因为它的重试不是「再试一次」
+     * 而是「再买一张」，必须明确禁止。
+     */
+    if (e instanceof MediaSaveError) {
+      const message = `上游已经出图了（这次已经计费），但存到本机失败。不要直接重试，那会再买一张；先清出磁盘空间。原始原因：${
+        e.message
+      }`;
+      markFailed(taskId, { code: 'local_save_failed', message, retryable: false });
+      return { ok: false, taskId, message };
+    }
+
+    /**
+     * 带着当前阶段归一化：提交阶段的超时和生成阶段的超时不是一回事。
+     * 不带阶段的话 `submission_uncertain` 永远不会被识别出来，用户还是会被
+     * 引导去重试，扣两次钱。
+     */
+    const currentPhase = useTaskStore.getState().tasks[taskId]?.phase ?? null;
+    const err = normalizeError(e, currentPhase);
+    const partial = assets.length > 0 ? `（已经出的 ${assets.length} 张已保留在节点上）` : '';
+    markFailed(taskId, { ...err, message: `${err.message}${partial}` });
+    return { ok: false, taskId, message: `${err.message}${partial}` };
   }
 }
 

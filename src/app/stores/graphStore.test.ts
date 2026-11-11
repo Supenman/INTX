@@ -1,6 +1,17 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { registerNode, unregisterNode, builtinNodes } from '@/domain';
-import { addNode, connectNodes, hydrateGraph, moveNode, removeNodes, resetGraph, setNodeParam, useGraphStore } from './graphStore';
+import {
+  addNode,
+  connectNodes,
+  hydrateGraph,
+  moveNode,
+  removeNodes,
+  renameNodesByPattern,
+  resetGraph,
+  setNodeParam,
+  setNodeTitle,
+  useGraphStore,
+} from './graphStore';
 
 function seed() {
   for (const d of builtinNodes) registerNode(d);
@@ -158,5 +169,49 @@ describe('graphStore', () => {
     );
     expect(Object.keys(state().nodes)).toEqual(['n1']);
     expect(state().nodes.n1!.params.outputKind).toBe('video');
+  });
+});
+
+/**
+ * 节点改名。
+ *
+ * 单测在这里能守住的东西：空标题必须回退（不能留一个空名字让卡片变白）、
+ * 编号顺序按坐标而不是按传入顺序（用户说的「第三个」是画布上的第三个）。
+ */
+describe('节点改名', () => {
+  beforeEach(() => {
+    resetGraph();
+    for (const d of builtinNodes) unregisterNode(d.kind);
+    seed();
+  });
+
+  it('改名后读得到，空标题回退为未命名（不回退到类型名，由显示层负责）', () => {
+    const id = addNode({ defKind: 'generate', position: { x: 0, y: 0 } });
+    setNodeTitle(id, '主视觉');
+    expect(state().nodes[id]!.title).toBe('主视觉');
+    setNodeTitle(id, '   ');
+    expect(state().nodes[id]!.title).toBeUndefined();
+  });
+
+  it('换行被压平，卡片是单行的', () => {
+    const id = addNode({ defKind: 'generate', position: { x: 0, y: 0 } });
+    setNodeTitle(id, '第一行\n第二行');
+    expect(state().nodes[id]!.title).toBe('第一行 第二行');
+  });
+
+  it('批量改名按画布坐标编号，不按传入顺序', () => {
+    const right = addNode({ defKind: 'generate', position: { x: 400, y: 0 } });
+    const left = addNode({ defKind: 'generate', position: { x: 0, y: 0 } });
+    // 故意先传右边的
+    const n = renameNodesByPattern([right, left], '主图 #');
+    expect(n).toBe(2);
+    expect(state().nodes[left]!.title).toBe('主图 01');
+    expect(state().nodes[right]!.title).toBe('主图 02');
+  });
+
+  it('批量改名不存在的 id 直接忽略，不抛错也不算进总数', () => {
+    const id = addNode({ defKind: 'generate', position: { x: 0, y: 0 } });
+    expect(renameNodesByPattern([id, 'ghost'], '图 #')).toBe(1);
+    expect(state().nodes[id]!.title).toBe('图 01');
   });
 });

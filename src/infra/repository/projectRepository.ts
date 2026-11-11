@@ -89,6 +89,9 @@ export function snapshotProject(name = '未命名项目'): ProjectFile {
       (n): ProjectNode => ({
         id: n.id,
         defKind: n.defKind,
+        // 白名单式序列化：新增字段必须同步加在这里，否则「界面上改了、存档里没有」
+        // ——刷新就丢，而且只在刷新后才暴露。节点标题就是踩过这个坑才补的。
+        ...(n.title !== undefined ? { title: n.title } : {}),
         position: n.position,
         size: n.size,
         params: n.params,
