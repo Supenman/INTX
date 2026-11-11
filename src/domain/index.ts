@@ -153,6 +153,7 @@ export {
   alignNodes,
   autoLayout,
   distributeNodes,
+  freeBatchOffset,
   type AlignMode,
   type AutoLayoutOptions,
   type DistributeAxis,

@@ -10,6 +10,7 @@ import {
   defaultParams,
   distributeNodes,
   effectiveExistingEdges,
+  freeBatchOffset,
   requireNodeDefinition,
   validateConnection,
   type AlignMode,
@@ -179,6 +180,10 @@ export function autoArrange(scopeIds?: readonly string[]): void {
  * 多一个引用不会多写一份文件；但 lastTaskId 不复制，否则副本会显示
  * 别人那次生成的状态，用户会以为副本也跑过任务。
  * 两端都在选区里的连线一并复制，复制出来仍是一张可运行的子图。
+ *
+ * `offset` 只是**首选**错位：固定 +40,+40 会让副本整个盖在原节点上
+ * （节点宽约 340、高约 280），文字重影、端口点不到。整批共用一个
+ * freeBatchOffset 的结果，既保持相对布局，又不压住任何已有节点。
  */
 export function duplicateNodes(ids: readonly string[], offset = { x: 40, y: 40 }): string[] {
   const snapshot = useGraphStore.getState();
@@ -188,6 +193,14 @@ export function duplicateNodes(ids: readonly string[], offset = { x: 40, y: 40 }
   checkpoint(valid.length === 1 ? '复制节点' : `复制 ${valid.length} 个节点`);
   const idMap = new Map<string, string>();
   for (const id of valid) idMap.set(id, createId('nd'));
+  const shift = freeBatchOffset(
+    valid
+      .map((id) => snapshot.nodes[id])
+      .filter((n): n is ProjectNode => n !== undefined)
+      .map((n) => n.position),
+    Object.values(snapshot.nodes).map((n) => n.position),
+    offset,
+  );
 
   useGraphStore.setState((s) => {
     for (const id of valid) {
@@ -197,7 +210,7 @@ export function duplicateNodes(ids: readonly string[], offset = { x: 40, y: 40 }
       s.nodes[newId] = {
         id: newId,
         defKind: src.defKind,
-        position: { x: src.position.x + offset.x, y: src.position.y + offset.y },
+        position: { x: src.position.x + shift.x, y: src.position.y + shift.y },
         size: { ...src.size },
         params: { ...src.params },
         ...(src.assetId ? { assetId: src.assetId } : {}),
@@ -240,6 +253,12 @@ export function pasteNodes(snapshot: ClipboardSnapshot, offset = { x: 40, y: 40 
 
   const idMap = new Map<string, string>();
   for (const n of snapshot.nodes) idMap.set(n.id, createId('nd'));
+  // 源节点可能已被删掉，但占位判断要看「当前画布上还有什么」，不是快照。
+  const shift = freeBatchOffset(
+    snapshot.nodes.map((n) => n.position),
+    Object.values(useGraphStore.getState().nodes).map((n) => n.position),
+    offset,
+  );
 
   useGraphStore.setState((s) => {
     for (const n of snapshot.nodes) {
@@ -248,7 +267,7 @@ export function pasteNodes(snapshot: ClipboardSnapshot, offset = { x: 40, y: 40 
       s.nodes[newId] = {
         id: newId,
         defKind: n.defKind,
-        position: { x: n.position.x + offset.x, y: n.position.y + offset.y },
+        position: { x: n.position.x + shift.x, y: n.position.y + shift.y },
         size: { ...n.size },
         params: { ...n.params },
         ...(n.assetId ? { assetId: n.assetId } : {}),

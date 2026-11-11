@@ -140,6 +140,17 @@ export async function run() {
   await genHover.locator('button[data-tool-id="node-duplicate"]').click();
   await p.waitForTimeout(300);
   check((await nodeCount()) === before + 1, '点悬浮栏「复制」应真的复制出 1 个节点');
+  // 只数「+1 个节点」是不够的：旧实现固定 +40,+40，副本几乎整个盖在原节点上，
+  // 参数文字出现两份重影、端口点不到。把「落点不重叠」也钉进 E2E。
+  const positions = await p.evaluate(async () => {
+    const g = await window.__intxMod('/src/app/stores/graphStore.ts');
+    return Object.values(g.useGraphStore.getState().nodes).map((n) => ({ x: n.position.x, y: n.position.y }));
+  });
+  const overlapping = positions.filter((a, i) =>
+    positions.some((b, j) => j > i && Math.abs(a.x - b.x) < 360 && Math.abs(a.y - b.y) < 300),
+  );
+  console.log('5) 复制后坐标:', positions.map((q) => `${Math.round(q.x)},${Math.round(q.y)}`).join(' | '));
+  check(overlapping.length === 0, '复制出的节点不应压在已有节点上（否则文字重影、端口点不到）');
 
   // ── 6. 工具栏显隐开关写进 localStorage，刷新后仍在 ──
   await openMenuAtBlank();

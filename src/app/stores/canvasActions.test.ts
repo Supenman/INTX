@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { LAYOUT_STEP_X, builtinNodes, registerNode, unregisterNode, type ProjectEdge, type ProjectNode } from '@/domain';
+import { LAYOUT_STEP_X, LAYOUT_STEP_Y, builtinNodes, registerNode, unregisterNode, type ProjectEdge, type ProjectNode } from '@/domain';
 import {
   alignSelected,
   autoArrange,
   duplicateNodes,
   hydrateGraph,
+  pasteNodes,
   resetGraph,
   setNodePositions,
   useGraphStore,
@@ -55,7 +56,14 @@ describe('画布批量操作', () => {
     const copy = state().nodes[copyId!];
     expect(copy?.defKind).toBe('generate');
     expect(copy?.params.prompt).toBe('一只猫');
-    expect(copy?.position).toEqual({ x: 140, y: 240 });
+    // 旧实现固定 +40,+40，副本会整个压在原节点上（E2E 截图放大后抓到的
+    // 参数文字双份重影）。现在落点由 freeBatchOffset 决定，至少有整格间距。
+    const cx = copy?.position.x ?? 0;
+    const cy = copy?.position.y ?? 0;
+    expect(
+      Math.abs(cx - src.position.x) >= LAYOUT_STEP_X - 20 ||
+      Math.abs(cy - src.position.y) >= LAYOUT_STEP_Y - 20,
+    ).toBe(true);
     expect(copy?.assetId).toBe('as_1');
     expect(copy?.derivedAssetIds).toEqual(['as_1', 'as_2']);
     expect(copy?.lastTaskId).toBeUndefined();
@@ -124,5 +132,19 @@ describe('画布批量操作', () => {
     autoArrange();
     const positions = Object.values(state().nodes).map((n) => `${n.position.x},${n.position.y}`);
     expect(new Set(positions).size).toBe(3);
+  });
+
+  it('粘贴的落点也不压在已有节点上（源节点被删掉后同样成立）', () => {
+    const existing = node('a', 100, 200, 'generate');
+    seed([existing]);
+    const clip = { nodes: [{ ...existing, id: 'gone' }], edges: [] };
+    const created = pasteNodes(clip);
+    expect(created).toHaveLength(1);
+    const pasted = state().nodes[created[0]!];
+    expect(pasted).toBeDefined();
+    expect(
+      Math.abs(pasted!.position.x - existing.position.x) >= LAYOUT_STEP_X - 20 ||
+      Math.abs(pasted!.position.y - existing.position.y) >= LAYOUT_STEP_Y - 20,
+    ).toBe(true);
   });
 });

@@ -6,6 +6,7 @@ import {
   alignNodes,
   autoLayout,
   distributeNodes,
+  freeBatchOffset,
 } from './layout';
 
 function node(id: string, x: number, y: number, defKind = 'text-input', w = 260, h = 180): ProjectNode {
@@ -163,5 +164,49 @@ describe('autoLayout', () => {
     const a = node('a', 30, 40, 'text-input');
     const out = autoLayout([a], [edge('a', 'a')]);
     expect(out).toEqual({});
+  });
+});
+
+/** 与 freeBatchOffset 内部同一套「算不算压住了」判据。 */
+const apart = (a: { x: number; y: number }, b: { x: number; y: number }) =>
+  Math.abs(a.x - b.x) >= LAYOUT_STEP_X - 20 || Math.abs(a.y - b.y) >= LAYOUT_STEP_Y - 20;
+
+describe('freeBatchOffset', () => {
+  it('首选偏移不冲突时原样保留，调用方给的自定义偏移仍然生效', () => {
+    expect(freeBatchOffset([{ x: 0, y: 0 }], [{ x: 1000, y: 1000 }], { x: 60, y: 80 })).toEqual({ x: 60, y: 80 });
+  });
+
+  it('默认的 +40,+40 会压在原节点上，必须换成不重叠的落点', () => {
+    const src = { x: 100, y: 200 };
+    const shift = freeBatchOffset([src], [src]);
+    expect(shift).not.toEqual({ x: 40, y: 40 });
+    expect(apart({ x: src.x + shift.x, y: src.y + shift.y }, src)).toBe(true);
+  });
+
+  it('整批副本共用一个平移量，相对布局保持不变', () => {
+    const p0 = { x: 0, y: 0 };
+    const p1 = { x: 400, y: 0 };
+    const p2 = { x: 0, y: 320 };
+    const positions = [p0, p1, p2];
+    const shift = freeBatchOffset(positions, positions);
+    const c0 = { x: p0.x + shift.x, y: p0.y + shift.y };
+    const c1 = { x: p1.x + shift.x, y: p1.y + shift.y };
+    const c2 = { x: p2.x + shift.x, y: p2.y + shift.y };
+    expect(c1.x - c0.x).toBe(400);
+    expect(c2.y - c0.y).toBe(320);
+    for (const c of [c0, c1, c2]) for (const o of positions) expect(apart(c, o)).toBe(true);
+  });
+
+  it('已有节点很密时也绝不退回重叠', () => {
+    const occupied: { x: number; y: number }[] = [];
+    for (let i = 0; i < 60; i += 1) occupied.push({ x: (i % 8) * 400, y: Math.floor(i / 8) * 340 });
+    const p0 = { x: 0, y: 0 };
+    const shift = freeBatchOffset([p0], occupied);
+    const copy = { x: p0.x + shift.x, y: p0.y + shift.y };
+    for (const o of occupied) expect(apart(copy, o)).toBe(true);
+  });
+
+  it('空批次不做无意义的扫描', () => {
+    expect(freeBatchOffset([], [], { x: 7, y: 9 })).toEqual({ x: 7, y: 9 });
   });
 });

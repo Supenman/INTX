@@ -256,3 +256,50 @@ export function autoLayout(
   });
   return out;
 }
+
+/**
+ * 给整批复制 / 粘贴的节点找一个**不压在已有节点上**的平移量。
+ *
+ * 之前 duplicateNodes / pasteNodes 固定只偏移 {40,40}，而节点宽约 340、
+ * 高约 280 —— 副本几乎整个盖在原节点上，参数文字出现两份重影、端口点不到，
+ * 看起来像只复制了半个节点。E2E 只断言「节点数 +1」所以一直没抓到，
+ * 直到把截图放大才看见。这里把「落点」也收进 domain，跟对齐/整理同一层。
+ *
+ * 约束：整批共用同一个平移量，保持副本之间的相对布局；候选按整格扫描，
+ * 行列数按已有节点数动态推导（沿用 findFreeSlot 的教训，不写死 50 行）。
+ */
+export function freeBatchOffset(
+  positions: readonly NodePosition[],
+  occupied: readonly NodePosition[],
+  preferred: NodePosition = { x: 40, y: 40 },
+): NodePosition {
+  if (positions.length === 0) return preferred;
+
+  const collides = (shift: NodePosition): boolean =>
+    positions.some((p) =>
+      occupied.some(
+        (o) =>
+          Math.abs(o.x - (p.x + shift.x)) < LAYOUT_STEP_X - 20 &&
+          Math.abs(o.y - (p.y + shift.y)) < LAYOUT_STEP_Y - 20,
+      ),
+    );
+
+  if (!collides(preferred)) return preferred;
+
+  const maxRows = Math.max(30, Math.ceil(occupied.length / 2) + 2);
+  // col 外层、row 内层 = 优先往下找；副本落在原节点下方比一路往右更自然。
+  for (let col = 0; col < 3; col += 1) {
+    for (let row = 0; row < maxRows; row += 1) {
+      if (col === 0 && row === 0) continue; // 首选已试过
+      const candidate: NodePosition = {
+        x: preferred.x + col * LAYOUT_STEP_X,
+        y: preferred.y + row * LAYOUT_STEP_Y,
+      };
+      if (!collides(candidate)) return candidate;
+    }
+  }
+  // 极端密集的画布：兜底放到所有已有节点下方，绝不退回重叠。
+  const maxY = Math.max(0, ...occupied.map((o) => o.y));
+  const minY = Math.min(...positions.map((p) => p.y));
+  return { x: preferred.x, y: maxY + LAYOUT_STEP_Y * 2 - minY };
+}
