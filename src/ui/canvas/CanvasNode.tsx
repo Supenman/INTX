@@ -13,7 +13,8 @@ import {
   textInputPortId,
   type ProjectNode,
 } from '@/domain';
-import { latestTaskForNode, retryTask, useTaskStore } from '@/app/stores/taskStore';
+import { latestTaskForNode, useTaskStore } from '@/app/stores/taskStore';
+import type { RunGenerationOptions } from '@/app/useCases/runGeneration';
 import { useAssetStore } from '@/app/stores/assetStore';
 import { removeNodes, setNodeParam, setNodeTitle, useGraphStore } from '@/app/stores/graphStore';
 import { useProviderStore } from '@/app/stores/providerStore';
@@ -33,7 +34,7 @@ import { outcomeCopy } from './outcomeCopy';
 
 export interface CanvasNodeData extends Record<string, unknown> {
   node: ProjectNode;
-  onGenerate: (nodeId: string) => void;
+  onGenerate: (nodeId: string, options?: RunGenerationOptions) => void;
   onCancel: (nodeId: string) => void;
 }
 
@@ -416,7 +417,7 @@ export const CanvasNode = memo(function CanvasNode({ id, data, selected }: NodeP
           </>
         )}
 
-        <TaskStatusLine task={task} />
+        <TaskStatusLine task={task} nodeId={id} onGenerate={onGenerate} />
       </div>
 
       {/*
@@ -466,7 +467,15 @@ function incomingText(
   return parts.join('\n');
 }
 
-function TaskStatusLine({ task }: { task: ReturnType<typeof latestTaskForNode> }) {
+function TaskStatusLine({
+  task,
+  nodeId,
+  onGenerate,
+}: {
+  task: ReturnType<typeof latestTaskForNode>;
+  nodeId: string;
+  onGenerate: (nodeId: string, options?: RunGenerationOptions) => void;
+}) {
   if (!task) return null;
 
   if (task.status === 'running') {
@@ -499,8 +508,10 @@ function TaskStatusLine({ task }: { task: ReturnType<typeof latestTaskForNode> }
           <button
             className="link-btn nodrag"
             onClick={() => {
-              // 重试 = 回到队列；真正的重跑由用户再点生成，避免隐式联网
-              retryTask(task.id);
+              // 点了确认就真的跑一次，而且只补缺失的分镜格。
+              // 以前只把状态改回 queued：busy 判定会把按钮变成「取消」，
+              // 用户永远点不到执行，任务就那么卡着。
+              onGenerate(nodeId, { resume: true });
             }}
           >
             {copy.action}

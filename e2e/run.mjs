@@ -23,6 +23,7 @@ const SPECS = [
   ['P3 @资产 引用', './specs/asset-ref.mjs'],
   ['P3 节点改名/批量编号', './specs/rename.mjs'],
   ['P3 三态重发策略', './specs/outcome-policy.mjs'],
+  ['真实产出：分镜部分失败→补格→交付', './specs/real-output.mjs'],
 ];
 
 async function reachable() {

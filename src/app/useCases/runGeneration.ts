@@ -133,12 +133,30 @@ function capabilityOf(params: Record<string, unknown>): ProviderCapability {
   return k === 'video' ? 'video' : k === 'text' ? 'text' : 'image';
 }
 
+export interface RunGenerationOptions {
+  /**
+   * 从失败卡片「确认后重发」进来：只补缺失的分镜格，不重复已经出图、
+   * 已经计费的那几格。普通「拆分 / 生成」按钮不传，仍然是全新一批。
+   */
+  resume?: boolean;
+}
+
 export async function runGeneration(
   nodeId: string,
   registerAbort?: (signal: AbortController) => void,
+  options: RunGenerationOptions = {},
 ): Promise<RunResult> {
   const node = useGraphStore.getState().nodes[nodeId];
   if (!node) return { ok: false, message: '节点不存在' };
+
+  /**
+   * 同一个节点同时只跑一单。失败卡片被快速连点两次、或者按钮与快捷键
+   * 重叠触发时，第二进来直接拒掉——否则会发起两次真实请求、扣两次钱。
+   */
+  const active = latestTaskForNode(useTaskStore.getState().tasks, nodeId);
+  if (active && (active.status === 'running' || active.status === 'queued')) {
+    return { ok: false, message: '这个节点还有任务在跑，等它结束再重发' };
+  }
 
   const edges = useGraphStore.getState().edges;
   const requiredPort = textInputPortId(node.defKind);
@@ -256,6 +274,17 @@ export async function runGeneration(
 
   const count = node.defKind === 'storyboard' ? gridCount(String(node.params.grid ?? '2x2')) : 1;
 
+  /**
+   * 补格：节点上已经挂着、且资产索引里还查得到的产物，就是上一批已经
+   * 出图并计费的格子。只从它们的下一格开始请求，避免整单重发。
+   * 只认 `resume`：用户主动点「拆分」是要全新一批，不能悄悄变成补格。
+   */
+  const existingIds =
+    options.resume && node.defKind === 'storyboard'
+      ? (node.derivedAssetIds ?? []).filter((id) => useAssetStore.getState().assets[id])
+      : [];
+  const startCell = existingIds.length < count ? existingIds.length : 0;
+
   const taskId = submitTask({
     nodeId,
     kind: capability === 'text' ? 'text' : capability,
@@ -316,7 +345,7 @@ export async function runGeneration(
       const total = gridCount(grid);
       const refImages = refs.filter((r): r is { mime: string; bytes: ArrayBuffer } => r !== null);
 
-      for (let cell = 0; cell < total; cell += 1) {
+      for (let cell = startCell; cell < total; cell += 1) {
         markPhase(taskId, 'generating');
         markProgress(taskId, cell / total);
         const items = await adapter.generate(
@@ -355,25 +384,24 @@ export async function runGeneration(
       modelId: picked.modelId,
       promptChars: prompt.length,
     });
-    markSucceeded(taskId, assets.map((a) => a.id), cost);
+    const newIds = assets.map((a) => a.id);
+    markSucceeded(taskId, newIds, cost);
 
-    attachAssets(
-      nodeId,
-      assets.map((a) => a.id),
-    );
+    // 补格时节点上要留着前几格；attachAssets 是替换语义，所以传合并后的完整列表
+    attachAssets(nodeId, [...existingIds, ...newIds]);
 
-    return { ok: true, taskId, assetIds: assets.map((a) => a.id) };
+    return { ok: true, taskId, assetIds: newIds };
   } catch (e) {
+    const newIds = assets.map((a) => a.id);
+    const keptIds = [...existingIds, ...newIds];
+    // 部分成功：先把已出的挂上，再报错。顺序不能反——反了会闪一下空白
+    if (keptIds.length > 0) attachAssets(nodeId, keptIds);
+
     // 取消不是失败：走 canceled 终态，别把「用户主动停」记成一次错误
     if (controller.signal.aborted) {
-      // 取消之前已经出的格子照样挂上去，不然那几张既花了钱又看不见
-      if (assets.length > 0) attachAssets(nodeId, assets.map((a) => a.id));
-      markCanceled(taskId);
+      markCanceled(taskId, newIds);
       return { ok: false, taskId, message: CANCEL_MESSAGE };
     }
-
-    // 部分成功：先把已出的挂上，再报错。顺序不能反——反了会闪一下空白
-    if (assets.length > 0) attachAssets(nodeId, assets.map((a) => a.id));
 
     /**
      * 产物已出、只是没存下来。这条单独处理，因为它的重试不是「再试一次」
@@ -383,7 +411,7 @@ export async function runGeneration(
       const message = `上游已经出图了（这次已经计费），但存到本机失败。不要直接重试，那会再买一张；先清出磁盘空间。原始原因：${
         e.message
       }`;
-      markFailed(taskId, { code: 'local_save_failed', message });
+      markFailed(taskId, { code: 'local_save_failed', message }, newIds);
       return { ok: false, taskId, message };
     }
 
@@ -394,8 +422,8 @@ export async function runGeneration(
      */
     const currentPhase = useTaskStore.getState().tasks[taskId]?.phase ?? null;
     const err = normalizeError(e, currentPhase);
-    const partial = assets.length > 0 ? `（已经出的 ${assets.length} 张已保留在节点上）` : '';
-    markFailed(taskId, { ...err, message: `${err.message}${partial}` });
+    const partial = newIds.length > 0 ? `（已经出的 ${newIds.length} 张已保留在节点上）` : '';
+    markFailed(taskId, { ...err, message: `${err.message}${partial}` }, newIds);
     return { ok: false, taskId, message: `${err.message}${partial}` };
   }
 }

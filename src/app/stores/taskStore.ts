@@ -80,7 +80,13 @@ export function markSucceeded(id: string, resultAssetIds: string[], cost?: CostR
   });
 }
 
-export function markFailed(id: string, error: unknown): void {
+/**
+ * 失败终态也要带上已经落盘的产物。分镜第 3 格挂了，前 2 格上游已经按张
+ * 计过费：只挂在节点上、任务层却记 0，台账会显示「零产物」，三态判定也
+ * 看不到 `partial_results`，失败卡片就会笼统地写「重置状态」，等于鼓励
+ * 用户整单重发再买一次。
+ */
+export function markFailed(id: string, error: unknown, resultAssetIds?: readonly string[]): void {
   patchTask(id, (t) => {
     /**
      * 带上出错时所处的阶段。提交阶段的超时和生成阶段的超时不是一回事：
@@ -88,19 +94,30 @@ export function markFailed(id: string, error: unknown): void {
      * `submission_uncertain`）。所以阶段必须传进去，不能在外面归一化。
      */
     const normalized: TaskError = isTaskError(error) ? error : normalizeError(error, t.phase);
-    const r = transition(t, 'failed', { error: normalized });
+    const r = transition(t, 'failed', {
+      error: normalized,
+      ...(resultAssetIds && resultAssetIds.length > 0 ? { resultAssetIds: [...resultAssetIds] } : {}),
+    });
     return r.ok ? r.value : t;
   });
 }
 
-export function markCanceled(id: string): void {
+export function markCanceled(id: string, resultAssetIds?: readonly string[]): void {
   patchTask(id, (t) => {
-    const r = transition(t, 'canceled');
+    const r = transition(t, 'canceled', {
+      ...(resultAssetIds && resultAssetIds.length > 0 ? { resultAssetIds: [...resultAssetIds] } : {}),
+    });
     return r.ok ? r.value : t;
   });
 }
 
-/** 重试：回到队列，attempt 递增，参数快照保留。 */
+/**
+ * 按旧快照重试的**状态准备**：回到队列，attempt 递增，参数快照保留。
+ *
+ * 这不是 UI 的重发入口。只改状态不接执行器会让 `queued` 被节点判成 busy、
+ * 按钮变成「取消」，用户永远点不到执行（真机验收撞到过）。重发请走
+ * `runGeneration(nodeId, undefined, { resume: true })`，由用例层发起真实请求。
+ */
 export function retryTask(id: string): boolean {
   const current = useTaskStore.getState().tasks[id];
   if (!current) return false;

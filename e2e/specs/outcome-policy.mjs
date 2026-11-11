@@ -4,8 +4,9 @@ import { openPage, finish, check } from '../helpers.mjs';
  * 失败态三态重发策略（照 BeefTV task-outcome 的判定骨架移植的那块）。
  *
  * 单测能证明「某个错误码映射到 allowed / confirm / blocked」，证明不了
- * 「卡片上真的渲染出了对应的按钮文字」和「点下去任务真的回到 queued」。
- * 这一组只测这两件事，以及「任务还在跑时不给重发按钮」。
+ * 「卡片上真的渲染出了对应的按钮文字」和「点下去不会把任务卡死」。
+ * 这一组只测这两件事，以及「任务还在跑时不给重发按钮」；
+ * 「点重发真的发起一次执行」由 real-output.mjs 用真实节点验证。
  */
 const CASES = [
   { code: 'submission_uncertain', badge: '?', action: '确认没过，可重发' },
@@ -71,7 +72,10 @@ export async function run() {
     check((await btn.innerText()).trim() === c.action, `${c.code} 按钮文案应为「${c.action}」`);
   }
 
-  // ── 2. 真实点击后果：confirm 态也能把任务重置回队列 ──
+  // ── 2. 真实点击后果：不能只把状态改回 queued 就卡死 ──
+  // 重发按钮现在直接走 runGeneration 发起真实执行（P1）；这里没有连线与
+  // 提示词，执行会在提交前被本地校验挡下，所以只锁「不再卡在 queued」，
+  // 「真的发起一次请求」交给 real-output.mjs 的真实场景验。
   await inject('submission_uncertain');
   await p.waitForTimeout(180);
   await p.locator('.node-status.failed .link-btn').first().click();
@@ -80,7 +84,10 @@ export async function run() {
     const t = await window.__intxMod('/src/app/stores/taskStore.ts');
     return Object.values(t.useTaskStore.getState().tasks).map((x) => x.status);
   });
-  check(afterClick.length === 1 && afterClick[0] === 'queued', `点确认后应回到 queued，实际 ${JSON.stringify(afterClick)}`);
+  check(
+    !afterClick.includes('queued'),
+    `点重发不应把任务卡在 queued（应发起真实执行），实际 ${JSON.stringify(afterClick)}`,
+  );
 
   // ── 3. 分镜部分成功：已出的图已经计费，按钮要写明 ──
   await inject('timeout', { results: ['as_1', 'as_2'] });

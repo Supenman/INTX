@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { CANCEL_MESSAGE, runGeneration, type RunResult } from './runGeneration';
+import { CANCEL_MESSAGE, runGeneration, type RunGenerationOptions, type RunResult } from './runGeneration';
 
 /**
  * 生成用例的 React 适配层。
@@ -11,7 +11,7 @@ import { CANCEL_MESSAGE, runGeneration, type RunResult } from './runGeneration';
  * 真正的逻辑在 runGeneration 里，可以脱离 React 直接测。
  */
 export interface UseRunGeneration {
-  (nodeId: string): Promise<RunResult>;
+  (nodeId: string, options?: RunGenerationOptions): Promise<RunResult>;
   cancel: (nodeId: string) => void;
 }
 
@@ -27,10 +27,14 @@ export function useRunGeneration(): UseRunGeneration {
     };
   }, []);
 
-  const generate = useCallback(async (nodeId: string): Promise<RunResult> => {
-    const r = await runGeneration(nodeId, (signal) => {
-      aborters.current.set(nodeId, signal);
-    });
+  const generate = useCallback(async (nodeId: string, options?: RunGenerationOptions): Promise<RunResult> => {
+    const r = await runGeneration(
+      nodeId,
+      (signal) => {
+        aborters.current.set(nodeId, signal);
+      },
+      options,
+    );
     aborters.current.delete(nodeId);
     force((n) => n + 1);
     return r;

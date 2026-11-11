@@ -406,10 +406,25 @@ export function attachAssets(nodeId: string, assetIds: readonly string[]): void 
   if (assetIds.length === 0) return;
   useGraphStore.setState((s) => {
     const node = s.nodes[nodeId];
-    if (!node) return;
+    if (!node) return s;
     const first = assetIds[0];
-    if (first) node.assetId = first;
-    node.derivedAssetIds = [...assetIds];
+    /**
+     * 必须换掉 nodes 与 node 的对象引用，不能就地改字段。
+     * usePersistence 靠 `curr.nodes !== prev.nodes` 判断要不要自动保存，
+     * 就地 mutate 会让订阅以为画布没变——补格后新出的 4 格看得见，
+     * 但 600ms 防抖保存压根不会被触发，关掉重开就只剩旧的那几格。
+     * 节点组件的 memo 缓存同样靠引用比较，就地改还会漏掉重渲染。
+     */
+    return {
+      nodes: {
+        ...s.nodes,
+        [nodeId]: {
+          ...node,
+          ...(first ? { assetId: first } : {}),
+          derivedAssetIds: [...assetIds],
+        },
+      },
+    };
   });
 }
 

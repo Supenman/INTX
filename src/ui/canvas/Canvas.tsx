@@ -52,7 +52,7 @@ import { persistProviders, useProviderStore } from '@/app/stores/providerStore';
 import { useToolbarPrefs } from '@/app/toolPrefs';
 import { hydrateAssetsFromProject } from '@/app/useCases/assetLibrary';
 import { useRunGeneration } from '@/app/useCases/useRunGeneration';
-import { CANCEL_MESSAGE } from '@/app/useCases/runGeneration';
+import { CANCEL_MESSAGE, type RunGenerationOptions } from '@/app/useCases/runGeneration';
 import { usePersistence } from '@/app/useCases/usePersistence';
 import { adapterFor } from '@/infra/provider';
 import { resolveRuntime } from '@/infra/runtime';
@@ -148,8 +148,8 @@ function CanvasInner() {
   }, []);
 
   const onGenerate = useCallback(
-    (nodeId: string) => {
-      void stableGenerate.current(nodeId).then((r) => {
+    (nodeId: string, options?: RunGenerationOptions) => {
+      void stableGenerate.current(nodeId, options).then((r) => {
         // 取消是用户主动动作，不该弹一条红色错误
         if (!r.ok && r.message && r.message !== CANCEL_MESSAGE) showError(r.message);
       });
