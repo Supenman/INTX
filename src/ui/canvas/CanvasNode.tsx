@@ -7,6 +7,7 @@ import {
   isLongPrompt,
   nodeTitle,
   parseGrid,
+  readTaskOutcome,
   resolvePrompt,
   splitPromptSegments,
   textInputPortId,
@@ -21,6 +22,7 @@ import { BlobImage } from '@/ui/common/BlobImage';
 import { downloadBlob, downloadBytes } from '@/ui/common/download';
 import { NodeHoverToolbar } from './NodeHoverToolbar';
 import { PromptEditor } from './PromptEditor';
+import { outcomeCopy } from './outcomeCopy';
 
 /**
  * 通用节点渲染。
@@ -482,33 +484,18 @@ function TaskStatusLine({ task }: { task: ReturnType<typeof latestTaskForNode> }
 
   if (task.status === 'failed') {
     /**
-     * 「提交不确定」不是失败，是**未知**：请求可能已经到上游了。
-     * 这里不给重试按钮，因为重试可能让上游再出一张、再扣一次；
-     * 只给「我确认过了，没出图」，把决定权交回用户。
+     * 失败态只查 domain 算出来的三态，不在渲染里按错误码分支。
+     * 之前 submission_uncertain 是这里的一个特判，加一个码就要改一次 UI；
+     * 现在新增错误码只改 `domain/task/outcome.ts`，文案只改 outcomeCopy.ts。
      */
-    if (task.error?.code === 'submission_uncertain') {
-      return (
-        <div
-          className="node-status failed"
-          title="请求发出后没等到回复。上游可能已经收到并开始出图，也可能没有。先去厂商后台看一眼账单和任务列表，再决定是否重发。"
-        >
-          <span className="err-text">? {task.error.message}</span>
-          <button
-            className="link-btn nodrag"
-            onClick={() => {
-              // 用户自己确认过上游没出图，这时候才允许把状态重置回队列
-              retryTask(task.id);
-            }}
-          >
-            确认没过，可重发
-          </button>
-        </div>
-      );
-    }
+    const outcome = readTaskOutcome(task);
+    const copy = outcomeCopy(outcome);
     return (
-      <div className="node-status failed" title={task.error?.message}>
-        <span className="err-text">✕ {task.error?.message ?? '失败'}</span>
-        {task.error?.retryable !== false && (
+      <div className="node-status failed" title={copy.hint}>
+        <span className="err-text">
+          {copy.badge} {task.error?.message ?? '失败'}
+        </span>
+        {copy.action && (
           <button
             className="link-btn nodrag"
             onClick={() => {
@@ -516,7 +503,7 @@ function TaskStatusLine({ task }: { task: ReturnType<typeof latestTaskForNode> }
               retryTask(task.id);
             }}
           >
-            重置状态
+            {copy.action}
           </button>
         )}
       </div>

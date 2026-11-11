@@ -22,6 +22,7 @@ const SPECS = [
   ['P3 提示词放大编辑', './specs/prompt-editor.mjs'],
   ['P3 @资产 引用', './specs/asset-ref.mjs'],
   ['P3 节点改名/批量编号', './specs/rename.mjs'],
+  ['P3 三态重发策略', './specs/outcome-policy.mjs'],
 ];
 
 async function reachable() {

@@ -86,6 +86,19 @@ export {
   type TaskTransitionError,
 } from './task/model';
 
+// 任务结果收敛（三态重发判定）
+export {
+  REGENERATE_POLICIES,
+  canRegenerate,
+  isRegenerateBlocked,
+  readTaskOutcome,
+  type OutcomePhase,
+  type OutcomeReason,
+  type OutcomeSource,
+  type RegeneratePolicy,
+  type TaskOutcome,
+} from './task/outcome';
+
 // 成本估算
 export { estimateGenerationCost, type EstimateCostInput } from './cost';
 

@@ -1,7 +1,9 @@
 import { create } from 'zustand';
 import {
   createTask,
+  isRegenerateBlocked,
   normalizeError,
+  readTaskOutcome,
   setProgress,
   transition,
   type CostRecord,
@@ -102,6 +104,9 @@ export function markCanceled(id: string): void {
 export function retryTask(id: string): boolean {
   const current = useTaskStore.getState().tasks[id];
   if (!current) return false;
+  // 判定集中在 domain，store 层也守住入口：任务还在跑（或结果已在但不许重发）
+  // 时，别处误调 retryTask 也不会绕过 UI 的限制。
+  if (isRegenerateBlocked(readTaskOutcome(current))) return false;
   const r = transition(current, 'queued');
   if (!r.ok) return false;
   patchTask(id, () => r.value);
