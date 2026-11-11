@@ -9,6 +9,7 @@ import {
   defaultNodeSize,
   defaultParams,
   distributeNodes,
+  effectiveExistingEdges,
   requireNodeDefinition,
   validateConnection,
   type AlignMode,
@@ -386,25 +387,29 @@ export function connectNodes(intent: {
     targetPortId: e.targetPort,
   }));
 
+  // 重复连线必须在校验之前判：单路输入口的旧边会被「换源」语义过滤掉，
+  // 若放到 issues 分支里，同一对端口会被当成新连线再写一次，
+  // 白白多出一条重复边和一步可撤销历史。
+  const duplicate = Object.values(edges).some(
+    (e) =>
+      e.source === intent.sourceNodeId &&
+      e.sourcePort === intent.sourcePortId &&
+      e.target === intent.targetNodeId &&
+      e.targetPort === intent.targetPortId,
+  );
+  if (duplicate) return { ok: true, edgeId: 'duplicate' };
+
   const issues = validateConnection({
     intent,
     sourcePort,
     targetPort,
     sourceType,
-    existingEdges: existing,
+    // 单路输入口上指向同一端口的旧边会被下面的覆盖语义替换掉，
+    // 不能算成「已占用」。画布的 isValidConnection 用同一个函数，
+    // 两边结论一致，用户才拖得上去。
+    existingEdges: effectiveExistingEdges(existing, intent, targetPort),
   });
-  if (issues.length > 0) {
-    // 重复连线（同端点）直接视为已存在，不报错也不新增
-    const duplicate = Object.values(edges).some(
-      (e) =>
-        e.source === intent.sourceNodeId &&
-        e.sourcePort === intent.sourcePortId &&
-        e.target === intent.targetNodeId &&
-        e.targetPort === intent.targetPortId,
-    );
-    if (duplicate) return { ok: true, edgeId: 'duplicate' };
-    return { ok: false, issues };
-  }
+  if (issues.length > 0) return { ok: false, issues };
 
   checkpoint('建立连线');
   const edgeId = createId('eg');

@@ -93,14 +93,17 @@ describe('graphStore', () => {
     expect(Object.keys(state().edges)).toHaveLength(1);
   });
 
-  it('单路端口只能接一条线', () => {
+  it('单路端口换源时替换旧边，而不是逼用户先删线', () => {
     const a = addNode({ defKind: 'text-input', position: { x: 0, y: 0 } });
     const b = addNode({ defKind: 'text-input', position: { x: 0, y: 400 } });
     const gen = addNode({ defKind: 'generate', position: { x: 800, y: 0 } });
     expect(connectNodes({ sourceNodeId: a, sourcePortId: 'text', targetNodeId: gen, targetPortId: 'prompt' }).ok).toBe(true);
+    const firstEdgeId = Object.keys(state().edges)[0]!;
     const second = connectNodes({ sourceNodeId: b, sourcePortId: 'text', targetNodeId: gen, targetPortId: 'prompt' });
-    expect(second.ok).toBe(false);
-    expect(second.issues?.map((i) => i.code)).toContain('capacity_exceeded');
+    expect(second.ok).toBe(true);
+    expect(Object.keys(state().edges)).toHaveLength(1);
+    expect(Object.values(state().edges)[0]?.source).toBe(b);
+    expect(state().edges[firstEdgeId]).toBeUndefined();
   });
 
   it('重复连同一对端口不报错也不新增', () => {

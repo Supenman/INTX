@@ -140,6 +140,26 @@ describe('CI 与 E2E 的浏览器 / 产物契约一致', () => {
   });
 });
 
+describe('结构预算', () => {
+  it('脚本与基线都入库，预算接进 verify（CI 的 check job 会跑到）', () => {
+    expect(existsSync(ROOT + 'scripts/structure-budget.mjs')).toBe(true);
+    expect(existsSync(ROOT + 'scripts/structure-budget.baseline.json')).toBe(true);
+    expect(pkg.scripts.budget).toContain('structure-budget.mjs');
+    expect(pkg.scripts['budget:update']).toContain('--update');
+    expect(pkg.scripts.verify).toContain('pnpm budget');
+    expect(workflow).toContain('pnpm verify');
+  });
+
+  it('默认只读校验，只有显式 --update 才写基线，超标会失败', () => {
+    const script = read('scripts/structure-budget.mjs');
+    expect(script).toContain("args.has('--update')");
+    expect(script).toContain('writeFileSync(BASELINE');
+    expect(script).toContain('process.exit(1)');
+    // 硬性只许不增的两项不能被悄悄放宽
+    expect(script).toContain("['oversizedFiles', 'domainViolations']");
+  });
+});
+
 describe('Windows 安装包 workflow', () => {
   it('文件存在，且跑在 windows-latest', () => {
     expect(existsSync(ROOT + PACKAGE_WINDOWS)).toBe(true);

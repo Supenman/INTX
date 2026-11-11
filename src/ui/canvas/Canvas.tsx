@@ -17,13 +17,19 @@ import {
 import '@xyflow/react/dist/style.css';
 
 import {
+  describePortIssues,
+  effectiveExistingEdges,
   getNodeDefinition,
   listByCategory,
+  resolveCanvasEmptyState,
+  resolveToolbarTools,
   validateConnection,
   type AlignMode,
   type DistributeAxis,
   type PortSpec,
   type PortType,
+  type ToolContext,
+  type ToolMode,
 } from '@/domain';
 import {
   addNode,
@@ -41,8 +47,9 @@ import {
   type ClipboardSnapshot,
 } from '@/app/stores/graphStore';
 import { useAssetStore } from '@/app/stores/assetStore';
-import { canRedo, canUndo, redo, undo, useHistoryStore } from '@/app/stores/historyStore';
+import { redo, undo, useHistoryStore } from '@/app/stores/historyStore';
 import { persistProviders, useProviderStore } from '@/app/stores/providerStore';
+import { useToolbarPrefs } from '@/app/toolPrefs';
 import { hydrateAssetsFromProject } from '@/app/useCases/assetLibrary';
 import { useRunGeneration } from '@/app/useCases/useRunGeneration';
 import { CANCEL_MESSAGE } from '@/app/useCases/runGeneration';
@@ -54,7 +61,7 @@ import { AssetLibrary } from '@/ui/library/AssetLibrary';
 import { SettingsPanel } from '@/ui/settings/SettingsPanel';
 import { LegacyImportDialog } from '@/ui/common/LegacyImportDialog';
 import { CanvasNode, type CanvasNodeData } from './CanvasNode';
-import { AddMenu, CanvasStarter, ModeSwitch, SelectionToolbar, type ToolMode } from './CanvasTools';
+import { AddMenu, CanvasStarter, ModeSwitch, SelectionToolbar, type ToolDispatch } from './CanvasTools';
 
 const nodeTypes: NodeTypes = { canvasNode: CanvasNode };
 
@@ -89,6 +96,13 @@ function CanvasInner() {
   const [menu, setMenu] = useState<MenuState | null>(null);
   const clipboardRef = useRef<ClipboardSnapshot | null>(null);
   const [clipboardCount, setClipboardCount] = useState(0);
+
+  // 工具栏偏好必须在挂载后读：注册表由 main.tsx 同步安装，
+  // 模块顶层执行时它还是空的，那时算不出有意义的默认顺序。
+  const prefs = useToolbarPrefs((s) => s.prefs);
+  const hydratePrefs = useToolbarPrefs((s) => s.hydrate);
+  const setToolHidden = useToolbarPrefs((s) => s.setHidden);
+  useEffect(() => hydratePrefs(), [hydratePrefs]);
 
   /**
    * 连线校验的提示时机。
@@ -404,22 +418,25 @@ function CanvasInner() {
           targetPortId: e.targetPort,
         }));
 
+      const intent = {
+        sourceNodeId: c.source,
+        sourcePortId: c.sourceHandle,
+        targetNodeId: c.target,
+        targetPortId: c.targetHandle,
+      };
       const issues = validateConnection({
-        intent: {
-          sourceNodeId: c.source,
-          sourcePortId: c.sourceHandle,
-          targetNodeId: c.target,
-          targetPortId: c.targetHandle,
-        },
+        intent,
         sourcePort,
         targetPort,
         sourceType,
-        existingEdges: existing,
+        // 与 graphStore.connectNodes 用同一个函数：单路输入口上的旧边
+        // 会被换源替换，不能在这里把用户拖过来的线挡掉。
+        existingEdges: effectiveExistingEdges(existing, intent, targetPort),
       });
 
       if (issues.length > 0) {
         if (draggingRef.current) {
-          pendingIssueRef.current = issues.map((i) => i.message).join('；');
+          pendingIssueRef.current = describePortIssues(issues);
         }
         return false;
       }
@@ -437,7 +454,7 @@ function CanvasInner() {
       targetPortId: c.targetHandle,
     });
     if (!result.ok) {
-      setConnError(result.issues?.map((i) => i.message).join('；') ?? '连线被拒绝');
+      setConnError(describePortIssues(result.issues ?? []) || '连线被拒绝');
     }
   }, []);
 
@@ -483,6 +500,91 @@ function CanvasInner() {
   const nodeCount = Object.keys(nodesMap).length;
   const demoMode = useProviderStore((s) => s.configs.length === 0 || s.configs.every((c) => c.adapter === 'mock'));
 
+  /** 一次解析的上下文。所有字段都来自 store 快照，解析函数因此是纯的。 */
+  const toolCtx: ToolContext = useMemo(
+    () => ({
+      toolMode,
+      selectedCount: selectedIds.length,
+      nodeCount,
+      clipboardCount,
+      canUndo: undoDepth > 0,
+      canRedo: redoDepth > 0,
+      demoMode,
+      node: null,
+    }),
+    [toolMode, selectedIds.length, nodeCount, clipboardCount, undoDepth, redoDepth, demoMode],
+  );
+
+  const mainToolButtons = useMemo(
+    () =>
+      resolveToolbarTools('main', toolCtx, prefs?.main ?? null)
+        // 抓手 / 区域选择是同一个 switch，由 ModeSwitch 单独渲染。
+        .filter((tool) => tool.id !== 'tool-canvas-mode')
+        .map((tool) => ({ tool, disabled: Boolean(tool.disabled?.(toolCtx)) })),
+    [toolCtx, prefs],
+  );
+
+  /** 注册表只产出 action 字符串，真正做什么集中在这里，不在组件里各写一份。 */
+  const onAction: ToolDispatch = useCallback(
+    (action, payload) => {
+      switch (action) {
+        case 'set-tool-mode':
+          if (payload?.mode === 'hand' || payload?.mode === 'select') setToolMode(payload.mode);
+          break;
+        case 'undo':
+          undo();
+          break;
+        case 'redo':
+          redo();
+          break;
+        case 'arrange':
+          arrange(payload?.scope === 'selection');
+          break;
+        case 'open-settings':
+          setSettingsOpen(true);
+          break;
+        case 'clear':
+          resetGraph();
+          break;
+        case 'align':
+          if (payload?.mode) alignSelected(selectedIds, payload.mode as AlignMode);
+          break;
+        case 'distribute':
+          if (payload?.axis) distributeSelected(selectedIds, payload.axis as DistributeAxis);
+          break;
+        case 'chain':
+          chainSelection();
+          break;
+        case 'duplicate':
+          duplicateSelection();
+          break;
+        case 'delete':
+          deleteSelection();
+          break;
+        case 'add-node':
+          if (payload?.kind) spawnNode(payload.kind, menu ? { x: menu.fx, y: menu.fy } : undefined);
+          setMenu(null);
+          break;
+        case 'paste':
+          pasteClipboard();
+          setMenu(null);
+          break;
+        default:
+          break;
+      }
+    },
+    [
+      arrange,
+      selectedIds,
+      chainSelection,
+      duplicateSelection,
+      deleteSelection,
+      spawnNode,
+      menu,
+      pasteClipboard,
+    ],
+  );
+
   return (
     <div className="app">
       <aside className="sidebar">
@@ -520,7 +622,7 @@ function CanvasInner() {
           <button onClick={() => setLegacyOpen(true)} title="从旧版 BeastTV / INTX 的 localStorage 或 JSON 文件迁移">
             导入旧版数据
           </button>
-          <button onClick={resetGraph} style={{ color: 'var(--danger)' }} title="可撤销；资产库不受影响">
+          <button onClick={() => onAction('clear')} style={{ color: 'var(--danger)' }} title="可撤销；资产库不受影响">
             清空画布
           </button>
         </div>
@@ -528,22 +630,23 @@ function CanvasInner() {
 
       <div className="canvas-wrap">
         <div className="toolbar">
-          <button
-            className="chip chip-btn"
-            onClick={undo}
-            disabled={undoDepth === 0}
-            title={canUndo() ? '撤销 (Ctrl+Z)' : '没有可撤销的操作'}
-          >
-            ↶ 撤销
-          </button>
-          <button
-            className="chip chip-btn"
-            onClick={redo}
-            disabled={redoDepth === 0}
-            title={canRedo() ? '重做 (Ctrl+Shift+Z)' : '没有可重做的操作'}
-          >
-            ↷ 重做
-          </button>
+          {mainToolButtons.map(({ tool, disabled }) => (
+            <button
+              key={tool.id}
+              className="chip chip-btn"
+              data-tool-id={tool.id}
+              onClick={() => onAction(tool.action, tool.payload)}
+              disabled={disabled}
+              title={
+                disabled && (tool.id === 'undo' || tool.id === 'redo')
+                  ? `没有可${tool.id === 'undo' ? '撤销' : '重做'}的操作`
+                  : tool.hint
+              }
+            >
+              {tool.label}
+              {tool.id === 'open-settings' && <b>{providerCount}</b>}
+            </button>
+          ))}
           <span className="chip">
             节点 <b>{nodeCount}</b>
           </span>
@@ -553,12 +656,6 @@ function CanvasInner() {
           <span className="chip">
             资产 <b>{assetCount}</b>
           </span>
-          <button className="chip chip-btn" onClick={() => setSettingsOpen(true)}>
-            厂商 <b>{providerCount}</b>
-          </button>
-          <button className="chip chip-btn" onClick={() => arrange(false)} title="按依赖层级与媒体泳道整理全部节点，可撤销">
-            自动整理
-          </button>
           {demoMode && (
             <span className="chip warn" title="当前只配置了本地演示厂商，生成的是占位图，不是真实作品">
               演示模式 · 不出真图
@@ -584,17 +681,9 @@ function CanvasInner() {
           {toast && <span className="chip accent">{toast}</span>}
         </div>
 
-        <ModeSwitch mode={toolMode} onChange={setToolMode} />
+        <ModeSwitch ctx={toolCtx} prefs={prefs} onAction={onAction} />
 
-        <SelectionToolbar
-          count={selectedIds.length}
-          onAlign={(mode: AlignMode) => alignSelected(selectedIds, mode)}
-          onDistribute={(axis: DistributeAxis) => distributeSelected(selectedIds, axis)}
-          onDuplicate={duplicateSelection}
-          onDelete={deleteSelection}
-          onChain={chainSelection}
-          onAutoArrange={() => arrange(true)}
-        />
+        <SelectionToolbar ctx={toolCtx} prefs={prefs} onAction={onAction} />
 
         <ReactFlow
           nodes={rfNodes}
@@ -643,6 +732,7 @@ function CanvasInner() {
         {nodeCount === 0 && (
           <div className="empty-hint">
             <CanvasStarter
+              kind={resolveCanvasEmptyState({ nodeCount, demoMode })}
               onOpen={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -656,19 +746,10 @@ function CanvasInner() {
           <AddMenu
             x={menu.x}
             y={menu.y}
-            canPaste={clipboardCount > 0}
-            onPaste={() => {
-              pasteClipboard();
-              setMenu(null);
-            }}
-            onAutoArrange={() => {
-              arrange(false);
-              setMenu(null);
-            }}
-            onPick={(kind) => {
-              spawnNode(kind, { x: menu.fx, y: menu.fy });
-              setMenu(null);
-            }}
+            ctx={toolCtx}
+            prefs={prefs}
+            onAction={onAction}
+            onToggleTool={setToolHidden}
             onClose={() => setMenu(null)}
           />
         )}

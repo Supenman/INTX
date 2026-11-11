@@ -8,6 +8,7 @@ import { useProviderStore } from '@/app/stores/providerStore';
 import { buildStoryboardPng, readAssetBytes } from '@/app/useCases/storyboardExport';
 import { BlobImage } from '@/ui/common/BlobImage';
 import { downloadBlob, downloadBytes } from '@/ui/common/download';
+import { NodeHoverToolbar } from './NodeHoverToolbar';
 
 /**
  * 通用节点渲染。
@@ -113,6 +114,14 @@ export const CanvasNode = memo(function CanvasNode({ id, data, selected }: NodeP
       >
         ×
       </button>
+      <NodeHoverToolbar
+        nodeId={id}
+        defKind={node.defKind}
+        hasAsset={hasPrimary}
+        busy={busy}
+        onGenerate={onGenerate}
+        onCancel={onCancel}
+      />
       {def.inputPorts.map((port, i) => (
         <Handle
           key={port.id}
