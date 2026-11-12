@@ -36,7 +36,7 @@ export interface ProviderConfig {
   id: string;
   name: string;
   /** 适配器种类，决定怎么发请求。同一个协议可以配多家。 */
-  adapter: 'openai-compatible' | 'mock';
+  adapter: 'openai-compatible' | 'modelscope' | 'mock';
   baseUrl: string;
   apiKey: string;
   models: ModelSpec[];

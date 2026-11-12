@@ -86,7 +86,12 @@ export function markSucceeded(id: string, resultAssetIds: string[], cost?: CostR
  * 看不到 `partial_results`，失败卡片就会笼统地写「重置状态」，等于鼓励
  * 用户整单重发再买一次。
  */
-export function markFailed(id: string, error: unknown, resultAssetIds?: readonly string[]): void {
+export function markFailed(
+  id: string,
+  error: unknown,
+  resultAssetIds?: readonly string[],
+  upstreamRef?: string | null,
+): void {
   patchTask(id, (t) => {
     /**
      * 带上出错时所处的阶段。提交阶段的超时和生成阶段的超时不是一回事：
@@ -97,6 +102,8 @@ export function markFailed(id: string, error: unknown, resultAssetIds?: readonly
     const r = transition(t, 'failed', {
       error: normalized,
       ...(resultAssetIds && resultAssetIds.length > 0 ? { resultAssetIds: [...resultAssetIds] } : {}),
+      // 上游任务号：留给用户去厂商后台查那次单，也让三态能判 provider_result_pending
+      ...(upstreamRef ? { upstreamRef } : {}),
     });
     return r.ok ? r.value : t;
   });

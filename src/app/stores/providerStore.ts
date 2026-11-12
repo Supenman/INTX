@@ -49,6 +49,31 @@ export function defaultProviders(): ProviderConfig[] {
 }
 
 /**
+ * 旧配置一次性升级：ModelScope 的 API-Inference 是异步协议，但之前用户
+ * 只能用「OpenAI 兼容」配它，于是 POST 回了 task_id 被当空结果、扣了费还
+ * 看不到图。这里在**配置读取**时按 baseUrl 把它切到 modelscope 适配器，
+ * 用户不用去设置页改一遍。
+ *
+ * 刻意只在这一处做，而且只改内存不落盘：请求分发仍然走 adapterFor 的
+ * 注册表，不散落 `if provider == 'modelscope'` 分支。旧存档保持原样，
+ * 换个版本也不会被写坏。
+ */
+export function normalizeProviders(configs: readonly ProviderConfig[]): ProviderConfig[] {
+  return configs.map((c) => {
+    if (c.adapter !== 'openai-compatible') return c;
+    const host = (() => {
+      try {
+        return new URL(c.baseUrl).hostname.toLowerCase();
+      } catch {
+        return c.baseUrl.toLowerCase();
+      }
+    })();
+    if (!/^api-inference\.modelscope\.(cn|ai)$/.test(host)) return c;
+    return { ...c, adapter: 'modelscope' as const };
+  });
+}
+
+/**
  * 适配器一侧的能力声明与节点需求之间的桥。
  *
  * 节点只说"我要出图"，具体用哪家、哪个模型由这里决定：

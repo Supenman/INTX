@@ -113,12 +113,13 @@ export function SettingsPanel({ onClose, onSaved }: { onClose: () => void; onSav
                     value={draft.adapter}
                     onChange={(e) => patch({ adapter: e.target.value as ProviderConfig['adapter'] })}
                   >
-                    <option value="openai-compatible">OpenAI 兼容（/images/generations）</option>
+                    <option value="openai-compatible">OpenAI 兼容（同步回图）</option>
+                    <option value="modelscope">ModelScope（异步 task_id 轮询）</option>
                     <option value="mock">本地演示（不联网）</option>
                   </select>
                 </Field>
 
-                <Field label="Base URL" hint="填到版本号为止，例如 https://api.openai.com/v1">
+                <Field label="Base URL" hint="填到版本号为止，例如 https://api.openai.com/v1 或 https://api-inference.modelscope.cn/v1">
                   <input
                     value={draft.baseUrl}
                     onChange={(e) => patch({ baseUrl: e.target.value })}

@@ -6,6 +6,7 @@ import {
   type ProviderAdapter,
   type ProviderConfig,
 } from '@/domain';
+import { ProviderResultPendingError } from './providerResultPending';
 
 /**
  * OpenAI 兼容适配器。
@@ -41,12 +42,12 @@ function withTimeout(signal: AbortSignal | undefined, ms: number): { signal: Abo
   };
 }
 
-function joinUrl(base: string, path: string): string {
+export function joinUrl(base: string, path: string): string {
   return `${base.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
 }
 
 /** 从响应里抽出人能看懂的错。不要把整段 HTML 错误页塞进任务里。 */
-async function failure(res: Response): Promise<Error> {
+export async function failure(res: Response): Promise<Error> {
   let detail = '';
   try {
     const text = await res.text();
@@ -95,7 +96,7 @@ function fromBase64(b64: string): ArrayBuffer {
 }
 
 /** data URL 与远程 URL 都要能处理：有的服务只回 b64，有的只回链接。 */
-async function materialize(
+export async function materialize(
   item: { b64_json?: string; url?: string },
   signal: AbortSignal,
   handlers: GenerationHandlers,
@@ -118,6 +119,9 @@ async function materialize(
 
 interface ImagesResponse {
   data?: { b64_json?: string; url?: string }[];
+  /** 异步服务不回图片数组，只回任务号（ModelScope 即是） */
+  task_id?: string;
+  task_status?: string;
   error?: { message?: string };
 }
 
@@ -173,7 +177,15 @@ export const openAiCompatibleAdapter: ProviderAdapter = {
         items = await generateChat(config, request, t.signal, handlers);
       }
 
-      if (items.length === 0) throw new Error('上游返回了空结果');
+      /**
+       * 走到这里说明 POST 已经 2xx（上游收单、通常已计费），只是响应里
+       * 没有我们认得的产物。旧代码抛「上游返回了空结果」→ unknown →
+       * allowed → 卡片让用户重试再买一张。异步服务（ModelScope 回 task_id）
+       * 就是这么被吞掉的，真机上已扣费却报空结果。
+       */
+      if (items.length === 0) {
+        throw new ProviderResultPendingError({ detail: '响应里没有图片数据' });
+      }
       handlers.onProgress?.(1);
       return items;
     } finally {
@@ -212,6 +224,19 @@ async function generateImages(
   const json = (await res.json()) as ImagesResponse;
   if (json.error?.message) throw new Error(json.error.message);
   const data = json.data ?? [];
+
+  /**
+   * POST 已经 2xx：上游收单了。响应里没有图片数组时不能说「空结果」——
+   * 异步服务就是只回 task_id，图要另外轮询取。把任务号带出去，交给
+   * ProviderResultPendingError 判成「先确认再重发」，避免再扣一次钱。
+   */
+  if (data.length === 0) {
+    throw new ProviderResultPendingError({
+      taskId: json.task_id ?? null,
+      rawResponse: JSON.stringify(json),
+      detail: json.task_id ? '异步服务只回了任务号，图要轮询取' : '响应里没有 data 数组',
+    });
+  }
   return Promise.all(data.map((d) => materialize(d, signal, handlers)));
 }
 

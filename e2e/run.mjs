@@ -32,6 +32,7 @@ const SPECS = [
   ['单格重发与取消补格', './specs/cell-retry.mjs'],
   ['多张生成：选主图/另存/快照', './specs/multi-result.mjs'],
   ['拆分确认：行数覆盖/已有产物', './specs/script-coverage.mjs'],
+  ['ModelScope 异步出图：成功链路与已收单止血', './specs/modelscope-async.mjs'],
 ];
 
 async function reachable() {
@@ -73,12 +74,18 @@ async function ensureServer() {
   throw new Error('dev server 没能起来。最近输出：\n' + log.slice(-1500));
 }
 
+// 调试单组：INTX_E2E_ONLY=modelscope pnpm e2e。默认仍跑全量。
+const only = process.env.INTX_E2E_ONLY;
+const selected = only
+  ? SPECS.filter(([name, file]) => name.includes(only) || file.includes(only))
+  : SPECS;
+
 const stop = await ensureServer();
 let passed = 0;
 const failures = [];
 
 try {
-  for (const [name, file] of SPECS) {
+  for (const [name, file] of selected) {
     console.log(`\n===== ${name} =====`);
     try {
       const mod = await import(file);
@@ -97,6 +104,6 @@ try {
   await closeAllBrowsers();
 }
 
-console.log(`\n===== E2E 汇总: ${passed}/${SPECS.length} 通过 =====`);
+console.log(`\n===== E2E 汇总: ${passed}/${selected.length} 通过 =====`);
 for (const f of failures) console.log(`\n[${f.name}]\n${f.message}`);
 if (failures.length > 0) process.exitCode = 1;

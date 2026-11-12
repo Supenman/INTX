@@ -47,7 +47,7 @@ import {
 } from '@/app/stores/graphStore';
 import { useAssetStore } from '@/app/stores/assetStore';
 import { redo, undo, useHistoryStore } from '@/app/stores/historyStore';
-import { persistProviders, useProviderStore } from '@/app/stores/providerStore';
+import { normalizeProviders, persistProviders, useProviderStore } from '@/app/stores/providerStore';
 import { useToolbarPrefs } from '@/app/toolPrefs';
 import { hydrateAssetsFromProject } from '@/app/useCases/assetLibrary';
 import { useRunGeneration } from '@/app/useCases/useRunGeneration';
@@ -268,7 +268,7 @@ function CanvasInner() {
     void (async () => {
       const runtime = await resolveRuntime();
       useProviderStore.getState().setRuntime(runtime.providers, adapterFor);
-      useProviderStore.getState().setConfigs(await runtime.providers.load());
+      useProviderStore.getState().setConfigs(normalizeProviders(await runtime.providers.load()));
       await hydrateAssetsFromProject(runtime);
     })();
   }, []);

@@ -52,6 +52,16 @@ export type ErrorCode =
    * 两次钱，所以它不是「可重试」，而是「先去确认」。
    */
   | 'submission_uncertain'
+  /**
+   * 上游**明确收单**了（POST 2xx、或已返回任务号），但本地没拿到产物。
+   *
+   * 和 submission_uncertain 的区别：那个是「没等到回复、不确定有没有到」，
+   * 这个是「上游确实收了、通常已经计费」。真机实例：ModelScope 异步出图
+   * POST 只回 task_id，旧适配器把「响应里没有 data 数组」当成空结果，
+   * 归成 unknown → 三态 allowed → 卡片写「重置状态，原样重试是合理的」，
+   * 用户点一下就再买一张。必须判 confirm，并把任务号留给用户去后台查。
+   */
+  | 'provider_result_pending'
   | 'unknown';
 
 export interface TaskError {
@@ -316,6 +326,24 @@ function mayHaveLeftLocal(classified: TaskError, raw: string): boolean {
 function classifyErrorText(raw: string): TaskError {
   const lower = raw.toLowerCase();
 
+  /**
+   * 只认适配器**显式**打上的 invalid_params 标记（提交前的本地参数校验）。
+   * 不按裸 400 / "invalid" 字样猜：BeefTV v2.2.1 明确把裸状态码判为
+   * 非权威，照着套会把「提交阶段 400 参数拒绝」误判成可重试或扣费恐吓。
+   */
+  /**
+   * ProviderResultPendingError 若被跨层转成普通 Error，只剩这段文案。
+   * 兜住它，别让「已经扣费」掉回 unknown → allowed。
+   */
+  if (raw.includes('上游已经收单')) {
+    return { code: 'provider_result_pending', message: raw };
+  }
+  if (lower.startsWith('invalid_params:') || lower.includes('invalid_params：')) {
+    return {
+      code: 'invalid_params',
+      message: raw.replace(/^\s*invalid_params[:：]\s*/, '') || '参数不被上游接受，请调整后重试',
+    };
+  }
   if (lower.includes('401') || lower.includes('unauthorized') || lower.includes('api key')) {
     return { code: 'auth_failed', message: '鉴权失败，请检查 API Key 配置' };
   }

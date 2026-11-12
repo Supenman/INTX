@@ -1,6 +1,7 @@
 import type { ProviderAdapter, ProviderConfig } from '@/domain';
 import { mockAdapter } from './mockAdapter';
 import { openAiCompatibleAdapter } from './openaiCompatible';
+import { modelScopeAdapter } from './modelScope';
 
 /**
  * 适配器注册表。
@@ -11,6 +12,7 @@ import { openAiCompatibleAdapter } from './openaiCompatible';
  */
 const adapters: Record<ProviderConfig['adapter'], ProviderAdapter> = {
   'openai-compatible': openAiCompatibleAdapter,
+  modelscope: modelScopeAdapter,
   mock: mockAdapter,
 };
 
@@ -22,4 +24,5 @@ export function registerAdapter(kind: ProviderConfig['adapter'], adapter: Provid
   adapters[kind] = adapter;
 }
 
-export { mockAdapter, openAiCompatibleAdapter };
+export { mockAdapter, openAiCompatibleAdapter, modelScopeAdapter };
+export { ProviderResultPendingError, isProviderResultPending } from './providerResultPending';

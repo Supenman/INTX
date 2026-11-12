@@ -30,7 +30,7 @@ import { attachAssets, useGraphStore } from '@/app/stores/graphStore';
 import { markCanceled, markFailed, markPhase, markProgress, markRunning, markSucceeded, submitTask, latestTaskForNode, useTaskStore } from '@/app/stores/taskStore';
 import { findAssetByHash, putAsset, useAssetStore } from '@/app/stores/assetStore';
 import { useProviderStore, pickModel } from '@/app/stores/providerStore';
-import { adapterFor } from '@/infra/provider';
+import { adapterFor, isProviderResultPending } from '@/infra/provider';
 import { resolveRuntime } from '@/infra/runtime';
 
 /**
@@ -482,11 +482,27 @@ export async function runGeneration(
     return { ok: true, taskId, assetIds: newIds };
   } catch (e) {
     const newIds = assets.map((a) => a.id);
+    const partial = newIds.length > 0 ? `（已经出的 ${newIds.length} 张已保留在节点上）` : '';
     // 单格重发失败/取消：旧格产物必须原样保留，显式不 attach（不依赖空数组守卫）
     if (cellIndex === undefined) {
       const keptIds = [...existingIds, ...newIds];
       // 部分成功：先把已出的挂上，再报错。顺序不能反——反了会闪一下空白
       if (keptIds.length > 0) attachAssets(nodeId, keptIds);
+    }
+
+    /**
+     * 上游已收单但本地没拿到图 —— 必须**最先**判。
+     *
+     * 旧顺序里 `controller.signal.aborted` 排在前面：用户取消轮询时，异步
+     * 适配器抛的这个错误会被写成 canceled → not_charged → allowed，卡片
+     * 告诉用户「没扣钱，可以直接重发」，而上游那张图照样跑完、照样计费。
+     * 现在统一落到 provider_result_pending（confirm），并把 task_id 存进
+     * upstreamRef，用户能拿去厂商后台把图找回来。
+     */
+    if (isProviderResultPending(e)) {
+      const message = `${e.message}${partial}`;
+      markFailed(taskId, { code: 'provider_result_pending', message }, newIds, e.taskId);
+      return { ok: false, taskId, message };
     }
 
     // 取消不是失败：走 canceled 终态，别把「用户主动停」记成一次错误
@@ -514,7 +530,6 @@ export async function runGeneration(
      */
     const currentPhase = useTaskStore.getState().tasks[taskId]?.phase ?? null;
     const err = normalizeError(e, currentPhase);
-    const partial = newIds.length > 0 ? `（已经出的 ${newIds.length} 张已保留在节点上）` : '';
     markFailed(taskId, { ...err, message: `${err.message}${partial}` }, newIds);
     return { ok: false, taskId, message: `${err.message}${partial}` };
   }

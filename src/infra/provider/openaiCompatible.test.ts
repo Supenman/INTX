@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import { sizeFromAspect } from './openaiCompatible';
+import { ProviderResultPendingError } from './providerResultPending';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -80,13 +81,19 @@ describe('openai 兼容适配器的错误处理', () => {
     vi.stubGlobal('fetch', spy);
     const { openAiCompatibleAdapter } = await import('./openaiCompatible');
 
-    await expect(
-      openAiCompatibleAdapter.generate(
+    /**
+     * 旧断言等的是「上游返回了空结果」。那是被真机缺陷推翻的错误行为：
+     * POST 已经 2xx（上游收单、可能已计费），不能说「空结果」再让用户重试。
+     * 现在必须抛「已收单待确认」，同时仍要证明本地地址确实发了请求。
+     */
+    const err = await openAiCompatibleAdapter
+      .generate(
         { id: 'p', name: 'p', adapter: 'openai-compatible', baseUrl: 'http://127.0.0.1:8080/v1', apiKey: '', models: [] },
         { capability: 'image', model: 'm', prompt: 'hi', referenceImages: [], count: 1 },
         {},
-      ),
-    ).rejects.toThrow(/空结果/);
+      )
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ProviderResultPendingError);
     expect(spy).toHaveBeenCalled();
   });
 });

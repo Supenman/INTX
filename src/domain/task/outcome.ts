@@ -66,6 +66,7 @@ const CONFIRM_BY_CODE: Readonly<Record<string, OutcomeReason>> = {
   auth_failed: 'config_required',
   content_rejected: 'input_rejected',
   invalid_params: 'input_rejected',
+  provider_result_pending: 'provider_result_pending',
 };
 
 const ok = (
