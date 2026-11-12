@@ -96,3 +96,16 @@
 - Agent 对话消息必须同时按 `threadId`、`turnId` 和 `itemId` 归属；实时事件只用于补充未物化的 turn，历史快照成为权威后不得重复合并同一条消息。
 - Agent 通信协议版本与消息存储版本必须独立管理；消息存储格式升级时必须先备份再迁移，遇到未知版本、损坏清单或冲突备份时拒绝覆盖原文件，不得按记录数量或文件大小静默裁剪历史元数据。
 - 本地启动或浏览器验收时不要关闭用户已经打开的浏览器窗口或标签页；需要自动化验证时使用独立测试页面，避免打断用户当前页面和对话状态。
+
+## INTX 嫁接纪律（2026-11-13 换基座时由用户确认，优先级高于上文通用约定）
+
+本仓库以 infinite-canvas v0.20.0（MIT）为基座，嫁接了内部项目 INTX 的 domain 核心（`web/src/domain/`）。以下规则来自 INTX 多轮真机教训：
+
+- **测试全绿 ≠ 真机通过**。mock/演示适配器跑通不能写成真图验证；没验的明确写「未验证」并说明原因。用户说「我验过了」就是验过了。
+- **任务三态语义不可退化**：`web/src/domain/task/outcome.ts` 的 `readTaskOutcome()` 是重发判定唯一入口。上游已收单（可能已计费）一律 `confirm`，绝不退化成 `allowed`；只有能证明请求未离开本机才允许直接重发。
+- **未经用户明确同意不发真实厂商请求**；任何 API Key 不写进任何文件、不用于任何请求。
+- **不让用户在已收单的失败卡片上点「确认后重发」去查旧单**——那是新提交一张、再扣一次钱。旧单只能拿任务号去厂商后台查。
+- 讨厌功能清单式开发：要真实任务、真实卡点、当天改、能交付；该改的直接改，不要只列待办。
+- BeefTV 仅作设计参考（Source Available Part A），**禁止复制其代码**；infinite-canvas 上游代码可按 MIT 复用，保留署名。许可边界见 `THIRD_PARTY_NOTICES.md`。
+- domain 层保持零 IO、零 React（纯函数 + 纯类型），测试用 vitest（`pnpm exec vitest run src/domain`）；上游 tests/ 用 bun test，两套并存。
+- 验证命令（Windows 本机 corepack 有坑）：`COREPACK_INTEGRITY_KEYS=0 corepack pnpm@10.28.2 ...`；pnpm 11 与本机老 corepack 不兼容，必须钉 10.28.2。
