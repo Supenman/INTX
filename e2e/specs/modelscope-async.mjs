@@ -10,7 +10,9 @@ import { openPage, finish, check } from '../helpers.mjs';
  * 这一组用 Playwright 路由伪造官方异步协议，验两件单测证明不了的事：
  *   A. 真实点击生成 → 真的走完 提交/轮询/下载 → 卡片出图；
  *   B. 上游 FAILED → 卡片按钮是「确认后重发」而不是「重置状态」，
- *      且任务里留住 task_id（upstreamRef），用户能去后台查单。
+ *      且任务里留住 task_id（upstreamRef），用户能去后台查单；
+ *   C. 真机第二次反馈的现场：配置里「协议」还写着 OpenAI 兼容、
+ *      自动升级没跑到（绕过 upsert 直接 setState），点生成也必须出图。
  *
  * 不发任何真实请求，不用真实 Key。
  */
@@ -77,17 +79,22 @@ export async function run() {
     await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
   }
 
-  async function buildGraph() {
-    await p.evaluate(async (model) => {
+  async function buildGraph(rawProvider = null) {
+    await p.evaluate(async ({ model, rawProvider }) => {
       const ps = await window.__intxMod('/src/app/stores/providerStore.ts');
-      ps.useProviderStore.getState().upsert({
-        id: 'ms-e2e',
-        name: 'ModelScope 假上游',
-        adapter: 'modelscope',
-        baseUrl: 'https://api-inference.modelscope.cn/v1',
-        apiKey: 'ms-fake-token-for-e2e',
-        models: [{ id: model, label: model, capabilities: ['image'] }],
-      });
+      if (rawProvider) {
+        // 绕过 upsert 的归一化，模拟旧存档 / 设置页保存后没迁移的真机现场
+        ps.useProviderStore.setState({ configs: [rawProvider], loaded: true });
+      } else {
+        ps.useProviderStore.getState().upsert({
+          id: 'ms-e2e',
+          name: 'ModelScope 假上游',
+          adapter: 'modelscope',
+          baseUrl: 'https://api-inference.modelscope.cn/v1',
+          apiKey: 'ms-fake-token-for-e2e',
+          models: [{ id: model, label: model, capabilities: ['image'] }],
+        });
+      }
       const g = await window.__intxMod('/src/app/stores/graphStore.ts');
       g.resetGraph();
       const text = g.addNode({ defKind: 'text-input', position: { x: 80, y: 80 } });
@@ -100,7 +107,7 @@ export async function run() {
         targetNodeId: gen,
         targetPortId: 'prompt',
       });
-    }, MODEL);
+    }, { model: MODEL, rawProvider });
     await p.waitForTimeout(350);
   }
 
@@ -159,6 +166,30 @@ export async function run() {
   check(btn.includes('确认后重发') && !btn.includes('重置状态'), `B4 按钮不许诱导直接重发，实际「${btn}」`);
   check(hint.includes('厂商后台') || hint.includes('任务号'), 'B5 卡片应告诉用户去厂商后台查单');
 
-  finish('ModelScope 异步出图：成功链路与已收单止血', errs);
+  // ── C. 真机现场：配置字段还写着 OpenAI 兼容，没有任何自动升级 ──
+  mode = 'succeed';
+  seen.posts = 0;
+  seen.polls = 0;
+  seen.images = 0;
+  await p.evaluate(async () => {
+    const t = await window.__intxMod('/src/app/stores/taskStore.ts');
+    t.useTaskStore.setState({ tasks: {} });
+  });
+  await buildGraph({
+    id: 'ms-e2e-legacy',
+    name: 'ModelScope（协议仍写 OpenAI 兼容）',
+    adapter: 'openai-compatible',
+    baseUrl: 'https://api-inference.modelscope.cn/v1',
+    apiKey: 'ms-fake-token-for-e2e',
+    models: [{ id: MODEL, label: MODEL, capabilities: ['image'] }],
+  });
+  await realClick(p.locator('.react-flow__node').nth(1).locator('.node-generate-btn'));
+  const c = await waitTerminal();
+  console.log('【C 旧配置现场】', JSON.stringify({ ...c, seen: { ...seen } }));
+  check(c.status === 'succeeded', `C1 旧配置也应出图，实际 ${c.status} / ${c.code} / ${c.message}`);
+  check(c.results === 1, `C2 旧配置也应有 1 个产物，实际 ${c.results}`);
+  check(seen.posts === 1 && seen.polls >= 1 && seen.images === 1, 'C3 旧配置只提交 1 次，靠查单取回图');
+
+  finish('ModelScope 异步出图：成功链路 / 已收单止血 / 旧配置现场', errs);
   await b.close();
 }

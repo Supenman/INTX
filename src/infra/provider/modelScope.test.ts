@@ -201,17 +201,31 @@ describe('已收单但没拿到图：一律 pending，不许退化成可重试',
 });
 
 describe('旧 openai-compatible 配置不再把异步响应当空结果', () => {
-  it('响应只有 task_id：抛 pending 并带任务号', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => json({ task_id: 'task-legacy' })));
-    const err = await openAiCompatibleAdapter
-      .generate(
-        { ...config, adapter: 'openai-compatible' },
-        { ...req, capability: 'image' },
-        {},
-      )
-      .catch((e: unknown) => e);
-    expect(err).toBeInstanceOf(ProviderResultPendingError);
-    expect((err as ProviderResultPendingError).taskId).toBe('task-legacy');
+  it('响应只有 task_id：就地查单把图取回来，不再只报错让用户去后台查', async () => {
+    const calls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        calls.push(url);
+        if (url.endsWith('/images/generations')) return json({ task_id: 'task-legacy' });
+        if (url.includes('/tasks/task-legacy')) {
+          return json({ task_status: 'SUCCEED', output_images: ['https://img.test/legacy.png'] });
+        }
+        return new Response(PNG, { headers: { 'content-type': 'image/png' } });
+      }),
+    );
+
+    const items = await openAiCompatibleAdapter.generate(
+      { ...config, adapter: 'openai-compatible' },
+      { ...req, capability: 'image' },
+      {},
+    );
+
+    expect(items).toHaveLength(1);
+    expect(items[0]!.bytes.byteLength).toBe(PNG.byteLength);
+    // 关键：只提交了这一次，没有因为「没拿到图」再买一张
+    expect(calls.filter((u) => u.endsWith('/images/generations'))).toHaveLength(1);
+    expect(calls.some((u) => u.includes('/tasks/task-legacy'))).toBe(true);
   });
 
   it('同步响应有 data：照常出图，不受影响', async () => {

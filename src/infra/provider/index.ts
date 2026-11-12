@@ -2,6 +2,7 @@ import type { ProviderAdapter, ProviderConfig } from '@/domain';
 import { mockAdapter } from './mockAdapter';
 import { openAiCompatibleAdapter } from './openaiCompatible';
 import { modelScopeAdapter } from './modelScope';
+import { isModelScopeEndpoint } from './modelScopeTask';
 
 /**
  * 适配器注册表。
@@ -17,7 +18,22 @@ const adapters: Record<ProviderConfig['adapter'], ProviderAdapter> = {
 };
 
 export function adapterFor(config: ProviderConfig): ProviderAdapter {
-  return adapters[config.adapter];
+  /**
+   * 端点说了算，下拉框说了不算。
+   *
+   * 真机第二次反馈：设置页新建厂商时「协议」默认是 OpenAI 兼容，用户填完
+   * ModelScope 的 baseUrl 直接生成，normalizeProviders 那次「读配置时迁移」
+   * 根本没机会跑（upsert 绕过了它）。请求于是落到同步适配器，POST 2xx 只回
+   * task_id，卡片就停在「已收单但没拿到图」。
+   *
+   * 这里在唯一的分发点做最后兜底：只要 baseUrl 是官方 API-Inference 域名，
+   * 无论配置字段写的是什么，都走异步适配器。用户不用改协议、不用重启、不用
+   * 重新装配置。mock 是本地演示，保持原样不受影响。
+   */
+  if (config.adapter !== 'mock' && isModelScopeEndpoint(config.baseUrl)) {
+    return adapters.modelscope;
+  }
+  return adapters[config.adapter] ?? adapters['openai-compatible'];
 }
 
 export function registerAdapter(kind: ProviderConfig['adapter'], adapter: ProviderAdapter): void {
@@ -26,3 +42,4 @@ export function registerAdapter(kind: ProviderConfig['adapter'], adapter: Provid
 
 export { mockAdapter, openAiCompatibleAdapter, modelScopeAdapter };
 export { ProviderResultPendingError, isProviderResultPending } from './providerResultPending';
+export { isModelScopeEndpoint } from './modelScopeTask';

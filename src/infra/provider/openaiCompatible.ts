@@ -6,7 +6,12 @@ import {
   type ProviderAdapter,
   type ProviderConfig,
 } from '@/domain';
+import { failure, fromBase64, joinUrl, materialize } from './providerHttp';
+import { pollSubmittedTask } from './modelScopeTask';
 import { ProviderResultPendingError } from './providerResultPending';
+
+// 这几个小工具历史上从这里导出，保留出口，避免下游改动扩散。
+export { failure, joinUrl, materialize } from './providerHttp';
 
 /**
  * OpenAI 兼容适配器。
@@ -23,7 +28,11 @@ import { ProviderResultPendingError } from './providerResultPending';
  * 3. 不编进度。这个接口不提供进度，就一律回调 null。
  */
 
-const DEFAULT_TIMEOUT_MS = 180_000;
+/**
+ * 比 pollSubmittedTask 的 180s 上限多留一分钟：万一配置没切到 modelscope
+ * 适配器而走了这里的兜底查单，不能让本地超时掐断已经付过费的轮询。
+ */
+const DEFAULT_TIMEOUT_MS = 240_000;
 
 function withTimeout(signal: AbortSignal | undefined, ms: number): { signal: AbortSignal; done: () => void } {
   const ctrl = new AbortController();
@@ -40,30 +49,6 @@ function withTimeout(signal: AbortSignal | undefined, ms: number): { signal: Abo
       signal?.removeEventListener('abort', onAbort);
     },
   };
-}
-
-export function joinUrl(base: string, path: string): string {
-  return `${base.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
-}
-
-/** 从响应里抽出人能看懂的错。不要把整段 HTML 错误页塞进任务里。 */
-export async function failure(res: Response): Promise<Error> {
-  let detail = '';
-  try {
-    const text = await res.text();
-    try {
-      const json = JSON.parse(text) as { error?: { message?: string } | string; message?: string };
-      detail =
-        typeof json.error === 'string'
-          ? json.error
-          : json.error?.message ?? json.message ?? text.slice(0, 300);
-    } catch {
-      detail = text.slice(0, 300);
-    }
-  } catch {
-    detail = res.statusText;
-  }
-  return new Error(`HTTP ${res.status} ${detail}`.trim());
 }
 
 /** 把参考图拼进 chat 消息体。多张时按顺序，第一张是主参考。 */
@@ -86,35 +71,6 @@ function toBase64(buf: ArrayBuffer): string {
     bin += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
   }
   return btoa(bin);
-}
-
-function fromBase64(b64: string): ArrayBuffer {
-  const bin = atob(b64);
-  const out = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i += 1) out[i] = bin.charCodeAt(i);
-  return out.buffer;
-}
-
-/** data URL 与远程 URL 都要能处理：有的服务只回 b64，有的只回链接。 */
-export async function materialize(
-  item: { b64_json?: string; url?: string },
-  signal: AbortSignal,
-  handlers: GenerationHandlers,
-): Promise<GeneratedItem> {
-  if (item.b64_json) {
-    return { mime: 'image/png', bytes: fromBase64(item.b64_json) };
-  }
-  if (!item.url) throw new Error('上游既没返回图片数据也没返回链接');
-
-  handlers.onPhase?.('downloading');
-  handlers.onProgress?.(null);
-  const res = await fetch(item.url, { signal });
-  if (!res.ok) throw await failure(res);
-  return {
-    mime: res.headers.get('content-type')?.split(';')[0]?.trim() || 'image/png',
-    bytes: await res.arrayBuffer(),
-    sourceUrl: item.url,
-  };
 }
 
 interface ImagesResponse {
@@ -231,10 +187,19 @@ async function generateImages(
    * ProviderResultPendingError 判成「先确认再重发」，避免再扣一次钱。
    */
   if (data.length === 0) {
+    /**
+     * 异步服务只回了 task_id：这一单已经收了、通常已计费。旧代码在这里
+     * 抛「已收单但没拿到图」，用户只能拿着任务号去厂商后台查，图始终出不来
+     * （真机第二次反馈就是卡在这里）。现在就地查这一单把图取回来——
+     * 不重新提交，绝不产生第二笔费用。只有连任务号都没有才真的无从查起，
+     * 交给 pending 留证，避免被判成「可原样重试」。
+     */
+    if (json.task_id) {
+      return pollSubmittedTask(config, json.task_id, { signal, handlers, count: request.count });
+    }
     throw new ProviderResultPendingError({
-      taskId: json.task_id ?? null,
       rawResponse: JSON.stringify(json),
-      detail: json.task_id ? '异步服务只回了任务号，图要轮询取' : '响应里没有 data 数组',
+      detail: '响应里没有 data 数组',
     });
   }
   return Promise.all(data.map((d) => materialize(d, signal, handlers)));

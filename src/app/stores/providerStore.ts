@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { ProviderCapability, ProviderConfig, ProviderAdapter } from '@/domain';
+import { isModelScopeEndpoint } from '@/infra/provider';
 
 /**
  * 厂商配置与产物的存储接口。
@@ -54,21 +55,16 @@ export function defaultProviders(): ProviderConfig[] {
  * 看不到图。这里在**配置读取**时按 baseUrl 把它切到 modelscope 适配器，
  * 用户不用去设置页改一遍。
  *
- * 刻意只在这一处做，而且只改内存不落盘：请求分发仍然走 adapterFor 的
- * 注册表，不散落 `if provider == 'modelscope'` 分支。旧存档保持原样，
- * 换个版本也不会被写坏。
+ * 域名判断与分发层共用同一个函数（isModelScopeEndpoint），避免两处规则漂移。
+ *
+ * 真机补记：光在「读配置」时做一次迁移不够——设置页新建/编辑厂商走的是
+ * upsert，会绕过这里。所以 setConfigs / upsert 也统一过一遍，且
+ * adapterFor 在分发点再兜一次底。三层都不依赖用户去改「协议」下拉框。
  */
 export function normalizeProviders(configs: readonly ProviderConfig[]): ProviderConfig[] {
   return configs.map((c) => {
     if (c.adapter !== 'openai-compatible') return c;
-    const host = (() => {
-      try {
-        return new URL(c.baseUrl).hostname.toLowerCase();
-      } catch {
-        return c.baseUrl.toLowerCase();
-      }
-    })();
-    if (!/^api-inference\.modelscope\.(cn|ai)$/.test(host)) return c;
+    if (!isModelScopeEndpoint(c.baseUrl)) return c;
     return { ...c, adapter: 'modelscope' as const };
   });
 }
@@ -113,14 +109,15 @@ export const useProviderStore = create<ProviderState>((set) => ({
   loaded: false,
   store: null,
   adapterFor: null,
-  setConfigs: (next) => set({ configs: next, loaded: true }),
+  setConfigs: (next) => set({ configs: normalizeProviders(next), loaded: true }),
   setRuntime: (store, adapterFor) => set({ store, adapterFor }),
   upsert: (config) =>
-    set((s) => ({
-      configs: s.configs.some((c) => c.id === config.id)
+    set((s) => {
+      const next = s.configs.some((c) => c.id === config.id)
         ? s.configs.map((c) => (c.id === config.id ? config : c))
-        : [...s.configs, config],
-    })),
+        : [...s.configs, config];
+      return { configs: normalizeProviders(next) };
+    }),
   remove: (id) => set((s) => ({ configs: s.configs.filter((c) => c.id !== id) })),
 }));
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { ModelSpec, ProviderCapability, ProviderConfig } from '@/domain';
-import { adapterFor } from '@/infra/provider';
+import { adapterFor, isModelScopeEndpoint } from '@/infra/provider';
 import { useProviderStore } from '@/app/stores/providerStore';
 import { PanelMask } from '@/ui/common/PanelMask';
 
@@ -39,7 +39,17 @@ export function SettingsPanel({ onClose, onSaved }: { onClose: () => void; onSav
   }, [activeId, configs]);
 
   function patch(p: Partial<ProviderConfig>) {
-    setDraft((d) => (d ? { ...d, ...p } : d));
+    setDraft((d) => {
+      if (!d) return d;
+      const next = { ...d, ...p };
+      // 填完 Base URL 就自动选对协议：真机上「协议」默认是 OpenAI 兼容，
+      // 用户填了 ModelScope 地址直接保存，就会扣了费却只拿到 task_id。
+      // 不要求用户知道这个下拉框的存在，也不影响手动选择。
+      if (p.baseUrl !== undefined && d.adapter !== 'mock') {
+        next.adapter = isModelScopeEndpoint(p.baseUrl) ? 'modelscope' : 'openai-compatible';
+      }
+      return next;
+    });
   }
 
   async function test() {
