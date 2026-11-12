@@ -123,6 +123,7 @@ export async function runReproPackage(pkg: ReproPackage): Promise<RunResult> {
       outputKind: pkg.params.kind,
       aspectRatio: pkg.params.aspectRatio ?? '1:1',
       model: pkg.params.model,
+      count: String(pkg.params.count ?? 1),
     },
   });
 

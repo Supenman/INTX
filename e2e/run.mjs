@@ -24,6 +24,14 @@ const SPECS = [
   ['P3 节点改名/批量编号', './specs/rename.mjs'],
   ['P3 三态重发策略', './specs/outcome-policy.mjs'],
   ['真实产出：分镜部分失败→补格→交付', './specs/real-output.mjs'],
+  ['参数编辑控件：改参/撤销/忙碌锁定', './specs/param-controls.mjs'],
+  ['面板统一交互：Esc/遮罩/字段让位', './specs/panel-behavior.mjs'],
+  ['画布交互：右键三态/拖入/快捷键/视图', './specs/canvas-interactions.mjs'],
+  ['反馈层级：toast/alert/节点内状态', './specs/feedback.mjs'],
+  ['分镜补格：截断/漂移拒绝/持久', './specs/storyboard-resume.mjs'],
+  ['单格重发与取消补格', './specs/cell-retry.mjs'],
+  ['多张生成：选主图/另存/快照', './specs/multi-result.mjs'],
+  ['拆分确认：行数覆盖/已有产物', './specs/script-coverage.mjs'],
 ];
 
 async function reachable() {

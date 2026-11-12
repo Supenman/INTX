@@ -107,6 +107,19 @@ export const generateNode: NodeDefinition = {
       ],
       defaultValue: '1:1',
     },
+    {
+      kind: 'select',
+      id: 'count',
+      label: '张数',
+      // 上限 4 对齐 OpenAI 兼容接口 n 的上限；多张产出可在卡片上选主图
+      options: [
+        { value: '1', label: '1 张' },
+        { value: '2', label: '2 张' },
+        { value: '3', label: '3 张' },
+        { value: '4', label: '4 张' },
+      ],
+      defaultValue: '1',
+    },
   ],
 };
 

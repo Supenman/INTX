@@ -8,6 +8,17 @@ import type {
   ToolbarPrefs,
 } from './definition';
 
+/** 菜单条目：countLabel 的工具把 {n} 替换成选中数量。 */
+export interface ContextMenuCommand {
+  id: string;
+  label: string;
+  action: string;
+  payload?: Readonly<Record<string, string>>;
+  danger: boolean;
+  disabled: boolean;
+  category: ToolDefinition['category'];
+}
+
 /**
  * 工具注册表与解析管线。
  *
@@ -178,4 +189,22 @@ export function resolveAddNodeMenuCommands(ctx: ToolContext): AddNodeCommand[] {
     }));
 
   return [...nodes, ...actions].sort((a, b) => a.defaultOrder - b.defaultOrder);
+}
+
+/**
+ * 节点右键菜单：单节点态与多选态由同一张注册表按 applicable 分流，
+ * 多选标签里的 {n} 在这里替换成数量。UI 只渲染，不写「几个节点显示什么」的 if。
+ */
+export function resolveNodeContextMenu(ctx: ToolContext): ContextMenuCommand[] {
+  return getToolbarTools('node-context-menu')
+    .filter((t) => !t.applicable || t.applicable(ctx))
+    .map((t) => ({
+      id: t.id,
+      label: t.countLabel ? t.label.replace('{n}', String(ctx.selectedCount)) : t.label,
+      action: t.action,
+      payload: t.payload,
+      danger: Boolean(t.danger),
+      disabled: Boolean(t.disabled?.(ctx)),
+      category: t.category,
+    }));
 }

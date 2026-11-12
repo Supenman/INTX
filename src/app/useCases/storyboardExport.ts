@@ -1,4 +1,4 @@
-import { gridLayout } from '@/domain';
+import { containRect, gridLayout } from '@/domain';
 import { useAssetStore, type AssetEntry } from '@/app/stores/assetStore';
 import { useGraphStore } from '@/app/stores/graphStore';
 import { resolveRuntime } from '@/infra/runtime';
@@ -38,8 +38,9 @@ export async function readAssetBytes(assetId: string): Promise<AssetBytes> {
 /**
  * 把节点的分格按 gridLayout 拼成一张 PNG。
  *
- * 每格都拉伸到统一的 cell 尺寸 —— 不同厂商返回的图可能有几像素差异，
- * 不统一的话拼出来会歪。格数不足时缺位留背景色，不拿已有的图去补位。
+ * cell 尺寸取第一张的自然尺寸，但每格用 containRect 等比收进、居中留边：
+ * 扩格补格可能混入不同比例的产物，直接拉伸会把交付物拉变形。
+ * 格数不足时缺位留背景色，不拿已有的图去补位。
  */
 export async function buildStoryboardPng(nodeId: string): Promise<StoryboardPng> {
   const node = useGraphStore.getState().nodes[nodeId];
@@ -75,7 +76,9 @@ export async function buildStoryboardPng(nodeId: string): Promise<StoryboardPng>
     const drawn = Math.min(images.length, layout.cells.length);
     for (let i = 0; i < drawn; i += 1) {
       const rect = layout.cells[i]!;
-      ctx.drawImage(images[i]!, rect.x, rect.y, rect.width, rect.height);
+      const img = images[i]!;
+      const fit = containRect(img.naturalWidth, img.naturalHeight, rect);
+      ctx.drawImage(img, fit.x, fit.y, fit.width, fit.height);
     }
 
     return {

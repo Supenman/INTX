@@ -175,12 +175,22 @@ export {
 } from './node/validate';
 export {
   MAX_GRID_CELLS,
+  containRect,
   gridLayout,
   parseGrid,
   type GridCellRect,
   type GridLayout,
   type GridShape,
 } from './node/grid';
+export {
+  analyzeStoryboardScript,
+  planStoryboardResume,
+  replaceCell,
+  storyboardLines,
+  type ResumePlan,
+  type ResumeSnapshot,
+  type ScriptCoverage,
+} from './node/storyboard';
 
 // 资产哈希
 export { contentPath, extFromMime, sha256Hex } from './asset/hash';
@@ -201,8 +211,10 @@ export {
 
 // 厂商契约
 export {
+  MAX_BATCH_COUNT,
   canGenerate,
   capabilityAssetKind,
+  clampBatchCount,
   modelsFor,
   storyboardPrompt,
   type GeneratedItem,
@@ -263,10 +275,12 @@ export {
   registerTools,
   resetToolRegistry,
   resolveAddNodeMenuCommands,
+  resolveNodeContextMenu,
   resolveToolbarEntries,
   resolveToolbarTools,
   unregisterTool,
 } from './tool/registry';
+export type { ContextMenuCommand } from './tool/registry';
 export { CANVAS_MODE_OPTIONS, builtinTools, installBuiltinTools } from './tool/definitions';
 export { canvasStarterCopy, resolveCanvasEmptyState } from './tool/canvasStarter';
 export type { CanvasEmptyState, CanvasEmptyStateInput, CanvasStarterCopy } from './tool/canvasStarter';

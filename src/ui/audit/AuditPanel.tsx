@@ -19,6 +19,7 @@ import { exportReproForTask } from '@/app/useCases/reproExport';
 import { runReproPackage } from '@/app/useCases/reproRunner';
 import { pickFile } from '@/app/useCases/projectPackage';
 import { downloadBytes } from '@/ui/common/download';
+import { PanelMask } from '@/ui/common/PanelMask';
 import { formatTime } from './format';
 
 /**
@@ -121,11 +122,11 @@ export function AuditPanel({ onClose, onError, onFlash }: Props) {
   }
 
   return (
-    <div className="panel-mask" onClick={onClose}>
-      <div className="panel wide" onClick={(e) => e.stopPropagation()}>
+    <PanelMask onClose={onClose}>
+      <div className="panel wide" role="dialog" aria-label="审计台账">
         <header className="panel-head">
           <h2>审计台账</h2>
-          <button className="icon-btn" onClick={onClose} aria-label="关闭">
+          <button className="icon-btn" onClick={onClose} aria-label="关闭" title="关闭 (Esc)">
             ×
           </button>
         </header>
@@ -246,6 +247,6 @@ export function AuditPanel({ onClose, onError, onFlash }: Props) {
           </p>
         </div>
       </div>
-    </div>
+    </PanelMask>
   );
 }

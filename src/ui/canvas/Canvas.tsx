@@ -20,7 +20,6 @@ import {
   describePortIssues,
   effectiveExistingEdges,
   getNodeDefinition,
-  listByCategory,
   resolveCanvasEmptyState,
   resolveToolbarTools,
   validateConnection,
@@ -52,18 +51,25 @@ import { persistProviders, useProviderStore } from '@/app/stores/providerStore';
 import { useToolbarPrefs } from '@/app/toolPrefs';
 import { hydrateAssetsFromProject } from '@/app/useCases/assetLibrary';
 import { useRunGeneration } from '@/app/useCases/useRunGeneration';
-import { CANCEL_MESSAGE, type RunGenerationOptions } from '@/app/useCases/runGeneration';
+import { CANCEL_MESSAGE, upstreamTextFor, type RunGenerationOptions } from '@/app/useCases/runGeneration';
 import { usePersistence } from '@/app/useCases/usePersistence';
 import { adapterFor } from '@/infra/provider';
 import { resolveRuntime } from '@/infra/runtime';
 import { exportProject, importProject, pickFile } from '@/app/useCases/projectPackage';
-import { AssetLibrary } from '@/ui/library/AssetLibrary';
+import { placeAssetAt } from '@/ui/common/placeOnCanvas';
+import { AlertBanner } from '@/ui/common/Feedback';
 import { SettingsPanel } from '@/ui/settings/SettingsPanel';
 import { AuditPanel } from '@/ui/audit/AuditPanel';
 import { LegacyImportDialog } from '@/ui/common/LegacyImportDialog';
 import { CanvasNode, type CanvasNodeData } from './CanvasNode';
+import { CanvasSidebar } from './CanvasSidebar';
+import { CanvasToolbar } from './CanvasToolbar';
 import { AddMenu, CanvasStarter, ModeSwitch, SelectionToolbar, type ToolDispatch } from './CanvasTools';
+import { NodeContextMenu } from './NodeContextMenu';
+import { ShortcutsPanel } from './ShortcutsPanel';
+import { storyboardRunConfirm } from './storyboardConfirm';
 import { useBatchRename } from './useBatchRename';
+import { useCanvasShortcuts } from './useCanvasShortcuts';
 import { useChainSelection } from './useChainSelection';
 
 const nodeTypes: NodeTypes = { canvasNode: CanvasNode };
@@ -74,6 +80,10 @@ interface MenuState {
   /** 点击处在 flow 坐标系里的位置，新节点落在这里 */
   fx: number;
   fy: number;
+  /** 节点右键时命中的节点 id；空白处为 null（渲染添加菜单）。 */
+  nodeId: string | null;
+  /** 右键瞬间生效的选区（setState 是异步的，菜单分流不能等下一帧）。 */
+  selection: string[];
 }
 
 export function Canvas() {
@@ -85,13 +95,14 @@ export function Canvas() {
 }
 
 function CanvasInner() {
-  const { screenToFlowPosition } = useReactFlow();
+  const { screenToFlowPosition, fitView, zoomTo } = useReactFlow();
 
   const [connError, setConnError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [legacyOpen, setLegacyOpen] = useState(false);
   const [auditOpen, setAuditOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
   // 画布基本功的状态：工具模式、选区、右键菜单、内部剪贴板
   const [toolMode, setToolMode] = useState<ToolMode>('select');
@@ -126,6 +137,19 @@ function CanvasInner() {
   const undoDepth = useHistoryStore((s) => s.past.length);
   const redoDepth = useHistoryStore((s) => s.future.length);
 
+  // 选区必须跟着图走：节点被删 / 清空 / 撤销后，残留 id 会让框选把
+  // 「已不存在的节点」也算进多选（右键菜单数量、批量动作都会错）。
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      const next = prev.filter((id) => nodesMap[id]);
+      return next.length === prev.length ? prev : next;
+    });
+    setSelectedEdgeIds((prev) => {
+      const next = prev.filter((id) => edgesMap[id]);
+      return next.length === prev.length ? prev : next;
+    });
+  }, [nodesMap, edgesMap]);
+
   const persistence = usePersistence();
   const generate = useRunGeneration();
   // 传给节点的回调必须是稳定引用：它进了 memo 节点，一变整片重渲染
@@ -149,12 +173,27 @@ function CanvasInner() {
 
   const onGenerate = useCallback(
     (nodeId: string, options?: RunGenerationOptions) => {
+      // 分镜「拆分」前的知情确认：已有产物再花钱、行数≠格数会循环/丢弃。
+      // 这是所有生成入口的唯一漏斗（拆分按钮/悬浮栏/右键都走这里）。
+      const node = useGraphStore.getState().nodes[nodeId];
+      if (node?.defKind === 'storyboard') {
+        const confirmText = storyboardRunConfirm({
+          derivedCount: node.derivedAssetIds?.length ?? 0,
+          grid: String(node.params.grid ?? '2x2'),
+          script: upstreamTextFor(nodeId),
+          resume: options?.resume === true,
+          cellIndex: options?.cellIndex,
+        });
+        if (confirmText && !window.confirm(confirmText)) return;
+      }
       void stableGenerate.current(nodeId, options).then((r) => {
         // 取消是用户主动动作，不该弹一条红色错误
         if (!r.ok && r.message && r.message !== CANCEL_MESSAGE) showError(r.message);
+        // 成功且带消息（如缩格截断提示）：短暂确认，不占错误条
+        if (r.ok && r.message) flash(r.message);
       });
     },
-    [showError],
+    [showError, flash],
   );
 
   // ── 画布动作 ──────────────────────────────────────────────
@@ -212,43 +251,17 @@ function CanvasInner() {
     [selectedIds, flash],
   );
 
-  /** Ctrl/Cmd+Z / D / C / V，Escape 关菜单。输入框里放行原生撤销。 */
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setMenu(null);
-        return;
-      }
-      if (!(e.ctrlKey || e.metaKey)) return;
-      const target = e.target as HTMLElement | null;
-      const inField =
-        target?.tagName === 'INPUT' ||
-        target?.tagName === 'TEXTAREA' ||
-        target?.tagName === 'SELECT' ||
-        target?.isContentEditable === true;
-      if (inField) return;
-
-      const key = e.key.toLowerCase();
-      if (key === 'z' && !e.shiftKey) {
-        e.preventDefault();
-        undo();
-      } else if ((key === 'z' && e.shiftKey) || key === 'y') {
-        e.preventDefault();
-        redo();
-      } else if (key === 'd') {
-        e.preventDefault();
-        duplicateSelection();
-      } else if (key === 'c') {
-        e.preventDefault();
-        copySelection();
-      } else if (key === 'v') {
-        e.preventDefault();
-        pasteClipboard();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [duplicateSelection, copySelection, pasteClipboard]);
+  /** Ctrl/Cmd+Z / D / C / V / 1 / 2 / 3，? 快捷键面板，Escape 关菜单。输入框里放行原生。 */
+  useCanvasShortcuts({
+    selectedIds,
+    onEscape: () => setMenu(null),
+    onToggleShortcuts: () => setShortcutsOpen((v) => !v),
+    onDuplicate: duplicateSelection,
+    onCopy: copySelection,
+    onPaste: pasteClipboard,
+    zoomTo,
+    fitView,
+  });
 
   // 启动时把厂商配置与资产索引装起来
   useEffect(() => {
@@ -463,9 +476,25 @@ function CanvasInner() {
         y: Math.max(8, Math.min(clientY, window.innerHeight - 360)),
         fx: flow.x,
         fy: flow.y,
+        nodeId: null,
+        selection: [],
       });
     },
     [screenToFlowPosition],
+  );
+
+  const openNodeMenu = useCallback(
+    (clientX: number, clientY: number, nodeId: string, selection: string[]) => {
+      setMenu({
+        x: Math.max(8, Math.min(clientX, window.innerWidth - 250)),
+        y: Math.max(8, Math.min(clientY, window.innerHeight - 360)),
+        fx: 0,
+        fy: 0,
+        nodeId,
+        selection,
+      });
+    },
+    [],
   );
 
   const selectedEdgeSet = useMemo(() => new Set(selectedEdgeIds), [selectedEdgeIds]);
@@ -508,6 +537,20 @@ function CanvasInner() {
         .map((tool) => ({ tool, disabled: Boolean(tool.disabled?.(toolCtx)) })),
     [toolCtx, prefs],
   );
+
+  /** 节点右键菜单的上下文：用右键瞬间的选区快照，单/多选由 selectedCount 分流。 */
+  const contextMenuCtx: ToolContext = useMemo(() => {
+    const hit = menu?.nodeId ? nodesMap[menu.nodeId] : null;
+    const def = hit ? getNodeDefinition(hit.defKind) : null;
+    return {
+      ...toolCtx,
+      selectedCount: menu?.selection.length ?? toolCtx.selectedCount,
+      contextNodeId: menu?.nodeId ?? null,
+      node: hit && def
+        ? { kind: hit.defKind, category: def.category, hasAsset: Boolean(hit.assetId), busy: false }
+        : null,
+    };
+  }, [toolCtx, menu, nodesMap]);
 
   /** 注册表只产出 action 字符串，真正做什么集中在这里，不在组件里各写一份。 */
   const onAction: ToolDispatch = useCallback(
@@ -576,102 +619,28 @@ function CanvasInner() {
 
   return (
     <div className="app">
-      <aside className="sidebar">
-        <div className="brand">
-          INTX
-          <button className="icon-btn" title="厂商设置" onClick={() => setSettingsOpen(true)}>
-            ⚙
-          </button>
-        </div>
-
-        <h3>素材</h3>
-        <div className="node-picker">
-          {listByCategory('source').map((d) => (
-            <button key={d.kind} onClick={() => spawnNode(d.kind)}>
-              {d.title}
-            </button>
-          ))}
-        </div>
-
-        <h3>生成</h3>
-        <div className="node-picker">
-          {listByCategory('generate').map((d) => (
-            <button key={d.kind} onClick={() => spawnNode(d.kind)}>
-              {d.title}
-            </button>
-          ))}
-        </div>
-
-        <AssetLibrary />
-
-        <h3>项目</h3>
-        <div className="node-picker">
-          <button onClick={() => setAuditOpen(true)} title="查看生成审计台账：厂商、出处、成本、复现">
-            审计台账
-          </button>
-          <button onClick={() => void exportProject()}>导出 .intx</button>
-          <button onClick={() => void importProject(pickFile, showError)}>导入 .intx</button>
-          <button onClick={() => setLegacyOpen(true)} title="从旧版 BeastTV / INTX 的 localStorage 或 JSON 文件迁移">
-            导入旧版数据
-          </button>
-          <button onClick={() => onAction('clear')} style={{ color: 'var(--danger)' }} title="可撤销；资产库不受影响">
-            清空画布
-          </button>
-        </div>
-      </aside>
+      <CanvasSidebar
+        onSpawn={(kind) => spawnNode(kind)}
+        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenAudit={() => setAuditOpen(true)}
+        onOpenLegacy={() => setLegacyOpen(true)}
+        onExport={() => void exportProject()}
+        onImport={() => void importProject(pickFile, showError)}
+        onClear={() => onAction('clear')}
+      />
 
       <div className="canvas-wrap">
-        <div className="toolbar">
-          {mainToolButtons.map(({ tool, disabled }) => (
-            <button
-              key={tool.id}
-              className="chip chip-btn"
-              data-tool-id={tool.id}
-              onClick={() => onAction(tool.action, tool.payload)}
-              disabled={disabled}
-              title={
-                disabled && (tool.id === 'undo' || tool.id === 'redo')
-                  ? `没有可${tool.id === 'undo' ? '撤销' : '重做'}的操作`
-                  : tool.hint
-              }
-            >
-              {tool.label}
-              {tool.id === 'open-settings' && <b>{providerCount}</b>}
-            </button>
-          ))}
-          <span className="chip">
-            节点 <b>{nodeCount}</b>
-          </span>
-          <span className="chip">
-            连线 <b>{Object.keys(edgesMap).length}</b>
-          </span>
-          <span className="chip">
-            资产 <b>{assetCount}</b>
-          </span>
-          {demoMode && (
-            <span className="chip warn" title="当前只配置了本地演示厂商，生成的是占位图，不是真实作品">
-              演示模式 · 不出真图
-            </span>
-          )}
-          <span className="chip" title={persistence.error ?? undefined}>
-            {persistence.status === 'saved' && '已保存'}
-            {persistence.status === 'saving' && '保存中…'}
-            {persistence.status === 'loading' && '载入中…'}
-            {persistence.status === 'idle' && '就绪'}
-            {persistence.status === 'error' && <span style={{ color: 'var(--danger)' }}>保存失败</span>}
-          </span>
-          {persistence.interruptedTasks > 0 && (
-            <span className="chip warn" title="上次退出时未完成的任务已收敛为「已取消」，可点生成重新跑">
-              上次有 {persistence.interruptedTasks} 个任务未跑完
-            </span>
-          )}
-          {persistence.integrityIssues.length > 0 && (
-            <span className="chip warn" title={persistence.integrityIssues.map((i) => i.message).join('\n')}>
-              存档告警 {persistence.integrityIssues.length}
-            </span>
-          )}
-          {toast && <span className="chip accent">{toast}</span>}
-        </div>
+        <CanvasToolbar
+          tools={mainToolButtons}
+          onAction={onAction}
+          providerCount={providerCount}
+          nodeCount={nodeCount}
+          edgeCount={Object.keys(edgesMap).length}
+          assetCount={assetCount}
+          demoMode={demoMode}
+          persistence={persistence}
+          toast={toast}
+        />
 
         <ModeSwitch ctx={toolCtx} prefs={prefs} onAction={onAction} />
 
@@ -703,8 +672,30 @@ function CanvasInner() {
           }}
           onNodeContextMenu={(e, node) => {
             e.preventDefault();
+            // 右键未选中的节点：先选中它再开菜单；已在多选里则保留多选。
+            // 菜单的单/多选分流必须用「此刻生效的选区」，不能等 setState 后的下一帧。
+            const effective = selectedIds.includes(node.id) ? selectedIds : [node.id];
             if (!selectedIds.includes(node.id)) setSelectedIds([node.id]);
-            openAddMenu(e.clientX, e.clientY);
+            openNodeMenu(e.clientX, e.clientY, node.id, effective);
+          }}
+          onDragOver={(e) => {
+            if (e.dataTransfer.types.includes('application/x-intx-asset') || e.dataTransfer.types.includes('application/x-intx-node')) {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'copy';
+            }
+          }}
+          onDrop={(e) => {
+            const assetId = e.dataTransfer.getData('application/x-intx-asset');
+            const nodeKind = e.dataTransfer.getData('application/x-intx-node');
+            if (!assetId && !nodeKind) return;
+            e.preventDefault();
+            const at = screenToFlowPosition({ x: e.clientX, y: e.clientY });
+            if (assetId) {
+              const entry = useAssetStore.getState().assets[assetId];
+              if (entry) placeAssetAt(entry, at);
+            } else if (nodeKind) {
+              spawnNode(nodeKind, at);
+            }
           }}
           selectionOnDrag={toolMode === 'select'}
           panOnDrag={toolMode === 'hand' ? true : [1]}
@@ -735,7 +726,7 @@ function CanvasInner() {
           </div>
         )}
 
-        {menu && (
+        {menu && menu.nodeId === null && (
           <AddMenu
             x={menu.x}
             y={menu.y}
@@ -747,14 +738,17 @@ function CanvasInner() {
           />
         )}
 
-        {connError && (
-          <div className="conn-error" role="alert">
-            <span>{connError}</span>
-            <button onClick={() => setConnError(null)} aria-label="关闭">
-              ×
-            </button>
-          </div>
+        {menu && menu.nodeId !== null && (
+          <NodeContextMenu
+            x={menu.x}
+            y={menu.y}
+            ctx={contextMenuCtx}
+            onAction={onAction}
+            onClose={() => setMenu(null)}
+          />
         )}
+
+        <AlertBanner message={connError} onClose={() => setConnError(null)} />
 
         {settingsOpen && (
           <SettingsPanel
@@ -776,6 +770,8 @@ function CanvasInner() {
             onImported={(msg) => flash(msg)}
           />
         )}
+
+        {shortcutsOpen && <ShortcutsPanel onClose={() => setShortcutsOpen(false)} />}
       </div>
     </div>
   );

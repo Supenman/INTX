@@ -80,3 +80,28 @@ export function gridLayout(spec: string, cellWidth: number, cellHeight: number, 
     cells,
   };
 }
+
+/**
+ * 把一张图等比收进格内、居中留边（contain）。
+ *
+ * 拼图导出以前用第一张的自然尺寸拉伸所有格：扩格补格混入不同比例
+ * 的产物时，交付物会被拉变形。这里只算矩形，绘制由导出用例负责。
+ * 源尺寸非法（0/负/NaN）时退回整格，绝不抛错。
+ */
+export function containRect(
+  sourceWidth: number,
+  sourceHeight: number,
+  cell: GridCellRect,
+): { x: number; y: number; width: number; height: number } {
+  const sw = Number.isFinite(sourceWidth) && sourceWidth > 0 ? sourceWidth : cell.width;
+  const sh = Number.isFinite(sourceHeight) && sourceHeight > 0 ? sourceHeight : cell.height;
+  const scale = Math.min(cell.width / sw, cell.height / sh);
+  const width = Math.max(1, Math.round(sw * scale));
+  const height = Math.max(1, Math.round(sh * scale));
+  return {
+    x: cell.x + Math.round((cell.width - width) / 2),
+    y: cell.y + Math.round((cell.height - height) / 2),
+    width,
+    height,
+  };
+}

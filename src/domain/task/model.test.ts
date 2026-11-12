@@ -46,6 +46,12 @@ describe('createTask', () => {
     const t = makeTask();
     expect(Object.isFrozen(t.params.inputAssetIds)).toBe(true);
   });
+
+  it('count 进快照（口径=请求数）；未传则不写该字段', () => {
+    const withCount = createTask({ kind: 'image', params: { ...params, count: 3 } });
+    expect(withCount.params.count).toBe(3);
+    expect(makeTask().params.count).toBeUndefined();
+  });
 });
 
 describe('状态机', () => {

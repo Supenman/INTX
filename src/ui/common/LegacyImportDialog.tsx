@@ -7,6 +7,7 @@ import {
   scanLegacySources,
   type LegacySource,
 } from '@/app/useCases/legacyImport';
+import { PanelMask } from '@/ui/common/PanelMask';
 
 interface Props {
   onClose: () => void;
@@ -70,11 +71,11 @@ export function LegacyImportDialog({ onClose, onImported }: Props) {
   const report: LegacyReport | null = preview?.ok ? preview.report : null;
 
   return (
-    <div className="panel-mask">
-      <div className="panel legacy-dialog">
+    <PanelMask onClose={onClose}>
+      <div className="panel legacy-dialog" role="dialog" aria-label="导入旧版数据">
         <div className="panel-head">
           <h2>导入旧版 BeastTV / INTX 数据</h2>
-          <button className="icon-btn" onClick={onClose} aria-label="关闭">
+          <button className="icon-btn" onClick={onClose} aria-label="关闭" title="关闭 (Esc)">
             ×
           </button>
         </div>
@@ -169,6 +170,6 @@ export function LegacyImportDialog({ onClose, onImported }: Props) {
           </button>
         </div>
       </div>
-    </div>
+    </PanelMask>
   );
 }

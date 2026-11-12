@@ -27,8 +27,21 @@ export async function run() {
   check((await nodeCount()) === 1, '从起始框添加应创建 1 个节点');
 
   // ── 2. 右键空白处继续添加 ──
-  const pane = await p.locator('.react-flow__pane').boundingBox();
-  await p.mouse.click(pane.x + 760, pane.y + 480, { button: 'right' });
+  // 找一个确实没有节点覆盖的点：节点右键现在开的是节点菜单（三态），
+  // 写死坐标可能落在已有节点上，那样测的就不是「空白右键」了。
+  const blank = await p.evaluate(() => {
+    const pane = document.querySelector('.react-flow__pane').getBoundingClientRect();
+    const cards = [...document.querySelectorAll('.react-flow__node')].map((n) => n.getBoundingClientRect());
+    for (let y = pane.top + 60; y < pane.bottom - 60; y += 40) {
+      for (let x = pane.left + 60; x < pane.right - 60; x += 40) {
+        const hit = cards.some((r) => x >= r.left - 8 && x <= r.right + 8 && y >= r.top - 8 && y <= r.bottom + 8);
+        if (!hit) return { x, y };
+      }
+    }
+    return null;
+  });
+  check(blank !== null, '应能找到一块空白画布');
+  await p.mouse.click(blank.x, blank.y, { button: 'right' });
   await p.locator('.add-menu').waitFor();
   await p.getByRole('menuitem', { name: '生成' }).click();
   await p.waitForTimeout(300);

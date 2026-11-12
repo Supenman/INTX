@@ -436,6 +436,25 @@ export function setNodeAsset(id: string, assetId: string | undefined): void {
 }
 
 /**
+ * 从本节点已有产物里选主图（下游连线取这张）。
+ *
+ * 与 setNodeAsset 的区别：这是用户动作，要进撤销历史、要校验成员资格、
+ * 要换引用触发自动保存与 memo 重渲染。setNodeAsset 留给复现导入等内部写入。
+ */
+export function selectPrimaryAsset(nodeId: string, assetId: string): void {
+  const node = useGraphStore.getState().nodes[nodeId];
+  if (!node) return;
+  if (!(node.derivedAssetIds ?? []).includes(assetId)) return;
+  if (node.assetId === assetId) return;
+  checkpoint('选择主图');
+  useGraphStore.setState((s) => {
+    const n = s.nodes[nodeId];
+    if (!n) return s;
+    return { nodes: { ...s.nodes, [nodeId]: { ...n, assetId } } };
+  });
+}
+
+/**
  * 建立连线——语义校验的唯一入口。
  *
  * 旧代码的连线只记 source → target，能不能连靠运行时猜。

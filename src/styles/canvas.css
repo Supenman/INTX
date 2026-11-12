@@ -245,12 +245,61 @@
   font-size: 11.5px;
 }
 
+/* 参数编辑控件：select / input 走 .node-field 的两端布局，
+   控件本体压到 22px 高，不挤占固定卡片里产物区的空间。
+   select 必须给显式宽度：flex 行里它按内容收缩，只剩 23px 箭头位，
+   选中文本整个看不见（真机预览抓到的）。 */
+.node-param-select,
+.node-param-input {
+  width: 132px;
+  max-width: 60%;
+  height: 22px;
+  padding: 0 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text-2);
+  font-size: 11.5px;
+  font-family: var(--mono);
+  cursor: pointer;
+}
+
+.node-param-input {
+  cursor: text;
+  text-overflow: ellipsis;
+}
+
+.node-param-select:focus,
+.node-param-input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.node-param-select:disabled,
+.node-param-input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .node-status {
   margin-top: auto;
   font-size: 11.5px;
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+/* 状态语义色收敛在 CSS：渲染层只标语义类，不再写 inline color */
+.node-status.running .phase {
+  color: var(--accent);
+}
+
+.node-status.succeeded {
+  color: var(--ok);
+}
+
+.node-status.queued {
+  color: var(--warn);
 }
 
 .node-status .bar {
@@ -620,14 +669,8 @@
   -webkit-box-orient: vertical;
 }
 
-.node-field-inline {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--text-3);
-  margin-left: 6px;
-}
-
-/* 分镜宫格 */
+/* 分镜宫格。列数由 parseGrid 算出后走 inline gridTemplateColumns，
+   这里不再维护一份按宫格值写死的类（旧 grid-2x2 等从未被挂上，是死代码）。 */
 .node-grid {
   display: grid;
   gap: 3px;
@@ -635,11 +678,6 @@
   min-height: 0;
   grid-auto-rows: 1fr;
 }
-
-.node-grid.grid-2x2 { grid-template-columns: repeat(2, 1fr); }
-.node-grid.grid-3x3 { grid-template-columns: repeat(3, 1fr); }
-.node-grid.grid-4x4 { grid-template-columns: repeat(4, 1fr); }
-.node-grid.grid-1x4 { grid-template-columns: repeat(4, 1fr); }
 
 .grid-cell {
   position: relative;

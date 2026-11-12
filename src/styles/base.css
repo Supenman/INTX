@@ -49,3 +49,36 @@ button {
   background: none;
   color: inherit;
 }
+
+/* 滚动条跟随暗色主题：浏览器默认的浅色滚动条在深色面板里非常突兀。
+   Firefox 用 scrollbar-color，WebKit 用伪元素，两套都收敛到同一组令牌。 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-3);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}

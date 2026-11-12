@@ -1,5 +1,6 @@
 import type { AssetKind } from '../asset/model';
 import { parseGrid } from '../node/grid';
+import { storyboardLines } from '../node/storyboard';
 
 /**
  * Provider —— 厂商适配器的领域契约。
@@ -124,10 +125,7 @@ export interface ProviderAdapter {
  * 宫格任务必须显式说明「一格里画什么」，否则模型会把整个故事画进一张图。
  */
 export function storyboardPrompt(script: string, grid: string, style: string, cell: number, total: number): string {
-  const lines = script
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter((l) => l !== '');
+  const lines = storyboardLines(script);
 
   // 用户按行写了分镜就按行分配；否则让模型自己均分
   const shot = lines.length > 0 ? lines[cell % lines.length] : `第 ${cell + 1} 格`;
@@ -158,4 +156,17 @@ export function canGenerate(config: ProviderConfig, capability: ProviderCapabili
 /** Provider 能力 → 产出资产类型。分镜一次出多张，仍是 image。 */
 export function capabilityAssetKind(c: ProviderCapability): AssetKind {
   return c;
+}
+
+/**
+ * 一次生成的张数上限。对齐 OpenAI 兼容接口 n 的上限 4；
+ * mock 适配器容错到 9 是它的内部行为，不是产品承诺。
+ */
+export const MAX_BATCH_COUNT = 4;
+
+/** 把用户/存档里的张数收敛到 1..MAX_BATCH_COUNT；非法输入退 1。 */
+export function clampBatchCount(value: unknown): number {
+  const n = typeof value === 'string' ? Number(value) : typeof value === 'number' ? value : NaN;
+  if (!Number.isFinite(n)) return 1;
+  return Math.max(1, Math.min(MAX_BATCH_COUNT, Math.floor(n)));
 }

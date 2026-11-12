@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_GRID_CELLS, gridLayout, parseGrid } from './grid';
+import { MAX_GRID_CELLS, containRect, gridLayout, parseGrid } from './grid';
 
 describe('parseGrid', () => {
   it('按 行x列 解析常规宫格', () => {
@@ -63,5 +63,41 @@ describe('gridLayout', () => {
     expect(l.width).toBeGreaterThan(0);
     expect(l.height).toBeGreaterThan(0);
     expect(l.cells[1]!.x).toBeGreaterThan(0);
+  });
+});
+
+describe('containRect', () => {
+  const cell = { index: 0, row: 0, col: 0, x: 10, y: 20, width: 100, height: 100 };
+
+  it('正方形图进正方形格：占满整格', () => {
+    expect(containRect(200, 200, cell)).toEqual({ x: 10, y: 20, width: 100, height: 100 });
+  });
+
+  it('横图进竖格：等比收进、上下留边、不越界', () => {
+    const r = containRect(200, 100, cell);
+    expect(r.width).toBe(100);
+    expect(r.height).toBe(50);
+    expect(r.x).toBe(10);
+    expect(r.y).toBe(45); // 20 + (100-50)/2
+    expect(r.y + r.height).toBeLessThanOrEqual(cell.y + cell.height);
+  });
+
+  it('竖图进横格：左右留边', () => {
+    const wide = { ...cell, width: 200, height: 100 };
+    const r = containRect(100, 200, wide);
+    expect(r.width).toBe(50);
+    expect(r.height).toBe(100);
+    expect(r.x).toBe(10 + 75); // 居中
+  });
+
+  it('小图不放大越界（scale 可 >1 时仍收进格内）', () => {
+    const r = containRect(10, 10, cell);
+    expect(r.width).toBeLessThanOrEqual(100);
+    expect(r.height).toBeLessThanOrEqual(100);
+  });
+
+  it('非法源尺寸退回整格，不抛错', () => {
+    expect(containRect(0, -5, cell)).toEqual({ x: 10, y: 20, width: 100, height: 100 });
+    expect(containRect(NaN, 100, cell).width).toBe(100);
   });
 });

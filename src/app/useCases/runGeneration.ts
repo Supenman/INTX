@@ -2,8 +2,11 @@ import {
   applyAssetRefs,
   checkPrompt,
   checkRequiredInputs,
+  clampBatchCount,
   localTextFor,
   parseAssetRefs,
+  planStoryboardResume,
+  replaceCell,
   requireNodeDefinition,
   storyboardPrompt,
   createAsset,
@@ -139,6 +142,21 @@ export interface RunGenerationOptions {
    * 已经计费的那几格。普通「拆分 / 生成」按钮不传，仍然是全新一批。
    */
   resume?: boolean;
+  /**
+   * 分镜专用：只重生成第 N 格（0 起），替换该格产物，其余格不动。
+   * 与 resume 互斥。该格必须已有产物（没有的走补格）。
+   */
+  cellIndex?: number;
+}
+
+/** 确认文案与执行层共用的上游文本读取（拆分确认要知道剧本行数）。 */
+export function upstreamTextFor(nodeId: string): string {
+  const node = useGraphStore.getState().nodes[nodeId];
+  if (!node) return '';
+  return incoming(nodeId, textInputPortId(node.defKind))
+    .map((i) => i.text)
+    .filter((t): t is string => typeof t === 'string')
+    .join('\n');
 }
 
 export async function runGeneration(
@@ -272,18 +290,68 @@ export async function runGeneration(
 
   const refs = await Promise.all(referenceAssetIds.map((id) => loadBytes(id)));
 
-  const count = node.defKind === 'storyboard' ? gridCount(String(node.params.grid ?? '2x2')) : 1;
+  const count =
+    node.defKind === 'storyboard'
+      ? gridCount(String(node.params.grid ?? '2x2'))
+      : capability === 'image'
+        ? clampBatchCount(node.params.count)
+        : 1;
 
   /**
    * 补格：节点上已经挂着、且资产索引里还查得到的产物，就是上一批已经
    * 出图并计费的格子。只从它们的下一格开始请求，避免整单重发。
    * 只认 `resume`：用户主动点「拆分」是要全新一批，不能悄悄变成补格。
+   *
+   * 三分支计划（domain 纯函数）：已有>=格数→截断（零成本，不建任务）；
+   * 参数漂移→拒绝（避免混入新旧参数产物）；其余→从已有格数后补齐。
    */
   const existingIds =
     options.resume && node.defKind === 'storyboard'
       ? (node.derivedAssetIds ?? []).filter((id) => useAssetStore.getState().assets[id])
       : [];
-  const startCell = existingIds.length < count ? existingIds.length : 0;
+  let startCell = 0;
+  if (options.resume && node.defKind === 'storyboard') {
+    const prev = latestTaskForNode(useTaskStore.getState().tasks, nodeId);
+    const extras = prev?.params.extras;
+    const plan = planStoryboardResume({
+      existingIds,
+      grid: String(node.params.grid ?? '2x2'),
+      aspectRatio: String(node.params.aspectRatio ?? '1:1'),
+      style: String(node.params.style ?? ''),
+      snapshot: prev
+        ? {
+            grid: typeof extras?.grid === 'string' ? extras.grid : undefined,
+            aspectRatio: prev.params.aspectRatio,
+            style: typeof extras?.style === 'string' ? extras.style : undefined,
+          }
+        : null,
+    });
+    if (plan.action === 'reject') return { ok: false, message: plan.message };
+    if (plan.action === 'truncate') {
+      attachAssets(nodeId, [...plan.keepIds]);
+      return { ok: true, assetIds: [], message: plan.message };
+    }
+    startCell = plan.startCell;
+  }
+
+  // 逐格重发：只重生成第 N 格，替换该格产物。前置校验在这里，执行在下方循环。
+  const cellIndex = options.cellIndex;
+  if (cellIndex !== undefined) {
+    if (node.defKind !== 'storyboard') return { ok: false, message: '逐格重发只适用于分镜节点' };
+    if (options.resume) return { ok: false, message: '逐格重发与补格不能同时使用' };
+    const derived = node.derivedAssetIds ?? [];
+    if (!Number.isInteger(cellIndex) || cellIndex < 0 || cellIndex >= count) {
+      return { ok: false, message: '格序号超出当前宫格范围' };
+    }
+    const slotId = derived[cellIndex];
+    if (slotId === undefined || !useAssetStore.getState().assets[slotId]) {
+      return { ok: false, message: '这一格还没有产物，请用「继续补齐」而不是单格重发' };
+    }
+  }
+
+  // 快照 count 口径=本次实际请求数：全新批=格数/张数、补格=剩余格数、单格=1
+  const requestCount =
+    cellIndex !== undefined ? 1 : node.defKind === 'storyboard' ? count - startCell : count;
 
   const taskId = submitTask({
     nodeId,
@@ -295,7 +363,16 @@ export async function runGeneration(
       providerId: picked.config.id,
       inputAssetIds: referenceAssetIds,
       aspectRatio: String(node.params.aspectRatio ?? '1:1'),
-      ...(node.defKind === 'storyboard' ? { extras: { grid: String(node.params.grid ?? '2x2') } } : {}),
+      count: requestCount,
+      ...(node.defKind === 'storyboard'
+        ? {
+            extras: {
+              grid: String(node.params.grid ?? '2x2'),
+              style: String(node.params.style ?? ''),
+              ...(cellIndex !== undefined ? { cell: cellIndex } : {}),
+            },
+          }
+        : {}),
     },
   });
 
@@ -345,9 +422,13 @@ export async function runGeneration(
       const total = gridCount(grid);
       const refImages = refs.filter((r): r is { mime: string; bytes: ArrayBuffer } => r !== null);
 
-      for (let cell = startCell; cell < total; cell += 1) {
+      // 单格重发只跑一格；补格/全新批跑 startCell..total
+      const loopStart = cellIndex !== undefined ? cellIndex : startCell;
+      const loopEnd = cellIndex !== undefined ? cellIndex + 1 : total;
+      for (let cell = loopStart; cell < loopEnd; cell += 1) {
         markPhase(taskId, 'generating');
-        markProgress(taskId, cell / total);
+        // 单格任务的进度就是这一格自己的 0→1，不是 cell/total
+        markProgress(taskId, cellIndex !== undefined ? 0 : cell / total);
         const items = await adapter.generate(
           config,
           {
@@ -362,7 +443,7 @@ export async function runGeneration(
           { onPhase: () => {}, onProgress: () => {} },
         );
         for (const item of items) assets.push(await persistItem(item, taskId));
-        markProgress(taskId, (cell + 1) / total);
+        markProgress(taskId, cellIndex !== undefined ? 1 : (cell + 1) / total);
       }
     } else {
       const items = await adapter.generate(config, request, {
@@ -387,15 +468,26 @@ export async function runGeneration(
     const newIds = assets.map((a) => a.id);
     markSucceeded(taskId, newIds, cost);
 
-    // 补格时节点上要留着前几格；attachAssets 是替换语义，所以传合并后的完整列表
-    attachAssets(nodeId, [...existingIds, ...newIds]);
+    if (cellIndex !== undefined) {
+      // 单格重发：替换第 N 格，其余格不动（主图位 0 被替换时自然换新）
+      const firstNew = newIds[0];
+      if (firstNew !== undefined) {
+        attachAssets(nodeId, replaceCell(node.derivedAssetIds ?? [], cellIndex, firstNew));
+      }
+    } else {
+      // 补格时节点上要留着前几格；attachAssets 是替换语义，所以传合并后的完整列表
+      attachAssets(nodeId, [...existingIds, ...newIds]);
+    }
 
     return { ok: true, taskId, assetIds: newIds };
   } catch (e) {
     const newIds = assets.map((a) => a.id);
-    const keptIds = [...existingIds, ...newIds];
-    // 部分成功：先把已出的挂上，再报错。顺序不能反——反了会闪一下空白
-    if (keptIds.length > 0) attachAssets(nodeId, keptIds);
+    // 单格重发失败/取消：旧格产物必须原样保留，显式不 attach（不依赖空数组守卫）
+    if (cellIndex === undefined) {
+      const keptIds = [...existingIds, ...newIds];
+      // 部分成功：先把已出的挂上，再报错。顺序不能反——反了会闪一下空白
+      if (keptIds.length > 0) attachAssets(nodeId, keptIds);
+    }
 
     // 取消不是失败：走 canceled 终态，别把「用户主动停」记成一次错误
     if (controller.signal.aborted) {

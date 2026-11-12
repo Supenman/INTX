@@ -7,7 +7,6 @@ import {
   isLongPrompt,
   nodeTitle,
   parseGrid,
-  readTaskOutcome,
   resolvePrompt,
   splitPromptSegments,
   textInputPortId,
@@ -21,9 +20,12 @@ import { useProviderStore } from '@/app/stores/providerStore';
 import { buildStoryboardPng, readAssetBytes } from '@/app/useCases/storyboardExport';
 import { BlobImage } from '@/ui/common/BlobImage';
 import { downloadBlob, downloadBytes } from '@/ui/common/download';
+import { GenerateResult } from './GenerateResult';
 import { NodeHoverToolbar } from './NodeHoverToolbar';
+import { ParamSelect, ParamTextInput } from './NodeParamControls';
 import { PromptEditor } from './PromptEditor';
-import { outcomeCopy } from './outcomeCopy';
+import { StoryboardGrid } from './StoryboardGrid';
+import { TaskStatusLine } from './TaskStatusLine';
 
 /**
  * 通用节点渲染。
@@ -157,6 +159,17 @@ export const CanvasNode = memo(function CanvasNode({ id, data, selected }: NodeP
 
   const outputKind = typeof node.params.outputKind === 'string' ? node.params.outputKind : 'image';
   const busy = task?.status === 'running' || task?.status === 'queued';
+  // options 以节点定义为准（builtins 是唯一来源），卡片不另抄一份选项列表。
+  const selectOptions = (paramId: string) => {
+    const spec = def.params.find((p) => p.id === paramId);
+    return spec?.kind === 'select' ? spec.options : [];
+  };
+  const outputKindOptions = selectOptions('outputKind');
+  const aspectRatioOptions = selectOptions('aspectRatio');
+  const gridOptions = selectOptions('grid');
+  const countOptions = selectOptions('count');
+  const cellRatioOptions =
+    def.kind === 'storyboard' ? selectOptions('aspectRatio') : aspectRatioOptions;
 
   // 节点是固定尺寸容器：不用 min-height，否则出图后长高会盖住下方节点，
   // 用户点自己的按钮实际点到别人的卡片上（表现为「点了没反应」）。
@@ -321,30 +334,41 @@ export const CanvasNode = memo(function CanvasNode({ id, data, selected }: NodeP
             >
               {isLongPrompt(effectivePrompt) ? '放大编辑 · 内容较长' : '放大编辑'}
             </button>
-            {primary ? (
-              <div className="node-result">
-                <BlobImage entry={primary} />
-              </div>
-            ) : (
-              // 节点高度是固定的（出图前后不能变），没产物时给一个占位框，
-              // 否则卡片下半截是一大片说不出所以然的空白。
-              <div className="node-result empty">
-                <span className="node-empty">还没有产物</span>
-              </div>
-            )}
-            <div className="node-field">
-              <span>产出</span>
-              <b>{outputKind}</b>
-            </div>
+            <GenerateResult
+              nodeId={id}
+              primary={primary}
+              derived={derived}
+              title={nodeTitle(node, def.title)}
+              onError={reportExportError}
+            />
+            <ParamSelect
+              label="产出"
+              value={outputKind}
+              options={outputKindOptions}
+              disabled={busy}
+              onChange={(v) => setNodeParam(id, 'outputKind', v)}
+            />
             {outputKind !== 'image' && (
               <div className="node-empty" title="当前只实现了图片生成适配器">
                 演示厂商只出图片，选「{outputKind}」不会产出对应媒体
               </div>
             )}
-            <div className="node-field">
-              <span>宽高比</span>
-              <b>{String(node.params.aspectRatio ?? '1:1')}</b>
-            </div>
+            <ParamSelect
+              label="宽高比"
+              value={String(node.params.aspectRatio ?? '1:1')}
+              options={aspectRatioOptions}
+              disabled={busy}
+              onChange={(v) => setNodeParam(id, 'aspectRatio', v)}
+            />
+            {outputKind === 'image' && (
+              <ParamSelect
+                label="张数"
+                value={String(node.params.count ?? '1')}
+                options={countOptions}
+                disabled={busy}
+                onChange={(v) => setNodeParam(id, 'count', v)}
+              />
+            )}
             {busy ? (
               <button className="node-generate-btn nodrag danger-btn" onClick={() => onCancel(id)}>
                 取消
@@ -365,34 +389,35 @@ export const CanvasNode = memo(function CanvasNode({ id, data, selected }: NodeP
 
         {node.defKind === 'storyboard' && (
           <>
-            <div className="node-prompt">
-              一段分镜文本，按宫格拆成 N 张图
-              <span className="node-field-inline">
-                {String(node.params.grid ?? '2x2')} · {String(node.params.aspectRatio ?? '1:1')}
-              </span>
-            </div>
-            {derived.length > 0 && (
-              <div
-                className="node-grid"
-                style={{ gridTemplateColumns: `repeat(${parseGrid(String(node.params.grid ?? '2x2')).cols}, 1fr)` }}
-              >
-                {derived.map((entry, i) =>
-                  entry ? (
-                    <div className="grid-cell" key={entry.asset.id}>
-                      <BlobImage entry={entry} />
-                      <span>{i + 1}</span>
-                      <button
-                        className="grid-cell-save nodrag"
-                        title={`另存第 ${i + 1} 格`}
-                        onClick={() => void saveCell(entry.asset.id, i)}
-                      >
-                        ↓
-                      </button>
-                    </div>
-                  ) : null,
-                )}
-              </div>
-            )}
+            <div className="node-prompt">一段分镜文本，按宫格拆成 N 张图</div>
+            <ParamSelect
+              label="宫格"
+              value={String(node.params.grid ?? '2x2')}
+              options={gridOptions}
+              disabled={busy}
+              onChange={(v) => setNodeParam(id, 'grid', v)}
+            />
+            <ParamSelect
+              label="单格比例"
+              value={String(node.params.aspectRatio ?? '1:1')}
+              options={cellRatioOptions}
+              disabled={busy}
+              onChange={(v) => setNodeParam(id, 'aspectRatio', v)}
+            />
+            <ParamTextInput
+              label="画风"
+              value={typeof node.params.style === 'string' ? node.params.style : ''}
+              placeholder="可选"
+              disabled={busy}
+              onChange={(v) => setNodeParam(id, 'style', v)}
+            />
+            <StoryboardGrid
+              derived={derived}
+              grid={String(node.params.grid ?? '2x2')}
+              busy={busy}
+              onSaveCell={(assetId, i) => void saveCell(assetId, i)}
+              onRetryCell={(i) => onGenerate(id, { cellIndex: i })}
+            />
             <div className="node-actions">
               {busy ? (
                 <button className="node-generate-btn nodrag danger-btn" onClick={() => onCancel(id)}>
@@ -417,7 +442,16 @@ export const CanvasNode = memo(function CanvasNode({ id, data, selected }: NodeP
           </>
         )}
 
-        <TaskStatusLine task={task} nodeId={id} onGenerate={onGenerate} />
+        <TaskStatusLine
+          task={task}
+          nodeId={id}
+          onGenerate={onGenerate}
+          canResume={
+            node.defKind === 'storyboard' &&
+            derived.length < parseGrid(String(node.params.grid ?? '2x2')).total
+          }
+          canRegenerate={node.defKind === 'generate'}
+        />
       </div>
 
       {/*
@@ -465,98 +499,4 @@ function incomingText(
     if (t) parts.push(t);
   }
   return parts.join('\n');
-}
-
-function TaskStatusLine({
-  task,
-  nodeId,
-  onGenerate,
-}: {
-  task: ReturnType<typeof latestTaskForNode>;
-  nodeId: string;
-  onGenerate: (nodeId: string, options?: RunGenerationOptions) => void;
-}) {
-  if (!task) return null;
-
-  if (task.status === 'running') {
-    const hasProgress = task.upstreamProgress !== null;
-    return (
-      <div className="node-status">
-        <span style={{ color: 'var(--accent)' }}>{phaseLabel(task.phase)}</span>
-        <span className={`bar${hasProgress ? '' : ' indeterminate'}`}>
-          <i style={hasProgress ? { width: `${Math.round(task.upstreamProgress! * 100)}%` } : undefined} />
-        </span>
-        {hasProgress && <span style={{ fontFamily: 'var(--mono)' }}>{Math.round(task.upstreamProgress! * 100)}%</span>}
-      </div>
-    );
-  }
-
-  if (task.status === 'failed') {
-    /**
-     * 失败态只查 domain 算出来的三态，不在渲染里按错误码分支。
-     * 之前 submission_uncertain 是这里的一个特判，加一个码就要改一次 UI；
-     * 现在新增错误码只改 `domain/task/outcome.ts`，文案只改 outcomeCopy.ts。
-     */
-    const outcome = readTaskOutcome(task);
-    const copy = outcomeCopy(outcome);
-    return (
-      <div className="node-status failed" title={copy.hint}>
-        <span className="err-text">
-          {copy.badge} {task.error?.message ?? '失败'}
-        </span>
-        {copy.action && (
-          <button
-            className="link-btn nodrag"
-            onClick={() => {
-              // 点了确认就真的跑一次，而且只补缺失的分镜格。
-              // 以前只把状态改回 queued：busy 判定会把按钮变成「取消」，
-              // 用户永远点不到执行，任务就那么卡着。
-              onGenerate(nodeId, { resume: true });
-            }}
-          >
-            {copy.action}
-          </button>
-        )}
-      </div>
-    );
-  }
-
-  if (task.status === 'succeeded') {
-    return (
-      <div className="node-status" style={{ color: 'var(--ok)' }}>
-        <span>✓ 完成（第 {task.attempt} 次）</span>
-      </div>
-    );
-  }
-
-  if (task.status === 'queued') {
-    return (
-      <div className="node-status" style={{ color: 'var(--warn)' }}>
-        <span>排队中</span>
-      </div>
-    );
-  }
-
-  if (task.status === 'canceled') {
-    return (
-      <div className="node-status canceled" title={task.error?.message}>
-        <span>已取消{task.error ? ` · ${task.error.message}` : ''}</span>
-      </div>
-    );
-  }
-
-  return null;
-}
-
-function phaseLabel(phase: string | null): string {
-  switch (phase) {
-    case 'submitting':
-      return '提交中';
-    case 'generating':
-      return '生成中';
-    case 'downloading':
-      return '下载中';
-    default:
-      return '处理中';
-  }
 }

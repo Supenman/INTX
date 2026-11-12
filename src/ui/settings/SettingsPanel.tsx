@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { ModelSpec, ProviderCapability, ProviderConfig } from '@/domain';
 import { adapterFor } from '@/infra/provider';
 import { useProviderStore } from '@/app/stores/providerStore';
+import { PanelMask } from '@/ui/common/PanelMask';
 
 /**
  * 厂商设置。
@@ -72,11 +73,11 @@ export function SettingsPanel({ onClose, onSaved }: { onClose: () => void; onSav
   }
 
   return (
-    <div className="panel-mask" onClick={onClose}>
-      <div className="panel" onClick={(e) => e.stopPropagation()}>
+    <PanelMask onClose={onClose}>
+      <div className="panel" role="dialog" aria-label="厂商设置">
         <header className="panel-head">
           <h2>厂商设置</h2>
-          <button className="icon-btn" onClick={onClose} aria-label="关闭">
+          <button className="icon-btn" onClick={onClose} aria-label="关闭" title="关闭 (Esc)">
             ×
           </button>
         </header>
@@ -184,7 +185,7 @@ export function SettingsPanel({ onClose, onSaved }: { onClose: () => void; onSav
           </div>
         </div>
       </div>
-    </div>
+    </PanelMask>
   );
 }
 

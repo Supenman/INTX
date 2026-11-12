@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { recentAssets, softDelete, useAssetStore, type AssetEntry } from '@/app/stores/assetStore';
 import { BlobImage } from '@/ui/common/BlobImage';
+import { PanelMask } from '@/ui/common/PanelMask';
 import { placeOnCanvas } from '@/ui/common/placeOnCanvas';
 import { MaterialEditor } from './MaterialEditor';
 
@@ -43,8 +44,8 @@ export function AssetLibrary() {
         ))}
       </div>
       {preview && (
-        <div className="panel-mask" onClick={() => setPreview(null)}>
-          <div className="preview" onClick={(ev) => ev.stopPropagation()}>
+        <PanelMask onClose={() => setPreview(null)} escDisabled={editing !== null}>
+          <div className="preview" role="dialog" aria-label="素材预览">
             <BlobImage entry={preview} />
             <div className="preview-bar">
               <span className="mono small">{preview.asset.hash.slice(0, 10)}</span>
@@ -77,7 +78,7 @@ export function AssetLibrary() {
               </button>
             </div>
           </div>
-        </div>
+        </PanelMask>
       )}
       {editor}
     </>
@@ -86,7 +87,16 @@ export function AssetLibrary() {
 
 function AssetThumb({ entry, onOpen }: { entry: AssetEntry; onOpen: () => void }) {
   return (
-    <button className="asset-thumb" onClick={onOpen} title={entry.asset.path}>
+    <button
+      className="asset-thumb"
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData('application/x-intx-asset', entry.asset.id);
+        e.dataTransfer.effectAllowed = 'copy';
+      }}
+      onClick={onOpen}
+      title={`${entry.asset.path}（点击预览，或拖到画布）`}
+    >
       <BlobImage entry={entry} />
     </button>
   );

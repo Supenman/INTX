@@ -91,6 +91,12 @@ export interface GenerationParams {
   aspectRatio?: string;
   resolution?: string;
   durationSec?: number;
+  /**
+   * 本次实际向上游请求的张数（口径=请求数，不是产物数）。
+   * 全新批=格数/张数、补格=剩余格数、单格重发=1。
+   * 不要拿它当 resultCount 用：部分失败时两者不相等。
+   */
+  count?: number;
   /** 厂商特定参数，键值对由适配器解释 */
   extras?: Readonly<Record<string, string | number | boolean>>;
 }
@@ -182,6 +188,7 @@ function freezeParams(p: GenerationParams): GenerationParams {
   if (p.aspectRatio !== undefined) out.aspectRatio = p.aspectRatio;
   if (p.resolution !== undefined) out.resolution = p.resolution;
   if (p.durationSec !== undefined) out.durationSec = p.durationSec;
+  if (p.count !== undefined) out.count = p.count;
   if (p.extras !== undefined) out.extras = Object.freeze({ ...p.extras });
   return out;
 }

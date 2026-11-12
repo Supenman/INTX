@@ -11,7 +11,7 @@
  *    这类通用产品才需要的可配置项。
  */
 
-export type ToolbarId = 'main' | 'selection' | 'node-hover' | 'add-node-menu';
+export type ToolbarId = 'main' | 'selection' | 'node-hover' | 'add-node-menu' | 'node-context-menu';
 
 export type ToolCategory = 'navigation' | 'edit' | 'layout' | 'selection' | 'node' | 'danger';
 
@@ -41,6 +41,8 @@ export interface ToolContext {
   demoMode: boolean;
   /** 节点悬浮工具栏专用；其余工具栏传 null。 */
   node: ToolNodeContext | null;
+  /** 右键菜单命中的节点 id；空白处右键为 null。多选右键时指向被点的那个。 */
+  contextNodeId?: string | null;
 }
 
 export interface ToolSwitchOption {
@@ -71,6 +73,8 @@ export interface ToolDefinition {
   applicable?: (ctx: ToolContext) => boolean;
   disabled?: (ctx: ToolContext) => boolean;
   active?: (ctx: ToolContext) => boolean;
+  /** 菜单类工具：label 里的 {n} 替换成选中数量（「删除 3 个节点」）。 */
+  countLabel?: boolean;
 }
 
 export interface ToolbarPrefs {

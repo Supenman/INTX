@@ -17,6 +17,7 @@ import { probeUpscalers } from '@/infra/upscale';
 import { saveCrop, saveMask, type MaskStroke } from '@/app/useCases/materialEdit';
 import { upscaleAsset } from '@/app/useCases/upscaleAsset';
 import { downloadBlob } from '@/ui/common/download';
+import { PanelMask } from '@/ui/common/PanelMask';
 
 /**
  * 素材编辑器：裁切 + 遮罩 + 放大。
@@ -277,12 +278,12 @@ export function MaterialEditor({ entry, onClose }: { entry: AssetEntry; onClose:
         : `放大 ${upscaleScale}× 并存为新素材`;
 
   return (
-    <div className="panel-mask" onClick={onClose}>
-      <div className="material-editor" onClick={(ev) => ev.stopPropagation()}>
+    <PanelMask onClose={onClose}>
+      <div className="material-editor" role="dialog" aria-label="素材编辑">
         <header className="material-head">
           <strong>素材编辑</strong>
           <span className="mono small">{size.width ? `${size.width}×${size.height}` : '…'}</span>
-          <button className="icon-btn" onClick={onClose} aria-label="关闭">
+          <button className="icon-btn" onClick={onClose} aria-label="关闭" title="关闭 (Esc)">
             ×
           </button>
         </header>
@@ -414,6 +415,6 @@ export function MaterialEditor({ entry, onClose }: { entry: AssetEntry; onClose:
           </button>
         </div>
       </div>
-    </div>
+    </PanelMask>
   );
 }

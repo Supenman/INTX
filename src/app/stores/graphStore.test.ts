@@ -2,16 +2,19 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { registerNode, unregisterNode, builtinNodes } from '@/domain';
 import {
   addNode,
+  attachAssets,
   connectNodes,
   hydrateGraph,
   moveNode,
   removeNodes,
   renameNodesByPattern,
   resetGraph,
+  selectPrimaryAsset,
   setNodeParam,
   setNodeTitle,
   useGraphStore,
 } from './graphStore';
+import { clearHistory, useHistoryStore } from './historyStore';
 
 function seed() {
   for (const d of builtinNodes) registerNode(d);
@@ -213,5 +216,45 @@ describe('节点改名', () => {
     const id = addNode({ defKind: 'generate', position: { x: 0, y: 0 } });
     expect(renameNodesByPattern([id, 'ghost'], '图 #')).toBe(1);
     expect(state().nodes[id]!.title).toBe('图 01');
+  });
+});
+
+describe('selectPrimaryAsset', () => {
+  beforeEach(() => {
+    resetGraph();
+    clearHistory();
+  });
+
+  it('从本节点产物里选主图，进撤销历史，换引用触发保存', () => {
+    const id = addNode({ defKind: 'generate', position: { x: 0, y: 0 } });
+    attachAssets(id, ['a1', 'a2', 'a3']);
+    clearHistory();
+    const before = state().nodes;
+    selectPrimaryAsset(id, 'a2');
+    expect(state().nodes[id]!.assetId).toBe('a2');
+    expect(state().nodes[id]!.derivedAssetIds).toEqual(['a1', 'a2', 'a3']);
+    expect(state().nodes).not.toBe(before); // 换引用，自动保存/memo 才触发
+    expect(useHistoryStore.getState().past).toHaveLength(1);
+  });
+
+  it('非本节点产物 → 拒绝，不动历史', () => {
+    const id = addNode({ defKind: 'generate', position: { x: 0, y: 0 } });
+    attachAssets(id, ['a1']);
+    clearHistory();
+    selectPrimaryAsset(id, 'not-mine');
+    expect(state().nodes[id]!.assetId).toBe('a1');
+    expect(useHistoryStore.getState().past).toHaveLength(0);
+  });
+
+  it('同值 → no-op，不记历史', () => {
+    const id = addNode({ defKind: 'generate', position: { x: 0, y: 0 } });
+    attachAssets(id, ['a1', 'a2']);
+    clearHistory();
+    selectPrimaryAsset(id, 'a1');
+    expect(useHistoryStore.getState().past).toHaveLength(0);
+  });
+
+  it('不存在的节点 → 不抛错', () => {
+    expect(() => selectPrimaryAsset('ghost', 'a1')).not.toThrow();
   });
 });

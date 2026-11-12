@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { expandBatchTitle, sortForExport } from '@/domain';
 import { renameNodesByPattern, useGraphStore } from '@/app/stores/graphStore';
+import { PanelMask } from '@/ui/common/PanelMask';
 
 /**
  * 批量改名。
@@ -49,12 +50,7 @@ export function useBatchRename(selectedIds: string[], onDone: (message: string) 
 
   const node = open
     ? createPortal(
-        <div
-          className="panel-mask"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) close();
-          }}
-        >
+        <PanelMask onClose={close}>
           <div className="panel batch-rename" role="dialog" aria-label="批量重命名">
             <div className="panel-head">
               <h2>批量重命名</h2>
@@ -108,7 +104,7 @@ export function useBatchRename(selectedIds: string[], onDone: (message: string) 
               </button>
             </div>
           </div>
-        </div>,
+        </PanelMask>,
         document.body,
       )
     : null;
