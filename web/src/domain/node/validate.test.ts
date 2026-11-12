@@ -1,0 +1,128 @@
+import { describe, expect, it } from 'vitest';
+import {
+  checkPrompt,
+  checkRequiredInputs,
+  localTextFor,
+  resolvePrompt,
+  textInputPortId,
+  type ConnectionLookup,
+} from './validate';
+import { generateNode, storyboardNode } from './builtins';
+import type { ProjectNode } from '../schema/project';
+
+function node(partial: Partial<ProjectNode>): ProjectNode {
+  return {
+    id: 'n1',
+    defKind: generateNode.kind,
+    position: { x: 0, y: 0 },
+    size: { width: 300, height: 200 },
+    params: {},
+    ...partial,
+  };
+}
+
+function lookup(pairs: [string, string][]): ConnectionLookup {
+  return {
+    incomingEdgeCount: (target, port) => pairs.filter(([t, p]) => t === target && p === port).length,
+  };
+}
+
+describe('提交前的连线校验', () => {
+  it('必填口没连上时明确指出是哪个口', () => {
+    const issues = checkRequiredInputs(node({}), generateNode, lookup([]));
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.portId).toBe('prompt');
+    expect(issues[0]?.message).toContain('提示词');
+  });
+
+  it('可选口没连不算问题', () => {
+    const issues = checkRequiredInputs(node({}), generateNode, lookup([['n1', 'prompt']]));
+    expect(issues).toEqual([]);
+  });
+
+  it('接口连对了但节点选错了端口时仍然报错（端口 id 必须精确匹配）', () => {
+    const issues = checkRequiredInputs(node({}), generateNode, lookup([['n1', 'reference']]));
+    expect(issues.map((i) => i.portId)).toEqual(['prompt']);
+  });
+
+  it('分镜节点的必填口是分镜文本，不是源图', () => {
+    const issues = checkRequiredInputs(
+      node({ defKind: 'storyboard' }),
+      storyboardNode,
+      lookup([]),
+    );
+    expect(issues.map((i) => i.portId)).toEqual(['script']);
+  });
+});
+
+/**
+ * 这条是 v2.7 真机点出来的：用户在生成节点里写了提示词、点生成，
+ * 被告知「必填输入「提示词」还没有连上」——而那句话就写在他刚打完字的
+ * 框下面。根因是必填校验只认连线。
+ */
+describe('本地参数可以顶替必填口', () => {
+  it('生成节点自己写了提示词就算满足，不必先连线', () => {
+    const n = node({ params: { prompt: '雨夜街口' } });
+    expect(checkRequiredInputs(n, generateNode, lookup([]), { localText: localTextFor(n) })).toEqual([]);
+  });
+
+  it('只写了空白仍然算没填', () => {
+    const n = node({ params: { prompt: '   \n ' } });
+    const issues = checkRequiredInputs(n, generateNode, lookup([]), { localText: localTextFor(n) });
+    expect(issues.map((i) => i.portId)).toEqual(['prompt']);
+  });
+
+  it('分镜节点不接受本地文本顶替，必须接上游', () => {
+    const n = node({ defKind: 'storyboard', params: { script: '第一格…', prompt: '第一格…' } });
+    const issues = checkRequiredInputs(n, storyboardNode, lookup([]), { localText: localTextFor(n) });
+    expect(issues.map((i) => i.portId)).toEqual(['script']);
+  });
+
+  it('localTextFor 只认登记过的节点类型', () => {
+    expect(localTextFor(node({ defKind: 'text-input', params: { prompt: 'x' } }))).toEqual({});
+  });
+});
+
+describe('提示词来源', () => {
+  it('上游文本优先于节点自己的输入框', () => {
+    const n = node({ params: { prompt: '自己写的' } });
+    expect(resolvePrompt(n, '上游给的')).toBe('上游给的');
+  });
+
+  it('上游是空串时回退到节点自己的输入框', () => {
+    const n = node({ params: { prompt: '自己写的' } });
+    expect(resolvePrompt(n, '   ')).toBe('自己写的');
+  });
+
+  it('两边都没有时返回空串，交给 checkPrompt 报错', () => {
+    const n = node({});
+    expect(resolvePrompt(n, null)).toBe('');
+    expect(checkPrompt('')?.code).toBe('empty_param');
+    expect(checkPrompt('有内容')).toBeNull();
+  });
+
+  it('上游和本地都去掉首尾空白，避免把换行送进请求', () => {
+    const n = node({ params: { prompt: '  本地  \n' } });
+    expect(resolvePrompt(n, null)).toBe('本地');
+  });
+});
+
+describe('textInputPortId', () => {
+  it('生成节点收文本的口叫 prompt，不是文字节点的输出口 text', () => {
+    // 写错这一个是静默的：请求照样带着提示词发出去，只有卡片显示「还没有提示词」
+    expect(textInputPortId(generateNode.kind)).toBe('prompt');
+    expect(generateNode.inputPorts.some((p) => p.id === textInputPortId(generateNode.kind))).toBe(true);
+  });
+
+  it('分镜节点收文本的口叫 script', () => {
+    expect(textInputPortId(storyboardNode.kind)).toBe('script');
+    expect(storyboardNode.inputPorts.some((p) => p.id === textInputPortId(storyboardNode.kind))).toBe(true);
+  });
+
+  it('每个内置节点的文本口都能在自己的定义里找到', () => {
+    for (const def of [generateNode, storyboardNode]) {
+      const id = textInputPortId(def.kind);
+      expect(def.inputPorts.some((p) => p.id === id && p.accepts.includes('text'))).toBe(true);
+    }
+  });
+});
