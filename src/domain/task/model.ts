@@ -327,9 +327,11 @@ function classifyErrorText(raw: string): TaskError {
   const lower = raw.toLowerCase();
 
   /**
-   * 只认适配器**显式**打上的 invalid_params 标记（提交前的本地参数校验）。
-   * 不按裸 400 / "invalid" 字样猜：BeefTV v2.2.1 明确把裸状态码判为
-   * 非权威，照着套会把「提交阶段 400 参数拒绝」误判成可重试或扣费恐吓。
+   * 只认两类 invalid_params 来源，都不按裸 400 / "invalid" 字样猜——
+   * BeefTV v2.2.1 明确把裸状态码判为非权威，厂商常用 400 包住网络失败、
+   * 下载失败、余额不足等真实原因：
+   *  1. 适配器**显式**打上的标记（提交前的本地参数校验）；
+   *  2. 上游返回文案里的**可操作具体原因**（语义识别，见下方）。
    */
   /**
    * ProviderResultPendingError 若被跨层转成普通 Error，只剩这段文案。
@@ -376,6 +378,26 @@ function classifyErrorText(raw: string): TaskError {
   }
   if (lower.includes('network') || lower.includes('fetch failed') || lower.includes('econnrefused')) {
     return { code: 'network', message: '网络不可达，请检查连接' };
+  }
+  /**
+   * 语义识别「上游明确拒绝参数/素材」的中文文案（照 BeefTV v2.2.1 的
+   * isActionableParameterCopy 思路独立实现，不搬它的 50 行脱敏白名单）。
+   * 放在 timeout / 5xx / network 之后：网络类和超时优先，避免把网络抖动
+   * 误归参数错。命中条件收紧到两类，宁漏勿错——漏了顶多落到 unknown，
+   * 错了会把真实失败伪装成「改参数就行」。
+   *  1. 明确的不支持表述（不支持 / 仅支持 / 最多支持）；
+   *  2. 参数/素材话题 + 可操作动作同时出现（如「分辨率不符合要求，请更换」）。
+   * 展示仍用固定中文人话（451/unsafe 的老教训：不把英文原文糊给用户），
+   * 「第几张参考图」的结构化诊断等真机撞到需求再做。
+   */
+  const explicitUnsupported = /不支持|仅支持|最多支持/.test(raw);
+  const paramTopic = /参数|参考(图|素材)|图片|尺寸|分辨率|比例|时长|格式|模型/.test(raw);
+  const actionVerb = /更换|调整|减少|修改|去掉|缩短/.test(raw);
+  if (explicitUnsupported || (paramTopic && actionVerb)) {
+    return {
+      code: 'invalid_params',
+      message: '上游拒绝了请求中的参数或素材（尺寸、分辨率、参考图等），调整后可直接重发',
+    };
   }
   return { code: 'unknown', message: raw || '未知错误' };
 }

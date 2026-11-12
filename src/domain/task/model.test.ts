@@ -174,6 +174,29 @@ describe('normalizeError', () => {
     const e = normalizeError('some weird thing');
     expect(e.code).toBe('unknown');
   });
+
+  it('上游明确拒绝参数（400 + 可操作中文原因）→ invalid_params', () => {
+    // 真实感的厂商拒绝文案：裸 400 包着具体中文原因
+    const raw = 'HTTP 400 参数不支持：参考图片 2 分辨率不符合要求，请更换后重试';
+    expect(normalizeError(new Error(raw)).code).toBe('invalid_params');
+    // 提交阶段同样不算「可能已扣费」——上游明确拒绝了，一分钱没花
+    const submitting = normalizeError(new Error(raw), 'submitting');
+    expect(submitting.code).toBe('invalid_params');
+    expect(submitting.code).not.toBe('submission_uncertain');
+  });
+
+  it('明确「不支持」表述，不带动作词也归 invalid_params', () => {
+    expect(normalizeError(new Error('HTTP 400 该模型不支持参考图')).code).toBe('invalid_params');
+  });
+
+  it('裸 400 不猜参数错——没有可操作原因就保持 unknown', () => {
+    expect(normalizeError(new Error('HTTP 400 Bad Request')).code).not.toBe('invalid_params');
+  });
+
+  it('400 包着网络错误 → 仍归 network，不被参数语义抢先', () => {
+    // 网络类关键词优先级高于参数语义，避免把网络抖动误归「改参数就行」
+    expect(normalizeError(new Error('HTTP 400 network error while fetching')).code).toBe('network');
+  });
 });
 
 /**
