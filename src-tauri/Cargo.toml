@@ -18,3 +18,11 @@ tauri-build = { version = "2.7.4", features = [] }
 [dependencies]
 tauri = { version = "2.12.5", features = [] }
 tauri-plugin-fs = "2.7.1"
+
+# Tauri CLI 跑 `tauri build` 时会自动启用这个 feature，但裸
+# `cargo build` / `cargo xwin build` 不会。缺了它 is_dev() 恒为 true，
+# 运行时去连 devUrl(http://127.0.0.1:7351)，装到真机上就是
+# 「嗯… 无法访问此页面 / ERR_CONNECTION_REFUSED」。
+# 交叉打包必须显式带 --features custom-protocol，见 scripts/build-windows.sh。
+[features]
+custom-protocol = ["tauri/custom-protocol"]

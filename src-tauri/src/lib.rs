@@ -8,6 +8,16 @@
 //! fs 命令，scope 收在 `$APPDATA` 内。新增 fs 调用必须同步那里，
 //! `pnpm test` 里的 tauriConfig.test.ts 会校验二者是否对齐。
 
+// Release 包必须带 custom-protocol：缺了它 tauri::is_dev() 恒为 true，
+// WebView 会去连 devUrl(http://127.0.0.1:7351) 而不是嵌入的前端资源，
+// 装到真机上就是「嗯… 无法访问此页面 / ERR_CONNECTION_REFUSED」。
+// Tauri CLI 的 `tauri build` 会自动加这个 feature，裸 cargo / cargo-xwin
+// 不会（2026-11-13 真机踩过）。这里设编译期门禁，谁再漏就直接编不过。
+#[cfg(all(not(debug_assertions), not(feature = "custom-protocol")))]
+compile_error!(
+    "release 构建必须启用 custom-protocol：cargo xwin build --release --features custom-protocol"
+);
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
