@@ -45,6 +45,14 @@ export {
 export { imageTaskParams, type ImageConfigView } from './imageParams';
 
 export {
+  MAX_IMAGE_SLOTS,
+  imageSlotCount,
+  runImageSlots,
+  type ImageSlotOutcome,
+  type RunImageSlotsInput,
+} from './imageSlots';
+
+export {
   noteVideoPoll,
   resumableVideoTasks,
   submitVideoTask,

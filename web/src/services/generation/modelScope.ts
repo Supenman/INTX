@@ -24,20 +24,12 @@
  */
 import { ProviderResultPendingError } from './pendingResult';
 
+/** 端点判定只有一处实现；这里转出，既有调用方不用改 import。 */
+export { isModelScopeEndpoint } from '@/domain/provider/endpoints';
+
 /** 查单间隔与最长等待。沿用旧 INTX 真机验证过的值（用户 2026-11-13 确认）。 */
 export const MODELSCOPE_POLL_INTERVAL_MS = 5_000;
 export const MODELSCOPE_MAX_WAIT_MS = 180_000;
-
-/** 官方 API-Inference 域名。前缀必须是 api-inference，社区网页域名不算。 */
-export function isModelScopeEndpoint(baseUrl: string): boolean {
-  let host = '';
-  try {
-    host = new URL(baseUrl.trim()).hostname.toLowerCase();
-  } catch {
-    return false;
-  }
-  return /^api-inference\.modelscope\.(cn|ai)$/.test(host);
-}
 
 /** HTTP 响应的最小视图，便于注入与测试。 */
 export interface TransportResponse {

@@ -5,9 +5,10 @@ import { Button } from "antd";
 import { useTranslation } from "react-i18next";
 
 import { ImageSettingsPanel, imageQualityLabel, imageSizeLabel } from "@/components/image-settings-panel";
+import { resolveImageCapabilities } from "@/domain/provider/imageCapabilities";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
-import type { AiConfig } from "@/stores/use-config-store";
+import { resolveModelRequestConfig, resolveModelScript, type AiConfig } from "@/stores/use-config-store";
 
 type CanvasImageSettingsPopoverProps = {
     config: AiConfig;
@@ -30,6 +31,14 @@ export function CanvasImageSettingsPopover({ config, onConfigChange, onOpenChang
     const quality = config.quality || "auto";
     const count = Math.max(1, Math.min(15, Math.floor(Math.abs(Number(config.count)) || 1)));
     const activeSize = config.size || "auto";
+    // 折叠态摘要也只说渠道真会发的参数，别让用户以为质量/尺寸生效了。
+    const requestConfig = resolveModelRequestConfig(config, config.model || config.imageModel);
+    const capabilities = resolveImageCapabilities({
+        apiFormat: requestConfig.apiFormat,
+        baseUrl: requestConfig.baseUrl,
+        hasScript: Boolean(resolveModelScript(config, config.model || config.imageModel)),
+    });
+    const summary = [capabilities.quality === "supported" ? imageQualityLabel(quality) : "", capabilities.size === "supported" ? imageSizeLabel(activeSize) : "", t("canvas.controls.images", { count })].filter(Boolean).join(" · ");
     const updateOpen = (nextOpen: boolean) => {
         setOpen(nextOpen);
         onOpenChange?.(nextOpen);
@@ -64,9 +73,7 @@ export function CanvasImageSettingsPopover({ config, onConfigChange, onOpenChang
         <>
             <span ref={buttonRef} className="inline-flex min-w-0">
                 <Button size="small" type="text" className={buttonClassName || "!h-8 !max-w-[180px] !justify-start !rounded-full !px-2.5"} style={{ background: theme.node.fill, color: theme.node.text }} icon={<Settings2 className="size-3.5" />} onClick={() => updateOpen(!open)}>
-                    <span className="truncate">
-                        {imageQualityLabel(quality)} · {imageSizeLabel(activeSize)} · {t("canvas.controls.images", { count })}
-                    </span>
+                    <span className="truncate">{summary}</span>
                 </Button>
             </span>
             {panel}

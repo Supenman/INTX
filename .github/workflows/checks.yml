@@ -1,0 +1,51 @@
+name: Checks
+
+# 日常门禁：类型、domain / 生成链路测试、依赖边界、构建。
+# 只跑这几个面，不进 E2E、不发任何厂商请求（测试全是 mock）。
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+  schedule:
+    # 每天一次，份外提醒：没人提交时依赖或环境悄悄坏掉也能发现
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.2
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm exec tsc --noEmit
+
+      - name: Domain and generation tests
+        run: pnpm exec vitest run src/domain src/services/generation
+
+      - name: Dependency boundaries
+        run: node scripts/check-boundaries.mjs
+
+      - name: Build
+        run: pnpm exec vite build

@@ -22,6 +22,7 @@ import {
     type SubmitHooks,
 } from "@/services/generation";
 import { browserModelScopeTransport } from "./modelscope-transport";
+import { resolveImageCapabilities } from "@/domain/provider/imageCapabilities";
 
 const apiText = (key: string, options?: Record<string, unknown>) => i18n.t(`apiErrors.${key}`, options);
 
@@ -719,6 +720,23 @@ export async function requestGeneration(config: AiConfig, prompt: string, option
 }
 
 /**
+ * 单图入口：画布节点、遮罩、角度、重试和工作台槽位都走它。
+ *
+ * 一次只要一张，所以强制 `count: "1"`——多张由 `runImageSlots` 逐张提交，
+ * 不能让某个调用点顺手拿到 N 张再把多余的丢掉（那是白付的钱）。
+ * 有参考图就进编辑链路，没有就进生成链路；两条链路内部仍过任务三态。
+ */
+export async function requestSingleImage(config: AiConfig, prompt: string, references: ReferenceImage[] = [], options?: RequestOptions) {
+    const single = { ...config, count: "1" };
+    const items = references.length
+        ? await requestEdit(single, prompt, references, options)
+        : await requestGeneration(single, prompt, options);
+    const image = items[0];
+    if (!image) throw new Error(apiText("noImageReturned"));
+    return image;
+}
+
+/**
  * 端点说了算：baseUrl 是 ModelScope API-Inference 官方域名时，无论渠道的
  * 协议下拉框写的是 openai 还是别的，都走异步提交 + 查单（旧 INTX 真机第二次
  * 反馈：用户新建渠道时协议默认 OpenAI，请求落回同步分支，只拿到 task_id）。
@@ -759,10 +777,12 @@ async function requestGenerationRaw(config: AiConfig, prompt: string, options?: 
     }
     const n = Math.max(1, Math.min(15, Math.floor(Math.abs(Number(config.count)) || 1)));
     const script = resolveModelScript(config, config.model || config.imageModel);
+    // 参数发不发由能力合同决定，和设置面板读的是同一份事实。
+    const capabilities = resolveImageCapabilities({ apiFormat: requestConfig.apiFormat, baseUrl: requestConfig.baseUrl, hasScript: Boolean(script) });
     if (script) {
-        const quality = normalizeQuality(config.quality);
-        const requestSize = resolveRequestSize(config.size);
-        const background = normalizeBackground(config.background);
+        const quality = capabilities.quality === "supported" ? normalizeQuality(config.quality) : undefined;
+        const requestSize = capabilities.size === "supported" ? resolveRequestSize(config.size) : undefined;
+        const background = capabilities.background === "supported" ? normalizeBackground(config.background) : undefined;
         try {
             const result = await runModelPlugin({
                 capability: "image",
@@ -785,9 +805,9 @@ async function requestGenerationRaw(config: AiConfig, prompt: string, options?: 
             throw new Error(readAxiosError(error, apiText("requestFailed")));
         }
     }
-    const quality = normalizeQuality(config.quality);
-    const requestSize = resolveRequestSize(config.size);
-    const background = normalizeBackground(config.background);
+    const quality = capabilities.quality === "supported" ? normalizeQuality(config.quality) : undefined;
+    const requestSize = capabilities.size === "supported" ? resolveRequestSize(config.size) : undefined;
+    const background = capabilities.background === "supported" ? normalizeBackground(config.background) : undefined;
     try {
         const response = await axios.post<ImageApiResponse>(
             aiApiUrl(requestConfig, "/images/generations"),
@@ -843,10 +863,11 @@ async function requestEditRaw(config: AiConfig, prompt: string, references: Refe
     const n = Math.max(1, Math.min(15, Math.floor(Math.abs(Number(config.count)) || 1)));
     const requestPrompt = buildImageReferencePromptText(prompt, references);
     const script = resolveModelScript(config, config.model || config.imageModel);
+    const capabilities = resolveImageCapabilities({ apiFormat: requestConfig.apiFormat, baseUrl: requestConfig.baseUrl, hasScript: Boolean(script) });
     if (script) {
-        const quality = normalizeQuality(config.quality);
-        const requestSize = resolveRequestSize(config.size);
-        const background = normalizeBackground(config.background);
+        const quality = capabilities.quality === "supported" ? normalizeQuality(config.quality) : undefined;
+        const requestSize = capabilities.size === "supported" ? resolveRequestSize(config.size) : undefined;
+        const background = capabilities.background === "supported" ? normalizeBackground(config.background) : undefined;
         const refs = await Promise.all(references.map((image) => imageToDataUrl(image)));
         try {
             const result = await runModelPlugin({
@@ -871,9 +892,9 @@ async function requestEditRaw(config: AiConfig, prompt: string, references: Refe
         }
     }
 
-    const quality = normalizeQuality(config.quality);
-    const requestSize = resolveRequestSize(config.size);
-    const background = normalizeBackground(config.background);
+    const quality = capabilities.quality === "supported" ? normalizeQuality(config.quality) : undefined;
+    const requestSize = capabilities.size === "supported" ? resolveRequestSize(config.size) : undefined;
+    const background = capabilities.background === "supported" ? normalizeBackground(config.background) : undefined;
     const formData = new FormData();
     formData.set("model", requestConfig.model);
     formData.set("prompt", withSystemPrompt(requestConfig, requestPrompt));
