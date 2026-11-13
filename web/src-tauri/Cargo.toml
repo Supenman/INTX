@@ -1,0 +1,29 @@
+[package]
+name = "intx"
+version = "0.20.0"
+description = "INTX — 本地优先的 AI 创作画布"
+authors = ["INTX"]
+edition = "2021"
+rust-version = "1.90"
+
+# 桌面壳只负责开窗口。业务数据（画布、任务、产物）全在前端的
+# IndexedDB / localforage 里，Rust 侧不重复实现一套存储，也不碰厂商请求。
+[lib]
+name = "intx_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7.4", features = [] }
+
+[dependencies]
+tauri = { version = "2.12.5", features = [] }
+# 桌面 WebView 同样执行 CORS 预检，ModelScope 的 X-ModelScope-Async-Mode
+# 不在其允许头里，直连必被拦。厂商请求改走 Rust 侧（reqwest），彻底绕开跨域。
+tauri-plugin-http = "2.5.0"
+
+# 打包走 `pnpm tauri:build`：CLI 会传 `--features tauri/custom-protocol`，
+# 等价于打开这个 feature。裸 `cargo build --release` 不会，运行时 is_dev()
+# 恒为 true、去连 devUrl，装到真机上就是 ERR_CONNECTION_REFUSED（旧 INTX
+# 真机踩过）。lib.rs 的启动检查会把这种包拦下来并给出明确报错。
+[features]
+custom-protocol = ["tauri/custom-protocol"]

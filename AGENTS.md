@@ -110,3 +110,4 @@
 - domain 层保持零 IO、零 React（纯函数 + 纯类型），测试用 vitest（`pnpm exec vitest run src/domain`）；上游 tests/ 用 bun test，两套并存。
 - 验证命令（Windows 本机 corepack 有坑）：`COREPACK_INTEGRITY_KEYS=0 corepack pnpm@10.28.2 ...`；pnpm 11 与本机老 corepack 不兼容，必须钉 10.28.2。
 - **ModelScope 在浏览器里必须开本地代理**：`api-inference.modelscope.cn` 的 CORS 预检只允许 `Content-Type` / `Authorization` 等，不允许 `X-ModelScope-Async-Mode`。直连时 POST 在预检阶段就被浏览器拦掉，节点显示 `submission_uncertain`（「可能已提交（没等到回复）」），但请求实际没发出、不会扣费。用 ModelScope 前先跑 `npx @basketikun/canvas-proxy@latest`，在「设置 → 本地代理」打开开关并测试连接。
+- **桌面壳（Tauri）不需要本地代理**：`web/src-tauri` 挂了 `tauri-plugin-http`，ModelScope 的提交/查单/取图在桌面端经 `modelscope-transport.ts` 走 Rust 侧请求，没有 CORS 预检。浏览器与桌面两条路径都要保留，改动 transport 时两边都别退化。桌面版已真机验证：关代理可直接出图（2026-11-14）。
