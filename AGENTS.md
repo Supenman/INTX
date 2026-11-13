@@ -109,3 +109,4 @@
 - BeefTV 仅作设计参考（Source Available Part A），**禁止复制其代码**；infinite-canvas 上游代码可按 MIT 复用，保留署名。许可边界见 `THIRD_PARTY_NOTICES.md`。
 - domain 层保持零 IO、零 React（纯函数 + 纯类型），测试用 vitest（`pnpm exec vitest run src/domain`）；上游 tests/ 用 bun test，两套并存。
 - 验证命令（Windows 本机 corepack 有坑）：`COREPACK_INTEGRITY_KEYS=0 corepack pnpm@10.28.2 ...`；pnpm 11 与本机老 corepack 不兼容，必须钉 10.28.2。
+- **ModelScope 在浏览器里必须开本地代理**：`api-inference.modelscope.cn` 的 CORS 预检只允许 `Content-Type` / `Authorization` 等，不允许 `X-ModelScope-Async-Mode`。直连时 POST 在预检阶段就被浏览器拦掉，节点显示 `submission_uncertain`（「可能已提交（没等到回复）」），但请求实际没发出、不会扣费。用 ModelScope 前先跑 `npx @basketikun/canvas-proxy@latest`，在「设置 → 本地代理」打开开关并测试连接。
