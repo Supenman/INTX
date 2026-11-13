@@ -74,6 +74,9 @@ function isAbort(error: unknown, signal?: AbortSignal): boolean {
  * 完整跑一次并回传任务与三态结论。测试用这个；基座薄壳用 `runWithTask`。
  */
 export async function inspectRunWithTask<T>(input: RunWithTaskInput<T>): Promise<TaskRunResult<T>> {
+  // 提交开始那一刻的取消状态。之后「取消」是否等于「请求没发出去」，
+  // 全靠这个快照区分：提交前取消 → 一定没扣钱；提交中才取消 → 不知道。
+  const abortedBeforeSubmit = input.signal?.aborted === true;
   const log = input.log ?? browserTaskLog;
   let task = log.create({
     kind: input.params.kind,
@@ -121,8 +124,12 @@ export async function inspectRunWithTask<T>(input: RunWithTaskInput<T>): Promise
       });
     }
 
-    if (isAbort(error, input.signal)) {
-      // 用户主动取消 / 请求没发出去：没扣钱，直接重发是安全的
+    if (abortedBeforeSubmit && isAbort(error, input.signal)) {
+      // 提交前就取消 / 请求没发出去：没扣钱，直接重发是安全的。
+      // 提交过程中才取消（abortedBeforeSubmit=false）绝不能走这里：那时 POST
+      // 可能已被上游收单计费，标 canceled 会被判 not_charged/allowed，诱导
+      // 用户再买一张。让它落到下面的 normalizeError('submitting') →
+      // submission_uncertain → failed / confirm。
       task = commit(log, task, 'canceled', {
         error: { code: 'unknown', message: '已取消' },
       });

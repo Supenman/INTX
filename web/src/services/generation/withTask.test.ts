@@ -106,6 +106,32 @@ describe('其他失败按 normalizeError 三态收敛', () => {
     expect(readTaskOutcome(onlyTask(log))?.regenerate).toBe('confirm');
   });
 
+  it('提交过程中取消（还没拿到任务号）→ submission_uncertain / confirm，不退化成 allowed', async () => {
+    // 请求已发出、响应没回来时用户取消：这一 abort 只说明本地不再等待，
+    // POST 可能已被上游收单计费。旧逻辑 isAbort 抢先判 canceled/allowed，
+    // 等于告诉用户「没扣钱，直接重发」——重发就是再买一张。
+    const controller = new AbortController();
+    const log = createMemoryTaskLog();
+    await expect(
+      inspectRunWithTask({
+        params,
+        log,
+        signal: controller.signal,
+        submit: () => {
+          controller.abort();
+          return Promise.reject(new DOMException('Aborted', 'AbortError'));
+        },
+      }),
+    ).rejects.toThrow();
+    const task = onlyTask(log);
+    expect(task.status).toBe('failed');
+    expect(task.error?.code).toBe('submission_uncertain');
+    expect(readTaskOutcome(task)).toMatchObject({
+      regenerate: 'confirm',
+      reason: 'submission_unknown',
+    });
+  });
+
   it('取消 → canceled / allowed，且不留 upstreamRef', async () => {
     const controller = new AbortController();
     controller.abort();
