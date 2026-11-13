@@ -12,10 +12,16 @@ import type { ReferenceImage } from "@/types/image";
 import {
     ProviderResultPendingError,
     classifyImagePayload,
+    generateModelScopeImages,
     imageTaskParams,
+    isModelScopeEndpoint,
     pendingResultFrom,
+    pollModelScopeTask,
+    readUpstreamTaskId,
     runWithTask,
+    type SubmitHooks,
 } from "@/services/generation";
+import { browserModelScopeTransport } from "./modelscope-transport";
 
 const apiText = (key: string, options?: Record<string, unknown>) => i18n.t(`apiErrors.${key}`, options);
 
@@ -706,14 +712,51 @@ function parseGeminiImagePayload(payload: GeminiPayload) {
 export async function requestGeneration(config: AiConfig, prompt: string, options?: RequestOptions) {
     return runWithTask({
         params: imageTaskParams(config, prompt, [], false),
-        submit: () => requestGenerationRaw(config, prompt, options),
+        submit: (hooks) => requestGenerationRaw(config, prompt, options, hooks),
         signal: options?.signal,
         resultIds: (items) => items.map((item) => item.id),
     });
 }
 
-async function requestGenerationRaw(config: AiConfig, prompt: string, options?: RequestOptions) {
+/**
+ * 端点说了算：baseUrl 是 ModelScope API-Inference 官方域名时，无论渠道的
+ * 协议下拉框写的是 openai 还是别的，都走异步提交 + 查单（旧 INTX 真机第二次
+ * 反馈：用户新建渠道时协议默认 OpenAI，请求落回同步分支，只拿到 task_id）。
+ */
+function isModelScopeRequest(requestConfig: AiConfig) {
+    return isModelScopeEndpoint(requestConfig.baseUrl);
+}
+
+async function requestModelScopeImages(requestConfig: AiConfig, prompt: string, referenceCount: number, options: RequestOptions | undefined, hooks: SubmitHooks | undefined) {
+    const images = await generateModelScopeImages(browserModelScopeTransport, {
+        baseUrl: requestConfig.baseUrl,
+        apiKey: requestConfig.apiKey,
+        model: requestConfig.model,
+        prompt: withSystemPrompt(requestConfig, prompt),
+        referenceCount,
+        signal: options?.signal,
+        onSubmitted: (taskId) => hooks?.onSubmitted(taskId),
+    });
+    return images.map((image) => ({ id: nanoid(), dataUrl: image.dataUrl }));
+}
+
+/**
+ * 同步分支兜底：POST 已 2xx 并回了 task_id，这一单已经下了、钱已经算过了。
+ * 如果是 ModelScope 端点就地查这一单取图；绝不重新 POST（那会再买一张）。
+ */
+async function recoverSubmittedModelScope(requestConfig: AiConfig, payload: unknown, options: RequestOptions | undefined, hooks: SubmitHooks | undefined) {
+    const taskId = readUpstreamTaskId(payload);
+    if (!taskId || !isModelScopeRequest(requestConfig)) throw pendingResultFrom(payload);
+    hooks?.onSubmitted(taskId);
+    const images = await pollModelScopeTask(browserModelScopeTransport, { baseUrl: requestConfig.baseUrl, apiKey: requestConfig.apiKey, signal: options?.signal }, taskId);
+    return images.map((image) => ({ id: nanoid(), dataUrl: image.dataUrl }));
+}
+
+async function requestGenerationRaw(config: AiConfig, prompt: string, options?: RequestOptions, hooks?: SubmitHooks) {
     const requestConfig = resolveModelRequestConfig(config, config.model || config.imageModel);
+    if (isModelScopeRequest(requestConfig)) {
+        return requestModelScopeImages(requestConfig, prompt, 0, options, hooks);
+    }
     const n = Math.max(1, Math.min(15, Math.floor(Math.abs(Number(config.count)) || 1)));
     const script = resolveModelScript(config, config.model || config.imageModel);
     if (script) {
@@ -765,10 +808,10 @@ async function requestGenerationRaw(config: AiConfig, prompt: string, options?: 
                 timeout: IMAGE_REQUEST_TIMEOUT_MS,
             },
         );
-        // HTTP 2xx 但没有任何图：上游已经收单、可能已计费。留任务号判 confirm，
-        // 绝不能落回「空结果 → 原样重试」（旧 INTX 真机被再扣一次钱的坑）。
+        // HTTP 2xx 但没有任何图：上游已经收单、可能已计费。ModelScope 端点就地
+        // 查这一单取图；其他厂商留任务号判 confirm，绝不落回「空结果 → 原样重试」。
         if (classifyImagePayload(response.data) === "pending") {
-            throw pendingResultFrom(response.data);
+            return await recoverSubmittedModelScope(requestConfig, response.data, options, hooks);
         }
         const images = await parseImagePayload(response.data);
         return images;
@@ -785,14 +828,18 @@ async function requestGenerationRaw(config: AiConfig, prompt: string, options?: 
 export async function requestEdit(config: AiConfig, prompt: string, references: ReferenceImage[], options?: RequestOptions) {
     return runWithTask({
         params: imageTaskParams(config, prompt, references, true),
-        submit: () => requestEditRaw(config, prompt, references, options),
+        submit: (hooks) => requestEditRaw(config, prompt, references, options, hooks),
         signal: options?.signal,
         resultIds: (items) => items.map((item) => item.id),
     });
 }
 
-async function requestEditRaw(config: AiConfig, prompt: string, references: ReferenceImage[], options?: RequestOptions) {
+async function requestEditRaw(config: AiConfig, prompt: string, references: ReferenceImage[], options?: RequestOptions, hooks?: SubmitHooks) {
     const requestConfig = resolveModelRequestConfig(config, config.model || config.imageModel);
+    if (isModelScopeRequest(requestConfig)) {
+        // 协议未声明参考图字段：带参考图会在提交前明确拒绝（invalid_params），不会误扣费
+        return requestModelScopeImages(requestConfig, buildImageReferencePromptText(prompt, references), references.length, options, hooks);
+    }
     const n = Math.max(1, Math.min(15, Math.floor(Math.abs(Number(config.count)) || 1)));
     const requestPrompt = buildImageReferencePromptText(prompt, references);
     const script = resolveModelScript(config, config.model || config.imageModel);
@@ -851,10 +898,10 @@ async function requestEditRaw(config: AiConfig, prompt: string, references: Refe
 
     try {
         const response = await axios.post<ImageApiResponse>(aiApiUrl(requestConfig, "/images/edits"), formData, { headers: aiHeaders(requestConfig), signal: options?.signal, timeout: IMAGE_REQUEST_TIMEOUT_MS });
-        // HTTP 2xx 但没有任何图：上游已经收单、可能已计费。留任务号判 confirm，
-        // 绝不能落回「空结果 → 原样重试」（旧 INTX 真机被再扣一次钱的坑）。
+        // HTTP 2xx 但没有任何图：上游已经收单、可能已计费。ModelScope 端点就地
+        // 查这一单取图；其他厂商留任务号判 confirm，绝不落回「空结果 → 原样重试」。
         if (classifyImagePayload(response.data) === "pending") {
-            throw pendingResultFrom(response.data);
+            return await recoverSubmittedModelScope(requestConfig, response.data, options, hooks);
         }
         const images = await parseImagePayload(response.data);
         return images;

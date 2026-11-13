@@ -15,8 +15,22 @@ export {
   inspectRunWithTask,
   runWithTask,
   type RunWithTaskInput,
+  type SubmitHooks,
   type TaskRunResult,
 } from './withTask';
+
+export {
+  MODELSCOPE_MAX_WAIT_MS,
+  MODELSCOPE_POLL_INTERVAL_MS,
+  generateModelScopeImages,
+  isModelScopeEndpoint,
+  modelScopeApiBase,
+  pollModelScopeTask,
+  type ModelScopeImage,
+  type ModelScopeRequest,
+  type ModelScopeTransport,
+  type TransportResponse,
+} from './modelScope';
 
 export {
   TASK_LOG_KEY,
