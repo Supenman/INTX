@@ -8,6 +8,7 @@ import { canvasThemes } from "@/lib/canvas-theme";
 import { useCanvasSidePanelStore } from "@/stores/use-canvas-side-panel-store";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { DOCS_URL } from "@/constant/env";
+import { SnapshotStorageStatus } from "@/components/layout/snapshot-storage-status";
 
 export function CanvasTopBar({
     title,
@@ -135,6 +136,7 @@ export function CanvasTopBar({
                             </button>
                         )}
                     </div>
+                    <SnapshotStorageStatus kind="projects" />
                     <CompactAgentStatus status={compactAgentStatus} onClick={onToggleAgent} />
                 </div>
 

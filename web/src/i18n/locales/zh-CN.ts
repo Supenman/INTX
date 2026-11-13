@@ -4,6 +4,7 @@ export default {
         description: "一个无限画布创作工具",
     },
     theme: { toggle: "切换主题" },
+    storage: { loading: "正在加载本地数据", saving: "正在保存到本地", unsaved: "有未保存的修改", saved: "本地元数据已保存", failed: "本地保存失败", retrySave: "重试本地保存", reload: "重新加载", stay: "留在当前项目", leaveFailed: "保存失败，已阻止离开；草稿仍保留在当前页面" },
     common: {
         cancel: "取消",
         save: "保存",

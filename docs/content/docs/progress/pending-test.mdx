@@ -7,6 +7,16 @@ description: Implemented changes that still need manual verification
 
 The current release needs manual verification in these areas:
 
+## INTX 2.2a-2：项目/素材快照保存屏障（待用户验收）
+
+- 项目与素材仍使用 `infinite-canvas/app_state` 的原键；首次读当前 JSON 不自动写回，首次成功保存只在外壳加入集合 revision。聊天、节点、viewport、排序、删除墓碑、媒体引用不丢失。
+- 两个集合取消旧 Zustand persist，同步创建/修改只表示草稿变化。项目保留 400ms 防抖、viewport 保留 500ms；`flush()` 立即提交调用时最新快照，等待事务完成，保存中继续编辑仍显示未保存。
+- 加载失败、损坏/未知格式、旧 localStorage 回退数据不显示成空库；修改被阻止，有重新加载入口。保存失败保留草稿，有“重试本地保存”；冲突重试沿用原 expectedRevision，不静默读取新版本后覆盖。本步不提供自动合并或冲突丢弃按钮；冲突持续时只能留在当前页或自行重新加载（重新加载会以磁盘版本为准并丢弃当前草稿）。
+- 画布顶部、项目库和素材库区分加载/保存/未保存/失败/已保存。页面内返回首页、返回项目库、切换项目或浏览器后退，必须先交出最后 viewport 并等待保存；保存期间的最后编辑再补写一次后放行，持续轮询更新不会无限拖住离开；失败停留当前页。直接关闭/刷新浏览器不能保证等待 Promise，未保存时只提供浏览器原生警告并尝试立即写入。
+- 删除素材或项目的元数据未确认时，不运行已有图片/媒体清理；保存失败不先删文件，补写后才清理。删除完成只指元数据，并非 Blob 清理完成。WebDAV 的加载等待可失败并退出，不再因 hydration 失败无限等待；同步应用保存确认仍未接通。
+- 2.2a-3 的导入/保存素材/查单取回/Agent/WebDAV 业务成功提示尚未接通，不把同步动作返回 id 或现有成功文案当成真实保存证明；跨集合产物提交仍不保证原子性。
+- 自动化回归：类型检查通过，40 文件 / 626 用例通过，domain 依赖边界通过，生产构建通过（15.8s；仍有 Node 20.18 版本提示、现有大分块和动态导入警告）。重新打开画布且视图未变化不算未保存；真实浏览器/Tauri 保存、刷新、重启和故障 UI 点验未验证。测试仅人工无凭证样本、独立 fake-indexeddb 库，不读取用户库、不发厂商请求、不关闭用户页面。
+
 - Generation task ledger (real-device check): every image generation, image edit and video generation now writes a local task record. With a real async provider that only returns `task_id` on POST, generation should show an "upstream already accepted the request, check the task id in the provider console first" message, with the task id visible on the node and in the error text, and must never suggest a plain retry or "confirm and resend" (that would submit and pay for a second image). Only one POST is allowed. The task id must survive a page reload. Providers that return images normally should still render them and record a successful task. ModelScope API-Inference channels are now wired end-to-end: the async task id is persisted as soon as POST returns, the task is polled to completion, and the image is downloaded automatically. In a browser they require the Local proxy to be enabled: ModelScope's CORS preflight does not allow the `X-ModelScope-Async-Mode` header, so a direct POST is blocked before it leaves the browser and the node shows `submission_uncertain`; turning the proxy on and retrying is safe because no request was sent and nothing was charged.
 - Saved model selection: save a canvas node with a model, then remove its provider or remove that model while another video model remains the default. Generation, retry and pending-video recovery should keep the unavailable model selected and open configuration instead of sending a request to the default or first provider. Re-selecting a valid model should allow generation. Changing only the API key on the same provider should preserve the model; switching a config node from a valid image model to video should still use the video default.
 

@@ -14,6 +14,7 @@ import { useCanvasStore } from "@/stores/canvas/use-canvas-store";
 import { useCanvasUiStore } from "@/stores/canvas/use-canvas-ui-store";
 import { exportCanvasProjects } from "@/lib/canvas/canvas-export";
 import { hasAgentUrlBootstrap } from "@/lib/agent/agent-url-bootstrap";
+import { SnapshotStorageStatus } from "@/components/layout/snapshot-storage-status";
 
 export default function CanvasPage() {
     const { message } = App.useApp();
@@ -78,6 +79,7 @@ export default function CanvasPage() {
                     <div>
                         <p className="text-xs text-stone-500">{t("canvas.library")}</p>
                         <h1 className="mt-3 text-3xl font-semibold">{t("canvas.title")}</h1>
+                        <SnapshotStorageStatus kind="projects" />
                     </div>
                     <div className="flex items-center gap-2">
                         {selectedIds.length ? (
@@ -105,7 +107,7 @@ export default function CanvasPage() {
                 </header>
 
                 {!hydrated ? (
-                    <section className="flex min-h-[360px] items-center justify-center border-y border-stone-200 text-sm text-stone-500 dark:border-stone-800">{t("canvas.loading")}</section>
+                    <section className="flex min-h-[360px] items-center justify-center border-y border-stone-200 text-sm text-stone-500 dark:border-stone-800"><SnapshotStorageStatus kind="projects" /></section>
                 ) : projects.length ? (
                     <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
                         {projects.map((project) => (

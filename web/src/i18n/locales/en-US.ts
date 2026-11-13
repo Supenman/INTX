@@ -4,6 +4,7 @@ export default {
         description: "An infinite canvas creation tool",
     },
     theme: { toggle: "Toggle theme" },
+    storage: { loading: "Loading local data", saving: "Saving locally", unsaved: "Unsaved changes", saved: "Local metadata saved", failed: "Local save failed", retrySave: "Retry local save", reload: "Reload", stay: "Stay in this project", leaveFailed: "Save failed; leaving was blocked and the draft remains here" },
     common: {
         cancel: "Cancel",
         save: "Save",
