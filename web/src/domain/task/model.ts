@@ -314,12 +314,17 @@ const NEVER_LEFT_LOCAL = /econnrefused|econnreset|enotfound|eai_again|getaddrinf
  *  - 401/429/451 这类 4xx 是上游明确拒绝，它收到并处理了，不是不确定；
  *  - 超时、5xx（含 Cloudflare 524）、连接中途断开、未知异常，上游可能已经在跑；
  *  - 连接被拒/解析失败，请求没出去，安全。
+ *  - `provider_result_pending` / `local_save_failed` 是**上游已经收单、钱已经花了**
+ *    的最强表态。这两个若被降级成 `submission_uncertain`（「可能没收到」），
+ *    语义就退化了：用户会以为「再试一次也许没事」，任务号也不再被当回事。
+ *    两者都判 confirm，但只有保留原码才能把「去后台查那一单」说清楚。
  */
 function mayHaveLeftLocal(classified: TaskError, raw: string): boolean {
   if (classified.code === 'auth_failed' || classified.code === 'rate_limited' || classified.code === 'content_rejected') {
     return false;
   }
   if (classified.code === 'invalid_params') return false;
+  if (classified.code === 'provider_result_pending' || classified.code === 'local_save_failed') return false;
   return !NEVER_LEFT_LOCAL.test(raw.toLowerCase());
 }
 

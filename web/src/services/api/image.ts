@@ -9,6 +9,13 @@ import { buildImageReferencePromptText } from "@/lib/image-reference-prompt";
 import { imageToDataUrl } from "@/services/image-storage";
 import { imageSizePresets, inferMediaScale } from "@/lib/media-size";
 import type { ReferenceImage } from "@/types/image";
+import {
+    ProviderResultPendingError,
+    classifyImagePayload,
+    imageTaskParams,
+    pendingResultFrom,
+    runWithTask,
+} from "@/services/generation";
 
 const apiText = (key: string, options?: Record<string, unknown>) => i18n.t(`apiErrors.${key}`, options);
 
@@ -691,7 +698,21 @@ function parseGeminiImagePayload(payload: GeminiPayload) {
     return images;
 }
 
+/**
+ * 任务层薄壳：所有调用点（project.tsx / use-plugin-host / image 页）自动落任务记录，
+ * 失败走 domain 的 normalizeError + readTaskOutcome 三态；已收单但没图一律
+ * provider_result_pending + upstreamRef → confirm，绝不退化成「原样重试」。
+ */
 export async function requestGeneration(config: AiConfig, prompt: string, options?: RequestOptions) {
+    return runWithTask({
+        params: imageTaskParams(config, prompt, [], false),
+        submit: () => requestGenerationRaw(config, prompt, options),
+        signal: options?.signal,
+        resultIds: (items) => items.map((item) => item.id),
+    });
+}
+
+async function requestGenerationRaw(config: AiConfig, prompt: string, options?: RequestOptions) {
     const requestConfig = resolveModelRequestConfig(config, config.model || config.imageModel);
     const n = Math.max(1, Math.min(15, Math.floor(Math.abs(Number(config.count)) || 1)));
     const script = resolveModelScript(config, config.model || config.imageModel);
@@ -744,14 +765,33 @@ export async function requestGeneration(config: AiConfig, prompt: string, option
                 timeout: IMAGE_REQUEST_TIMEOUT_MS,
             },
         );
+        // HTTP 2xx 但没有任何图：上游已经收单、可能已计费。留任务号判 confirm，
+        // 绝不能落回「空结果 → 原样重试」（旧 INTX 真机被再扣一次钱的坑）。
+        if (classifyImagePayload(response.data) === "pending") {
+            throw pendingResultFrom(response.data);
+        }
         const images = await parseImagePayload(response.data);
         return images;
     } catch (error) {
-        throw new Error(readAxiosError(error, apiText("requestFailed")));
+        if (error instanceof ProviderResultPendingError) throw error;
+        const status = axios.isAxiosError(error) ? error.response?.status : undefined;
+        const message = readAxiosError(error, apiText("requestFailed"));
+        // 保留状态码线索，domain 的 normalizeError 才能识别 401/429/451/5xx
+        throw new Error(status ? `HTTP ${status}: ${message}` : message);
     }
 }
 
+/** 图片编辑同样过任务层；参考图只落 id/name，不落 dataUrl。 */
 export async function requestEdit(config: AiConfig, prompt: string, references: ReferenceImage[], options?: RequestOptions) {
+    return runWithTask({
+        params: imageTaskParams(config, prompt, references, true),
+        submit: () => requestEditRaw(config, prompt, references, options),
+        signal: options?.signal,
+        resultIds: (items) => items.map((item) => item.id),
+    });
+}
+
+async function requestEditRaw(config: AiConfig, prompt: string, references: ReferenceImage[], options?: RequestOptions) {
     const requestConfig = resolveModelRequestConfig(config, config.model || config.imageModel);
     const n = Math.max(1, Math.min(15, Math.floor(Math.abs(Number(config.count)) || 1)));
     const requestPrompt = buildImageReferencePromptText(prompt, references);
@@ -811,10 +851,19 @@ export async function requestEdit(config: AiConfig, prompt: string, references: 
 
     try {
         const response = await axios.post<ImageApiResponse>(aiApiUrl(requestConfig, "/images/edits"), formData, { headers: aiHeaders(requestConfig), signal: options?.signal, timeout: IMAGE_REQUEST_TIMEOUT_MS });
+        // HTTP 2xx 但没有任何图：上游已经收单、可能已计费。留任务号判 confirm，
+        // 绝不能落回「空结果 → 原样重试」（旧 INTX 真机被再扣一次钱的坑）。
+        if (classifyImagePayload(response.data) === "pending") {
+            throw pendingResultFrom(response.data);
+        }
         const images = await parseImagePayload(response.data);
         return images;
     } catch (error) {
-        throw new Error(readAxiosError(error, apiText("requestFailed")));
+        if (error instanceof ProviderResultPendingError) throw error;
+        const status = axios.isAxiosError(error) ? error.response?.status : undefined;
+        const message = readAxiosError(error, apiText("requestFailed"));
+        // 保留状态码线索，domain 的 normalizeError 才能识别 401/429/451/5xx
+        throw new Error(status ? `HTTP ${status}: ${message}` : message);
     }
 }
 

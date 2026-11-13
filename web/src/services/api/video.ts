@@ -10,6 +10,13 @@ import { boolConfig, buildApiUrl, modelOptionName, resolveModelRequestConfig, re
 import { runModelPlugin } from "./model-plugin";
 import type { ReferenceImage } from "@/types/image";
 import type { ReferenceAudio, ReferenceVideo } from "@/types/media";
+import {
+    browserTaskLog,
+    noteVideoPoll,
+    resumableVideoTasks,
+    submitVideoTask,
+    type VideoPollState,
+} from "@/services/generation";
 
 type VideoResponse = { id: string; status?: string; error?: { message?: string }; url?: string; result_url?: string; video_url?: string; content?: { video_url?: string; url?: string } | null };
 type ApiVideoResponse = VideoResponse | { code?: number | string; data?: VideoResponse | null; msg?: string; message?: string; error?: { message?: string } };
@@ -48,15 +55,32 @@ export async function requestVideoGeneration(config: AiConfig, prompt: string, r
 }
 
 export async function waitForVideoGenerationTask(config: AiConfig, task: VideoGenerationTask, options?: RequestOptions): Promise<VideoGenerationResult> {
+    // 按 upstreamRef 找回提交时落的那条任务；查单结论同步写回台账。
+    // 轮询被中断/超时时任务保持 running + upstreamRef，绝不标 canceled
+    // （上游可能还在跑、钱已付，标 canceled 会诱导用户再提交一张）。
+    const tracked = browserTaskLog.findByUpstreamRef(task.id);
     for (let attempt = 0; attempt < 120; attempt += 1) {
         if (options?.signal?.aborted) throw new DOMException("Aborted", "AbortError");
         const state = await pollVideoGenerationTask(config, task, options);
+        if (tracked) {
+            const poll: VideoPollState = state.status === "completed"
+                ? { status: "completed" }
+                : state.status === "failed"
+                    ? { status: "failed", error: state.error }
+                    : { status: "pending" };
+            noteVideoPoll(poll, tracked, browserTaskLog);
+        }
         if (state.status === "completed") return state.result;
         if (state.status === "failed") throw videoTaskFailed(state.error);
         if (attempt === 119) throw new Error(apiText("videoTimeout", { provider: "" }));
         await delay(2500, options?.signal);
     }
     throw new Error(apiText("videoTimeout", { provider: "" }));
+}
+
+/** 重启后可恢复的已收单视频任务（含可重建的查单句柄与三态结论）。 */
+export function recoverableVideoTasks() {
+    return resumableVideoTasks(browserTaskLog);
 }
 
 export function isVideoTaskFailed(error: unknown) {
@@ -69,7 +93,23 @@ function videoTaskFailed(message: string) {
     return error;
 }
 
+/**
+ * 任务层薄壳：POST 一收单就把 upstreamRef 落台账，刷新页面后可凭任务号续查，
+ * 不再像原来那样只靠内存里的 120×2.5s 循环、重启即丢（上游还在跑、钱已付）。
+ */
 export async function createVideoGenerationTask(config: AiConfig, prompt: string, references: ReferenceImage[] = [], options?: VideoMediaOptions): Promise<VideoGenerationTask> {
+    const { handle } = await submitVideoTask({
+        config,
+        prompt,
+        signal: options?.signal,
+        transport: {
+            submit: () => createVideoGenerationTaskRaw(config, prompt, references, options),
+        },
+    });
+    return handle;
+}
+
+async function createVideoGenerationTaskRaw(config: AiConfig, prompt: string, references: ReferenceImage[] = [], options?: VideoMediaOptions): Promise<VideoGenerationTask> {
     const selectedModel = (config.model || config.videoModel).trim();
     const requestConfig = resolveModelRequestConfig(config, selectedModel);
     const script = resolveModelScript(config, selectedModel);
