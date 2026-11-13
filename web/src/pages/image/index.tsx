@@ -252,7 +252,12 @@ export default function ImagePage() {
             data: { dataUrl: stored.url, storageKey: stored.storageKey, width: stored.width, height: stored.height, bytes: stored.bytes, mimeType: stored.mimeType },
             metadata: { source: "image-page", prompt },
         });
-        message.success(t("common.addedToAssets"));
+        try {
+            await useAssetStore.getState().confirmSave();
+            message.success(t("common.addedToAssets"));
+        } catch {
+            message.error(t("common.saveToLocalFailed"));
+        }
     };
 
     const insertPickedAsset = async (payload: InsertAssetPayload) => {

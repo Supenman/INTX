@@ -122,8 +122,13 @@ export default function AssetsPage() {
             editingAsset ? updateAsset(editingAsset.id, asset) : addAsset(asset);
         }
 
-        message.success(editingAsset ? t("assets.updated") : t("assets.saved"));
-        setIsAssetOpen(false);
+        try {
+            await useAssetStore.getState().confirmSave();
+            message.success(editingAsset ? t("assets.updated") : t("assets.saved"));
+            setIsAssetOpen(false);
+        } catch {
+            message.error(t("assets.saveFailed"));
+        }
     };
 
     const readCoverFile = async (file?: File) => {
@@ -180,7 +185,12 @@ export default function AssetsPage() {
                 delete payload.updatedAt;
                 addAsset(payload as Parameters<typeof addAsset>[0]);
             });
-            message.success(t("assets.imported", { count: importedAssets.length }));
+            try {
+                await useAssetStore.getState().confirmSave();
+                message.success(t("assets.imported", { count: importedAssets.length }));
+            } catch {
+                message.error(t("assets.importSaveFailed"));
+            }
         } catch {
             message.error(t("assets.importFailed"));
         } finally {
@@ -188,11 +198,16 @@ export default function AssetsPage() {
         }
     };
 
-    const confirmDelete = () => {
+    const confirmDelete = async () => {
         if (!deletingAsset) return;
         removeAsset(deletingAsset.id);
-        message.success(t("assets.deleted"));
-        setDeletingAsset(null);
+        try {
+            await useAssetStore.getState().confirmSave();
+            message.success(t("assets.deleted"));
+            setDeletingAsset(null);
+        } catch {
+            message.error(t("assets.deleteSaveFailed"));
+        }
     };
 
     if (!hydrated) return <main className="flex h-full items-center justify-center bg-background text-foreground"><SnapshotStorageStatus kind="assets" /></main>;

@@ -31,9 +31,14 @@ export default function PromptsPage() {
         setSelectedTags((items) => (items.includes(tag) ? items.filter((item) => item !== tag) : [...items, tag]));
     };
 
-    const savePromptAsset = (item: Prompt) => {
+    const savePromptAsset = async (item: Prompt) => {
         addAsset({ kind: "text", title: item.title, coverUrl: item.coverUrl, tags: item.tags, source: item.category, data: { content: item.prompt }, metadata: { source: "prompt-library", promptId: item.id, githubUrl: item.githubUrl } });
-        message.success(t("common.addedToAssets"));
+        try {
+            await useAssetStore.getState().confirmSave();
+            message.success(t("common.addedToAssets"));
+        } catch {
+            message.error(t("common.saveToLocalFailed"));
+        }
     };
 
     const handleListScroll = (event: UIEvent<HTMLDivElement>) => {

@@ -305,6 +305,7 @@ async function addAsset(input: SiteToolInput) {
         const content = String(input.content || "").trim();
         if (!content) throw new Error(siteText("textContentRequired"));
         const id = store.addAsset({ kind: "text", title, coverUrl: "", tags, source, note, data: { content } });
+        await store.confirmSave().catch(() => { throw new Error(siteText("assetSaveFailed")); });
         return { ok: true, id, kind: "text" };
     }
     if (kind === "image") {
@@ -317,6 +318,7 @@ async function addAsset(input: SiteToolInput) {
             throw new Error(siteText("imageReadFailed"));
         }
         const id = store.addAsset({ kind: "image", title, coverUrl: stored.url, tags, source, note, data: { dataUrl: stored.url, storageKey: stored.storageKey, width: stored.width, height: stored.height, bytes: stored.bytes, mimeType: stored.mimeType } });
+        await store.confirmSave().catch(() => { throw new Error(siteText("assetSaveFailed")); });
         return { ok: true, id, kind: "image" };
     }
     throw new Error(siteText("assetKindUnsupported"));

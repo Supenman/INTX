@@ -42,7 +42,7 @@ jobs:
         run: pnpm exec tsc --noEmit
 
       - name: Domain, generation, storage and save-barrier tests
-        run: pnpm exec vitest run src/domain src/services/generation src/infrastructure/storage src/stores/snapshot-persistence.test.ts src/pages/canvas/hooks/project-save.test.ts
+        run: pnpm exec vitest run src/domain src/services/generation src/infrastructure/storage src/stores/snapshot-persistence.test.ts src/pages/canvas/hooks/project-save.test.ts src/lib/agent/agent-site-tools.test.ts src/services/app-sync.test.ts
 
       - name: Dependency boundaries
         run: node scripts/check-boundaries.mjs

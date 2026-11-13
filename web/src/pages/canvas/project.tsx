@@ -1209,9 +1209,16 @@ function InfiniteCanvasPage() {
 
     const deleteCurrentProject = useCallback(() => {
         deleteProjects([projectId]);
-        cleanupAssetImages();
-        navigate("/canvas");
-    }, [cleanupAssetImages, deleteProjects, navigate, projectId]);
+        void (async () => {
+            try {
+                await useCanvasStore.getState().confirmSave();
+                cleanupAssetImages();
+                navigate("/canvas");
+            } catch {
+                message.error(t("canvas.project.deleteSaveFailed"));
+            }
+        })();
+    }, [cleanupAssetImages, deleteProjects, message, navigate, projectId, t]);
 
     const exportCurrentProject = useCallback(async () => {
         const project = useCanvasStore.getState().projects.find((item) => item.id === projectId);
@@ -1862,11 +1869,19 @@ function InfiniteCanvasPage() {
 
     const saveNodeAsset = useCallback(
         async (node: CanvasNodeData) => {
+            const confirmAsset = async () => {
+                try {
+                    await useAssetStore.getState().confirmSave();
+                    message.success(t("common.addedToAssets"));
+                } catch {
+                    message.error(t("common.saveToLocalFailed"));
+                }
+            };
             if (node.type === CanvasNodeType.Text) {
                 const content = node.metadata?.content?.trim();
                 if (!content) return message.error(t("canvas.projectPage.noTextToSave"));
                 addAsset({ kind: "text", title: node.metadata?.prompt?.slice(0, 24) || t("canvas.projectPage.canvasText"), coverUrl: "", tags: [], source: "Canvas", data: { content }, metadata: { source: "canvas", nodeId: node.id } });
-                message.success(t("common.addedToAssets"));
+                await confirmAsset();
                 return;
             }
             if (node.type === CanvasNodeType.Video) {
@@ -1880,7 +1895,7 @@ function InfiniteCanvasPage() {
                     data: { url: node.metadata.content, storageKey: node.metadata.storageKey, width: node.width, height: node.height, bytes: node.metadata.bytes || 0, mimeType: node.metadata.mimeType || "video/mp4" },
                     metadata: { source: "canvas", nodeId: node.id, prompt: node.metadata?.prompt },
                 });
-                message.success(t("common.addedToAssets"));
+                await confirmAsset();
                 return;
             }
             if (!node.metadata?.content) return message.error(t("canvas.projectPage.noImageToSave"));
@@ -1901,7 +1916,7 @@ function InfiniteCanvasPage() {
                 },
                 metadata: { source: "canvas", nodeId: node.id, prompt: node.metadata?.prompt },
             });
-            message.success(t("common.addedToAssets"));
+            await confirmAsset();
         },
         [addAsset, message, t],
     );

@@ -1,4 +1,5 @@
-import { Button, Modal } from "antd";
+import { App, Button, Modal } from "antd";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useAssetStore } from "@/stores/use-asset-store";
@@ -6,17 +7,28 @@ import { useCanvasStore } from "@/stores/canvas/use-canvas-store";
 import { useCanvasUiStore } from "@/stores/canvas/use-canvas-ui-store";
 
 export function CanvasDeleteProjectsDialog() {
+    const { message } = App.useApp();
     const { t } = useTranslation();
     const ids = useCanvasUiStore((state) => state.deleteProjectIds);
     const setDeleteIds = useCanvasUiStore((state) => state.setDeleteProjectIds);
     const removeSelectedIds = useCanvasUiStore((state) => state.removeSelectedProjectIds);
     const deleteProjects = useCanvasStore((state) => state.deleteProjects);
     const cleanupImages = useAssetStore((state) => state.cleanupImages);
-    const confirm = () => {
+    const [busy, setBusy] = useState(false);
+    const confirm = async () => {
+        if (busy) return;
+        setBusy(true);
         deleteProjects(ids);
-        cleanupImages();
-        removeSelectedIds(ids);
-        setDeleteIds([]);
+        try {
+            await useCanvasStore.getState().confirmSave();
+            cleanupImages();
+            removeSelectedIds(ids);
+            setDeleteIds([]);
+        } catch {
+            message.error(t("canvas.project.deleteSaveFailed"));
+        } finally {
+            setBusy(false);
+        }
     };
 
     return (
@@ -28,7 +40,7 @@ export function CanvasDeleteProjectsDialog() {
             footer={
                 <>
                     <Button onClick={() => setDeleteIds([])}>{t("common.cancel")}</Button>
-                    <Button danger type="primary" onClick={confirm}>
+                    <Button danger type="primary" loading={busy} onClick={() => void confirm()}>
                         {t("common.delete")}
                     </Button>
                 </>

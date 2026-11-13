@@ -17,6 +17,7 @@ type CanvasStore = ProjectSnapshot & {
     load: () => Promise<void>;
     flush: () => Promise<void>;
     retrySave: () => Promise<void>;
+    confirmSave: () => Promise<void>;
     createProject: (title?: string) => string;
     importProject: (project: Partial<CanvasProject>) => string;
     openProject: (id: string) => CanvasProject | null;
@@ -55,6 +56,8 @@ export function createCanvasStore(repository: ProjectRepository) {
             return loading;
         },
         flush: () => save(), retrySave: () => save(true),
+        // 业务确认边界：已有失败时明确补写，否则等待当前草稿提交；冲突仍不会被覆盖。
+        confirmSave: () => save(Boolean(queue.getState().error)),
         createProject: (title = i18n.t("canvas.project.untitled")) => {
             ensureReady();
             const now = new Date().toISOString();

@@ -95,7 +95,10 @@ export async function syncAppDataToWebdav(config: WebdavSyncConfig, onProgress?:
                 return { projects, deleted: deletedProjects };
             },
             mergeData: mergeCanvasData,
-            applyData: async (data) => useCanvasStore.getState().replaceProjects(data.projects, data.deleted),
+            applyData: async (data) => {
+                useCanvasStore.getState().replaceProjects(data.projects, data.deleted);
+                await useCanvasStore.getState().confirmSave();
+            },
         }),
         syncDomain<AssetDomainData>(config, onProgress, {
             key: "assets",
@@ -103,7 +106,10 @@ export async function syncAppDataToWebdav(config: WebdavSyncConfig, onProgress?:
             emptyData: { assets: [] },
             localData: async () => ({ assets: useAssetStore.getState().assets }),
             mergeData: (local, remote) => ({ assets: mergeById(local.assets, remote.assets, "updatedAt") }),
-            applyData: async (data) => useAssetStore.getState().replaceAssets(await Promise.all(data.assets.map(hydrateAsset))),
+            applyData: async (data) => {
+                useAssetStore.getState().replaceAssets(await Promise.all(data.assets.map(hydrateAsset)));
+                await useAssetStore.getState().confirmSave();
+            },
         }),
         syncDomain<LogDomainData>(config, onProgress, {
             key: "image-workbench",

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import { createTask, transition, type GenerationParams, type Task } from '@/domain/task/model';
-import { commitRecovered, createMemoryTaskLog, markInFlight, resumableTasks, TaskPersistenceError } from './taskLog';
+import { err } from '@/domain/shared/result';
+import { createMemoryTaskRepository } from '@/infrastructure/storage/memory-task-repository';
+import { commitRecovered, createMemoryTaskLog, createTaskLog, forgetRecoveredAssets, markInFlight, recoveredAssetIds, rememberRecoveredAssets, resumableTasks, TaskPersistenceError } from './taskLog';
 import { pickModelScopeChannel, recoveryAction } from './taskRecovery';
 
 function taskWith(partial: Partial<Task> & { params?: GenerationParams } = {}): Task {
@@ -113,5 +115,35 @@ describe('取回产物写回台账', () => {
     const savedAuth = await log.update({ ...authFailed.value, revision: savedAuthStarted.revision });
     await expect(commitRecovered(log, savedAuth, ['asset-3'])).rejects.toBeInstanceOf(TaskPersistenceError);
     expect(await log.get(auth.id)).toEqual(savedAuth);
+  });
+});
+
+describe('同进程已取回素材的证据', () => {
+  it('按任务号和上游单号复用；确认后清除，换单号不复用', async () => {
+    const log = createMemoryTaskLog();
+    const task = await log.create({ kind: 'image', params: { kind: 'image', prompt: 'p', model: 'm', providerId: 'openai', inputAssetIds: [] } });
+    const started = transition(task, 'running', { phase: 'generating', upstreamRef: 'tk-reuse' });
+    if (!started.ok) throw new Error('构造失败');
+    const saved = await log.update({ ...started.value, revision: task.revision });
+    rememberRecoveredAssets(task.id, 'tk-reuse', ['asset-recovered']);
+    expect(recoveredAssetIds(task.id, 'tk-reuse')).toEqual(['asset-recovered']);
+    expect(recoveredAssetIds(task.id, 'tk-other')).toEqual([]);
+    await commitRecovered(log, saved, ['asset-recovered']);
+    expect(recoveredAssetIds(task.id, 'tk-reuse')).toEqual([]);
+  });
+
+  it('任务写回失败保留素材证据；显式清除才丢弃', async () => {
+    const repository = createMemoryTaskRepository();
+    const log = createMemoryTaskLog();
+    const task = await log.create({ kind: 'image', params: { kind: 'image', prompt: 'p', model: 'm', providerId: 'openai', inputAssetIds: [] } });
+    const started = transition(task, 'running', { phase: 'generating', upstreamRef: 'tk-retain' });
+    if (!started.ok) throw new Error('构造失败');
+    const saved = await log.update({ ...started.value, revision: task.revision });
+    const failing = createTaskLog({ ...repository, replace: async () => err({ code: 'write_failed' as const, message: 'fixture task write failed' }) });
+    rememberRecoveredAssets(task.id, 'tk-retain', ['asset-kept']);
+    await expect(commitRecovered(failing, saved, ['asset-kept'])).rejects.toBeInstanceOf(TaskPersistenceError);
+    expect(recoveredAssetIds(task.id, 'tk-retain')).toEqual(['asset-kept']);
+    forgetRecoveredAssets(task.id);
+    expect(recoveredAssetIds(task.id, 'tk-retain')).toEqual([]);
   });
 });

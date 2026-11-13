@@ -242,7 +242,7 @@ export default function VideoPage() {
         saveAs(video.url, "video.mp4");
     };
 
-    const saveResultToAssets = (video: GeneratedVideo) => {
+    const saveResultToAssets = async (video: GeneratedVideo) => {
         addAsset({
             kind: "video",
             title: t("videoWorkbench.resultTitle"),
@@ -252,7 +252,12 @@ export default function VideoPage() {
             data: { url: video.url, storageKey: video.storageKey, width: video.width, height: video.height, bytes: video.bytes, mimeType: video.mimeType },
             metadata: { source: "video-page", prompt },
         });
-        message.success(t("common.addedToAssets"));
+        try {
+            await useAssetStore.getState().confirmSave();
+            message.success(t("common.addedToAssets"));
+        } catch {
+            message.error(t("common.saveToLocalFailed"));
+        }
     };
 
     const insertPickedAsset = async (payload: InsertAssetPayload) => {

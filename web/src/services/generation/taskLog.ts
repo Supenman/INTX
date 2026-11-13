@@ -66,17 +66,36 @@ export function createTaskLog(repository: TaskRepository, saved?: (task: LoggedT
 }
 
 interface UnsavedTask { desired: LoggedTask; evidence: LoggedTask; error: string }
+interface RecoveredAssets { upstreamRef: string; assetIds: string[] }
 interface TaskLogState {
   tasks: LoggedTask[];
   hydrated: boolean;
   loading: boolean;
   loadError: string | null;
   unsaved: Record<string, UnsavedTask>;
+  recovered: Record<string, RecoveredAssets>;
   inFlightIds: string[];
 }
 export const useTaskLogStore = create<TaskLogState>(() => ({
-  tasks: [], hydrated: false, loading: false, loadError: null, unsaved: {}, inFlightIds: [],
+  tasks: [], hydrated: false, loading: false, loadError: null, unsaved: {}, recovered: {}, inFlightIds: [],
 }));
+
+/** 同一进程内已取回、但任务尚未核销的产物素材；重试只补任务，不重新查单或重复创建素材。 */
+export function recoveredAssetIds(taskId: string, upstreamRef: string | null): string[] {
+  const entry = useTaskLogStore.getState().recovered[taskId];
+  return entry && entry.upstreamRef === (upstreamRef ?? "") ? entry.assetIds : [];
+}
+export function rememberRecoveredAssets(taskId: string, upstreamRef: string | null, assetIds: readonly string[]): void {
+  useTaskLogStore.setState((state) => ({ recovered: { ...state.recovered, [taskId]: { upstreamRef: upstreamRef ?? "", assetIds: [...assetIds] } } }));
+}
+export function forgetRecoveredAssets(taskId: string): void {
+  if (!useTaskLogStore.getState().recovered[taskId]) return;
+  useTaskLogStore.setState((state) => {
+    const recovered = { ...state.recovered };
+    delete recovered[taskId];
+    return { recovered };
+  });
+}
 
 export const browserTaskLog = createTaskLog(createIndexedDBTaskRepository(), (task) => {
   useTaskLogStore.setState((state) => {
@@ -145,6 +164,7 @@ export async function retryTaskSave(id: string): Promise<void> {
       useTaskLogStore.setState((state) => ({ unsaved: { ...state.unsaved, [id]: advanced } }));
       await browserTaskLog.update(pending.desired);
     }
+    forgetRecoveredAssets(id);
   } catch (error) {
     useTaskLogStore.setState((state) => ({ unsaved: { ...state.unsaved, [id]: { ...pending, error: error instanceof Error ? error.message : '任务保存失败' } } }));
     throw error;
@@ -162,8 +182,11 @@ export async function commitRecovered(log: TaskLog, task: LoggedTask, resultAsse
   if (!result.ok) throw new TaskPersistenceError(result.error, task);
   if (!task.upstreamRef || !resultAssetIds.length) throw new TaskPersistenceError({ code: 'not_recoverable', message: '缺少原任务号或产物，不能确认恢复成功' }, task);
   const desired = { ...result.value, revision: task.revision };
-  try { return await log.update(desired); }
-  catch (error) {
+  try {
+    const saved = await log.update(desired);
+    forgetRecoveredAssets(desired.id);
+    return saved;
+  } catch (error) {
     if (error instanceof TaskPersistenceError) throw retainTaskWriteFailure(log, error, desired, true);
     throw error;
   }

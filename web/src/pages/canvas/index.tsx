@@ -56,7 +56,12 @@ export default function CanvasPage() {
                 ),
             );
             data.projects.forEach((item) => importProject(item.project));
-            message.success(t("canvas.imported", { count: data.projects.length }));
+            try {
+                await useCanvasStore.getState().confirmSave();
+                message.success(t("canvas.imported", { count: data.projects.length }));
+            } catch {
+                message.error(t("canvas.importSaveFailed"));
+            }
         } catch {
             message.error(t("canvas.importFailed"));
         } finally {

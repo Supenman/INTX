@@ -8,7 +8,7 @@ import type { Task } from "@/domain/task/model";
 import { useCopyText } from "@/hooks/use-copy-text";
 import { browserModelScopeTransport } from "@/services/api/modelscope-transport";
 import { pollVideoGenerationTask, storeGeneratedVideo } from "@/services/api/video";
-import { browserTaskLog, commitRecovered, loadTaskLog, retryTaskSave, pollModelScopeTask, resumableTasks, useTaskLogStore, videoHandleFromTask } from "@/services/generation";
+import { browserTaskLog, commitRecovered, forgetRecoveredAssets, loadTaskLog, recoveredAssetIds, rememberRecoveredAssets, retryTaskSave, pollModelScopeTask, resumableTasks, useTaskLogStore, videoHandleFromTask } from "@/services/generation";
 import { pickModelScopeChannel, recoveryAction, type RecoveryChannelView } from "@/services/generation/taskRecovery";
 import { uploadImage } from "@/services/image-storage";
 import { useAssetStore } from "@/stores/use-asset-store";
@@ -99,11 +99,26 @@ export function ConfigTasks() {
         if (action === "manual" || busyId || unsaved[task.id]) return;
         setBusyId(task.id);
         try {
-            const assetIds = action === "modelscope" ? await recoverImage(task, modelscopeChannel) : await recoverVideo(task);
+            const known = recoveredAssetIds(task.id, task.upstreamRef);
+            const reusable = known.length > 0 && known.every((id) => useAssetStore.getState().assets.some((asset) => asset.id === id));
+            if (known.length && !reusable) forgetRecoveredAssets(task.id);
+            const assetIds = reusable ? known : action === "modelscope" ? await recoverImage(task, modelscopeChannel) : await recoverVideo(task);
             if (!assetIds) return;
-            const fresh = await browserTaskLog.get(task.id);
-            if (!fresh) throw new Error(t("config.tasks.queryFailed"));
-            await commitRecovered(browserTaskLog, fresh, assetIds);
+            if (!reusable) rememberRecoveredAssets(task.id, task.upstreamRef, assetIds);
+            try {
+                await useAssetStore.getState().confirmSave();
+            } catch (error) {
+                message.error(t("config.tasks.assetSaveFailed", { message: error instanceof Error ? error.message : t("config.tasks.queryFailed") }));
+                return;
+            }
+            try {
+                const fresh = await browserTaskLog.get(task.id);
+                if (!fresh) throw new Error(t("config.tasks.queryFailed"));
+                await commitRecovered(browserTaskLog, fresh, assetIds);
+            } catch (error) {
+                message.error(t("config.tasks.taskSaveFailed", { message: error instanceof Error ? error.message : t("config.tasks.queryFailed") }));
+                return;
+            }
             message.success(t("config.tasks.recovered", { count: assetIds.length }));
         } catch (error) {
             message.error(error instanceof Error ? error.message : t("config.tasks.queryFailed"));

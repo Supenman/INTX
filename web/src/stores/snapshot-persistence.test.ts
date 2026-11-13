@@ -127,6 +127,18 @@ describe('项目和素材 store 真实保存边界', () => {
         expect(await repo.load()).toMatchObject({ ok: true, value: { value: { projects: [{ title: 'confirmed' }] } } });
     });
 
+    it('保存失败后业务确认边界会补写同一草稿，不需要用户再点一次重试', async () => {
+        const repo = createMemoryAssetRepository();
+        let fail = true;
+        const store = createAssetStore({ ...repo, save: (value, revision) => fail ? Promise.resolve(writeError()) : repo.save(value, revision) });
+        await store.getState().load();
+        const id = store.getState().addAsset(text);
+        await expect(store.getState().flush()).rejects.toThrow('fixture write failed');
+        fail = false;
+        await store.getState().confirmSave();
+        expect(store.getState().persistence).toMatchObject({ dirty: false, error: null });
+        expect(await repo.load()).toMatchObject({ ok: true, value: { revision: 1, value: { assets: [{ id }] } } });
+    });
     it('素材同步添加不等于确认，终态保存失败仍保留id和草稿', async () => {
         const repo = createMemoryAssetRepository();
         const store = createAssetStore({ ...repo, save: async () => writeError() });
