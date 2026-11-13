@@ -64,7 +64,7 @@ export class GenerationTaskError extends Error {
   }
 }
 
-function isAbort(error: unknown, signal?: AbortSignal): boolean {
+export function isAbort(error: unknown, signal?: AbortSignal): boolean {
   if (signal?.aborted) return true;
   if (error instanceof DOMException && error.name === 'AbortError') return true;
   return error instanceof Error && (error.name === 'AbortError' || error.name === 'CanceledError');

@@ -95,6 +95,51 @@ describe('查单结论落台账，中断不诱导重发', () => {
     expect(readTaskOutcome(after)).toMatchObject({ phase: 'ready', regenerate: 'allowed' });
   });
 
+  it('提交前就取消 → canceled / allowed（请求没发出去，不吓唬「可能扣费」）', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const log = createMemoryTaskLog();
+    await expect(
+      submitVideoTask({
+        config,
+        prompt: '海边日落',
+        log,
+        signal: controller.signal,
+        transport: { submit: () => Promise.reject(new DOMException('Aborted', 'AbortError')) },
+      }),
+    ).rejects.toThrow();
+    const task = log.list()[0];
+    expect(task.status).toBe('canceled');
+    expect(task.upstreamRef).toBeNull();
+    expect(readTaskOutcome(task)).toMatchObject({ regenerate: 'allowed', reason: 'not_charged' });
+  });
+
+  it('提交过程中取消（还没拿到任务号）→ submission_uncertain / confirm，不退化成 allowed', async () => {
+    const controller = new AbortController();
+    const log = createMemoryTaskLog();
+    await expect(
+      submitVideoTask({
+        config,
+        prompt: '海边日落',
+        log,
+        signal: controller.signal,
+        transport: {
+          submit: () => {
+            controller.abort();
+            return Promise.reject(new DOMException('Aborted', 'AbortError'));
+          },
+        },
+      }),
+    ).rejects.toThrow();
+    const task = log.list()[0];
+    expect(task.status).toBe('failed');
+    expect(task.error?.code).toBe('submission_uncertain');
+    expect(readTaskOutcome(task)).toMatchObject({
+      regenerate: 'confirm',
+      reason: 'submission_unknown',
+    });
+  });
+
   it('提交失败：queued→running→failed 是合法迁移，本地网络错判 allowed', async () => {
     const log = createMemoryTaskLog();
     await expect(

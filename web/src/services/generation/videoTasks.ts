@@ -12,6 +12,7 @@
 import { normalizeError, type GenerationParams, type Task } from '@/domain/task/model';
 import { readTaskOutcome } from '@/domain/task/outcome';
 import { browserTaskLog, commit, resumableTasks, type TaskLog } from './taskLog';
+import { isAbort } from './withTask';
 
 export type VideoProvider = 'openai' | 'gemini' | 'plugin';
 
@@ -67,6 +68,8 @@ export async function submitVideoTask(input: {
   nodeId?: string | null;
   log?: TaskLog;
 }): Promise<{ handle: VideoTaskHandle; task: Task }> {
+  // 提交开始那一刻的取消状态：区分「根本没发」和「发出去后本地不等了」。
+  const abortedBeforeSubmit = input.signal?.aborted === true;
   const log = input.log ?? browserTaskLog;
   let task = log.create({
     kind: 'video',
@@ -89,6 +92,15 @@ export async function submitVideoTask(input: {
     log.update(finalTask);
     return { handle, task: finalTask };
   } catch (error) {
+    if (abortedBeforeSubmit && isAbort(error, input.signal)) {
+      // 提交前就取消：POST 没发出去，没扣钱，直接重发是安全的。
+      // 提交中才取消（abortedBeforeSubmit=false）不能走这里——请求可能已被上游
+      // 收单计费，标 canceled 会判 not_charged/allowed，诱导用户再买一张。
+      task = commit(log, task, 'canceled', {
+        error: { code: 'unknown', message: '已取消' },
+      });
+      throw error;
+    }
     // 提交阶段失败走 normalizeError：超时/5xx 判 submission_uncertain → confirm，
     // 连接被拒这种「没离开本机」才 allowed。
     task = commit(log, task, 'failed', {
