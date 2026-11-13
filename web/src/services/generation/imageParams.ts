@@ -20,11 +20,20 @@ export interface ReferenceView {
   name?: string;
 }
 
+export interface ImageTaskParamsOptions {
+  isEdit?: boolean;
+  /**
+   * 提交走的端点族。ModelScope 异步单只回任务号，重启后只能凭号查单；
+   * 记下来，「待核实任务」才不会对着 OpenAI 的失败单摆一个查不了的按钮。
+   */
+  endpoint?: 'modelscope';
+}
+
 export function imageTaskParams(
   config: ImageConfigView,
   prompt: string,
   references: readonly ReferenceView[] = [],
-  isEdit = false,
+  options: ImageTaskParamsOptions = {},
 ): GenerationParams {
   const params: GenerationParams = {
     kind: 'image',
@@ -43,6 +52,9 @@ export function imageTaskParams(
   if (config.size) params.aspectRatio = config.size;
   const count = Number(config.count);
   if (Number.isFinite(count) && count > 0) params.count = Math.floor(count);
-  if (isEdit) params.extras = { mode: 'edit' };
+  const extras: Record<string, string | number | boolean> = {};
+  if (options.isEdit) extras.mode = 'edit';
+  if (options.endpoint) extras.endpoint = options.endpoint;
+  if (Object.keys(extras).length) params.extras = extras;
   return params;
 }

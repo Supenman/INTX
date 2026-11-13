@@ -13,7 +13,7 @@ import {
 } from '@/domain/task/model';
 import { readTaskOutcome, type TaskOutcome } from '@/domain/task/outcome';
 import { ProviderResultPendingError, readTaskIdFromMessage } from './pendingResult';
-import { browserTaskLog, commit, type TaskLog } from './taskLog';
+import { browserTaskLog, commit, markInFlight, type TaskLog } from './taskLog';
 
 export interface RunWithTaskInput<T> {
   /** 提交那一刻冻结的参数快照。不得含 apiKey / baseUrl / 图片 dataUrl。 */
@@ -84,6 +84,8 @@ export async function inspectRunWithTask<T>(input: RunWithTaskInput<T>): Promise
     nodeId: input.nodeId ?? null,
   });
   task = commit(log, task, 'running', { phase: 'submitting' });
+  // 本进程里在跑的单不是「待核实」，别让设置面板一边出图一边挂出待核实卡片。
+  markInFlight(task.id, true);
 
   const hooks: SubmitHooks = {
     onSubmitted(upstreamRef) {
@@ -169,6 +171,8 @@ export async function inspectRunWithTask<T>(input: RunWithTaskInput<T>): Promise
       outcome: readTaskOutcome(task),
       code: normalized.code,
     });
+  } finally {
+    markInFlight(task.id, false);
   }
 }
 

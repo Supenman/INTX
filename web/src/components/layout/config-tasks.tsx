@@ -1,0 +1,147 @@
+import { App, Button } from "antd";
+import dayjs from "dayjs";
+import { ClipboardCheck, Copy, RefreshCw } from "lucide-react";
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
+
+import type { Task } from "@/domain/task/model";
+import { useCopyText } from "@/hooks/use-copy-text";
+import { browserModelScopeTransport } from "@/services/api/modelscope-transport";
+import { pollVideoGenerationTask, storeGeneratedVideo } from "@/services/api/video";
+import { browserTaskLog, commitRecovered, pollModelScopeTask, resumableTasks, useTaskLogStore, videoHandleFromTask } from "@/services/generation";
+import { pickModelScopeChannel, recoveryAction, type RecoveryChannelView } from "@/services/generation/taskRecovery";
+import { uploadImage } from "@/services/image-storage";
+import { useAssetStore } from "@/stores/use-asset-store";
+import { useConfigStore } from "@/stores/use-config-store";
+
+/**
+ * 待核实任务：上游已收单、本地没拿到产物的单子。
+ *
+ * 这里只有「查单」和「复制任务号」，**没有重发**——旧单去厂商后台按任务号核对，
+ * 重新提交就是再买一张。刷新或重启后任务号还在台账里，所以刷新不会丢证据。
+ */
+export function ConfigTasks() {
+    const { message } = App.useApp();
+    const { t } = useTranslation();
+    const copyText = useCopyText();
+    const tasks = useTaskLogStore((state) => state.tasks);
+    const config = useConfigStore((state) => state.config);
+    const addAsset = useAssetStore((state) => state.addAsset);
+    const [busyId, setBusyId] = useState("");
+    const modelscopeChannel = pickModelScopeChannel(config.channels);
+    const pending = resumableTasks(tasks);
+
+    const titleOf = (task: Task) => task.params.prompt.slice(0, 32) || task.params.model;
+
+    const saveImageAssets = async (task: Task, images: readonly { dataUrl: string }[]) => {
+        const assetIds: string[] = [];
+        for (const image of images) {
+            const uploaded = await uploadImage(image.dataUrl);
+            assetIds.push(
+                addAsset({
+                    kind: "image",
+                    title: titleOf(task),
+                    coverUrl: uploaded.url,
+                    tags: [],
+                    source: t("config.tasks.source"),
+                    // 和画布「保存到素材」一致：有 storageKey 就不把 blob 地址再写进 dataUrl。
+                    data: { dataUrl: uploaded.storageKey ? "" : uploaded.url, storageKey: uploaded.storageKey, width: uploaded.width, height: uploaded.height, bytes: uploaded.bytes, mimeType: uploaded.mimeType },
+                    metadata: { source: "task-recovery", taskId: task.id, upstreamRef: task.upstreamRef },
+                }),
+            );
+        }
+        return assetIds;
+    };
+
+    const recoverImage = async (task: Task, channel: RecoveryChannelView | null) => {
+        if (!channel || !task.upstreamRef) return null;
+        const images = await pollModelScopeTask(browserModelScopeTransport, { baseUrl: channel.baseUrl, apiKey: channel.apiKey }, task.upstreamRef);
+        return saveImageAssets(task, images);
+    };
+
+    const recoverVideo = async (task: Task) => {
+        const handle = videoHandleFromTask(task);
+        if (!handle) return null;
+        const state = await pollVideoGenerationTask(config, handle);
+        if (state.status === "pending") {
+            message.info(t("config.tasks.stillRunning"));
+            return null;
+        }
+        if (state.status === "failed") throw new Error(state.error);
+        const stored = await storeGeneratedVideo(state.result);
+        const assetId = addAsset({
+            kind: "video",
+            title: titleOf(task),
+            coverUrl: "",
+            tags: [],
+            source: t("config.tasks.source"),
+            data: { url: stored.url, storageKey: stored.storageKey, width: stored.width || 0, height: stored.height || 0, bytes: stored.bytes, mimeType: stored.mimeType },
+            metadata: { source: "task-recovery", taskId: task.id, upstreamRef: task.upstreamRef },
+        });
+        return [assetId];
+    };
+
+    const query = async (task: Task) => {
+        const action = recoveryAction(task, modelscopeChannel);
+        if (action === "manual") return;
+        setBusyId(task.id);
+        try {
+            const assetIds = action === "modelscope" ? await recoverImage(task, modelscopeChannel) : await recoverVideo(task);
+            if (!assetIds) return;
+            const fresh = browserTaskLog.list().find((item) => item.id === task.id) ?? task;
+            commitRecovered(browserTaskLog, fresh, assetIds);
+            message.success(t("config.tasks.recovered", { count: assetIds.length }));
+        } catch (error) {
+            message.error(error instanceof Error ? error.message : t("config.tasks.queryFailed"));
+        } finally {
+            setBusyId("");
+        }
+    };
+
+    return (
+        <div>
+            <div className="mb-4 text-xs text-stone-500">{t("config.tasks.description")}</div>
+            {pending.length ? (
+                <div className="space-y-2">
+                    {pending.map((task) => {
+                        const action = recoveryAction(task, modelscopeChannel);
+                        return (
+                            <div key={task.id} className="rounded-lg border border-stone-200 px-4 py-3 dark:border-stone-800">
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                        <div className="truncate text-sm font-semibold">
+                                            {t(`config.tasks.kind.${task.kind}`)} · {task.params.model || t("config.tasks.unknownModel")}
+                                        </div>
+                                        <div className="mt-1 truncate text-xs text-stone-500">{task.params.prompt || "—"}</div>
+                                        <div className="mt-1 text-xs text-stone-500">
+                                            {dayjs(task.createdAt).format("MM-DD HH:mm")} · {task.error?.message || t("config.tasks.runningHint")}
+                                        </div>
+                                    </div>
+                                    <div className="flex shrink-0 flex-wrap items-center gap-2">
+                                        <Button size="small" icon={<Copy className="size-3.5" />} onClick={() => copyText(task.upstreamRef || "", t("config.tasks.copied"))}>
+                                            {task.upstreamRef || "—"}
+                                        </Button>
+                                        <Button size="small" type="primary" icon={<RefreshCw className="size-3.5" />} disabled={action === "manual"} loading={busyId === task.id} onClick={() => void query(task)}>
+                                            {t("config.tasks.query")}
+                                        </Button>
+                                    </div>
+                                </div>
+                                {action === "manual" ? (
+                                    <div className="mt-2 text-xs text-stone-500">
+                                        {task.params.extras?.endpoint === "modelscope" ? t("config.tasks.noModelscopeChannel") : t("config.tasks.manual")}
+                                    </div>
+                                ) : null}
+                            </div>
+                        );
+                    })}
+                </div>
+            ) : (
+                <div className="rounded-lg border border-dashed border-stone-300 px-4 py-8 text-center text-sm text-stone-500 dark:border-stone-700">
+                    <ClipboardCheck className="mx-auto mb-2 size-5" />
+                    {t("config.tasks.empty")}
+                </div>
+            )}
+            <div className="mt-4 text-xs text-stone-500">{t("config.tasks.footer")}</div>
+        </div>
+    );
+}

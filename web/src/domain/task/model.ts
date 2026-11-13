@@ -276,6 +276,36 @@ export function transition(task: Task, to: TaskStatus, opts: TransitionOptions =
   return ok(next);
 }
 
+export type RecoveryError = { code: 'not_recoverable'; message: string };
+
+/**
+ * 按原单取回产物：任务早已判 failed（上游收单、本地没拿到图），事后凭任务号
+ * 查单把图取回来了。
+ *
+ * 不走 `transition`：`failed` 是终态，正常迁移表不允许再变，那条规则保护的是
+ * 「失败卡片不能被悄悄改成成功」。这里的情况相反——产物确实拿到了，继续标
+ * failed 反而会让用户以为钱白花了，于是重新提交再买一张。
+ *
+ * 所以收窄到唯一一种情况：`error.code === 'provider_result_pending'` 且留着
+ * 任务号。别的失败（鉴权、参数、审核）一律拒绝恢复，改走正常重试。
+ */
+export function recoverPendingResult(
+  task: Task,
+  opts: { resultAssetIds: readonly string[]; now?: number },
+): Result<Task, RecoveryError> {
+  if (!task.upstreamRef || task.error?.code !== 'provider_result_pending') {
+    return err({ code: 'not_recoverable', message: '只有已收单但没取回产物的任务，才能凭原任务号恢复' });
+  }
+  return ok({
+    ...task,
+    status: 'succeeded',
+    phase: null,
+    error: null,
+    finishedAt: opts.now ?? Date.now(),
+    resultAssetIds: [...opts.resultAssetIds],
+  });
+}
+
 /** 更新上游进度。非法值直接拒绝，不做静默 clamp——静默反而掩盖适配器 bug。 */
 export function setProgress(task: Task, value: number | null): Result<Task, TaskTransitionError> {
   if (value === null) {

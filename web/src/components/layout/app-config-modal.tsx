@@ -10,6 +10,7 @@ import { ChannelEditorDrawer } from "@/components/layout/channel-editor-drawer";
 import { ConfigLocalProxy } from "@/components/layout/config-local-proxy";
 import { ConfigPromptSources } from "@/components/layout/config-prompt-sources";
 import { ConfigLocalStorage } from "@/components/layout/config-local-storage";
+import { ConfigTasks } from "@/components/layout/config-tasks";
 import type { AppLocale } from "@/i18n";
 import { exportAppConfig, importAppConfig } from "@/services/config-file";
 import { syncAppDataToWebdav, type AppSyncDomainKey, type AppSyncProgressEvent } from "@/services/app-sync";
@@ -214,6 +215,11 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
                                 </div>
                             </div>
                         ),
+                    },
+                    {
+                        key: "tasks",
+                        label: t("config.tabs.tasks"),
+                        children: <ConfigTasks />,
                     },
                     {
                         key: "local-proxy",

@@ -36,11 +36,19 @@ export {
   TASK_LOG_KEY,
   browserTaskLog,
   commit,
+  commitRecovered,
   createMemoryTaskLog,
   resumableTasks,
   useTaskLogStore,
   type TaskLog,
 } from './taskLog';
+
+export {
+  pickModelScopeChannel,
+  recoveryAction,
+  type RecoveryAction,
+  type RecoveryChannelView,
+} from './taskRecovery';
 
 export { imageTaskParams, type ImageConfigView } from './imageParams';
 

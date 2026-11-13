@@ -712,11 +712,16 @@ function parseGeminiImagePayload(payload: GeminiPayload) {
  */
 export async function requestGeneration(config: AiConfig, prompt: string, options?: RequestOptions) {
     return runWithTask({
-        params: imageTaskParams(config, prompt, [], false),
+        params: imageTaskParams(config, prompt, [], { endpoint: taskEndpoint(config) }),
         submit: (hooks) => requestGenerationRaw(config, prompt, options, hooks),
         signal: options?.signal,
         resultIds: (items) => items.map((item) => item.id),
     });
+}
+
+/** 台账里记下这次提交走的端点族，重启后才能判断这张单按哪条协议查。 */
+function taskEndpoint(config: AiConfig): "modelscope" | undefined {
+    return isModelScopeEndpoint(resolveModelRequestConfig(config, config.model || config.imageModel).baseUrl) ? "modelscope" : undefined;
 }
 
 /**
@@ -847,7 +852,7 @@ async function requestGenerationRaw(config: AiConfig, prompt: string, options?: 
 /** 图片编辑同样过任务层；参考图只落 id/name，不落 dataUrl。 */
 export async function requestEdit(config: AiConfig, prompt: string, references: ReferenceImage[], options?: RequestOptions) {
     return runWithTask({
-        params: imageTaskParams(config, prompt, references, true),
+        params: imageTaskParams(config, prompt, references, { isEdit: true, endpoint: taskEndpoint(config) }),
         submit: (hooks) => requestEditRaw(config, prompt, references, options, hooks),
         signal: options?.signal,
         resultIds: (items) => items.map((item) => item.id),

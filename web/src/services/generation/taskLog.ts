@@ -10,7 +10,7 @@
 import { create } from 'zustand';
 import { persist, type PersistStorage, type StorageValue } from 'zustand/middleware';
 
-import { createTask, transition, type CreateTaskInput, type Task } from '@/domain/task/model';
+import { createTask, recoverPendingResult, transition, type CreateTaskInput, type Task } from '@/domain/task/model';
 import { isOk } from '@/domain/shared/result';
 import { localForageStorage } from '@/lib/localforage-storage';
 
@@ -113,14 +113,39 @@ export function commit(
 }
 
 /**
- * 「已收单但本地没拿到产物」的任务清单，供第 3 步查单取回或人工去厂商后台核对。
+ * 凭原任务号取回产物后写回台账。
+ *
+ * `running`（刷新打断了轮询）走正常迁移；已经是 `failed / provider_result_pending`
+ * 的走 `recoverPendingResult` 的受限恢复，其他失败一律不动——那条规则只给
+ * 「已收单但没拿到产物」开一个口子。
+ */
+export function commitRecovered(log: TaskLog, task: Task, resultAssetIds: readonly string[]): Task {
+  const result = task.status === 'running' ? transition(task, 'succeeded', { resultAssetIds: [...resultAssetIds] }) : recoverPendingResult(task, { resultAssetIds });
+  if (!result.ok) return task;
+  log.update(result.value);
+  return result.value;
+}
+
+/**
+ * 本进程里正在跑的任务。它们的状态也是 `running + upstreamRef`，但那是「正在生成」，
+ * 不是「刷新打断了轮询、等你来查」——不排掉，设置里会一边出图一边挂出待核实卡片。
+ */
+const inFlight = new Set<string>();
+
+export function markInFlight(taskId: string, active: boolean): void {
+  if (active) inFlight.add(taskId);
+  else inFlight.delete(taskId);
+}
+
+/**
+ * 「已收单但本地没拿到产物」的任务清单，供查单取回或人工去厂商后台核对。
  *
  * 红线：这个清单**不是**重发入口。展示时不能给用户「确认后重发」去查旧单，
  * 那会新提交一张、再扣一次钱。只允许展示任务号 + 查单/去后台核对。
  */
 export function resumableTasks(tasks: readonly Task[]): Task[] {
   return tasks.filter((task) => {
-    if (!task.upstreamRef) return false;
+    if (!task.upstreamRef || inFlight.has(task.id)) return false;
     if (task.status === 'running') return true;
     return task.status === 'failed' && task.error?.code === 'provider_result_pending';
   });

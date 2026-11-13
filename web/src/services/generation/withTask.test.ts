@@ -178,7 +178,7 @@ describe('成功路径与参数快照', () => {
       } as Parameters<typeof imageTaskParams>[0] & { apiKey: string; baseUrl: string },
       '一只猫',
       [{ id: 'data:image/png;base64,AAAA', name: 'ref.png' }, { id: 'asset-2', name: 'ok.png' }],
-      true,
+      { isEdit: true, endpoint: 'modelscope' },
     );
     const serialized = JSON.stringify(snapshot);
     expect(serialized).not.toContain('ms-SHOULD-NOT-BE-PERSISTED');
@@ -187,6 +187,6 @@ describe('成功路径与参数快照', () => {
     expect(serialized).not.toContain('base64,AAAA');
     expect(snapshot.inputAssetIds).toEqual(['ref.png', 'asset-2']);
     expect(snapshot.count).toBe(3);
-    expect(snapshot.extras).toEqual({ mode: 'edit' });
+    expect(snapshot.extras).toEqual({ mode: 'edit', endpoint: 'modelscope' });
   });
 });
