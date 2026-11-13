@@ -1,54 +1,18 @@
-/**
- * 视频任务：提交即落 upstreamRef，查单/取回独立可恢复。
- *
- * 基座 `waitForVideoGenerationTask` 是 120×2.5s 的内存阻塞循环，刷新页面
- * 任务就没了（上游还在跑、钱已经付了）。这里不新增任何超时/次数边界：
- * 轮询循环仍由基座负责，我们只在「提交后」和「每次查单后」把任务落到台账。
- * 重启后 `videoHandleFromTask()` 能从台账重建查单句柄接着查。
- *
- * provider / model 存在 params.providerId / params.model 里（都是非敏感字段），
- * 不落 config —— AiConfig 里有 apiKey，绝不写盘。
- */
+/** 视频提交与查单的可等待任务写入，不改变轮询/厂商协议。 */
 import { normalizeError, type GenerationParams, type Task } from '@/domain/task/model';
 import { readTaskOutcome } from '@/domain/task/outcome';
-import { browserTaskLog, commit, resumableTasks, type TaskLog } from './taskLog';
-import { isAbort } from './withTask';
+import { browserTaskLog, commit, resumableTasks, retainTaskWriteFailure, TaskPersistenceError, type LoggedTask, type TaskLog } from './taskLog';
 
 export type VideoProvider = 'openai' | 'gemini' | 'plugin';
+export interface VideoTaskHandle { id: string; provider: VideoProvider; model: string }
+export interface VideoConfigView { model?: string; videoModel?: string; apiFormat?: string; size?: string; videoSeconds?: string; count?: string }
+export interface VideoTransport { submit(config: VideoConfigView, prompt: string, signal?: AbortSignal): Promise<VideoTaskHandle> }
+export type VideoPollState = { status: 'pending' } | { status: 'completed' } | { status: 'failed'; error: string };
 
-/** 与 `services/api/video.ts` 的 VideoGenerationTask 结构一致，避免测试拉起 axios。 */
-export interface VideoTaskHandle {
-  id: string;
-  provider: VideoProvider;
-  model: string;
-}
-
-export interface VideoConfigView {
-  model?: string;
-  videoModel?: string;
-  apiFormat?: string;
-  size?: string;
-  videoSeconds?: string;
-  count?: string;
-}
-
-export interface VideoTransport {
-  submit(config: VideoConfigView, prompt: string, signal?: AbortSignal): Promise<VideoTaskHandle>;
-}
-
-export type VideoPollState =
-  | { status: 'pending' }
-  | { status: 'completed' }
-  | { status: 'failed'; error: string };
-
-/** 只取可回溯的非敏感字段，config 里的 apiKey / baseUrl / 参考图一律不进快照。 */
 export function videoTaskParams(config: VideoConfigView, prompt: string, handle?: VideoTaskHandle): GenerationParams {
   const params: GenerationParams = {
-    kind: 'video',
-    prompt,
-    model: handle?.model || config.model || config.videoModel || '',
-    providerId: handle?.provider || config.apiFormat || 'unknown',
-    inputAssetIds: [],
+    kind: 'video', prompt, model: handle?.model || config.model || config.videoModel || '',
+    providerId: handle?.provider || config.apiFormat || 'unknown', inputAssetIds: [],
   };
   if (config.size) params.aspectRatio = config.size;
   if (config.videoSeconds) params.durationSec = Number(config.videoSeconds) || undefined;
@@ -56,96 +20,59 @@ export function videoTaskParams(config: VideoConfigView, prompt: string, handle?
   return params;
 }
 
-/**
- * 提交视频任务。POST 之前先落一条 queued（含参数快照），拿到任务号后立刻
- * 补 upstreamRef 并进入 running/generating。**不在这里等待出片**。
- */
 export async function submitVideoTask(input: {
-  config: VideoConfigView;
-  prompt: string;
-  transport: VideoTransport;
-  signal?: AbortSignal;
-  nodeId?: string | null;
-  log?: TaskLog;
-}): Promise<{ handle: VideoTaskHandle; task: Task }> {
-  // 提交开始那一刻的取消状态：区分「根本没发」和「发出去后本地不等了」。
-  const abortedBeforeSubmit = input.signal?.aborted === true;
+  config: VideoConfigView; prompt: string; transport: VideoTransport; signal?: AbortSignal;
+  nodeId?: string | null; log?: TaskLog;
+}): Promise<{ handle: VideoTaskHandle; task: LoggedTask }> {
   const log = input.log ?? browserTaskLog;
-  let task = log.create({
-    kind: 'video',
-    params: videoTaskParams(input.config, input.prompt),
-    nodeId: input.nodeId ?? null,
-  });
-  // 先进入 submitting，失败时才能合法迁移到 failed（queued → failed 是非法迁移）。
-  task = commit(log, task, 'running', { phase: 'submitting' });
-
+  let task: LoggedTask;
   try {
-    const handle = await input.transport.submit(input.config, input.prompt, input.signal);
-    // POST 已收单：这一刻起任务号必须在盘上，刷新/崩溃后可凭它续查。
-    // params 里的 model/provider 也只有拿到 handle 才知道，一并冻结进快照。
-    const finalTask: Task = {
-      ...task,
-      params: videoTaskParams(input.config, input.prompt, handle),
-      upstreamRef: handle.id,
-      phase: 'generating',
-    };
-    log.update(finalTask);
-    return { handle, task: finalTask };
+    task = await log.create({ kind: 'video', params: videoTaskParams(input.config, input.prompt), nodeId: input.nodeId ?? null });
+    task = await commit(log, task, 'running', { phase: 'submitting' });
   } catch (error) {
-    if (abortedBeforeSubmit && isAbort(error, input.signal)) {
-      // 提交前就取消：POST 没发出去，没扣钱，直接重发是安全的。
-      // 提交中才取消（abortedBeforeSubmit=false）不能走这里——请求可能已被上游
-      // 收单计费，标 canceled 会判 not_charged/allowed，诱导用户再买一张。
-      task = commit(log, task, 'canceled', {
-        error: { code: 'unknown', message: '已取消' },
-      });
-      throw error;
+    if (error instanceof TaskPersistenceError && error.task) throw retainTaskWriteFailure(log, error, error.task, false);
+    throw error;
+  }
+  let submitted = false;
+  try {
+    if (input.signal?.aborted) {
+      task = await commit(log, task, 'canceled', { error: { code: 'unknown', message: '已取消，尚未提交' } });
+      throw new DOMException('Aborted', 'AbortError');
     }
-    // 提交阶段失败走 normalizeError：超时/5xx 判 submission_uncertain → confirm，
-    // 连接被拒这种「没离开本机」才 allowed。
-    task = commit(log, task, 'failed', {
-      error: normalizeError(error, 'submitting'),
-    });
+    submitted = true;
+    const handle = await input.transport.submit(input.config, input.prompt, input.signal);
+    task = { ...task, params: videoTaskParams(input.config, input.prompt, handle), upstreamRef: handle.id, phase: 'generating' };
+    task = await log.update(task);
+    return { handle, task };
+  } catch (error) {
+    if (error instanceof TaskPersistenceError) throw retainTaskWriteFailure(log, error, error.task ?? task, submitted);
+    if (!submitted) throw error;
+    try { task = await commit(log, task, 'failed', { error: normalizeError(error, 'submitting') }); }
+    catch (saveError) {
+      if (saveError instanceof TaskPersistenceError) throw retainTaskWriteFailure(log, saveError, saveError.task ?? task, true);
+      throw saveError;
+    }
     throw error;
   }
 }
 
-/**
- * 单次查单后把结论落到台账。循环由基座负责，这里不引入新的重试边界。
- *
- * 轮询被中断时**不标 canceled**：上游任务还在跑、钱已付，标 canceled 会
- * 让 readTaskOutcome 判 `not_charged/allowed`，诱导用户再提交一张。
- * 保持 running + upstreamRef，交给 resumableVideoTasks() 恢复。
- */
-export function noteVideoPoll(
-  state: VideoPollState,
-  task: Task,
-  log: TaskLog = browserTaskLog,
-): Task {
-  if (state.status === 'pending') return task;
-  if (state.status === 'completed') {
-    return commit(log, task, 'succeeded', { resultAssetIds: [] });
+/** 当前版本由调用方读取；非法迁移/保存失败不能假报成功。 */
+export async function noteVideoPoll(state: VideoPollState, task: LoggedTask, log: TaskLog = browserTaskLog): Promise<LoggedTask> {
+  // 原单已经确认成功时，只返回查到的结果，不再次迁移终态。
+  if (state.status === 'pending' || (state.status === 'completed' && task.status === 'succeeded')) return task;
+  try {
+    return await commit(log, task, state.status === 'completed' ? 'succeeded' : 'failed', state.status === 'completed'
+      ? { resultAssetIds: [] } : { error: normalizeError(new Error(state.error), 'generating') });
+  } catch (error) {
+    if (error instanceof TaskPersistenceError) throw retainTaskWriteFailure(log, error, error.task ?? task, true);
+    throw error;
   }
-  return commit(log, task, 'failed', {
-    error: normalizeError(new Error(state.error), 'generating'),
-  });
 }
-
-/** 从台账重建查单句柄（重启后接着查那一单，不重新提交）。 */
 export function videoHandleFromTask(task: Task): VideoTaskHandle | null {
   if (task.kind !== 'video' || !task.upstreamRef) return null;
   const provider = task.params.providerId;
-  if (provider !== 'openai' && provider !== 'gemini' && provider !== 'plugin') return null;
-  return { id: task.upstreamRef, provider, model: task.params.model };
+  return provider === 'openai' || provider === 'gemini' || provider === 'plugin' ? { id: task.upstreamRef, provider, model: task.params.model } : null;
 }
-
-export function resumableVideoTasks(log: TaskLog = browserTaskLog) {
-  return resumableTasks(log.list())
-    .filter((task) => task.kind === 'video')
-    .map((task) => ({
-      task,
-      handle: videoHandleFromTask(task),
-      outcome: readTaskOutcome(task),
-    }))
-    .filter((entry) => entry.handle !== null);
+export async function resumableVideoTasks(log: TaskLog = browserTaskLog) {
+  return resumableTasks(await log.list()).filter((task) => task.kind === 'video').map((task) => ({ task, handle: videoHandleFromTask(task), outcome: readTaskOutcome(task) })).filter((entry) => entry.handle !== null);
 }

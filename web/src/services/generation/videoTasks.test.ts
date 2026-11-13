@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { readTaskOutcome } from '@/domain/task/outcome';
 import { createMemoryTaskLog } from './taskLog';
@@ -44,7 +44,7 @@ describe('视频提交即落 upstreamRef，重启可恢复', () => {
     const log = createMemoryTaskLog();
     const { task } = await submitted(log);
     expect(videoHandleFromTask(task)).toEqual(handle);
-    expect(resumableVideoTasks(log)).toEqual([
+    expect(await resumableVideoTasks(log)).toEqual([
       expect.objectContaining({
         handle,
         outcome: expect.objectContaining({ regenerate: 'blocked' }),
@@ -69,16 +69,16 @@ describe('查单结论落台账，中断不诱导重发', () => {
   it('pending 不改状态，任务仍可恢复', async () => {
     const log = createMemoryTaskLog();
     const { task } = await submitted(log);
-    const after = noteVideoPoll({ status: 'pending' }, task, log);
+    const after = await noteVideoPoll({ status: 'pending' }, task, log);
     expect(after.status).toBe('running');
     expect(after.upstreamRef).toBe('task-123');
-    expect(resumableVideoTasks(log)).toHaveLength(1);
+    expect(await resumableVideoTasks(log)).toHaveLength(1);
   });
 
   it('查单 FAILED 保留 upstreamRef → confirm，不标 canceled', async () => {
     const log = createMemoryTaskLog();
     const { task } = await submitted(log);
-    const after = noteVideoPoll({ status: 'failed', error: 'HTTP 500' }, task, log);
+    const after = await noteVideoPoll({ status: 'failed', error: 'HTTP 500' }, task, log);
     expect(after.status).toBe('failed');
     expect(after.upstreamRef).toBe('task-123');
     expect(readTaskOutcome(after)).toMatchObject({
@@ -90,7 +90,7 @@ describe('查单结论落台账，中断不诱导重发', () => {
   it('completed → succeeded', async () => {
     const log = createMemoryTaskLog();
     const { task } = await submitted(log);
-    const after = noteVideoPoll({ status: 'completed' }, task, log);
+    const after = await noteVideoPoll({ status: 'completed' }, task, log);
     expect(after.status).toBe('succeeded');
     expect(readTaskOutcome(after)).toMatchObject({ phase: 'ready', regenerate: 'allowed' });
   });
@@ -99,16 +99,18 @@ describe('查单结论落台账，中断不诱导重发', () => {
     const controller = new AbortController();
     controller.abort();
     const log = createMemoryTaskLog();
+    const submit = vi.fn(() => Promise.reject(new DOMException('Aborted', 'AbortError')));
     await expect(
       submitVideoTask({
         config,
         prompt: '海边日落',
         log,
         signal: controller.signal,
-        transport: { submit: () => Promise.reject(new DOMException('Aborted', 'AbortError')) },
+        transport: { submit },
       }),
     ).rejects.toThrow();
-    const task = log.list()[0];
+    expect(submit).not.toHaveBeenCalled();
+    const task = (await log.list())[0]!;
     expect(task.status).toBe('canceled');
     expect(task.upstreamRef).toBeNull();
     expect(readTaskOutcome(task)).toMatchObject({ regenerate: 'allowed', reason: 'not_charged' });
@@ -131,7 +133,7 @@ describe('查单结论落台账，中断不诱导重发', () => {
         },
       }),
     ).rejects.toThrow();
-    const task = log.list()[0];
+    const task = (await log.list())[0]!;
     expect(task.status).toBe('failed');
     expect(task.error?.code).toBe('submission_uncertain');
     expect(readTaskOutcome(task)).toMatchObject({
@@ -150,7 +152,7 @@ describe('查单结论落台账，中断不诱导重发', () => {
         transport: { submit: () => Promise.reject(new Error('connect ECONNREFUSED 127.0.0.1:9')) },
       }),
     ).rejects.toThrow();
-    const task = log.list()[0];
+    const task = (await log.list())[0]!;
     expect(task.status).toBe('failed');
     expect(task.error?.code).toBe('network');
     expect(readTaskOutcome(task)?.regenerate).toBe('allowed');

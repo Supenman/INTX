@@ -61,7 +61,7 @@ export interface ModelScopeRequest {
   referenceCount: number;
   signal?: AbortSignal;
   /** 提交 2xx 拿到任务号的那一刻调用，用于立刻落盘 upstreamRef。 */
-  onSubmitted?(taskId: string): void;
+  onSubmitted?(taskId: string): void | Promise<void>;
 }
 
 export interface ModelScopeImage {
@@ -234,6 +234,6 @@ export async function generateModelScopeImages(
     throw new ProviderResultPendingError({ detail: '提交成功但响应里没有 task_id，无法查单' });
   }
 
-  req.onSubmitted?.(taskId);
+  await req.onSubmitted?.(taskId);
   return pollModelScopeTask(transport, req, taskId);
 }

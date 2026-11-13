@@ -11,6 +11,7 @@ import { imageSizePresets, inferMediaScale } from "@/lib/media-size";
 import type { ReferenceImage } from "@/types/image";
 import {
     ProviderResultPendingError,
+    TaskPersistenceError,
     classifyImagePayload,
     generateModelScopeImages,
     imageTaskParams,
@@ -770,7 +771,7 @@ async function requestModelScopeImages(requestConfig: AiConfig, prompt: string, 
 async function recoverSubmittedModelScope(requestConfig: AiConfig, payload: unknown, options: RequestOptions | undefined, hooks: SubmitHooks | undefined) {
     const taskId = readUpstreamTaskId(payload);
     if (!taskId || !isModelScopeRequest(requestConfig)) throw pendingResultFrom(payload);
-    hooks?.onSubmitted(taskId);
+    await hooks?.onSubmitted(taskId);
     const images = await pollModelScopeTask(browserModelScopeTransport, { baseUrl: requestConfig.baseUrl, apiKey: requestConfig.apiKey, signal: options?.signal }, taskId);
     return images.map((image) => ({ id: nanoid(), dataUrl: image.dataUrl }));
 }
@@ -841,7 +842,7 @@ async function requestGenerationRaw(config: AiConfig, prompt: string, options?: 
         const images = await parseImagePayload(response.data);
         return images;
     } catch (error) {
-        if (error instanceof ProviderResultPendingError) throw error;
+        if (error instanceof ProviderResultPendingError || error instanceof TaskPersistenceError) throw error;
         const status = axios.isAxiosError(error) ? error.response?.status : undefined;
         const message = readAxiosError(error, apiText("requestFailed"));
         // 保留状态码线索，domain 的 normalizeError 才能识别 401/429/451/5xx
@@ -932,7 +933,7 @@ async function requestEditRaw(config: AiConfig, prompt: string, references: Refe
         const images = await parseImagePayload(response.data);
         return images;
     } catch (error) {
-        if (error instanceof ProviderResultPendingError) throw error;
+        if (error instanceof ProviderResultPendingError || error instanceof TaskPersistenceError) throw error;
         const status = axios.isAxiosError(error) ? error.response?.status : undefined;
         const message = readAxiosError(error, apiText("requestFailed"));
         // 保留状态码线索，domain 的 normalizeError 才能识别 401/429/451/5xx

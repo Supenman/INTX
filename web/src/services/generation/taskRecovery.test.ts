@@ -1,12 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { transition, type GenerationParams, type Task } from '@/domain/task/model';
-import { commitRecovered, createMemoryTaskLog, markInFlight, resumableTasks } from './taskLog';
+import { createTask, transition, type GenerationParams, type Task } from '@/domain/task/model';
+import { commitRecovered, createMemoryTaskLog, markInFlight, resumableTasks, TaskPersistenceError } from './taskLog';
 import { pickModelScopeChannel, recoveryAction } from './taskRecovery';
 
 function taskWith(partial: Partial<Task> & { params?: GenerationParams } = {}): Task {
-  const log = createMemoryTaskLog();
-  const created = log.create({
+  const created = createTask({
     kind: partial.kind ?? 'image',
     params: partial.params ?? { kind: 'image', prompt: '一只猫', model: 'openmoss/MOSS-Image-SFT', providerId: 'openai', inputAssetIds: [] },
   });
@@ -14,13 +13,13 @@ function taskWith(partial: Partial<Task> & { params?: GenerationParams } = {}): 
 }
 
 const running: Task = (() => {
-  const log = createMemoryTaskLog();
-  const created = log.create({ kind: 'image', params: { kind: 'image', prompt: 'p', model: 'm', providerId: 'openai', inputAssetIds: [] } });
+  const created = createTask({ kind: 'image', params: { kind: 'image', prompt: 'p', model: 'm', providerId: 'openai', inputAssetIds: [] } });
   const result = transition(created, 'running', { phase: 'submitting' });
-  return result.ok ? result.value : created;
+  if (!result.ok) throw new Error('构造失败');
+  return result.value;
 })();
 
-const msChannel = { name: 'ModelScope', baseUrl: 'https://api-inference.modelscope.cn/v1', apiKey: 'test-key-not-real' };
+const msChannel = { name: 'ModelScope', baseUrl: 'https://api-inference.modelscope.cn/v1', apiKey: 'fixture-only' };
 
 describe('ModelScope 渠道选择', () => {
   it('只认官方端点且配了 Key 的渠道', () => {
@@ -33,7 +32,7 @@ describe('ModelScope 渠道选择', () => {
 
   it('多个候选时取第一个可用的', () => {
     const openai = { name: 'OpenAI', baseUrl: 'https://api.openai.com/v1', apiKey: 'k' };
-    const second = { ...msChannel, apiKey: 'test-key-not-real-2' };
+    const second = { ...msChannel, apiKey: 'fixture-only' };
     expect(pickModelScopeChannel([openai, msChannel, second])).toBe(msChannel);
   });
 });
@@ -64,45 +63,55 @@ describe('待核实任务按协议选查单方式', () => {
 });
 
 describe('待核实清单', () => {
-  it('本进程正在跑的单不算待核实，跑完（失败留号）才进列表', () => {
+  it('本进程正在跑的单不算待核实，跑完（失败留号）才进列表', async () => {
     const log = createMemoryTaskLog();
-    const task = log.create({ kind: 'image', params: { kind: 'image', prompt: 'p', model: 'm', providerId: 'openai', inputAssetIds: [] } });
+    const task = await log.create({ kind: 'image', params: { kind: 'image', prompt: 'p', model: 'm', providerId: 'openai', inputAssetIds: [] } });
     const started = transition(task, 'running', { phase: 'generating' });
     if (!started.ok) throw new Error('构造失败');
-    log.update({ ...started.value, upstreamRef: 'tk-live' });
+    await log.update({ ...started.value, revision: task.revision, upstreamRef: 'tk-live' });
     markInFlight(task.id, true);
-    expect(resumableTasks(log.list())).toHaveLength(0);
-    markInFlight(task.id, false);
-    expect(resumableTasks(log.list())).toHaveLength(1);
+    try {
+      expect(resumableTasks(await log.list())).toHaveLength(0);
+    } finally {
+      markInFlight(task.id, false);
+    }
+    expect(resumableTasks(await log.list())).toHaveLength(1);
   });
 });
 
 describe('取回产物写回台账', () => {
-  it('轮询被打断的 running 单正常转成功', () => {
+  it('轮询被打断的 running 单正常转成功', async () => {
     const log = createMemoryTaskLog();
-    const task = log.create({ kind: 'image', params: { kind: 'image', prompt: 'p', model: 'm', providerId: 'openai', inputAssetIds: [] } });
-    const started = transition(task, 'running', { phase: 'generating' });
+    const task = await log.create({ kind: 'image', params: { kind: 'image', prompt: 'p', model: 'm', providerId: 'openai', inputAssetIds: [] } });
+    const started = transition(task, 'running', { phase: 'generating', upstreamRef: 'tk-interrupted' });
     if (!started.ok) throw new Error('构造失败');
-    log.update(started.value);
-    const next = commitRecovered(log, started.value, ['asset-1']);
+    const saved = await log.update({ ...started.value, revision: task.revision });
+    const next = await commitRecovered(log, saved, ['asset-1']);
     expect(next.status).toBe('succeeded');
-    expect(log.list()[0]!.resultAssetIds).toEqual(['asset-1']);
+    expect(next.upstreamRef).toBe('tk-interrupted');
+    expect((await log.list())[0]!.resultAssetIds).toEqual(['asset-1']);
   });
 
-  it('已收单的失败单走受限恢复，其他失败不动', () => {
+  it('已收单的失败单走受限恢复，其他失败拒绝恢复且不动', async () => {
     const log = createMemoryTaskLog();
-    const task = log.create({ kind: 'image', params: { kind: 'image', prompt: 'p', model: 'm', providerId: 'openai', inputAssetIds: [] } });
+    const task = await log.create({ kind: 'image', params: { kind: 'image', prompt: 'p', model: 'm', providerId: 'openai', inputAssetIds: [] } });
     const started = transition(task, 'running', { phase: 'generating' });
     if (!started.ok) throw new Error('构造失败');
-    log.update(started.value);
-    const pending = transition(started.value, 'failed', { error: { code: 'provider_result_pending', message: '已收单' }, upstreamRef: 'tk-9' });
+    const saved = await log.update({ ...started.value, revision: task.revision });
+    const pending = transition(saved, 'failed', { error: { code: 'provider_result_pending', message: '已收单' }, upstreamRef: 'tk-9' });
     if (!pending.ok) throw new Error('构造失败');
-    log.update(pending.value);
-    commitRecovered(log, pending.value, ['asset-2']);
-    expect(log.list()[0]!.status).toBe('succeeded');
+    const savedPending = await log.update({ ...pending.value, revision: saved.revision });
+    await commitRecovered(log, savedPending, ['asset-2']);
+    expect((await log.get(task.id))!.status).toBe('succeeded');
 
-    const auth = taskWith({ kind: 'image', status: 'failed', upstreamRef: 'tk-10', error: { code: 'auth_failed', message: 'x' } });
-    log.update(auth);
-    expect(commitRecovered(log, auth, ['asset-3']).status).toBe('failed');
+    const auth = await log.create({ id: 'auth-task', kind: 'image', params: task.params });
+    const authStarted = transition(auth, 'running', { phase: 'generating' });
+    if (!authStarted.ok) throw new Error('构造失败');
+    const savedAuthStarted = await log.update({ ...authStarted.value, revision: auth.revision });
+    const authFailed = transition(savedAuthStarted, 'failed', { upstreamRef: 'tk-10', error: { code: 'auth_failed', message: 'x' } });
+    if (!authFailed.ok) throw new Error('构造失败');
+    const savedAuth = await log.update({ ...authFailed.value, revision: savedAuthStarted.revision });
+    await expect(commitRecovered(log, savedAuth, ['asset-3'])).rejects.toBeInstanceOf(TaskPersistenceError);
+    expect(await log.get(auth.id)).toEqual(savedAuth);
   });
 });

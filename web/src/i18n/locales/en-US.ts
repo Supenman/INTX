@@ -396,7 +396,11 @@ export default {
             noModelscopeChannel: "Add a ModelScope channel (api-inference.modelscope.cn) under Providers to query automatically.",
             runningHint: "Local polling was interrupted; the task may still be running upstream.",
             source: "Task recovery",
-            footer: "Task IDs survive refreshes and restarts. Querying only reads — it never resubmits or charges again.",
+            loading: "Loading task records…",
+            reload: "Reload records",
+            unsaved: "Task record not saved",
+            retrySave: "Retry local save",
+            footer: "Confirmed task IDs can be loaded after restart. Unsaved evidence exists only in this process. Queries and local saves never resubmit.",
         },
         proxy: {
             title: "Local proxy",

@@ -58,7 +58,7 @@ export async function waitForVideoGenerationTask(config: AiConfig, task: VideoGe
     // 按 upstreamRef 找回提交时落的那条任务；查单结论同步写回台账。
     // 轮询被中断/超时时任务保持 running + upstreamRef，绝不标 canceled
     // （上游可能还在跑、钱已付，标 canceled 会诱导用户再提交一张）。
-    const tracked = browserTaskLog.findByUpstreamRef(task.id);
+    let tracked = await browserTaskLog.findByUpstreamRef(task.id);
     for (let attempt = 0; attempt < 120; attempt += 1) {
         if (options?.signal?.aborted) throw new DOMException("Aborted", "AbortError");
         const state = await pollVideoGenerationTask(config, task, options);
@@ -68,7 +68,8 @@ export async function waitForVideoGenerationTask(config: AiConfig, task: VideoGe
                 : state.status === "failed"
                     ? { status: "failed", error: state.error }
                     : { status: "pending" };
-            noteVideoPoll(poll, tracked, browserTaskLog);
+            tracked = await browserTaskLog.get(tracked.id);
+            if (tracked) tracked = await noteVideoPoll(poll, tracked, browserTaskLog);
         }
         if (state.status === "completed") return state.result;
         if (state.status === "failed") throw videoTaskFailed(state.error);

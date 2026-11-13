@@ -1,14 +1,14 @@
 import { App, Button } from "antd";
 import dayjs from "dayjs";
 import { ClipboardCheck, Copy, RefreshCw } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { Task } from "@/domain/task/model";
 import { useCopyText } from "@/hooks/use-copy-text";
 import { browserModelScopeTransport } from "@/services/api/modelscope-transport";
 import { pollVideoGenerationTask, storeGeneratedVideo } from "@/services/api/video";
-import { browserTaskLog, commitRecovered, pollModelScopeTask, resumableTasks, useTaskLogStore, videoHandleFromTask } from "@/services/generation";
+import { browserTaskLog, commitRecovered, loadTaskLog, retryTaskSave, pollModelScopeTask, resumableTasks, useTaskLogStore, videoHandleFromTask } from "@/services/generation";
 import { pickModelScopeChannel, recoveryAction, type RecoveryChannelView } from "@/services/generation/taskRecovery";
 import { uploadImage } from "@/services/image-storage";
 import { useAssetStore } from "@/stores/use-asset-store";
@@ -25,11 +25,24 @@ export function ConfigTasks() {
     const { t } = useTranslation();
     const copyText = useCopyText();
     const tasks = useTaskLogStore((state) => state.tasks);
+    const unsaved = useTaskLogStore((state) => state.unsaved);
+    const loading = useTaskLogStore((state) => state.loading);
+    const hydrated = useTaskLogStore((state) => state.hydrated);
+    const loadError = useTaskLogStore((state) => state.loadError);
+    useTaskLogStore((state) => state.inFlightIds);
+    useEffect(() => { void loadTaskLog(); }, []);
     const config = useConfigStore((state) => state.config);
     const addAsset = useAssetStore((state) => state.addAsset);
     const [busyId, setBusyId] = useState("");
     const modelscopeChannel = pickModelScopeChannel(config.channels);
-    const pending = resumableTasks(tasks);
+    const pending = resumableTasks(tasks).filter((task) => !unsaved[task.id]);
+    const savePending = async (id: string) => {
+        if (busyId) return;
+        setBusyId(id);
+        try { await retryTaskSave(id); }
+        catch (error) { message.error(error instanceof Error ? error.message : t("config.tasks.queryFailed")); }
+        finally { setBusyId(""); }
+    };
 
     const titleOf = (task: Task) => task.params.prompt.slice(0, 32) || task.params.model;
 
@@ -83,13 +96,14 @@ export function ConfigTasks() {
 
     const query = async (task: Task) => {
         const action = recoveryAction(task, modelscopeChannel);
-        if (action === "manual") return;
+        if (action === "manual" || busyId || unsaved[task.id]) return;
         setBusyId(task.id);
         try {
             const assetIds = action === "modelscope" ? await recoverImage(task, modelscopeChannel) : await recoverVideo(task);
             if (!assetIds) return;
-            const fresh = browserTaskLog.list().find((item) => item.id === task.id) ?? task;
-            commitRecovered(browserTaskLog, fresh, assetIds);
+            const fresh = await browserTaskLog.get(task.id);
+            if (!fresh) throw new Error(t("config.tasks.queryFailed"));
+            await commitRecovered(browserTaskLog, fresh, assetIds);
             message.success(t("config.tasks.recovered", { count: assetIds.length }));
         } catch (error) {
             message.error(error instanceof Error ? error.message : t("config.tasks.queryFailed"));
@@ -101,6 +115,21 @@ export function ConfigTasks() {
     return (
         <div>
             <div className="mb-4 text-xs text-stone-500">{t("config.tasks.description")}</div>
+            {loadError ? (
+                <div role="alert" className="mb-3 text-sm">
+                    {loadError} <Button size="small" onClick={() => void loadTaskLog()}>{t("config.tasks.reload")}</Button>
+                </div>
+            ) : null}
+            {Object.values(unsaved).map(({ evidence: task, error }) => (
+                <div key={task.id} role="alert" className="mb-2 rounded-lg border border-stone-200 px-4 py-3 dark:border-stone-800">
+                    <div className="text-sm font-semibold">{task.params.model} · {t("config.tasks.unsaved")}</div>
+                    <div className="mt-1 text-xs">{error} · {task.error?.message}</div>
+                    <div className="mt-2 flex gap-2">
+                        {task.upstreamRef ? <Button size="small" onClick={() => copyText(task.upstreamRef!)}>{task.upstreamRef}</Button> : null}
+                        <Button size="small" disabled={Boolean(busyId)} onClick={() => void savePending(task.id)}>{t("config.tasks.retrySave")}</Button>
+                    </div>
+                </div>
+            ))}
             {pending.length ? (
                 <div className="space-y-2">
                     {pending.map((task) => {
@@ -121,7 +150,7 @@ export function ConfigTasks() {
                                         <Button size="small" icon={<Copy className="size-3.5" />} onClick={() => copyText(task.upstreamRef || "", t("config.tasks.copied"))}>
                                             {task.upstreamRef || "—"}
                                         </Button>
-                                        <Button size="small" type="primary" icon={<RefreshCw className="size-3.5" />} disabled={action === "manual"} loading={busyId === task.id} onClick={() => void query(task)}>
+                                        <Button size="small" type="primary" icon={<RefreshCw className="size-3.5" />} disabled={action === "manual" || Boolean(busyId) || !hydrated || Boolean(loadError)} loading={busyId === task.id} onClick={() => void query(task)}>
                                             {t("config.tasks.query")}
                                         </Button>
                                     </div>
@@ -135,12 +164,12 @@ export function ConfigTasks() {
                         );
                     })}
                 </div>
-            ) : (
+            ) : hydrated && !loading && !loadError && !Object.keys(unsaved).length ? (
                 <div className="rounded-lg border border-dashed border-stone-300 px-4 py-8 text-center text-sm text-stone-500 dark:border-stone-700">
                     <ClipboardCheck className="mx-auto mb-2 size-5" />
                     {t("config.tasks.empty")}
                 </div>
-            )}
+            ) : loading ? <div>{t("config.tasks.loading")}</div> : null}
             <div className="mt-4 text-xs text-stone-500">{t("config.tasks.footer")}</div>
         </div>
     );

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { readTaskOutcome } from '@/domain/task/outcome';
 import type { GenerationParams, Task } from '@/domain/task/model';
@@ -128,7 +128,7 @@ describe('ModelScope 提交与查单', () => {
         return transport.request(url, init);
       },
     };
-    await generateModelScopeImages(wrapped, { ...req, onSubmitted: (id) => order.push(`submitted:${id}`) });
+    await generateModelScopeImages(wrapped, { ...req, onSubmitted: (id) => { order.push(`submitted:${id}`); } });
     expect(order).toEqual(['POST', 'submitted:tk-2', 'GET']);
   });
 
@@ -272,7 +272,7 @@ describe('ModelScope 接入任务台账', () => {
       ...transport,
       request: async (url, init) => {
         if (init.method === 'GET') {
-          snapshot = only(log.list());
+          snapshot = only(await log.list());
           return res(200, { task_status: 'SUCCEED', output_images: ['https://cdn/live.png'] });
         }
         return transport.request(url, init);
@@ -286,7 +286,7 @@ describe('ModelScope 接入任务台账', () => {
     expect(snapshot!.upstreamRef).toBe('tk-live');
     expect(snapshot!.status).toBe('running');
     expect(snapshot!.phase).toBe('generating');
-    const done = only(log.list());
+    const done = only(await log.list());
     expect(done.status).toBe('succeeded');
     expect(done.upstreamRef).toBe('tk-live');
   });
@@ -300,7 +300,7 @@ describe('ModelScope 接入任务台账', () => {
       submit: (hooks) => generateModelScopeImages(transport, { ...req, onSubmitted: hooks.onSubmitted }),
     }).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(GenerationTaskError);
-    const task = only(log.list());
+    const task = only(await log.list());
     expect(task.status).toBe('failed');
     expect(task.error?.code).toBe('provider_result_pending');
     expect(task.upstreamRef).toBe('tk-f');
@@ -330,7 +330,7 @@ describe('ModelScope 接入任务台账', () => {
       submit: (hooks) => generateModelScopeImages(abortOnPoll, { ...req, signal: controller.signal, onSubmitted: hooks.onSubmitted }),
     }).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(GenerationTaskError);
-    const task = only(log.list());
+    const task = only(await log.list());
     expect(task.status).toBe('failed');
     expect(task.error?.code).toBe('provider_result_pending');
     expect(task.upstreamRef).toBe('tk-c');
@@ -343,13 +343,15 @@ describe('ModelScope 接入任务台账', () => {
     controller.abort();
     const abortError = new Error('canceled');
     abortError.name = 'CanceledError';
-    await inspectRunWithTask({
+    const submit = vi.fn(() => Promise.reject(abortError));
+    await expect(inspectRunWithTask({
       params,
       log,
       signal: controller.signal,
-      submit: () => Promise.reject(abortError),
-    }).catch(() => undefined);
-    const task = only(log.list());
+      submit,
+    })).rejects.toThrow();
+    expect(submit).not.toHaveBeenCalled();
+    const task = only(await log.list());
     expect(task.status).toBe('canceled');
     expect(task.upstreamRef).toBeNull();
     expect(readTaskOutcome(task)?.regenerate).toBe('allowed');
@@ -366,8 +368,8 @@ describe('ModelScope 接入任务台账', () => {
       log,
       submit: (hooks) => generateModelScopeImages(transport, { ...req, onSubmitted: hooks.onSubmitted }),
     });
-    const serialized = JSON.stringify(log.list());
-    expect(serialized).not.toContain('test-token-not-real');
+    const serialized = JSON.stringify(await log.list());
+    expect(serialized).not.toContain(req.apiKey);
     expect(serialized).not.toContain('api-inference.modelscope.cn');
   });
 });

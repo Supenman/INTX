@@ -41,8 +41,8 @@ jobs:
       - name: Typecheck
         run: pnpm exec tsc --noEmit
 
-      - name: Domain and generation tests
-        run: pnpm exec vitest run src/domain src/services/generation
+      - name: Domain, generation and storage tests
+        run: pnpm exec vitest run src/domain src/services/generation src/infrastructure/storage
 
       - name: Dependency boundaries
         run: node scripts/check-boundaries.mjs

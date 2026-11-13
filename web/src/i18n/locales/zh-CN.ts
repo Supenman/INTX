@@ -396,7 +396,11 @@ export default {
             noModelscopeChannel: "先在「渠道」里配置 ModelScope（接口地址 api-inference.modelscope.cn）才能自动查单。",
             runningHint: "本地轮询被打断，上游可能仍在生成。",
             source: "任务查单",
-            footer: "刷新或重启都不会丢掉任务号；查单只读取，绝不会重新提交再扣一次费。",
+            loading: "正在读取任务记录…",
+            reload: "重新读取",
+            unsaved: "任务记录尚未保存",
+            retrySave: "重试本地保存",
+            footer: "已确认保存的任务号可在刷新或重启后读取；尚未保存的证据仅在当前进程保留。查单和本地补记都不会重新提交。",
         },
         proxy: {
             title: "本地代理",

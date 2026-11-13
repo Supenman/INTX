@@ -1,10 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import type { GenerationParams, Task } from '@/domain/task/model';
+import type { GenerationParams } from '@/domain/task/model';
 import { readTaskOutcome } from '@/domain/task/outcome';
 import { imageTaskParams } from './imageParams';
 import { ProviderResultPendingError, pendingResultFrom } from './pendingResult';
-import { createMemoryTaskLog, type TaskLog } from './taskLog';
+import { createMemoryTaskLog, type LoggedTask, type TaskLog } from './taskLog';
 import { GenerationTaskError, inspectRunWithTask } from './withTask';
 
 const params: GenerationParams = {
@@ -25,10 +25,10 @@ async function rejected(error: unknown): Promise<{ error: unknown; log: TaskLog 
   throw new Error('本该抛错');
 }
 
-function onlyTask(log: TaskLog): Task {
-  const tasks = log.list();
+async function onlyTask(log: TaskLog): Promise<LoggedTask> {
+  const tasks = await log.list();
   expect(tasks).toHaveLength(1);
-  return tasks[0];
+  return tasks[0]!;
 }
 
 describe('已收单但没拿到图：confirm 是硬底线', () => {
@@ -36,7 +36,7 @@ describe('已收单但没拿到图：confirm 是硬底线', () => {
     const { error, log } = await rejected(
       pendingResultFrom({ task_id: '732e0ecf-3834-4193-9840-99b795bb2a0b' }),
     );
-    const task = onlyTask(log);
+    const task = await onlyTask(log);
 
     expect(error).toBeInstanceOf(GenerationTaskError);
     expect((error as GenerationTaskError).errorCode).toBe('provider_result_pending');
@@ -53,7 +53,7 @@ describe('已收单但没拿到图：confirm 是硬底线', () => {
 
   it('2xx 空响应、连任务号都没有也还是 confirm，绝不退化成 allowed', async () => {
     const { log } = await rejected(pendingResultFrom({ data: [] }));
-    const task = onlyTask(log);
+    const task = await onlyTask(log);
     expect(task.upstreamRef).toBeNull();
     expect(readTaskOutcome(task)?.regenerate).toBe('confirm');
   });
@@ -61,7 +61,7 @@ describe('已收单但没拿到图：confirm 是硬底线', () => {
   it('ProviderResultPendingError 被跨层转成普通 Error：码不退化、任务号不丢', async () => {
     const crossed = new Error(new ProviderResultPendingError({ taskId: 'tk-x' }).message);
     const { log } = await rejected(crossed);
-    const task = onlyTask(log);
+    const task = await onlyTask(log);
     // 曾经在这里被降级成 submission_uncertain（「可能没收到」），任务号也没了
     expect(task.error?.code).toBe('provider_result_pending');
     expect(task.upstreamRef).toBe('tk-x');
@@ -75,7 +75,7 @@ describe('已收单但没拿到图：confirm 是硬底线', () => {
 describe('其他失败按 normalizeError 三态收敛', () => {
   it('请求没离开本机（ECONNREFUSED）→ allowed', async () => {
     const { log } = await rejected(new Error('connect ECONNREFUSED 127.0.0.1:9'));
-    const task = onlyTask(log);
+    const task = await onlyTask(log);
     expect(task.status).toBe('failed');
     expect(task.error?.code).toBe('network');
     expect(readTaskOutcome(task)?.regenerate).toBe('allowed');
@@ -83,27 +83,27 @@ describe('其他失败按 normalizeError 三态收敛', () => {
 
   it('提交阶段超时 → submission_uncertain → confirm', async () => {
     const { log } = await rejected(new Error('Request timeout exceeded'));
-    const task = onlyTask(log);
+    const task = await onlyTask(log);
     expect(task.error?.code).toBe('submission_uncertain');
     expect(readTaskOutcome(task)?.regenerate).toBe('confirm');
   });
 
   it('401 → config_required → confirm（去配置，不是原样重试）', async () => {
     const { log } = await rejected(new Error('HTTP 401: Unauthorized'));
-    expect(onlyTask(log).error?.code).toBe('auth_failed');
-    expect(readTaskOutcome(onlyTask(log))).toMatchObject({ regenerate: 'confirm', reason: 'config_required' });
+    expect((await onlyTask(log)).error?.code).toBe('auth_failed');
+    expect(readTaskOutcome(await onlyTask(log))).toMatchObject({ regenerate: 'confirm', reason: 'config_required' });
   });
 
   it('上游明确拒绝参数 → input_rejected → confirm（改参数后可重发）', async () => {
     const { log } = await rejected(new Error('invalid_params: 不支持参考图'));
-    expect(onlyTask(log).error?.code).toBe('invalid_params');
-    expect(readTaskOutcome(onlyTask(log))).toMatchObject({ regenerate: 'confirm', reason: 'input_rejected' });
+    expect((await onlyTask(log)).error?.code).toBe('invalid_params');
+    expect(readTaskOutcome(await onlyTask(log))).toMatchObject({ regenerate: 'confirm', reason: 'input_rejected' });
   });
 
   it('451 安全审核 → content_rejected → confirm（改提示词，别原样再买一张）', async () => {
     const { log } = await rejected(new Error('HTTP 451: unsafe'));
-    expect(onlyTask(log).error?.code).toBe('content_rejected');
-    expect(readTaskOutcome(onlyTask(log))?.regenerate).toBe('confirm');
+    expect((await onlyTask(log)).error?.code).toBe('content_rejected');
+    expect(readTaskOutcome(await onlyTask(log))?.regenerate).toBe('confirm');
   });
 
   it('提交过程中取消（还没拿到任务号）→ submission_uncertain / confirm，不退化成 allowed', async () => {
@@ -123,7 +123,7 @@ describe('其他失败按 normalizeError 三态收敛', () => {
         },
       }),
     ).rejects.toThrow();
-    const task = onlyTask(log);
+    const task = await onlyTask(log);
     expect(task.status).toBe('failed');
     expect(task.error?.code).toBe('submission_uncertain');
     expect(readTaskOutcome(task)).toMatchObject({
@@ -136,15 +136,17 @@ describe('其他失败按 normalizeError 三态收敛', () => {
     const controller = new AbortController();
     controller.abort();
     const log = createMemoryTaskLog();
+    const submit = vi.fn(() => Promise.reject(new DOMException('Aborted', 'AbortError')));
     await expect(
       inspectRunWithTask({
         params,
         log,
         signal: controller.signal,
-        submit: () => Promise.reject(new DOMException('Aborted', 'AbortError')),
+        submit,
       }),
     ).rejects.toThrow();
-    const task = onlyTask(log);
+    expect(submit).not.toHaveBeenCalled();
+    const task = await onlyTask(log);
     expect(task.status).toBe('canceled');
     expect(task.upstreamRef).toBeNull();
     expect(readTaskOutcome(task)).toMatchObject({ regenerate: 'allowed', reason: 'not_charged' });
