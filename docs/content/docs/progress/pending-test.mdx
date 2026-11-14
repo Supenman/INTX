@@ -7,15 +7,6 @@ description: Implemented changes that still need manual verification
 
 The current release needs manual verification in these areas:
 
-## Local Agent: Claude Agent SDK adapter (needs user verification)
-
-- `canvas-agent` 的 Claude 适配器从 `claude -p --output-format stream-json` 裸 CLI 包装换成 `@anthropic-ai/claude-agent-sdk`：会话用 SDK 的 `resume` 续用，消息经 `claude-events` 归一成侧边栏已有的 `thread.started` / `turn.started` / `item.started|updated|completed` / `turn.completed|failed` 词汇，工具调用带 `tool_use_id`、入参、结果或错误。
-- `/agent/claude/turn` 接受 `threadId`（会话续用）和 `cwd`；新增 `/agent/claude/interrupt`。
-- 依赖升级：`@anthropic-ai/claude-agent-sdk@0.3.325`、`@modelcontextprotocol/sdk@^1.29`、`zod@^4`；顺带修了 `z.record` 与 `AnyZodObject` 两处 v4 差异。
-- 自动化：canvas-agent 构建通过；134 用例中 132 通过（含 8 条事件归一测试：init 去重、非流式补全、流式不重复、工具成功/失败配对、result 失败、认证失败原文、未配对 tool_result 忽略）；MCP 冒烟列出 34 个工具；HTTP 服务可启动。
-- **真实 SDK 已实跑（无登录态路径）**：用 SDK 实际拉起 Claude Code，本机没有登录态，返回 `Not logged in · Please run /login`，`total_cost_usd` 与 usage 全为 0，**没有发生模型推理、没有扣费**。据此核对了真实消息形状（失败 result 的 `subtype` 仍是 `success`，靠 `is_error` 区分，原因在 `result` 字段），并修掉失败文案被吞成通用「Claude 执行失败」的问题。
-- **真实对话未验证**：需要本机 Claude CLI 登录态（`claude` 里 `/login`，落到 `~/.claude/.credentials.json`）；当前没有该文件，也没有 API Key，未发起任何真实模型请求。侧边栏尚未接入 Claude（前端仍只展示 Codex），本轮只做后端地基。
-
 ## INTX 2.2c-3：任务与素材合并提交（待用户验收）
 
 - 查单取回产物后，素材快照与任务台账经 `idb` 直连在**同一个 IndexedDB 事务**里提交，不再分两次写；任一步校验失败（revision 冲突、数据损坏、写入失败）整体回滚，不会出现「素材已保存、任务未核销」的半截状态。

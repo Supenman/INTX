@@ -3,7 +3,6 @@ import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import express, { type NextFunction, type Request, type Response } from "express";
 
-import { interruptClaudeTurn, runClaudeTurn } from "../agent/claude.js";
 import { archiveCodexThread, CodexSkillLookupError, configureCodexSkill, generateCodexSkillDraft, interruptCodexTurn, isRecoverableThreadError, listCodexModels, listCodexSkills, listCodexThreads, readCodexThread, resolveCodexApproval, resolveCodexSkill, resumeCodexThread, runCodexTurn, startCodexThread, summarizeCodexThread } from "../agent/codex.js";
 import type { CodexReasoningEffort, CodexSkillSelector } from "../agent/codex-protocol.js";
 import { messageMetadataStore } from "../agent/message-metadata.js";
@@ -11,7 +10,6 @@ import type { AgentAttachment, AgentPermissionMode } from "../agent/types.js";
 import { AGENT_PROTOCOL_VERSION, CanvasSession } from "../canvas/session.js";
 import { DEFAULT_PORT, ensureSiteWorkspace, loadConfig, saveConfig, updateSiteWorkspace, type CanvasAgentConfig } from "../config.js";
 import { logger } from "../utils/logger.js";
-import { errorMessage } from "../utils/value.js";
 import { checkVersions } from "../version-check.js";
 import { SkillStore, SkillStoreError } from "../skills/store.js";
 
@@ -420,16 +418,6 @@ export function startHttpServer() {
     app.post("/agent/codex/interrupt", route(async (req, res) => {
         const ok = await interruptCodexTurn(skillDraftRunning ? undefined : String(req.body?.threadId || ""));
         res.status(ok ? 200 : 409).json({ ok, ...(ok ? {} : { error: "当前没有可停止的任务" }) });
-    }));
-    app.post("/agent/claude/turn", (req, res) => {
-        const threadId = String(req.body?.threadId || "");
-        const cwd = String(req.body?.cwd || "");
-        void runClaudeTurn(String(req.body?.prompt || ""), emit, { threadId, ...(cwd ? { cwd } : {}) }).catch((error: unknown) => emit("agent_error", { agent: "claude", threadId, message: errorMessage(error) }));
-        res.json({ ok: true });
-    });
-    app.post("/agent/claude/interrupt", route(async (_req, res) => {
-        const ok = await interruptClaudeTurn();
-        res.status(ok ? 200 : 409).json({ ok, ...(ok ? {} : { error: "当前没有可停止的 Claude 任务" }) });
     }));
     app.use((_req, res) => res.status(404).json({ ok: false, error: "not found" }));
     app.use((error: Error, req: Request, res: Response, _next: NextFunction) => {
