@@ -40,9 +40,14 @@ export {
   createMemoryTaskLog,
   createTaskLog,
   forgetRecoveredAssets,
+  forgetPendingCommit,
+  isTaskCommitted,
   loadTaskLog,
+  pendingCommitFor,
   recoveredAssetIds,
   rememberRecoveredAssets,
+  rememberPendingCommit,
+  restorePendingCommits,
   restoreUnsaved,
   retryTaskSave,
   TaskPersistenceError,
@@ -60,6 +65,14 @@ export {
   type EvidenceStore,
   type TaskEvidence,
 } from './taskEvidence';
+
+export {
+  createMemoryRecoveredAssetEvidenceStore,
+  parseRecoveredAssetEvidence,
+  setRecoveredAssetEvidenceStore,
+  type RecoveredAssetEvidence,
+  type RecoveredAssetEvidenceStore,
+} from './recoveredAssetEvidence';
 
 export {
   pickModelScopeChannel,

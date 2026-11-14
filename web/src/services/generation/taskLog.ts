@@ -7,6 +7,7 @@ import type { StorageError, TaskRepository, Stored } from '@/application/ports/t
 import { createIndexedDBTaskRepository } from '@/infrastructure/storage/indexeddb-task-repository';
 import { createMemoryTaskRepository } from '@/infrastructure/storage/memory-task-repository';
 import { evidenceStore, type TaskEvidence } from './taskEvidence';
+import { recoveredAssetEvidenceStore, type RecoveredAssetEvidence } from './recoveredAssetEvidence';
 
 export const TASK_LOG_KEY = 'infinite-canvas:intx_task_log';
 export type LoggedTask = Task & { revision: number };
@@ -75,10 +76,13 @@ interface TaskLogState {
   loadError: string | null;
   unsaved: Record<string, UnsavedTask>;
   recovered: Record<string, RecoveredAssets>;
+  /** 2.2c-1：素材已确认保存、任务尚未核销的落盘证据，重启后只补写任务记录。 */
+  pendingCommits: Record<string, RecoveredAssetEvidence>;
   inFlightIds: string[];
 }
 export const useTaskLogStore = create<TaskLogState>(() => ({
-  tasks: [], hydrated: false, loading: false, loadError: null, unsaved: {}, recovered: {}, inFlightIds: [],
+  tasks: [], hydrated: false, loading: false, loadError: null,
+  unsaved: {}, recovered: {}, pendingCommits: {}, inFlightIds: [],
 }));
 
 /** 同一进程内已取回、但任务尚未核销的产物素材；重试只补任务，不重新查单或重复创建素材。 */
@@ -131,11 +135,60 @@ export function restoreUnsaved(tasks: readonly LoggedTask[], evidences: readonly
   return out;
 }
 
+/** 任务是否已经核销：成功出图、或已经写回了产物引用，都不再恢复补写证据。 */
+export function isTaskCommitted(task: LoggedTask | undefined): boolean {
+  return Boolean(task?.status === 'succeeded' || (task?.resultAssetIds?.length ?? 0) > 0);
+}
+
+/** 重启后把「产物已取回」的证据还原成待补写任务；已核销的任务不再恢复。 */
+export function restorePendingCommits(
+  tasks: readonly LoggedTask[],
+  evidences: readonly RecoveredAssetEvidence[],
+): Record<string, RecoveredAssetEvidence> {
+  const out: Record<string, RecoveredAssetEvidence> = {};
+  for (const entry of evidences) {
+    if (isTaskCommitted(tasks.find((task) => task.id === entry.taskId))) continue;
+    out[entry.taskId] = entry;
+  }
+  return out;
+}
+
+/** 单号不匹配的证据不能串到别的任务上。 */
+export function pendingCommitFor(taskId: string, upstreamRef: string | null): RecoveredAssetEvidence | null {
+  const entry = useTaskLogStore.getState().pendingCommits[taskId];
+  return entry && entry.upstreamRef === (upstreamRef ?? '') ? entry : null;
+}
+
+/** 素材元数据确认后落盘证据；写失败只退回当前进程内存，绝不中断已完成的本地提交。 */
+export async function rememberPendingCommit(evidence: RecoveredAssetEvidence): Promise<void> {
+  useTaskLogStore.setState((state) => ({
+    pendingCommits: { ...state.pendingCommits, [evidence.taskId]: evidence },
+  }));
+  try {
+    await recoveredAssetEvidenceStore().put(evidence);
+  } catch { /* 退回当前进程内存证据；不能承诺重启一定找回。 */ }
+}
+
+/** 任务核销成功后清除；同步清内存，磁盘清理失败时下次启动会按「已核销」再清一次。 */
+export function forgetPendingCommit(taskId: string): void {
+  useTaskLogStore.setState((state) => {
+    const pendingCommits = { ...state.pendingCommits };
+    delete pendingCommits[taskId];
+    return { pendingCommits };
+  });
+  void recoveredAssetEvidenceStore().remove(taskId).catch(() => {});
+}
+
 export function loadTaskLog(): Promise<void> {
   if (loading) return loading;
   useTaskLogStore.setState({ loading: true, loadError: null });
-  loading = Promise.all([browserTaskLog.list(), evidenceStore().list()]).then(([tasks, evidences]) => {
+  loading = Promise.all([
+    browserTaskLog.list(),
+    evidenceStore().list(),
+    recoveredAssetEvidenceStore().list(),
+  ]).then(([tasks, evidences, recovered]) => {
     const restored = restoreUnsaved(tasks, evidences);
+    const pendingCommits = restorePendingCommits(tasks, recovered);
     useTaskLogStore.setState((state) => {
       const merged = new Map(tasks.map((task) => [task.id, task]));
       for (const task of state.tasks) {
@@ -146,10 +199,16 @@ export function loadTaskLog(): Promise<void> {
         tasks: [...merged.values()].sort((a, b) => b.createdAt - a.createdAt),
         hydrated: true,
         unsaved: { ...restored, ...state.unsaved },
+        pendingCommits: { ...pendingCommits, ...state.pendingCommits },
       };
     });
     for (const entry of evidences) {
       if (tasks.some((task) => task.id === entry.taskId && task.upstreamRef)) void evidenceStore().remove(entry.taskId).catch(() => {});
+    }
+    for (const entry of recovered) {
+      if (isTaskCommitted(tasks.find((task) => task.id === entry.taskId))) {
+        void recoveredAssetEvidenceStore().remove(entry.taskId).catch(() => {});
+      }
     }
   }).catch((error: unknown) => {
     useTaskLogStore.setState({ loadError: error instanceof Error ? error.message : '任务读取失败', hydrated: false });

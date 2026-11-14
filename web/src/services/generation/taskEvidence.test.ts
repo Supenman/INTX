@@ -8,6 +8,7 @@ import type { TaskRepository } from '@/application/ports/taskRepository';
 import { createMemoryTaskRepository } from '@/infrastructure/storage/memory-task-repository';
 import { createMemoryTaskLog, createTaskLog, loadTaskLog, restoreUnsaved, TaskPersistenceError, useTaskLogStore, type LoggedTask } from './taskLog';
 import { createMemoryEvidenceStore, parseEvidence, setEvidenceStore, type EvidenceStore, type TaskEvidence } from './taskEvidence';
+import { createMemoryRecoveredAssetEvidenceStore, setRecoveredAssetEvidenceStore } from './recoveredAssetEvidence';
 import { inspectRunWithTask, type SubmitHooks } from './withTask';
 import { submitVideoTask } from './videoTasks';
 import { generateModelScopeImages, type ModelScopeTransport } from './modelScope';
@@ -39,10 +40,19 @@ function fixture(overrides: Partial<TaskEvidence> = {}): TaskEvidence {
 }
 
 function resetState() {
-  useTaskLogStore.setState({ tasks: [], hydrated: false, loading: false, loadError: null, unsaved: {}, recovered: {}, inFlightIds: [] });
+  useTaskLogStore.setState({ tasks: [], hydrated: false, loading: false, loadError: null, unsaved: {}, recovered: {}, pendingCommits: {}, inFlightIds: [] });
 }
-beforeEach(() => { setEvidenceStore(createMemoryEvidenceStore()); resetState(); });
-afterEach(() => { setEvidenceStore(createMemoryEvidenceStore()); resetState(); vi.restoreAllMocks(); });
+beforeEach(() => {
+  setEvidenceStore(createMemoryEvidenceStore());
+  setRecoveredAssetEvidenceStore(createMemoryRecoveredAssetEvidenceStore());
+  resetState();
+});
+afterEach(() => {
+  setEvidenceStore(createMemoryEvidenceStore());
+  setRecoveredAssetEvidenceStore(createMemoryRecoveredAssetEvidenceStore());
+  resetState();
+  vi.restoreAllMocks();
+});
 
 describe('2.2b 本机已收单证据', () => {
   it('损坏证据按错误拒绝，不能当空证据', () => {
