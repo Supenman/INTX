@@ -6,9 +6,10 @@ import { useTranslation } from "react-i18next";
 
 import type { Task } from "@/domain/task/model";
 import { useCopyText } from "@/hooks/use-copy-text";
+import { commitRecoveryAtomically } from "@/infrastructure/storage/atomic-commit";
 import { browserModelScopeTransport } from "@/services/api/modelscope-transport";
 import { pollVideoGenerationTask, storeGeneratedVideo } from "@/services/api/video";
-import { assetDrafts, browserTaskLog, commitRecovered, forgetPendingCommit, forgetRecoveredAssets, loadTaskLog, planDraftRecovery, recoveredAssetIds, rememberPendingCommit, rememberRecoveredAssets, retryTaskSave, pollModelScopeTask, resumableTasks, useTaskLogStore, videoHandleFromTask } from "@/services/generation";
+import { assetDrafts, adoptCommittedTask, browserTaskLog, commitRecovered, forgetPendingCommit, forgetRecoveredAssets, loadTaskLog, planDraftRecovery, planRecoveredTask, recoveredAssetIds, rememberPendingCommit, rememberRecoveredAssets, retryTaskSave, TaskPersistenceError, pollModelScopeTask, resumableTasks, useTaskLogStore, videoHandleFromTask } from "@/services/generation";
 import { pickModelScopeChannel, recoveryAction, type RecoveryChannelView } from "@/services/generation/taskRecovery";
 import { uploadImage } from "@/services/image-storage";
 import { useAssetStore } from "@/stores/use-asset-store";
@@ -158,19 +159,20 @@ export function ConfigTasks() {
                 await rememberPendingCommit({ taskId: task.id, upstreamRef: task.upstreamRef ?? "", assetIds: [], drafts, savedAt: Date.now() });
             }
             try {
-                await useAssetStore.getState().confirmSave();
-            } catch (error) {
-                message.error(t("config.tasks.assetSaveFailed", { message: error instanceof Error ? error.message : t("config.tasks.queryFailed") }));
-                return;
-            }
-            // 2.2c-1：素材元数据已确认，升级为阶段 B「产物已取回」证据；写失败只退回进程内存，不中断。
-            await rememberPendingCommit({ taskId: task.id, upstreamRef: task.upstreamRef ?? "", assetIds: [...assetIds], savedAt: Date.now() });
-            try {
                 const fresh = await browserTaskLog.get(task.id);
                 if (!fresh) throw new Error(t("config.tasks.queryFailed"));
-                await commitRecovered(browserTaskLog, fresh, assetIds);
+                const planned = planRecoveredTask(fresh, assetIds);
+                if (!planned.ok) throw new TaskPersistenceError(planned.error, fresh);
+                // 2.2c-3：素材快照与任务台账在同一个 IndexedDB 事务里提交，不再分两次写。
+                const assetsSnapshot = { assets: useAssetStore.getState().assets };
+                const assetsRevision = useAssetStore.getState().persistence.revision ?? 0;
+                const committed = await commitRecoveryAtomically({ task: planned.value, taskRevision: fresh.revision, assets: assetsSnapshot, assetsRevision });
+                if (!committed.ok) throw new TaskPersistenceError(committed.error, fresh);
+                useAssetStore.getState().adoptSaved(assetsSnapshot.assets, committed.value.assets.revision);
+                adoptCommittedTask({ ...committed.value.task.value, revision: committed.value.task.revision });
                 // 任务已核销：清内存证据并清磁盘证据，下次启动不会重复补写。
                 forgetPendingCommit(task.id);
+                forgetRecoveredAssets(task.id);
             } catch (error) {
                 message.error(t("config.tasks.taskSaveFailed", { message: error instanceof Error ? error.message : t("config.tasks.queryFailed") }));
                 return;

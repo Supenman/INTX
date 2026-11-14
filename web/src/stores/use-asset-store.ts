@@ -19,6 +19,8 @@ type AssetStore = AssetSnapshot & {
     flush: () => Promise<void>;
     retrySave: () => Promise<void>;
     confirmSave: () => Promise<void>;
+    /** 接管外部事务（任务+素材合并提交）已确认的快照，避免重复写。 */
+    adoptSaved: (assets: Asset[], revision: number) => void;
     addAsset: (asset: Omit<Asset, "id" | "createdAt" | "updatedAt">) => string;
     updateAsset: (id: string, patch: Partial<Omit<Asset, "id" | "createdAt">>) => void;
     removeAsset: (id: string) => void;
@@ -78,6 +80,7 @@ export function createAssetStore(repository: AssetRepository, media?: AssetMedia
         flush: () => save(), retrySave: () => save(true),
         // 业务确认边界：已有失败时明确补写，否则等待当前草稿提交；冲突仍不会被覆盖。
         confirmSave: () => save(Boolean(queue.getState().error)),
+        adoptSaved: (assets, revision) => queue.adopt({ assets }, revision),
         addAsset: (asset) => {
             ensureReady();
             const now = new Date().toISOString();

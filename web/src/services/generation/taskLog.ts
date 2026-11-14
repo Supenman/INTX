@@ -3,6 +3,7 @@ import { create } from 'zustand';
 
 import { createTask, recoverPendingResult, transition, type CreateTaskInput, type Task, type TaskTransitionError, type RecoveryError } from '@/domain/task/model';
 import { readTaskOutcome } from '@/domain/task/outcome';
+import { err, ok, type Result } from '@/domain/shared/result';
 import type { StorageError, TaskRepository, Stored } from '@/application/ports/taskRepository';
 import { createIndexedDBTaskRepository } from '@/infrastructure/storage/indexeddb-task-repository';
 import { createMemoryTaskRepository } from '@/infrastructure/storage/memory-task-repository';
@@ -102,7 +103,8 @@ export function forgetRecoveredAssets(taskId: string): void {
   });
 }
 
-export const browserTaskLog = createTaskLog(createIndexedDBTaskRepository(), (task) => {
+/** 台账已确认的写入（普通提交或与素材合并提交）都走这里，视图与证据清理只做一次。 */
+export function adoptCommittedTask(task: LoggedTask): void {
   // 主台账已确认这个任务号，本机证据可以清掉；清理失败不影响已确认的台账。
   if (task.upstreamRef) void evidenceStore().remove(task.id).catch(() => {});
   useTaskLogStore.setState((state) => {
@@ -114,7 +116,8 @@ export const browserTaskLog = createTaskLog(createIndexedDBTaskRepository(), (ta
       : [task, ...state.tasks.filter((item) => item.id !== task.id)].sort((a, b) => b.createdAt - a.createdAt);
     return { tasks, unsaved };
   });
-});
+}
+export const browserTaskLog = createTaskLog(createIndexedDBTaskRepository(), adoptCommittedTask);
 export const createMemoryTaskLog = (): TaskLog => createTaskLog(createMemoryTaskRepository());
 
 let loading: Promise<void> | null = null;
@@ -265,11 +268,20 @@ export async function commit(log: TaskLog, task: LoggedTask, to: Parameters<type
   return log.update({ ...result.value, revision: task.revision });
 }
 
-export async function commitRecovered(log: TaskLog, task: LoggedTask, resultAssetIds: readonly string[]): Promise<LoggedTask> {
+/** 只计算恢复后的任务快照，不写存储；合并事务与普通补写共用同一套迁移规则。 */
+export function planRecoveredTask(task: LoggedTask, resultAssetIds: readonly string[]): Result<Task, TaskWriteError> {
   const result = task.status === 'running' ? transition(task, 'succeeded', { resultAssetIds: [...resultAssetIds] }) : recoverPendingResult(task, { resultAssetIds });
-  if (!result.ok) throw new TaskPersistenceError(result.error, task);
-  if (!task.upstreamRef || !resultAssetIds.length) throw new TaskPersistenceError({ code: 'not_recoverable', message: '缺少原任务号或产物，不能确认恢复成功' }, task);
-  const desired = { ...result.value, revision: task.revision };
+  if (!result.ok) return err(result.error);
+  if (!task.upstreamRef || !resultAssetIds.length) return err({ code: 'not_recoverable', message: '缺少原任务号或产物，不能确认恢复成功' });
+  // revision 是存储层元数据，不能混进业务任务；存储校验会按非法字段拒绝。
+  const { revision: _revision, ...value } = result.value as LoggedTask;
+  return ok(value as Task);
+}
+
+export async function commitRecovered(log: TaskLog, task: LoggedTask, resultAssetIds: readonly string[]): Promise<LoggedTask> {
+  const planned = planRecoveredTask(task, resultAssetIds);
+  if (!planned.ok) throw new TaskPersistenceError(planned.error, task);
+  const desired = { ...planned.value, revision: task.revision };
   try {
     const saved = await log.update(desired);
     forgetRecoveredAssets(desired.id);

@@ -21,6 +21,8 @@ export interface SnapshotWriteQueue<T> {
   enqueue(value: T): Result<number, StorageError>;
   flush(): Promise<SaveResult<T>>;
   retry(): Promise<SaveResult<T>>;
+  /** 接管一次由外部事务提交的快照（例如任务与素材合并提交），不重复写入。 */
+  adopt(value: T, revision: number): void;
 }
 const notLoaded = (): StorageError => ({ code: 'unavailable', message: '集合尚未成功加载，已拒绝保存' });
 const loadDirty = (): StorageError => ({ code: 'write_failed', message: '存在未保存草稿，已拒绝重新加载或自动处理冲突' });
@@ -35,6 +37,8 @@ function createQueue<T>(repository: { load(): Promise<SaveResult<T>>; save(value
   let draft: T | undefined;
   let invalid: StorageError | null = null;
   let blocked: StorageError | null = null;
+  /** 外部事务提交时草稿还在写：等这次写结束再接管，不能用旧 revision 覆盖。 */
+  let pendingAdoption: { value: T; revision: number } | null = null;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let due = false;
   let writingSequence = 0;
@@ -48,6 +52,21 @@ function createQueue<T>(repository: { load(): Promise<SaveResult<T>>; save(value
     for (const listener of listeners) listener(snapshot());
   }
   function cancelDelay() { if (timer !== undefined) clearTimeout(timer); timer = undefined; }
+  function applyAdoption(value: T, revision: number) {
+    cancelDelay();
+    draft = structuredClone(value);
+    blocked = null;
+    invalid = null;
+    // 外部事务已经确认这个快照：草稿与 confirmed 值一起前进，不再重复写。
+    update({ revision, committedValue: structuredClone(value), persistedSequence: state.sequence, dirty: false, error: null });
+    settle();
+  }
+  function applyPendingAdoption() {
+    if (!pendingAdoption) return;
+    const pending = pendingAdoption;
+    pendingAdoption = null;
+    applyAdoption(pending.value, pending.revision);
+  }
   function settle(failure?: StorageError, onlyUncovered = false) {
     for (let i = waiters.length - 1; i >= 0; i--) {
       if (failure && (!onlyUncovered || !state.saving || waiters[i].sequence > writingSequence) || waiters[i].sequence <= state.persistedSequence) {
@@ -77,11 +96,13 @@ function createQueue<T>(repository: { load(): Promise<SaveResult<T>>; save(value
       blocked = result.error;
       cancelDelay();
       update({ saving: false, error: invalid ?? blocked, dirty: true });
+      applyPendingAdoption();
       settle(result.error);
       return;
     }
     update({ saving: false, revision: result.value.revision, committedValue: structuredClone(result.value.value), persistedSequence: sequence,
       dirty: state.sequence > sequence, error: invalid });
+    applyPendingAdoption();
     settle();
     if (invalid) { settle(invalid); return; }
     if (state.dirty) {
@@ -147,6 +168,13 @@ function createQueue<T>(repository: { load(): Promise<SaveResult<T>>; save(value
       blocked = null; // Retain revision exactly; no read, no blind conflict rebase.
       update({ error: null });
       return flush();
+    },
+    adopt(value, revision) {
+      if (state.loadState !== 'ready') return;
+      const copied = codec.copy(value);
+      if (!copied.ok || !validRevision(revision)) return;
+      if (state.saving) { pendingAdoption = { value: copied.value, revision }; return; }
+      applyAdoption(copied.value, revision);
     },
   };
 }
