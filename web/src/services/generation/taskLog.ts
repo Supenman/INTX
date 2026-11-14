@@ -6,6 +6,7 @@ import { readTaskOutcome } from '@/domain/task/outcome';
 import type { StorageError, TaskRepository, Stored } from '@/application/ports/taskRepository';
 import { createIndexedDBTaskRepository } from '@/infrastructure/storage/indexeddb-task-repository';
 import { createMemoryTaskRepository } from '@/infrastructure/storage/memory-task-repository';
+import { evidenceStore, type TaskEvidence } from './taskEvidence';
 
 export const TASK_LOG_KEY = 'infinite-canvas:intx_task_log';
 export type LoggedTask = Task & { revision: number };
@@ -65,7 +66,7 @@ export function createTaskLog(repository: TaskRepository, saved?: (task: LoggedT
   return log;
 }
 
-interface UnsavedTask { desired: LoggedTask; evidence: LoggedTask; error: string }
+export interface UnsavedTask { desired: LoggedTask; evidence: LoggedTask; error: string }
 interface RecoveredAssets { upstreamRef: string; assetIds: string[] }
 interface TaskLogState {
   tasks: LoggedTask[];
@@ -98,6 +99,8 @@ export function forgetRecoveredAssets(taskId: string): void {
 }
 
 export const browserTaskLog = createTaskLog(createIndexedDBTaskRepository(), (task) => {
+  // 主台账已确认这个任务号，本机证据可以清掉；清理失败不影响已确认的台账。
+  if (task.upstreamRef) void evidenceStore().remove(task.id).catch(() => {});
   useTaskLogStore.setState((state) => {
     const unsaved = { ...state.unsaved };
     delete unsaved[task.id];
@@ -111,17 +114,43 @@ export const browserTaskLog = createTaskLog(createIndexedDBTaskRepository(), (ta
 export const createMemoryTaskLog = (): TaskLog => createTaskLog(createMemoryTaskRepository());
 
 let loading: Promise<void> | null = null;
+
+/** 重启后把未确认的本机证据还原成「只重试本地保存」，绝不退化成可重发。 */
+export function restoreUnsaved(tasks: readonly LoggedTask[], evidences: readonly TaskEvidence[]): Record<string, UnsavedTask> {
+  const out: Record<string, UnsavedTask> = {};
+  for (const entry of evidences) {
+    const saved = tasks.find((task) => task.id === entry.taskId);
+    if (saved?.upstreamRef) continue;
+    const desired = { ...entry.desired, upstreamRef: entry.upstreamRef };
+    const evidence: LoggedTask = {
+      ...desired, status: 'failed', phase: null,
+      error: { code: 'provider_result_pending', message: '上游已收单，但任务台账未确认；只重试本地保存，不要重新提交' },
+    };
+    out[entry.taskId] = { desired, evidence, error: '本机已保留任务号，但任务台账未确认；只重试本地保存，不要重新提交' };
+  }
+  return out;
+}
+
 export function loadTaskLog(): Promise<void> {
   if (loading) return loading;
   useTaskLogStore.setState({ loading: true, loadError: null });
-  loading = browserTaskLog.list().then((tasks) => {
+  loading = Promise.all([browserTaskLog.list(), evidenceStore().list()]).then(([tasks, evidences]) => {
+    const restored = restoreUnsaved(tasks, evidences);
     useTaskLogStore.setState((state) => {
       const merged = new Map(tasks.map((task) => [task.id, task]));
       for (const task of state.tasks) {
         if ((merged.get(task.id)?.revision ?? -1) < task.revision) merged.set(task.id, task);
       }
-      return { tasks: [...merged.values()].sort((a, b) => b.createdAt - a.createdAt), hydrated: true };
+      // 当前进程里的内存证据比磁盘证据更新，同 id 时以内存为准。
+      return {
+        tasks: [...merged.values()].sort((a, b) => b.createdAt - a.createdAt),
+        hydrated: true,
+        unsaved: { ...restored, ...state.unsaved },
+      };
     });
+    for (const entry of evidences) {
+      if (tasks.some((task) => task.id === entry.taskId && task.upstreamRef)) void evidenceStore().remove(entry.taskId).catch(() => {});
+    }
   }).catch((error: unknown) => {
     useTaskLogStore.setState({ loadError: error instanceof Error ? error.message : '任务读取失败', hydrated: false });
   }).finally(() => {

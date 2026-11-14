@@ -1,6 +1,7 @@
 /** 任务写入完成才进入下一阶段；此层从不重试付费请求。 */
 import { normalizeError, type GenerationParams, type Task, type TaskError } from '@/domain/task/model';
 import { readTaskOutcome, type TaskOutcome } from '@/domain/task/outcome';
+import { evidenceStore } from './taskEvidence';
 import { ProviderResultPendingError, readTaskIdFromMessage } from './pendingResult';
 import { browserTaskLog, commit, markInFlight, retainTaskWriteFailure, TaskPersistenceError, type LoggedTask, type TaskLog } from './taskLog';
 
@@ -53,7 +54,14 @@ export async function inspectRunWithTask<T>(input: RunWithTaskInput<T>): Promise
       if (!ref) return;
       // 先留内存证据：落盘失败也不能丢掉已经知道的任务号。
       task = { ...task, upstreamRef: ref, phase: 'generating' };
+      // 2.2b：响应到达这一刻先落本机证据，主台账确认后再清。
+      // 请求已经发出，证据写失败绝不能中断后续流程、把本地故障伪装成提交失败。
+      try {
+        await evidenceStore().put({ taskId: task.id, upstreamRef: ref, desired: task, savedAt: Date.now() });
+      } catch { /* 退回当前进程内存证据；不能承诺重启一定找回。 */ }
       task = await log.update(task);
+      // 主台账已确认这个号，本机证据完成使命；清理失败时下次启动会按「已确认」再清一次。
+      void evidenceStore().remove(task.id).catch(() => {});
     },
   };
   try {

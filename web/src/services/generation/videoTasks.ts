@@ -1,6 +1,7 @@
 /** 视频提交与查单的可等待任务写入，不改变轮询/厂商协议。 */
 import { normalizeError, type GenerationParams, type Task } from '@/domain/task/model';
 import { readTaskOutcome } from '@/domain/task/outcome';
+import { evidenceStore } from './taskEvidence';
 import { browserTaskLog, commit, resumableTasks, retainTaskWriteFailure, TaskPersistenceError, type LoggedTask, type TaskLog } from './taskLog';
 
 export type VideoProvider = 'openai' | 'gemini' | 'plugin';
@@ -42,7 +43,12 @@ export async function submitVideoTask(input: {
     submitted = true;
     const handle = await input.transport.submit(input.config, input.prompt, input.signal);
     task = { ...task, params: videoTaskParams(input.config, input.prompt, handle), upstreamRef: handle.id, phase: 'generating' };
+    // 2.2b：视频也是提交即收单，同样在响应到达时先落本机证据；请求已发出，写失败不中断流程。
+    try {
+      await evidenceStore().put({ taskId: task.id, upstreamRef: handle.id, desired: task, savedAt: Date.now() });
+    } catch { /* 退回当前进程内存证据；不能承诺重启一定找回。 */ }
     task = await log.update(task);
+    void evidenceStore().remove(task.id).catch(() => {});
     return { handle, task };
   } catch (error) {
     if (error instanceof TaskPersistenceError) throw retainTaskWriteFailure(log, error, error.task ?? task, submitted);

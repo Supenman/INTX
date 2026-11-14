@@ -43,13 +43,23 @@ export {
   loadTaskLog,
   recoveredAssetIds,
   rememberRecoveredAssets,
+  restoreUnsaved,
   retryTaskSave,
   TaskPersistenceError,
   type LoggedTask,
+  type UnsavedTask,
   resumableTasks,
   useTaskLogStore,
   type TaskLog,
 } from './taskLog';
+
+export {
+  createMemoryEvidenceStore,
+  parseEvidence,
+  setEvidenceStore,
+  type EvidenceStore,
+  type TaskEvidence,
+} from './taskEvidence';
 
 export {
   pickModelScopeChannel,
