@@ -47,4 +47,13 @@ describe('WebDAV 本地应用保存边界', () => {
         mocks.assets.confirmSave.mockResolvedValueOnce(undefined);
         await expect(syncAppDataToWebdav({} as never)).rejects.toThrow('fixture local save failed');
     });
+
+    it('素材本地提交失败时同步失败，不返回完整成功', async () => {
+        // 清掉前面用例可能残留的 once 队列，保证这条用例只由素材侧失败触发。
+        mocks.canvas.confirmSave.mockReset();
+        mocks.assets.confirmSave.mockReset();
+        mocks.canvas.confirmSave.mockResolvedValue(undefined);
+        mocks.assets.confirmSave.mockRejectedValueOnce(new Error('fixture asset save failed'));
+        await expect(syncAppDataToWebdav({} as never)).rejects.toThrow('fixture asset save failed');
+    });
 });
