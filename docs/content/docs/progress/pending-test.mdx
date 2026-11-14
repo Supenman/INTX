@@ -7,6 +7,15 @@ description: Implemented changes that still need manual verification
 
 The current release needs manual verification in these areas:
 
+## 本地 Agent：opencode 车道接入侧边栏（待用户验收）
+
+- 侧边栏新增 Agent 车道切换（OpenCode / Codex），默认 OpenCode；切换时清空上一条车道的会话、消息和用量，并用同一个 Local URL / Connect token 重新连接，不需要重新填地址。
+- OpenCode 车道支持：会话列表（新建 / 恢复 / 删除）、发送消息、停止当前轮、用量显示，以及 @ 引用画布素材（只带 nodeId 和素材文字，不上传图片）。工具调用、思考和错误沿用侧边栏已有的事件格式展示。
+- 连接设置页在 OpenCode 车道不再显示 Codex 插件说明，只保留启动本地 Agent 的命令和网页连接。
+- 画布顶部状态跟随当前车道显示（例如「OpenCode 已连接」），不再固定写 Codex。
+- 自动化：`web` 类型检查通过；Canvas Agent 单测 133 条 0 失败。opencode 适配器已用默认免费模型跑通一次完整对话（工具调用、用量、停止），成本为 0。
+- **未验证**：侧边栏 UI 的浏览器实测（新建 / 恢复 / 删除会话、停止、车道切换后重连）、打包版 Agent 下 opencode 的 MCP 注册、Tauri 桌面端。未发真实厂商请求、未使用任何 API Key。
+
 ## INTX 2.2c-3：任务与素材合并提交（待用户验收）
 
 - 查单取回产物后，素材快照与任务台账经 `idb` 直连在**同一个 IndexedDB 事务**里提交，不再分两次写；任一步校验失败（revision 冲突、数据损坏、写入失败）整体回滚，不会出现「素材已保存、任务未核销」的半截状态。

@@ -11,6 +11,7 @@ const AGENT_MCP_REMOVE_COMMAND = "codex mcp remove infinite-canvas";
 
 export function AgentConnectView({
     theme,
+    kind = "codex",
     url,
     token,
     enabled,
@@ -22,6 +23,7 @@ export function AgentConnectView({
     onToggleEnabled,
 }: {
     theme: (typeof canvasThemes)[keyof typeof canvasThemes];
+    kind?: "codex" | "opencode";
     url: string;
     token: string;
     enabled: boolean;
@@ -34,7 +36,10 @@ export function AgentConnectView({
 }) {
     const { t } = useTranslation();
     const { message } = App.useApp();
-    const steps = [{ title: t("agent.connect.pluginTitle"), text: t("agent.connect.pluginText") }, { title: t("agent.connect.directTitle"), text: t("agent.connect.directText"), command: "npx -y @basketikun/canvas-agent@latest" }];
+    const opencode = kind === "opencode";
+    const steps = opencode
+        ? [{ title: t("agent.connect.directTitle"), text: t("agent.connect.opencodeText"), command: "npx -y @basketikun/canvas-agent@latest" }]
+        : [{ title: t("agent.connect.pluginTitle"), text: t("agent.connect.pluginText") }, { title: t("agent.connect.directTitle"), text: t("agent.connect.directText"), command: "npx -y @basketikun/canvas-agent@latest" }];
     const statusText = connectError ? t("agent.status.failed") : connected ? activity : enabled ? t("agent.status.connecting") : t("agent.status.disconnected");
     const statusColor = connectError ? "#dc2626" : connected ? "#16a34a" : enabled ? "#d97706" : theme.node.muted;
     const copyCommand = (command: string) => {
@@ -93,7 +98,7 @@ export function AgentConnectView({
                                         </div>
                                     ) : null}
                                 </div>
-                                {index === 0 ? codexPluginReminder : null}
+                                {!opencode && index === 0 ? codexPluginReminder : null}
                             </Fragment>
                         );
                     })}

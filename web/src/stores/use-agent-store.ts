@@ -38,6 +38,7 @@ export type AgentConversationState = {
     error?: string;
 };
 export type AgentPanelTab = "chat" | "setup" | "history" | "skills" | "log";
+export type AgentKind = "opencode" | "codex";
 
 const CONNECT_TIMEOUT_MS = 6000;
 let agentSource: EventSource | null = null;
@@ -51,6 +52,7 @@ type AgentStore = {
     canvasContext: AgentCanvasContext | null;
     url: string;
     token: string;
+    agentKind: AgentKind;
     connected: boolean;
     enabled: boolean;
     silentConnect: boolean;
@@ -81,13 +83,14 @@ type AgentStore = {
     connectError: string;
     pendingTool: AgentPendingToolCall | null;
     pendingApprovals: AgentPendingApproval[];
-    setAgentState: (patch: Partial<Omit<AgentStore, "setAgentState" | "connectAgent" | "disconnectAgent" | "addMessage" | "addEventLog" | "clearEventLogs" | "openPanel" | "closePanel" | "togglePanel" | "setCanvasContext">>) => void;
+    setAgentState: (patch: Partial<Omit<AgentStore, "setAgentState" | "connectAgent" | "disconnectAgent" | "setAgentKind" | "addMessage" | "addEventLog" | "clearEventLogs" | "openPanel" | "closePanel" | "togglePanel" | "setCanvasContext">>) => void;
+    setAgentKind: (agentKind: AgentKind) => void;
     openPanel: () => void;
     closePanel: () => void;
     togglePanel: () => void;
     setCanvasContext: (context: AgentCanvasContext | null) => void;
     connectAgent: (options?: { silent?: boolean }) => void;
-    disconnectAgent: (patch?: Partial<Omit<AgentStore, "setAgentState" | "connectAgent" | "disconnectAgent" | "addMessage" | "addEventLog" | "clearEventLogs" | "openPanel" | "closePanel" | "togglePanel" | "setCanvasContext">>) => void;
+    disconnectAgent: (patch?: Partial<Omit<AgentStore, "setAgentState" | "connectAgent" | "disconnectAgent" | "setAgentKind" | "addMessage" | "addEventLog" | "clearEventLogs" | "openPanel" | "closePanel" | "togglePanel" | "setCanvasContext">>) => void;
     addMessage: (item: AgentChatItem) => void;
     addEventLog: (item: AgentEventLog) => void;
     clearEventLogs: () => void;
@@ -103,6 +106,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     canvasContext: null,
     url: typeof window === "undefined" ? "http://127.0.0.1:17371" : localStorage.getItem("canvas-agent-url") || "http://127.0.0.1:17371",
     token: typeof window === "undefined" ? "" : localStorage.getItem("canvas-agent-token") || "",
+    agentKind: typeof window === "undefined" || localStorage.getItem("canvas-agent-kind") !== "codex" ? "opencode" : "codex",
     connected: false,
     enabled: false,
     silentConnect: false,
@@ -144,6 +148,15 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     },
     togglePanel: () => (get().panelOpen ? get().closePanel() : get().openPanel()),
     setCanvasContext: (canvasContext) => set({ canvasContext }),
+    setAgentKind: (agentKind) => {
+        if (get().agentKind === agentKind) return;
+        const wasEnabled = get().enabled;
+        localStorage.setItem("canvas-agent-kind", agentKind);
+        // 两条车道的事件、会话和用量互不通用，切换时整体清空，避免串到另一条车道。
+        get().disconnectAgent({ messages: [], threads: [], activeThreadId: "", activeTurnId: "", tokenUsage: null, workspacePath: "", eventLogs: [], connectError: "", activity: i18n.t("agent.state.offline") });
+        set({ agentKind });
+        if (wasEnabled) get().connectAgent({ silent: true });
+    },
     connectAgent: (options) => {
         const silent = options?.silent ?? false;
         const endpoint = get().url.trim().replace(/\/$/, "");

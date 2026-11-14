@@ -1,6 +1,6 @@
 import i18n from "@/i18n";
 import type { CanvasAgentSnapshot } from "@/lib/canvas/canvas-agent-ops";
-import type { AgentReasoningEffort } from "@/stores/use-agent-store";
+import type { AgentChatItem, AgentReasoningEffort, AgentThreadSummary } from "@/stores/use-agent-store";
 
 type AgentConfigResponse = { ok?: boolean; protocolVersion?: number; url?: string; token?: string; hasToken?: boolean };
 const AGENT_MESSAGE_ASSET_PATTERN = /^agent-asset:([a-f0-9]{64})\/([a-f0-9]{64}\.(?:gif|jpe?g|png|webp))$/;
@@ -78,6 +78,33 @@ export async function acknowledgeCodexHistory(endpoint: string, token: string, t
 
 export async function revealAgentLocalFile(endpoint: string, token: string, path: string) {
     await fetchAgentJson(endpoint, token, "/agent/local-file/reveal", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ path }) });
+}
+
+export type OpencodeThreadsResponse = { ok?: boolean; workspace?: { workspacePath?: string }; data?: AgentThreadSummary[] };
+export type OpencodeThreadResponse = { ok?: boolean; thread?: AgentThreadSummary; messages?: AgentChatItem[] };
+
+export function fetchOpencodeThreads(endpoint: string, token: string) {
+    return fetchAgentJson<OpencodeThreadsResponse>(endpoint, token, "/agent/opencode/threads");
+}
+
+export function createOpencodeThread(endpoint: string, token: string) {
+    return fetchAgentJson<{ ok?: boolean; threadId?: string }>(endpoint, token, "/agent/opencode/threads/new", jsonPost({}));
+}
+
+export function fetchOpencodeThread(endpoint: string, token: string, threadId: string) {
+    return fetchAgentJson<OpencodeThreadResponse>(endpoint, token, `/agent/opencode/threads/${encodeURIComponent(threadId)}`);
+}
+
+export function deleteOpencodeThread(endpoint: string, token: string, threadId: string) {
+    return fetchAgentJson<{ ok?: boolean }>(endpoint, token, `/agent/opencode/threads/${encodeURIComponent(threadId)}/delete`, jsonPost({}));
+}
+
+export function sendOpencodeTurn(endpoint: string, token: string, body: { threadId: string; prompt: string; clientId: string }) {
+    return fetchAgentJson<{ ok?: boolean; threadId?: string }>(endpoint, token, "/agent/opencode/turn", jsonPost(body));
+}
+
+export function interruptOpencodeTurn(endpoint: string, token: string) {
+    return fetchAgentJson<{ ok?: boolean }>(endpoint, token, "/agent/opencode/interrupt", jsonPost({}));
 }
 
 export function resolveAgentMessageAssetUrl(endpoint: string, token: string, value: string) {

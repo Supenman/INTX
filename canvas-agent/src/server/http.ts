@@ -6,6 +6,7 @@ import express, { type NextFunction, type Request, type Response } from "express
 import { archiveCodexThread, CodexSkillLookupError, configureCodexSkill, generateCodexSkillDraft, interruptCodexTurn, isRecoverableThreadError, listCodexModels, listCodexSkills, listCodexThreads, readCodexThread, resolveCodexApproval, resolveCodexSkill, resumeCodexThread, runCodexTurn, startCodexThread, summarizeCodexThread } from "../agent/codex.js";
 import type { CodexReasoningEffort, CodexSkillSelector } from "../agent/codex-protocol.js";
 import { messageMetadataStore } from "../agent/message-metadata.js";
+import { createOpencodeThread, deleteOpencodeThread, interruptOpencodeTurn, listOpencodeThreads, readOpencodeThread, runOpencodeTurn } from "../agent/opencode.js";
 import type { AgentAttachment, AgentPermissionMode } from "../agent/types.js";
 import { AGENT_PROTOCOL_VERSION, CanvasSession } from "../canvas/session.js";
 import { DEFAULT_PORT, ensureSiteWorkspace, loadConfig, saveConfig, updateSiteWorkspace, type CanvasAgentConfig } from "../config.js";
@@ -401,7 +402,7 @@ export function startHttpServer() {
     /** 将 Codex 写操作串行化，避免多窗口在异步请求期间交叉修改会话。 */
     function codexMutation(handler: (req: Request, res: Response) => unknown | Promise<unknown>) {
         return route(async (req, res) => {
-            if (!session.beginCodexMutation()) return res.status(409).json({ ok: false, code: "CONVERSATION_BUSY", error: "Codex 正在运行或正在切换会话，请稍后重试", state: session.conversationStateSnapshot });
+            if (!session.beginCodexMutation()) return res.status(409).json({ ok: false, code: "CONVERSATION_BUSY", error: "本地 Agent 正在运行或正在切换会话，请稍后重试", state: session.conversationStateSnapshot });
             try {
                 return await handler(req, res);
             } finally {
@@ -417,6 +418,43 @@ export function startHttpServer() {
     }));
     app.post("/agent/codex/interrupt", route(async (req, res) => {
         const ok = await interruptCodexTurn(skillDraftRunning ? undefined : String(req.body?.threadId || ""));
+        res.status(ok ? 200 : 409).json({ ok, ...(ok ? {} : { error: "当前没有可停止的任务" }) });
+    }));
+    app.post("/agent/opencode/threads/new", codexMutation(async (_req, res) => {
+        const workspace = ensureSiteWorkspace(config);
+        res.json({ ok: true, threadId: await createOpencodeThread(workspace.workspacePath) });
+    }));
+    app.get("/agent/opencode/threads", route(async (_req, res) => {
+        const workspace = ensureSiteWorkspace(config);
+        res.json({ ok: true, workspace: { workspacePath: workspace.workspacePath }, data: await listOpencodeThreads(workspace.workspacePath) });
+    }));
+    app.get("/agent/opencode/threads/:threadId", route(async (req, res) => {
+        const workspace = ensureSiteWorkspace(config);
+        const threadId = routeParam(req.params.threadId);
+        res.json({ ok: true, workspace: { workspacePath: workspace.workspacePath }, thread: { id: threadId, preview: "" }, messages: await readOpencodeThread(workspace.workspacePath, threadId) });
+    }));
+    app.post("/agent/opencode/threads/:threadId/delete", codexMutation(async (req, res) => {
+        const workspace = ensureSiteWorkspace(config);
+        await deleteOpencodeThread(workspace.workspacePath, routeParam(req.params.threadId));
+        res.json({ ok: true });
+    }));
+    app.post("/agent/opencode/turn", codexMutation(async (req, res) => {
+        const prompt = String(req.body?.prompt || "");
+        const threadId = String(req.body?.threadId || "");
+        if (!prompt.trim()) return res.status(400).json({ ok: false, error: "请输入任务内容" });
+        if (!threadId) return res.status(400).json({ ok: false, error: "缺少 opencode 会话" });
+        const workspace = ensureSiteWorkspace(config);
+        const clientId = String(req.body?.clientId || "");
+        /** opencode 事件按线程广播；带上发起网页，方便它只处理自己的请求。 */
+        const turnEmit = (type: string, payload: unknown) => {
+            const value = payload && typeof payload === "object" && !Array.isArray(payload) ? payload as Record<string, unknown> : { value: payload };
+            emit(type, clientId ? { ...value, sourceClientId: clientId } : value);
+        };
+        void runOpencodeTurn(prompt, turnEmit, { threadId, cwd: workspace.workspacePath }).catch((error) => logger.warn("opencode turn failed", { threadId, error }));
+        res.json({ ok: true, threadId });
+    }));
+    app.post("/agent/opencode/interrupt", route(async (_req, res) => {
+        const ok = await interruptOpencodeTurn();
         res.status(ok ? 200 : 409).json({ ok, ...(ok ? {} : { error: "当前没有可停止的任务" }) });
     }));
     app.use((_req, res) => res.status(404).json({ ok: false, error: "not found" }));
