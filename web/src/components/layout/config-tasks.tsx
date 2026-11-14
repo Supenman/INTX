@@ -8,7 +8,7 @@ import type { Task } from "@/domain/task/model";
 import { useCopyText } from "@/hooks/use-copy-text";
 import { browserModelScopeTransport } from "@/services/api/modelscope-transport";
 import { pollVideoGenerationTask, storeGeneratedVideo } from "@/services/api/video";
-import { browserTaskLog, commitRecovered, forgetPendingCommit, forgetRecoveredAssets, loadTaskLog, recoveredAssetIds, rememberPendingCommit, rememberRecoveredAssets, retryTaskSave, pollModelScopeTask, resumableTasks, useTaskLogStore, videoHandleFromTask } from "@/services/generation";
+import { assetDrafts, browserTaskLog, commitRecovered, forgetPendingCommit, forgetRecoveredAssets, loadTaskLog, planDraftRecovery, recoveredAssetIds, rememberPendingCommit, rememberRecoveredAssets, retryTaskSave, pollModelScopeTask, resumableTasks, useTaskLogStore, videoHandleFromTask } from "@/services/generation";
 import { pickModelScopeChannel, recoveryAction, type RecoveryChannelView } from "@/services/generation/taskRecovery";
 import { uploadImage } from "@/services/image-storage";
 import { useAssetStore } from "@/stores/use-asset-store";
@@ -22,6 +22,8 @@ import { useConfigStore } from "@/stores/use-config-store";
  * 2.2b 的本机证据会在重启后还原成「只重试本地保存」，同样不允许重发。
  * 2.2c-1：产物已取回并确认保存后落盘证据，任务核销前重启只会「补写任务记录」，
  * 不重新查单、不下载、不重复创建素材。
+ * 2.2c-2：Blob 已下载、素材元数据未确认时就先落证据，重启后只用**已下载的
+ * Blob**补建素材，再补写任务记录；不重新查单、不重新下载、不产生孤儿文件。
  */
 export function ConfigTasks() {
     const { message } = App.useApp();
@@ -108,18 +110,39 @@ export function ConfigTasks() {
         setBusyId(task.id);
         try {
             if (commitOnly && pendingCommit) {
-                // 2.2c-1：产物已取回并确认落盘，只补写任务记录，不查单、不下载、不创建素材。
+                // 2.2c-1/2：产物已取回，只补写本地记录，不查单、不下载、不重复创建素材。
                 await useAssetStore.getState().load();
+                let assetIds = pendingCommit.assetIds;
+                if (pendingCommit.drafts?.length) {
+                    // 阶段 A：Blob 已下载但素材元数据没确认。按 id / storageKey 幂等复用，
+                    // 缺的才用已下载好的 Blob 补建素材；全程不碰查单接口，也不写媒体文件。
+                    const drafts = pendingCommit.drafts;
+                    const plan = planDraftRecovery(drafts, useAssetStore.getState().assets);
+                    assetIds = plan.map((id, index) => id ?? useAssetStore.getState().addAsset(drafts[index].asset));
+                    try {
+                        await useAssetStore.getState().confirmSave();
+                    } catch (error) {
+                        message.error(t("config.tasks.assetSaveFailed", { message: error instanceof Error ? error.message : t("config.tasks.queryFailed") }));
+                        return; // 证据保持阶段 A，下次按 storageKey 复用，不会重复创建素材。
+                    }
+                    // 素材已确认：升级为阶段 B，后续崩溃只需补写任务记录。
+                    await rememberPendingCommit({
+                        taskId: pendingCommit.taskId,
+                        upstreamRef: pendingCommit.upstreamRef,
+                        assetIds: [...assetIds],
+                        savedAt: Date.now(),
+                    });
+                }
                 const assets = useAssetStore.getState().assets;
-                if (pendingCommit.assetIds.some((id) => !assets.some((asset) => asset.id === id))) {
+                if (assetIds.some((id) => !assets.some((asset) => asset.id === id))) {
                     message.error(t("config.tasks.recoveredAssetsMissing"));
                     return;
                 }
                 const fresh = await browserTaskLog.get(task.id);
                 if (!fresh || fresh.upstreamRef !== pendingCommit.upstreamRef) throw new Error(t("config.tasks.queryFailed"));
-                await commitRecovered(browserTaskLog, fresh, pendingCommit.assetIds);
+                await commitRecovered(browserTaskLog, fresh, assetIds);
                 forgetPendingCommit(task.id);
-                message.success(t("config.tasks.recovered", { count: pendingCommit.assetIds.length }));
+                message.success(t("config.tasks.recovered", { count: assetIds.length }));
                 return;
             }
             const known = recoveredAssetIds(task.id, task.upstreamRef);
@@ -128,13 +151,19 @@ export function ConfigTasks() {
             const assetIds = reusable ? known : action === "modelscope" ? await recoverImage(task, modelscopeChannel) : await recoverVideo(task);
             if (!assetIds) return;
             if (!reusable) rememberRecoveredAssets(task.id, task.upstreamRef, assetIds);
+            // 2.2c-2：Blob 已写入、素材元数据未确认，先落阶段 A 证据。
+            // 写失败只退回当前进程内存，不中断已下载好的产物；取不到草稿时退回 2.2c-1 行为。
+            const drafts = assetDrafts(useAssetStore.getState().assets, assetIds);
+            if (assetIds.length && drafts.length === assetIds.length) {
+                await rememberPendingCommit({ taskId: task.id, upstreamRef: task.upstreamRef ?? "", assetIds: [], drafts, savedAt: Date.now() });
+            }
             try {
                 await useAssetStore.getState().confirmSave();
             } catch (error) {
                 message.error(t("config.tasks.assetSaveFailed", { message: error instanceof Error ? error.message : t("config.tasks.queryFailed") }));
                 return;
             }
-            // 2.2c-1：素材元数据已确认，落盘「产物已取回」证据；写失败只退回进程内存，不中断。
+            // 2.2c-1：素材元数据已确认，升级为阶段 B「产物已取回」证据；写失败只退回进程内存，不中断。
             await rememberPendingCommit({ taskId: task.id, upstreamRef: task.upstreamRef ?? "", assetIds: [...assetIds], savedAt: Date.now() });
             try {
                 const fresh = await browserTaskLog.get(task.id);
@@ -178,6 +207,7 @@ export function ConfigTasks() {
                         const action = recoveryAction(task, modelscopeChannel);
                         const pendingCommit = pendingCommits[task.id];
                         const commitOnly = Boolean(pendingCommit && pendingCommit.upstreamRef === (task.upstreamRef ?? ""));
+                        const draftOnly = Boolean(pendingCommit?.drafts?.length);
                         return (
                             <div key={task.id} className="rounded-lg border border-stone-200 px-4 py-3 dark:border-stone-800">
                                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -190,7 +220,7 @@ export function ConfigTasks() {
                                             {dayjs(task.createdAt).format("MM-DD HH:mm")} · {task.error?.message || t("config.tasks.runningHint")}
                                         </div>
                                         {commitOnly ? (
-                                            <div className="mt-1 text-xs text-stone-500">{t("config.tasks.recoveredHint")}</div>
+                                            <div className="mt-1 text-xs text-stone-500">{t(draftOnly ? "config.tasks.recoveredDraftHint" : "config.tasks.recoveredHint")}</div>
                                         ) : null}
                                     </div>
                                     <div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -198,7 +228,7 @@ export function ConfigTasks() {
                                             {task.upstreamRef || "—"}
                                         </Button>
                                         <Button size="small" type="primary" icon={commitOnly ? <ClipboardCheck className="size-3.5" /> : <RefreshCw className="size-3.5" />} disabled={(action === "manual" && !commitOnly) || Boolean(busyId) || !hydrated || Boolean(loadError)} loading={busyId === task.id} onClick={() => void query(task)}>
-                                            {commitOnly ? t("config.tasks.commitOnly") : t("config.tasks.query")}
+                                            {commitOnly ? t(draftOnly ? "config.tasks.commitDraftOnly" : "config.tasks.commitOnly") : t("config.tasks.query")}
                                         </Button>
                                     </div>
                                 </div>

@@ -16,11 +16,14 @@ import {
 } from './taskLog';
 import { createMemoryEvidenceStore, setEvidenceStore } from './taskEvidence';
 import {
+  assetDrafts,
   createMemoryRecoveredAssetEvidenceStore,
   parseRecoveredAssetEvidence,
+  planDraftRecovery,
   setRecoveredAssetEvidenceStore,
   type RecoveredAssetEvidence,
 } from './recoveredAssetEvidence';
+import type { Asset } from '@/application/persistence/types';
 
 const params = { kind: 'image' as const, prompt: 'fixture', model: 'fixture/image', providerId: 'fixture', inputAssetIds: [] };
 const base = createTask({ kind: 'image', params, nodeId: null });
@@ -174,5 +177,98 @@ describe('2.2c-1 已取回素材证据', () => {
     const current = useTaskLogStore.getState().tasks.find((item) => item.id === e.taskId) ?? task();
     expect(readTaskOutcome(current)?.regenerate).not.toBe('allowed');
     expect(useTaskLogStore.getState().pendingCommits[e.taskId]).toBeDefined();
+  });
+});
+
+function fixtureAsset(id: string, storageKey: string): Asset {
+  return {
+    id, kind: 'image', title: 'fixture', coverUrl: '', tags: [],
+    createdAt: '2026-01-01', updatedAt: '2026-01-01',
+    data: { dataUrl: '', storageKey, width: 1, height: 1, bytes: 1, mimeType: 'image/png' },
+  } as Asset;
+}
+
+function fixtureDrafts() {
+  return assetDrafts(
+    [fixtureAsset('a-1', 'image:k1'), fixtureAsset('a-2', 'image:k2')],
+    ['a-1', 'a-2'],
+  );
+}
+
+function stageA(): RecoveredAssetEvidence {
+  return { taskId: base.id, upstreamRef: 'up-fixture', assetIds: [], drafts: fixtureDrafts(), savedAt: 1 };
+}
+
+describe('2.2c-2 已下载 Blob 的补建证据', () => {
+  it('旧格式（阶段 B）与阶段 A 都能解析，阶段冲突被拒绝', () => {
+    expect(parseRecoveredAssetEvidence(evidence())?.assetIds).toEqual(['asset-1', 'asset-2']);
+    expect(parseRecoveredAssetEvidence(stageA())?.drafts).toHaveLength(2);
+    expect(parseRecoveredAssetEvidence({ ...stageA(), assetIds: ['a-1'] })).toBeNull();
+    expect(parseRecoveredAssetEvidence({ ...stageA(), drafts: [] })).toBeNull();
+    expect(parseRecoveredAssetEvidence({ ...stageA(), drafts: undefined })).toBeNull();
+  });
+
+  it('损坏的草稿不能当成空证据', () => {
+    const e = stageA();
+    const good = e.drafts![0];
+    expect(parseRecoveredAssetEvidence({ ...e, drafts: [{ assetId: '', asset: good.asset }] })).toBeNull();
+    expect(parseRecoveredAssetEvidence({ ...e, drafts: [{ assetId: 'a-1', asset: { ...good.asset, kind: 'unknown' } }] })).toBeNull();
+    expect(parseRecoveredAssetEvidence({ ...e, drafts: [{ assetId: 'a-1', asset: { ...good.asset, data: null } }] })).toBeNull();
+    expect(parseRecoveredAssetEvidence({ ...e, drafts: [{ assetId: 'a-1', asset: { ...good.asset, data: { ...good.asset.data, storageKey: '' } } }] })).toBeNull();
+  });
+
+  it('assetDrafts 剥掉运行时字段，缺一个就整体退回，不落半份证据', () => {
+    const drafts = fixtureDrafts();
+    expect(drafts).toHaveLength(2);
+    expect(drafts[0].asset).not.toHaveProperty('id');
+    expect(drafts[0].asset).not.toHaveProperty('createdAt');
+    expect(drafts[0].asset).not.toHaveProperty('updatedAt');
+    expect(drafts[0].asset.data).toHaveProperty('storageKey', 'image:k1');
+    expect(assetDrafts([fixtureAsset('a-1', 'image:k1')], ['a-1', 'missing'])).toEqual([]);
+    // 没有本地 storageKey 的产物只是远程 URL 引用，退回 2.2c-1，不落可能引用过期地址的证据。
+    expect(assetDrafts([fixtureAsset('a-1', '')], ['a-1'])).toEqual([]);
+    expect(assetDrafts([], [])).toEqual([]);
+  });
+
+  it('补建计划按 id 或 storageKey 幂等复用，缺的才返回 null', () => {
+    const drafts = fixtureDrafts();
+    expect(planDraftRecovery(drafts, [fixtureAsset('a-1', 'image:k1'), fixtureAsset('a-2', 'image:k2')])).toEqual(['a-1', 'a-2']);
+    // 补建会生成新 id，必须靠 storageKey 认出同一份 Blob，不能重复创建素材。
+    expect(planDraftRecovery(drafts, [fixtureAsset('new-1', 'image:k1'), fixtureAsset('new-2', 'image:k2')])).toEqual(['new-1', 'new-2']);
+    expect(planDraftRecovery(drafts, [fixtureAsset('new-1', 'image:k1')])).toEqual(['new-1', null]);
+    expect(planDraftRecovery(drafts, [])).toEqual([null, null]);
+  });
+
+  it('阶段 A 证据落盘后重启可恢复，三态仍不退化成可重发', async () => {
+    const e = stageA();
+    const store = createMemoryRecoveredAssetEvidenceStore();
+    await store.put(e);
+    setRecoveredAssetEvidenceStore(store);
+    useTaskLogStore.setState({ tasks: [task()] });
+    await loadTaskLog();
+    expect(useTaskLogStore.getState().pendingCommits[e.taskId]?.drafts).toHaveLength(2);
+    const current = useTaskLogStore.getState().tasks.find((item) => item.id === e.taskId) ?? task();
+    expect(readTaskOutcome(current)?.regenerate).not.toBe('allowed');
+    expect(useTaskLogStore.getState().loadError).toBeNull();
+  });
+
+  it('阶段 A 证据写入失败不抛错，仍保留当前进程内存证据', async () => {
+    setRecoveredAssetEvidenceStore({
+      async put() { throw new Error('fixture evidence down'); },
+      async list() { return []; },
+      async remove() {},
+    });
+    const e = stageA();
+    await expect(rememberPendingCommit(e)).resolves.toBeUndefined();
+    expect(pendingCommitFor(e.taskId, 'up-fixture')?.drafts).toHaveLength(2);
+  });
+
+  it('升级为阶段 B 必须显式去掉 drafts，否则解析拒绝', () => {
+    const e = stageA();
+    expect(parseRecoveredAssetEvidence({ ...e, assetIds: ['a-1', 'a-2'] })).toBeNull();
+    const upgraded = {
+      taskId: e.taskId, upstreamRef: e.upstreamRef, assetIds: ['a-1', 'a-2'], savedAt: 2,
+    };
+    expect(parseRecoveredAssetEvidence(upgraded)?.assetIds).toEqual(['a-1', 'a-2']);
   });
 });

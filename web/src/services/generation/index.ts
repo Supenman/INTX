@@ -67,9 +67,13 @@ export {
 } from './taskEvidence';
 
 export {
+  assetDrafts,
   createMemoryRecoveredAssetEvidenceStore,
   parseRecoveredAssetEvidence,
+  planDraftRecovery,
   setRecoveredAssetEvidenceStore,
+  type AssetDraft,
+  type RecoveredAssetDraft,
   type RecoveredAssetEvidence,
   type RecoveredAssetEvidenceStore,
 } from './recoveredAssetEvidence';

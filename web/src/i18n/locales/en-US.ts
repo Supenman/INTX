@@ -402,6 +402,8 @@ export default {
             taskSaveFailed: "Assets were saved, but the task record could not be updated: {{message}}. The task is still unconfirmed; retrying only rewrites the local task without fetching the assets again or contacting the provider.",
             recoveredHint: "Results were already fetched and saved. Retrying only rewrites the local task record — no new query, no download, no duplicate assets.",
             commitOnly: "Save task record",
+            recoveredDraftHint: "Results were downloaded but the asset record was not saved. Retrying only rebuilds the assets from the downloaded files and rewrites the local task record — no new query, no download, no duplicate assets.",
+            commitDraftOnly: "Save assets & task record",
             recoveredAssetsMissing: "The recovered assets are missing from the asset library. Copy the task ID and check the provider console instead of resubmitting.",
             manual: "No query protocol is available for this task. Copy the task ID and check it in the provider console.",
             noModelscopeChannel: "Add a ModelScope channel (api-inference.modelscope.cn) under Providers to query automatically.",
