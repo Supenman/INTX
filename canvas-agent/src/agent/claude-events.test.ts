@@ -79,6 +79,12 @@ describe("Claude 事件归一", () => {
         assert.deepEqual(events.at(-1), { type: "turn.failed", turn_id: "turn-1", status: "failed", error: { message: "rate limited" } });
     });
 
+    it("认证失败的 result 用 result 字段里的原文，不吞成通用文案", () => {
+        // 真实 SDK 输出的形状：subtype 仍是 success，靠 is_error 区分失败。
+        const { events } = run([init, { type: "result", subtype: "success", is_error: true, result: "Not logged in · Please run /login", terminal_reason: "api_error" }]);
+        assert.deepEqual(events.at(-1), { type: "turn.failed", turn_id: "turn-1", status: "failed", error: { message: "Not logged in · Please run /login" } });
+    });
+
     it("未配对的 tool_result 不凭空造事件", () => {
         const { events } = run([init, { type: "user", message: { content: [{ type: "tool_result", tool_use_id: "missing", content: "x" }] } }]);
         assert.equal(events.length, 1);

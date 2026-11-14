@@ -159,8 +159,10 @@ function mapResult(message: Record<string, unknown>, state: ClaudeMapperState): 
         });
         return out;
     }
+    // 真实的错误 result 形如 { subtype: "success", is_error: true, result: "Not logged in · Please run /login" }，
+    // 错误原因在 result 里，errors 数组只在少数场景出现。
     const errors = Array.isArray(message.errors) ? message.errors.filter((item): item is string => typeof item === "string") : [];
-    out.push({ type: "turn.failed", turn_id: state.turnId, status: "failed", error: { message: errors.join("；") || "Claude 执行失败" } });
+    out.push({ type: "turn.failed", turn_id: state.turnId, status: "failed", error: { message: text(message.result) || errors.join("；") || "Claude 执行失败" } });
     return out;
 }
 
