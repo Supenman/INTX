@@ -13,7 +13,7 @@ The current release needs manual verification in these areas:
 - Opening the desktop app should already show a connected Agent and land in the chat. In the desktop app the connection view has no address or token fields — only the status, the start command and Connect / Disconnect.
 - With the Agent not running the status stays disconnected; Connect re-reads the config, and a second failure tells the user to start the local Agent first.
 - A browser cannot read the local config, so the address and token fields stay there as a debugging fallback (remembered in localStorage); the `?agentUrl=&agentToken=` bootstrap is removed.
-- Automated: `web` typecheck passes with 45 files / 666 tests, and `cargo check` passes. **Verified**: the rebuilt Tauri dev window connected on reopen with no input — the Agent logged a new SSE client and `/health` reported one connection. The UI state is left for the user to confirm. **Not verified**: the browser manual fallback and the packaged build. No real provider requests were sent and no API key was used.
+- Automated: `web` typecheck passes with 45 files / 666 tests, and `cargo check` passes. **Verified**: the rebuilt Tauri dev window connected on reopen with no input, and the release `intx.exe` produced by `tauri build --no-bundle` connected the same way — the Agent logged a new SSE client, `/health` reported one connection with `hasCanvas: true`, and the app did not fall back to devUrl. The UI state is left for the user to confirm. **Not verified**: the browser manual fallback and the MSI / NSIS installer (not built or installed). No real provider requests were sent and no API key was used.
 
 ## Local Agent: opencode single lane (pending user verification)
 
