@@ -1,0 +1,58 @@
+---
+title: How Local OpenCode Connects to the Canvas
+description: Interaction between Canvas Agent, MCP, SSE, and browser canvas state
+---
+
+# How Local OpenCode Connects to the Canvas
+
+The agent does not control the browser DOM or simulate mouse actions. A local `Canvas Agent` bridges model tools and the React state that owns the canvas.
+
+```text
+OpenCode or browser side panel
+        ↓
+Local Canvas Agent
+        ↓
+Browser canvas React state
+```
+
+## Two entry points
+
+From a local MCP client such as Claude Code or any other MCP-capable tool, the `infinite-canvas` MCP tools call Canvas Agent's `/api/tools` endpoint. Common tools read canvas state and selection, create or update nodes, connect nodes, and start image or text generation.
+
+From the browser side panel, the browser sends a turn to `/agent/opencode/turn`. Canvas Agent starts or reuses `opencode serve --hostname 127.0.0.1 --port 0`, uses the site workspace as its working directory, and injects the `infinite-canvas` local MCP server (`node dist/index.js mcp`) into that session through the opencode config.
+
+Models come from opencode: the default is a free model that needs no API key, and the side panel can switch models. Related endpoints are `/agent/opencode/threads` (list, create, delete), `/agent/opencode/interrupt` (stop the running turn), `/agent/opencode/models`, and `/agent/opencode/skills`.
+
+Canvas writes still follow the same path: `OpenCode → MCP → Canvas Agent → browser`.
+
+## Browser connection and state
+
+Canvas Agent listens on `http://127.0.0.1:17371` by default and generates a connection token. The browser opens an authenticated SSE connection:
+
+```text
+GET /events?token=xxx&clientId=xxx
+```
+
+The browser pushes snapshots to:
+
+```text
+POST /canvas/state?token=xxx&clientId=xxx
+```
+
+Snapshots contain the canvas ID and title, nodes, edges, selected node IDs, and viewport. Canvas Agent keeps the latest snapshot in memory, so tools read structured state rather than the DOM.
+
+## Applying operations
+
+For a node creation, the model calls an MCP tool, Canvas Agent converts it to `canvas_apply_ops`, sends an SSE `tool_call`, and the browser applies operations such as `add_node`, `update_node`, `delete_node`, `connect_nodes`, `set_viewport`, and `select_nodes`. The browser posts the result to `/canvas/result`, which completes the MCP call.
+
+Writes are applied directly, with no per-tool approval queue. The frontend stores the snapshot before the latest Agent operation so it can be undone.
+
+## Security boundary
+
+- Canvas Agent binds to `127.0.0.1` by default.
+- Browser connections require the generated token and are bound to the first accepted origin.
+- The model does not directly access the DOM or own the canvas state.
+- The hosted website does not store the local login, API keys, or local file permissions.
+- The browser remains responsible for executing writes and undo.
+
+In short, reads flow from browser snapshots through Canvas Agent and MCP to the model; writes flow from the model through MCP and SSE back to browser React state.

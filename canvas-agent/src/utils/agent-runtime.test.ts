@@ -34,6 +34,6 @@ test("createAgentLogWriter redacts ANSI-colored credentials split across chunks"
 });
 
 test("redactAgentLog keeps text without credentials intact", () => {
-    assert.equal(redactAgentLog("Codex app-server exited: 0"), "Codex app-server exited: 0");
+    assert.equal(redactAgentLog("Agent app-server exited: 0"), "Agent app-server exited: 0");
     assert.equal(redactAgentLog("model: gpt-5"), "model: gpt-5");
 });

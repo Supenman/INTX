@@ -4,6 +4,9 @@
 
 + [新增] 本地 Agent 的 Skill 列表与输入框 `/` 提及在 opencode 车道重接：列表由本地 Agent 读取站点工作空间的 `.agents/skills`，单个 Skill 损坏时跳过并回报，不影响其它条目。
 + [调整] 文档站删除过期的「Codex App 插件」页面（中英各一页）及其导航入口。
++ [调整] 开发文档「本地 Codex 连接画布原理」改写为「本地 OpenCode 连接画布原理」（中英各一页，路径同步改为 `/docs/development/local-opencode-canvas`），按 opencode 单车道描述会话接口、模型选择和写入执行方式。
++ [调整] 删除仓库内的 Codex / ZCode 插件包 `plugins/infinite-canvas` 与本地 marketplace 注册，首页导航去掉「Codex app 插件」入口；外部 MCP 客户端仍可自行用 `npx -y @basketikun/canvas-agent@latest mcp` 接入画布。
++ [优化] 本地 Agent 清理下线车道的残留：内部会话状态、热重放和写锁命名统一为 Agent 通用命名，`hello` 事件字段 `codex` 改为 `agent`，移除已作废的工具确认队列代码与 `@openai/codex` 依赖。
 + [调整] 本地 Agent 收敛为 **opencode 单车道**：移除 Codex 适配器（7 个后端模块、全部 `/agent/codex/*` 路由）、Codex 侧边栏面板与车道切换，默认且只能使用免 API Key 的 opencode；上一条「Codex 待确认工具 FIFO 队列」随 Codex 车道一并移除。Skill 管理页、草稿提炼与 Skill 列表接口也随之下线，输入框 `/` 提及暂为空候选（不再向已下线的接口发请求），后续需在 opencode 车道重接。连接页不再显示 Codex 插件引导，画布顶部状态固定显示 OpenCode。
 + [调整] 本地 Agent 的 Codex 车道待确认画布工具从单槽改成 FIFO 队列：同一轮里的多个写工具会全部保留并按到达顺序显示，可逐个批准或拒绝，不再因「已有待确认工具」把后一个直接拒绝；重复事件不会堆出重复卡片，断开连接或切换车道时整队清空。opencode 车道不走工具确认流程，行为不变。
 + [新增] 本地 Agent 的 OpenCode 车道支持在输入框选择模型：列表取自本地 opencode 服务，选择会记住并在刷新后恢复；模型列表不可用、请求失败或所选模型已失效时，显示不可用并自动回退默认免费模型，对话不受影响。

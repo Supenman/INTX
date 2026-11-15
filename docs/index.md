@@ -17,7 +17,7 @@
 
 - [Local Development](/docs/development/local-development)
 - [Canvas Data Structure](/docs/development/canvas-data-structure)
-- [How the Local Codex Connection Works](/docs/development/local-codex-canvas)
+- [How the Local OpenCode Connection Works](/docs/development/local-opencode-canvas)
 - [INTX 2.2a 存储合同范围与验收](INTX-2.2a-存储合同范围与验收.md) — 分段范围，任务、项目/素材存储屏障与业务成功确认均已实现，待真机验收。
 
 ## Business

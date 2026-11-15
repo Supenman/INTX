@@ -70,12 +70,12 @@ export function OpencodeAgentPanel() {
     const [searchParams] = useSearchParams();
     const urlBootstrapRef = useRef(false);
     const endpoint = useMemo(() => url.trim().replace(/\/$/, ""), [url]);
-    // 模型选择独立于 Codex 的 canvas-agent-model，切换车道不会把两边的选中值串到一起。
+    // 模型选择只保存在这个面板内，切换会话不需要跨页面共享。
     const [opencodeModels, setOpencodeModels] = useState<OpencodeModelOption[]>([]);
     const [opencodeModel, setOpencodeModel] = useState("");
     const [modelsUnavailable, setModelsUnavailable] = useState(false);
 
-    // 带 agentUrl / agentToken 打开页面时直接连上，和 Codex 车道的深链行为一致。
+    // 带 agentUrl / agentToken 打开页面时直接连上本地 Agent。
     useEffect(() => {
         const urlParam = searchParams.get("agentUrl");
         const tokenParam = searchParams.get("agentToken");
@@ -549,7 +549,7 @@ export function OpencodeAgentPanel() {
     );
 }
 
-/** opencode 模型下拉：只列出 /config/providers 返回过的 id，切换车道不与 Codex 的模型值串用。 */
+/** opencode 模型下拉：只列出 /config/providers 返回过的 id，避免列表里出现调不通的模型。 */
 function OpencodeModelSelect({ models, model, onChange }: { models: OpencodeModelOption[]; model: string; onChange: (model: string) => void }) {
     const { t } = useTranslation();
     const current = models.find((item) => item.id === model) || models[0];

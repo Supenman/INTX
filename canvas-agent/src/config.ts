@@ -37,7 +37,7 @@ export function writeConfigFile(dir: string, file: string, config: CanvasAgentCo
     fs.chmodSync(file, 0o600);
 }
 
-/** 确保站点级 Codex 工作空间存在并已初始化。 */
+/** 确保站点级 Agent 工作空间存在并已初始化。 */
 export function ensureSiteWorkspace(config: CanvasAgentConfig) {
     const current = config.workspace;
     if (current?.workspacePath) {
@@ -45,6 +45,7 @@ export function ensureSiteWorkspace(config: CanvasAgentConfig) {
         initializeWorkspace(workspacePath);
         return { ...current, workspacePath };
     }
+    // 目录名沿用 Codex 车道的旧名：已存在的 Skill 与 opencode 会话都按这个路径落盘，改名会让历史失效。
     const workspacePath = path.join(CONFIG_DIR, "codex-workspaces", "site");
     config.workspace = { workspacePath };
     initializeWorkspace(workspacePath);
@@ -52,7 +53,7 @@ export function ensureSiteWorkspace(config: CanvasAgentConfig) {
     return { workspacePath };
 }
 
-/** 更新站点级 Codex 工作空间配置。 */
+/** 更新站点级 Agent 工作空间配置。 */
 export function updateSiteWorkspace(config: CanvasAgentConfig, patch: Partial<SiteWorkspaceConfig>) {
     const current = ensureSiteWorkspace(config);
     const workspacePath = patch.workspacePath ? resolveWorkspacePath(patch.workspacePath) : current.workspacePath;

@@ -24,7 +24,6 @@ test("创建、读取和更新画布专属 Skill", async (context) => {
     assert.equal(created.managed, true);
     assert.equal(created.interface?.displayName, "产品九宫格生成");
     assert.equal(created.revision.length, 64);
-    assert.equal(store.isManagedPath(created.path), true);
     const openAi = await fs.readFile(path.join(path.dirname(created.path), "agents", "openai.yaml"), "utf8");
     assert.match(openAi, /^interface:/m);
     assert.match(openAi, /display_name: "产品九宫格生成"/);

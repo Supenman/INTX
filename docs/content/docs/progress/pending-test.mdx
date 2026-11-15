@@ -15,7 +15,7 @@ The current release needs manual verification in these areas:
 - Automated: `web` typecheck, `vitest run src`, domain boundary check, production build, upstream `bun test tests/`, and `canvas-agent` tests/build all pass (exact counts in the state record).
 - **Verified**: the user tested the single-lane sidebar in the browser on 2026-11-16 — connect, new / restore / delete thread, model pick, one turn, stop, and `/` mention (empty candidate list by design).
 - **Not verified**: MCP registration in a packaged build and the Tauri desktop app. No real provider requests were sent and no API key was used.
-- **Scope**: no new timeouts, retries, size limits or concurrency caps. The generic session mutex / event replay in `canvas/session.ts` and the `codex-workspaces/site` config path keep their historical names because opencode routes still use them; renaming is left to a separate cleanup.
+- **Scope**: no new timeouts, retries, size limits or concurrency caps. Session state, replay and the write lock in `canvas/session.ts` now use lane-neutral names; the `codex-workspaces/site` config path keeps its historical name because existing Skills and opencode threads resolve to it.
 
 ## Local Agent: Skill list and `/` mention reconnected (pending user verification)
 
@@ -23,6 +23,13 @@ The current release needs manual verification in these areas:
 - A broken `SKILL.md` is skipped and reported in `errors` without hiding the rest; a failed list read stays "not loaded" so the next `/` retries instead of pretending there are no Skills. The stale "Codex App Plugin" docs pages and their nav entries were removed.
 - Automated: one new store test (empty root, ordering, broken directory skipped and reported); `canvas-agent` 73 tests, 71 pass / 2 skipped / 0 fail with the build passing; `web` typecheck passes. The endpoint was checked against a temporary Skill directory (correct path and revision), then that directory was deleted.
 - **Verified**: the user picked a Skill in the browser and sent a turn on 2026-11-16 — the default prompt was filled in and opencode loaded the instructions through its own `skill` tool before continuing. **Not verified**: the Tauri desktop app. No real provider requests were sent.
+
+## Local Agent: naming and dependency cleanup
+
+- `canvas/session.ts` state, replay and write lock use lane-neutral names, the `hello` field is now `agent`, and the dead approval queue plus the `@openai/codex` dependency (npm and bun lockfiles) are removed.
+- The development doc page is now "How Local OpenCode Connects to the Canvas" at `/docs/development/local-opencode-canvas` (both languages); the docs index, nav meta and top tabs point there. The Codex / ZCode plugin package `plugins/infinite-canvas`, its local marketplace registration and the README link are removed; external MCP clients can still connect with `npx -y @basketikun/canvas-agent@latest mcp`.
+- Automated: `canvas-agent` build passes with 73 tests (71 pass / 2 skipped / 0 fail); `web` typecheck passes and 45 files / 666 tests pass.
+- **Not verified**: docs-site rendering of the renamed page, packaged build, Tauri desktop app.
 
 ## Local Agent: pending-tool queue (retired)
 

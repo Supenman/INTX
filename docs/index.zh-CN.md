@@ -41,4 +41,4 @@
 
 ## 原理说明
 
-- [本地 Codex 连接画布原理](/zh-CN/docs/development/local-codex-canvas)
+- [本地 OpenCode 连接画布原理](/zh-CN/docs/development/local-opencode-canvas)

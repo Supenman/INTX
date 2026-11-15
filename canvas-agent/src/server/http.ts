@@ -31,7 +31,7 @@ export function startHttpServer() {
             if (value.type === "mcp.startup") session.updateConversationMcp(String(value.name || ""), startupStatus(value.status), String(value.error || "") || null, String(value.failureReason || "") || null);
             if (value.type === "mcp.complete") session.completeConversationMcpInventory(mcpInventory(value.services));
         }
-        const scope = session.codexBusy ? session.codexEventScope : { threadId: "", turnId: "", sourceClientId: "" };
+        const scope = session.agentBusy ? session.agentEventScope : { threadId: "", turnId: "", sourceClientId: "" };
         const threadId = String(value.threadId || value.thread_id || scope.threadId || ensureSiteWorkspace(config).activeThreadId || "");
         const turnId = String(value.turnId || value.turn_id || scope.turnId || "");
         const sourceClientId = String(value.sourceClientId || scope.sourceClientId || "");
@@ -41,7 +41,6 @@ export function startHttpServer() {
             ...(turnId ? { turnId, turn_id: turnId } : {}),
             ...(sourceClientId ? { sourceClientId } : {}),
         };
-        session.trackCodexEvent(type, data);
         threadId ? session.emitThread(type, threadId, data) : session.emitAll(type, data);
     };
     const app = express();
@@ -116,11 +115,11 @@ export function startHttpServer() {
     /** 将 Agent 写操作串行化，避免多窗口在异步请求期间交叉修改会话。 */
     function mutation(handler: (req: Request, res: Response) => unknown | Promise<unknown>) {
         return route(async (req, res) => {
-            if (!session.beginCodexMutation()) return res.status(409).json({ ok: false, code: "CONVERSATION_BUSY", error: "本地 Agent 正在运行或正在切换会话，请稍后重试", state: session.conversationStateSnapshot });
+            if (!session.beginAgentMutation()) return res.status(409).json({ ok: false, code: "CONVERSATION_BUSY", error: "本地 Agent 正在运行或正在切换会话，请稍后重试", state: session.conversationStateSnapshot });
             try {
                 return await handler(req, res);
             } finally {
-                session.endCodexMutation();
+                session.endAgentMutation();
             }
         });
     }

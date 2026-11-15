@@ -73,14 +73,6 @@ export class SkillStore {
         this.skillsPath = path.join(this.workspacePath, ".agents", "skills");
     }
 
-    /** 判断 Codex 返回的绝对路径是否属于本 Store 的标准 Skill 入口。 */
-    isManagedPath(filePath: string) {
-        if (!path.isAbsolute(filePath)) return false;
-        const relative = path.relative(this.skillsPath, path.resolve(filePath));
-        const segments = relative.split(path.sep);
-        return segments.length === 2 && validName(segments[0]) && segments[1].toLowerCase() === "skill.md";
-    }
-
     /** 读取一个可编辑 Skill 的正文与界面元数据。 */
     async get(name: string): Promise<ManagedSkillDetail> {
         try {
