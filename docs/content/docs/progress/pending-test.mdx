@@ -7,33 +7,40 @@ description: Implemented changes that still need manual verification
 
 The current release needs manual verification in these areas:
 
-## Local Agent: pending-tool queue (pending user verification)
+## Local Agent: opencode single lane (pending user verification)
 
-- With Codex lane's canvas-write confirmation enabled, several write-tool calls in the same turn now stay in a FIFO queue and render as separate cards in arrival order. Cards show a "N of M" badge when more than one is pending, and each can be approved or rejected independently; that is the fix for the old single-slot behaviour where a second call was rejected with "Another canvas tool call is awaiting confirmation".
-- While a `requestId` is still in the queue, replayed SSE events carrying that id do not create duplicate cards. An event without `requestId` is rejected instead of becoming a card that can never be resolved. Disconnecting, switching threads or lanes, and a protocol-version mismatch clear the whole queue, so Codex confirmations never leak into the opencode lane (opencode still does not use tool confirmation).
-- The diagnostics header shows the number of pending tools, and the copied log text lists their names.
-- Automated: `web` typecheck, 46 files / 675 tests (9 new FIFO pure-function tests), domain boundary check and production build pass; the upstream `tests/` bun suite (15 tests) passes.
-- **Not verified**: browser testing of the sidebar (concurrent tools, approving/rejecting one at a time, clearing on disconnect) and the Tauri desktop build. No real provider requests were sent and no API key was used.
-- **Scope**: only the queue and its presentation changed. No new timeouts, retries, size limits or concurrency caps; approved tools still run through the existing path, and disconnecting does not send extra results to the backend. A request that was already approved or rejected is not remembered: if the backend replays it, it enters the queue as a new request (same as the old behaviour). Browser testing should confirm whether the backend ever replays completed `tool_call` events.
+- The Codex adapter (7 backend modules and every `/agent/codex/*` route), the Codex sidebar panel and the lane switch were removed. The sidebar now uses opencode only, there is no lane-switch control, and the top-bar status always reads OpenCode.
+- The connection view keeps only the "run the local Agent" command and the web connection form; all plugin guidance is gone. The model picker, thread list, send/stop, usage bar, diagnostics log and `@` canvas references keep their previous behaviour.
+- The Skill manager, draft extraction and Skill list API were retired with the Codex lane. The `/` mention now yields an empty candidate list and no longer calls the removed endpoint; the standalone `skills/store.ts` module is kept but not wired up, ready for a future opencode-side reconnect.
+- Automated: `web` typecheck, `vitest run src`, domain boundary check, production build, upstream `bun test tests/`, and `canvas-agent` tests/build all pass (exact counts in the state record).
+- **Not verified**: browser testing of the sidebar after the removal, MCP registration in a packaged build, and the Tauri desktop app. No real provider requests were sent and no API key was used.
+- The user confirmed on 2026-11-15 that the opencode lane passed real-device verification, which is why the single-lane change was made. No per-item verification record was added to the repository, so the older "unverified" items above are not automatically checked off.
+- **Scope**: no new timeouts, retries, size limits or concurrency caps. The generic session mutex / event replay in `canvas/session.ts` and the `codex-workspaces/site` config path keep their historical names because opencode routes still use them; renaming is left to a separate cleanup.
+
+## Local Agent: pending-tool queue (retired)
+
+- This queue only served the Codex lane. It was removed together with the Codex adapter; the FIFO pure-function module and its 9 tests are gone from the tree. Commit `cbb450b` remains in history, but the current version has no pending-tool confirmation flow, so this item no longer needs verification.
 
 ## 本地 Agent：opencode 模型选择（待用户验收）
 
 - 输入框左侧新增 opencode 模型下拉，列表来自本地 opencode 服务的 `GET /config/providers`（经 Canvas Agent 的 `/agent/opencode/models` 转发）；默认仍是固定免费模型 `opencode/nemotron-3.5-lightning-free`，不需要 API Key、不改变今天的行为。
-- 选择保存在独立的 `localStorage` 键 `canvas-agent-opencode-model`，刷新页面后恢复；切到 Codex 车道再切回来不会把两边的选中值串到一起（Codex 仍用自己的 `canvas-agent-model`）。
+- 选择保存在独立的 `localStorage` 键 `canvas-agent-opencode-model`，刷新页面后恢复；车道切换已随 Codex 车道移除，选择只保存在这个独立键里。
 - 模型列表为空、请求失败或 opencode 服务未就绪时，显示「模型列表不可用，仍使用默认免费模型」，对话照常发送，不会额外向厂商发请求。
 - 所选模型已不在当前列表、或提交的是任意非法字符串时，后端拒绝该值并回退默认免费模型，不把任意字符串交给 opencode；模型下拉在连接后读取一次 `/config/providers` 以填充列表；只有显式选择了模型，发消息阶段才会再读一次做校验。
 - 自动化：`web` 类型检查通过、45 文件 / 666 用例通过、domain 依赖边界通过、生产构建通过；`canvas-agent` 单测 141 条 0 失败、构建通过（新增 8 条模型归一化 / 默认值 / 非法值回退纯函数测试）；上游 `tests/` 的 15 条 bun 测试也通过。
-- **未验证**：侧边栏 UI 的浏览器实测（下拉展开与选中、刷新恢复、车道切换后不串值、列表不可用提示）、选中非默认模型后的真实一轮对话、Tauri 桌面端。本次未发真实厂商请求、未使用任何 API Key。
+- **未验证**：侧边栏 UI 的浏览器实测（下拉展开与选中、刷新恢复、列表不可用提示）、选中非默认模型后的真实一轮对话、Tauri 桌面端。本次未发真实厂商请求、未使用任何 API Key。
 - **边界**：不新增超时、重试、大小限制或并发上限；模型选择只影响本轮发送的 `model`，不改会话、事件格式与工具流程。
 
 ## 本地 Agent：opencode 车道接入侧边栏（待用户验收）
 
-- 侧边栏新增 Agent 车道切换（OpenCode / Codex），默认 OpenCode；切换时清空上一条车道的会话、消息和用量，并用同一个 Local URL / Connect token 重新连接，不需要重新填地址。
+> 本节写于 OpenCode / Codex 双车道时期。车道切换已在单车道改造中移除，文中涉及「切换车道」「当前车道」的描述不再适用于当前版本；其余功能（会话列表、发送、停止、用量、@ 引用）仍有效。
+
+- 侧边栏车道切换（OpenCode / Codex）已在单车道改造中移除；当前默认且只能使用 OpenCode，不需要重新填地址和 token。
 - OpenCode 车道支持：会话列表（新建 / 恢复 / 删除）、发送消息、停止当前轮、用量显示，以及 @ 引用画布素材（只带 nodeId 和素材文字，不上传图片）。工具调用、思考和错误沿用侧边栏已有的事件格式展示。
 - 连接设置页在 OpenCode 车道不再显示 Codex 插件说明，只保留启动本地 Agent 的命令和网页连接。
 - 画布顶部状态跟随当前车道显示（例如「OpenCode 已连接」），不再固定写 Codex。
 - 自动化：`web` 类型检查通过；Canvas Agent 单测 133 条 0 失败。opencode 适配器已用默认免费模型跑通一次完整对话（工具调用、用量、停止），成本为 0。
-- **未验证**：侧边栏 UI 的浏览器实测（新建 / 恢复 / 删除会话、停止、车道切换后重连）、打包版 Agent 下 opencode 的 MCP 注册、Tauri 桌面端。未发真实厂商请求、未使用任何 API Key。
+- **未验证**：侧边栏 UI 的浏览器实测（新建 / 恢复 / 删除会话、停止）、打包版 Agent 下 opencode 的 MCP 注册、Tauri 桌面端。未发真实厂商请求、未使用任何 API Key。
 
 ## INTX 2.2c-3：任务与素材合并提交（待用户验收）
 
@@ -125,7 +132,7 @@ The current release needs manual verification in these areas:
 - Multi-image resize: resizing the root node while child images are expanded should keep the group expanded and resize normally without triggering nested React updates or an application error.
 - Multi-image alternatives: expanded images should use up to four columns so larger batches stay compact; double-clicking any completed child image should preview that exact image without changing the primary image. Every completed image, including the primary image, should provide an independent download action, while alternatives should also keep clearly legible create-copy and set-primary actions in both themes. Create-copy should add an independent image node to the right of the group, select it, and leave the original image group unchanged.
 - Canvas Agent startup, MCP status, model and permission controls, approvals, version reporting, diagnostics, streaming responses, history consistency, multi-tab isolation, and local Skill management.
-- Canvas Agent credential redaction: Codex and Claude CLI stderr containing Bearer tokens, `sk-` keys, explicit API key/token/authorization assignments, ANSI formatting, or credentials split across output chunks should reach neither debug logs nor browser diagnostic events in plaintext; ordinary stderr text should remain intact.
+- Canvas Agent credential redaction: Agent and Claude CLI stderr containing Bearer tokens, `sk-` keys, explicit API key/token/authorization assignments, ANSI formatting, or credentials split across output chunks should reach neither debug logs nor browser diagnostic events in plaintext; ordinary stderr text should remain intact.
 - Image API model parameters: `gpt-image-*` generation and edit requests should omit `response_format`, while `dall-e-*` requests should continue sending `response_format: "b64_json"`.
 - Image URL persistence: canvas and image-workbench generation should download each remote API result only once, validate it as a decodable image, and persist it in IndexedDB; `200` responses containing non-image data should fail, stopping canvas generation during download should not save or apply the result, CORS-blocked but displayable images should keep their original URL without an empty storage key, and plugin calls should still receive Data URLs whenever the remote image is readable.
 - Multi-reference image editing: OpenAI-format edits with more than one reference image should submit files as repeated `image[]` form fields; a single reference should continue using `image`. Newly created OpenAI image scripts should use the same field names. Gemini-format channels and already saved custom scripts are unchanged.

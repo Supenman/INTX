@@ -1,6 +1,6 @@
 # Infinite Canvas Agent
 
-本地 Canvas Agent 用来连接画布网页和用户电脑上的 Codex / Claude Code。本地开发时优先连接 `http://localhost:3000`，不需要先使用线上站点。
+本地 Canvas Agent 把画布网页和用户电脑上的 **opencode** 连起来。当前只有一条车道：Canvas Agent 自动拉起本机 opencode 服务，默认使用免费模型，不需要 API Key，也不需要用户登录任何厂商账号。本地开发时优先连接 `http://localhost:3000`，不需要先使用线上站点。
 
 ## 启动
 
@@ -10,13 +10,13 @@ npx -y @basketikun/canvas-agent@latest
 
 带上 `@latest` 是因为 npx 会缓存已下载的版本，不加就可能一直运行旧版本。
 
-需要排查连接、线程、Codex app-server 或工具调用问题时，可开启 Debug 模式：
+需要排查连接、会话、opencode 服务或工具调用问题时，可开启 Debug 模式：
 
 ```bash
 npx -y @basketikun/canvas-agent@latest --debug
 ```
 
-Debug 日志会以 `[DEBUG][HH:mm:ss]` 等传统格式输出到终端，并按启动日期保存到 `~/.infinite-canvas/logs/canvas-agent-YYYY-MM-DD.log`。终端日志带级别颜色，文件日志为纯文本；日志包含 HTTP、SSE、线程、turn、Codex app-server 和工具调用事件，token 与图片 Data URL 会自动隐藏。
+Debug 日志会以 `[DEBUG][HH:mm:ss]` 等传统格式输出到终端，并按启动日期保存到 `~/.infinite-canvas/logs/canvas-agent-YYYY-MM-DD.log`。终端日志带级别颜色，文件日志为纯文本；日志包含 HTTP、SSE、会话、turn、opencode 事件和工具调用，token 与图片 Data URL 会自动隐藏。
 
 本仓库开发时也可以直接运行：
 
@@ -34,9 +34,7 @@ Local URL: http://127.0.0.1:17371
 Connect token: xxxxxx
 ```
 
-在画布右上角点击 `Agent`，填入地址和 token 后连接。
-
-Codex app 插件会读取启动输出里的 Local URL 和 Connect token，并直接打开画布网页地址；Canvas Agent 不负责生成画布打开 URL。
+在画布右上角点击 `Agent`，填入地址和 token 后连接；网页默认会自动发现这两个值，失败时再手动填写。
 
 Canvas Agent 默认只监听 `127.0.0.1`。网页第一次带正确 token 连接后，Canvas Agent 会记录该网页 Origin；之后其他 Origin 不能复用这个本地 Agent，除非用户清理 `~/.infinite-canvas/canvas-agent.json` 里的 `origins`。
 
@@ -46,66 +44,17 @@ Canvas Agent 默认只监听 `127.0.0.1`。网页第一次带正确 token 连接
 
 发布前需要在 GitHub 仓库 Secrets 中配置 `NPM_TOKEN`。
 
-## Codex MCP
+## MCP 工具
 
-如果希望 Codex 终端能直接操作画布，需要先把 Canvas Agent 注册成 Codex MCP。
+Canvas Agent 通过 `infinite-canvas` MCP 把画布操作暴露给 opencode。opencode 服务由 Canvas Agent 自动拉起并配置该 MCP，网页侧边栏不需要用户手动写 MCP 配置。
 
-直接运行 `npx -y @basketikun/canvas-agent@latest` 只启动本地 Agent 服务，不会安装 MCP，也不会增加 Codex 工具上下文。只有安装 Codex app 插件，或手动执行 `codex mcp add` 后，`infinite-canvas` 工具才会进入 Codex 上下文；由于工具较多，不使用时建议移除。
-
-通过插件安装时移除插件：
-
-```bash
-codex plugin remove infinite-canvas
-```
-
-手动添加 MCP 时移除 MCP：
-
-```bash
-codex mcp remove infinite-canvas
-```
-
-### Codex app 插件
-
-仓库内提供了 Codex app 插件：`plugins/infinite-canvas`。在 Codex app 中添加本仓库的 marketplace 后，可以安装 `Infinite Canvas` 插件；插件会注册同一个 `infinite-canvas` MCP，并带上画布操作说明。
-
-添加本地 marketplace 时建议使用仓库绝对路径，避免 Codex 从其他工作目录解析失败：
-
-```bash
-cd /path/to/infinite-canvas
-codex plugin marketplace add "$(pwd)"
-codex plugin add infinite-canvas@infinite-canvas-local
-```
-
-插件默认通过 npm 启动 MCP；这个命令只提供 MCP 工具，不会把 MCP 写入全局配置，也不会在退出时自动卸载：
+只启动本地 Agent 服务、不启动 opencode 时，MCP 命令仍可单独运行：
 
 ```bash
 npx -y @basketikun/canvas-agent@latest mcp
 ```
 
-使用时可以直接在 Codex 里说“打开 Infinite Canvas”，插件会启动本地 Agent，读取 Local URL 和 Connect token，然后在右侧打开 `https://canvas.best/` 并自动新建、连接画布；只有明确要求使用本地项目时才会启动本地前端。
-
-Canvas Agent 启动后，给 Codex 添加 MCP：
-
-```bash
-codex mcp add infinite-canvas -- npx -y @basketikun/canvas-agent@latest mcp
-```
-
-本仓库开发时可以改成，实际使用建议替换为本机绝对路径：
-
-```bash
-codex mcp add infinite-canvas -- node /path/to/infinite-canvas/canvas-agent/dist/index.js mcp
-```
-
 Canvas Agent 源码使用 TypeScript 编写，MCP 协议层使用官方 `@modelcontextprotocol/sdk`，工具入参使用 `zod` 描述。
-
-如果希望终端里的 Codex 不被 MCP 审批卡住，可以在 `~/.codex/config.toml` 里给这个 MCP 设置自动放行：
-
-```toml
-[mcp_servers.infinite-canvas]
-command = "npx"
-args = ["-y", "@basketikun/canvas-agent@latest", "mcp"]
-default_tools_approval_mode = "approve"
-```
 
 可用工具：
 
@@ -132,28 +81,12 @@ default_tools_approval_mode = "approve"
 }
 ```
 
-## 侧边栏 Codex
+## 侧边栏 opencode
 
-本地面板会把提示词发送给 Canvas Agent。Canvas Agent 使用官方 `@openai/codex` CLI 的 `codex app-server --stdio` 启动并复用同一个 Codex thread，启动时会注入 `infinite-canvas` MCP 配置并自动放行 MCP 审批，真正执行画布修改前仍由网页侧边栏二次确认。
+本地面板把提示词发送给 Canvas Agent，由它转发给 opencode。事件被归一成 `thread.started`、`turn.started`、`item.started|updated|completed`、`usage.updated`、`turn.completed` 等结构化事件；Canvas Agent 会合并短时间内的回复、思考摘要和工具输出增量，网页使用同一条消息持续更新，并把用量与成本显示在对话下方。
 
-侧边栏会展示 Codex 返回的 `thread.started`、`turn.started`、`item.*`、`turn.completed` 等结构化事件；Canvas Agent 会合并短时间内的回复、思考摘要和命令输出增量，网页使用同一条消息持续更新，并把任务进度、计划、搜索、文件修改与工具操作整理为中文过程时间线。
+输入框左侧可以选择 opencode 模型，列表来自本地 opencode 服务的 `GET /config/providers`（经 Canvas Agent 的 `/agent/opencode/models` 转发）。选择保存在网页本地，刷新后恢复；模型列表不可用或所选模型已失效时，显示不可用并回退默认免费模型，对话不受影响。
 
-侧边栏上传或粘贴的图片会先发到本机 Canvas Agent，再由 Canvas Agent 临时写入本机文件并作为 app-server `localImage` 输入传给 Codex；前端会提示附件体积，单次请求体限制为 30MB。
+侧边栏支持会话列表（新建 / 恢复 / 删除）、发送消息、停止当前轮、用量显示，以及 `@` 引用画布素材（只带 nodeId 和素材文字，不上传图片）。
 
-## Claude Code
-
-Claude Code Adapter 代码暂时保留，但当前网页侧边栏只开放 Codex。后续开放 Claude 入口时，Canvas Agent 会调用本机 `claude -p --output-format stream-json` 并把流式 JSON 事件转发到侧边栏。
-
-如果希望 Claude Code 也能操作画布，需要给 Claude Code 添加同一个 MCP。建议用 user scope，避免 Canvas Agent 从不同目录启动时找不到配置：
-
-```bash
-claude mcp add --scope user --transport stdio infinite-canvas -- npx -y @basketikun/canvas-agent@latest mcp
-```
-
-本仓库开发时可以改成：
-
-```bash
-claude mcp add --scope user --transport stdio infinite-canvas -- node /path/to/infinite-canvas/canvas-agent/dist/index.js mcp
-```
-
-Canvas Agent 调用 Claude Code 时会默认带上 `--allowedTools mcp__infinite-canvas__*`，画布写操作仍由网页侧边栏确认。
+> 历史说明：早期版本曾提供 Codex 车道、Codex app 插件与 Claude Code 适配器，并支持在侧边栏切换车道。这些代码与对应的 `/agent/codex/*` 路由已全部移除，`codex mcp add` / `codex plugin add` 等命令不再适用。相关设计记录见 `docs/content/docs/progress/local-agent-integration-plan.mdx`。

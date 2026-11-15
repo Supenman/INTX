@@ -19,12 +19,10 @@ import { AgentChatComposer } from "./agent-chat-composer";
 import { AgentConnectView } from "./agent-connect-view";
 import { agentErrorView, bindPendingTurnMessages, eventUsage, formatAgentActivity, isCurrentThreadEvent, normalizeHistoryMessages, normalizeText, parseEventData, scopeChatItem, stringText, upsertAgentMessage, type AgentEventPayload } from "./agent-event-formatters";
 import { AgentHistoryView } from "./agent-history-view";
-import { AgentKindSwitch } from "./agent-kind-switch";
 import { AgentLogView } from "./agent-log-view";
 import { AgentPanelTabs } from "./agent-panel-tabs";
 
 const rt = (key: string, options?: Record<string, unknown>) => i18n.t(`agent.runtime.${key}`, options);
-const noop = () => undefined;
 
 /** opencode 车道：会话列表、发消息、停止都直连本地 Agent 的 opencode 路由。 */
 export function OpencodeAgentPanel() {
@@ -448,7 +446,6 @@ export function OpencodeAgentPanel() {
                             <Bot className="size-4" />
                         </span>
                         <div className="hidden text-base font-semibold leading-5 @min-[560px]:block">Agent</div>
-                        <AgentKindSwitch />
                         <Tooltip title={t("agent.panel.connectionSettings", { status: connectionStatus })} placement="bottom">
                             <Button size="small" type="text" className="!h-8 !w-8 !min-w-8 !px-0 @min-[560px]:!w-auto @min-[560px]:!min-w-0 @min-[560px]:!px-[7px]" aria-label={t("agent.panel.connectionSettingsLabel", { status: connectionStatus })} icon={<PlugZap className="size-3.5" style={{ color: connectionStatusColor }} />} onClick={() => setAgentState({ activeTab: "setup" })}>
                                 <span className="hidden @min-[560px]:inline">{connectionStatus}</span>
@@ -482,7 +479,6 @@ export function OpencodeAgentPanel() {
             {activeTab === "setup" ? (
                 <AgentConnectView
                     theme={theme}
-                    kind="opencode"
                     url={url}
                     token={token}
                     enabled={enabled}
@@ -518,7 +514,7 @@ export function OpencodeAgentPanel() {
                 />
             ) : (
                 <>
-                    <AgentChatTimeline theme={theme} pendingTools={[]} pendingApprovals={[]} sending={sending} waiting={waiting} onRejectTool={noop} onApproveTool={noop} onApprovalDecision={noop} />
+                    <AgentChatTimeline theme={theme} sending={sending} waiting={waiting} />
                     {tokenUsage ? <AgentUsageBar usage={tokenUsage} theme={theme} /> : null}
                     <AgentChatComposer
                         prompt={prompt}

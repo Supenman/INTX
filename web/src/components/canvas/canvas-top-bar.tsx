@@ -5,7 +5,6 @@ import { useTranslation } from "react-i18next";
 
 import { UserStatusActions } from "@/components/layout/user-status-actions";
 import { canvasThemes } from "@/lib/canvas-theme";
-import { useAgentStore } from "@/stores/use-agent-store";
 import { useCanvasSidePanelStore } from "@/stores/use-canvas-side-panel-store";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { DOCS_URL } from "@/constant/env";
@@ -191,7 +190,7 @@ function CompactAgentStatus({ status, onClick }: { status: { connected: boolean;
     const colorTheme = useThemeStore((state) => state.theme);
     const theme = canvasThemes[colorTheme];
     const { t } = useTranslation();
-    const kind = t(`agent.kind.${useAgentStore((state) => state.agentKind)}`);
+    const kind = t("agent.kind.opencode");
     const label = status.connected ? t("canvas.agentConnected", { kind }) : status.enabled ? t("canvas.agentConnecting", { kind, activity: status.activity || t("canvas.connecting") }) : t("canvas.agentDisconnected", { kind });
     const dotColor = status.connected ? "#22c55e" : status.enabled ? "#f59e0b" : theme.node.muted;
     return (

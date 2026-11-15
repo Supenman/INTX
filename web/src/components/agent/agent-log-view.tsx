@@ -138,7 +138,6 @@ export function AgentLogView({
                         </div>
                         <div className="shrink-0 text-right text-[11px] leading-4" style={{ color: theme.node.muted }}>
                             <div>{t("agent.logs.messages", { count: context.messages })}</div>
-                            <div title={context.pendingTools?.join(", ")}>{context.pendingTools?.length ? t("agent.logs.pendingTools", { count: context.pendingTools.length }) : t("agent.logs.noPendingTool")}</div>
                         </div>
                     </div>
                 </div>

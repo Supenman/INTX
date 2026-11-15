@@ -3,33 +3,18 @@ import { motion, useSpring, useTransform } from "motion/react";
 import { useTranslation } from "react-i18next";
 
 import { canvasThemes } from "@/lib/canvas-theme";
-import { summarizeCanvasAgentOps } from "@/lib/canvas/canvas-agent-ops";
-import { useAgentStore, type AgentChatItem, type AgentPendingApproval, type AgentPendingToolCall, type AgentTokenUsage } from "@/stores/use-agent-store";
-import { AgentApprovalCard, AgentChatMessage, AgentCommandGroup, AgentPendingToolCard, AgentToolCard, AgentWorkingMessage } from "./agent-chat-message";
-import { agentMessageToChatMessage, currentPlanMessage, isPlanMessage, latestPlanMessage, toolCallDetail, toolName, workingActivity } from "./agent-event-formatters";
+import { useAgentStore, type AgentChatItem, type AgentTokenUsage } from "@/stores/use-agent-store";
+import { AgentChatMessage, AgentCommandGroup, AgentToolCard, AgentWorkingMessage } from "./agent-chat-message";
+import { agentMessageToChatMessage, currentPlanMessage, isPlanMessage, latestPlanMessage, workingActivity } from "./agent-event-formatters";
 import { AgentScrollToBottom } from "./agent-scroll-to-bottom";
 
 const SCROLL_BOTTOM_THRESHOLD = 48;
 const historyMessageStyle = { contentVisibility: "auto", containIntrinsicSize: "0 80px" } as const;
 
-export function AgentChatTimeline({
-    theme,
-    pendingTools,
-    pendingApprovals,
-    sending,
-    waiting,
-    onRejectTool,
-    onApproveTool,
-    onApprovalDecision,
-}: {
+export function AgentChatTimeline({ theme, sending, waiting }: {
     theme: (typeof canvasThemes)[keyof typeof canvasThemes];
-    pendingTools: AgentPendingToolCall[];
-    pendingApprovals: AgentPendingApproval[];
     sending: boolean;
     waiting: boolean;
-    onRejectTool: (requestId: string) => void;
-    onApproveTool: (requestId: string) => void;
-    onApprovalDecision: (approval: AgentPendingApproval, decision: "accept" | "acceptForSession" | "decline") => void;
 }) {
     const { t } = useTranslation();
     const messages = useAgentStore((state) => state.messages);
@@ -60,7 +45,7 @@ export function AgentChatTimeline({
     useEffect(() => {
         const frame = requestAnimationFrame(() => (followMessagesRef.current ? scrollToBottom("auto") : updateScrollState()));
         return () => cancelAnimationFrame(frame);
-    }, [messages, pendingApprovals, pendingTools, scrollToBottom, updateScrollState, waiting]);
+    }, [messages, scrollToBottom, updateScrollState, waiting]);
     useEffect(() => {
         const content = contentRef.current;
         if (!content) return;
@@ -82,19 +67,7 @@ export function AgentChatTimeline({
                     {timeline.map((entry) => entry.type === "commands"
                         ? <AgentCommandGroupRow key={entry.id} items={entry.items} theme={theme} />
                         : <AgentChatMessageRow key={entry.item.id} item={entry.item} theme={theme} />)}
-                    {pendingTools.map((tool, index) => (
-                        <AgentPendingToolCard
-                            key={tool.requestId}
-                            summary={summarizeCanvasAgentOps(tool.input?.ops || []) || toolName(tool.name)}
-                            detail={toolCallDetail(tool.name, tool.input, "pending")}
-                            queueLabel={pendingTools.length > 1 ? t("agent.message.pendingToolQueue", { index: index + 1, total: pendingTools.length }) : undefined}
-                            theme={theme}
-                            onReject={() => onRejectTool(tool.requestId)}
-                            onApprove={() => onApproveTool(tool.requestId)}
-                        />
-                    ))}
-                    {pendingApprovals.map((approval) => <AgentApprovalCard key={approval.requestId} approval={approval} theme={theme} onDecision={(decision) => onApprovalDecision(approval, decision)} />)}
-                    {(sending || waiting || showBootstrap) && !streaming && !pendingTools.length && !pendingApprovals.length ? <AgentWorkingMessage text={working.text} detail={"detail" in working && typeof working.detail === "string" ? working.detail : undefined} status={showBootstrap ? bootstrapStatus?.status : undefined} mcpStatuses={showBootstrap ? Object.entries(mcpStartupStatuses).map(([name, item]) => ({ name, ...item })) : []} activityKey={working.key} theme={theme} /> : null}
+                    {(sending || waiting || showBootstrap) && !streaming ? <AgentWorkingMessage text={working.text} detail={"detail" in working && typeof working.detail === "string" ? working.detail : undefined} status={showBootstrap ? bootstrapStatus?.status : undefined} mcpStatuses={showBootstrap ? Object.entries(mcpStartupStatuses).map(([name, item]) => ({ name, ...item })) : []} activityKey={working.key} theme={theme} /> : null}
                 </div>
             </div>
             {showScrollToBottom ? (
