@@ -13,9 +13,16 @@ The current release needs manual verification in these areas:
 - The connection view keeps only the "run the local Agent" command and the web connection form; all plugin guidance is gone. The model picker, thread list, send/stop, usage bar, diagnostics log and `@` canvas references keep their previous behaviour.
 - The Skill manager, draft extraction and Skill list API were retired with the Codex lane. The `/` mention now yields an empty candidate list and no longer calls the removed endpoint; the standalone `skills/store.ts` module is kept but not wired up, ready for a future opencode-side reconnect.
 - Automated: `web` typecheck, `vitest run src`, domain boundary check, production build, upstream `bun test tests/`, and `canvas-agent` tests/build all pass (exact counts in the state record).
-- **Not verified**: browser testing of the sidebar after the removal, MCP registration in a packaged build, and the Tauri desktop app. No real provider requests were sent and no API key was used.
-- The user confirmed on 2026-11-15 that the opencode lane passed real-device verification, which is why the single-lane change was made. No per-item verification record was added to the repository, so the older "unverified" items above are not automatically checked off.
+- **Verified**: the user tested the single-lane sidebar in the browser on 2026-11-16 — connect, new / restore / delete thread, model pick, one turn, stop, and `/` mention (empty candidate list by design).
+- **Not verified**: MCP registration in a packaged build and the Tauri desktop app. No real provider requests were sent and no API key was used.
 - **Scope**: no new timeouts, retries, size limits or concurrency caps. The generic session mutex / event replay in `canvas/session.ts` and the `codex-workspaces/site` config path keep their historical names because opencode routes still use them; renaming is left to a separate cleanup.
+
+## Local Agent: Skill list and `/` mention reconnected (pending user verification)
+
+- The list is read by the local Agent from `.agents/skills` in the site workspace (`GET /agent/opencode/skills`) and fetched when `/` is typed in the composer; with no Skills in the workspace the candidate list is empty. Picking one puts `$name` and the absolute SKILL.md path into the prompt and lets opencode read the file itself — this is not an opencode-native Skill mechanism.
+- A broken `SKILL.md` is skipped and reported in `errors` without hiding the rest; a failed list read stays "not loaded" so the next `/` retries instead of pretending there are no Skills. The stale "Codex App Plugin" docs pages and their nav entries were removed.
+- Automated: one new store test (empty root, ordering, broken directory skipped and reported); `canvas-agent` 73 tests, 71 pass / 2 skipped / 0 fail with the build passing; `web` typecheck passes. The endpoint was checked against a temporary Skill directory (correct path and revision), then that directory was deleted.
+- **Verified**: the user picked a Skill in the browser and sent a turn on 2026-11-16 — the default prompt was filled in and opencode loaded the instructions through its own `skill` tool before continuing. **Not verified**: the Tauri desktop app. No real provider requests were sent.
 
 ## Local Agent: pending-tool queue (retired)
 
@@ -27,7 +34,7 @@ The current release needs manual verification in these areas:
 - 选择保存在独立的 `localStorage` 键 `canvas-agent-opencode-model`，刷新页面后恢复；车道切换已随 Codex 车道移除，选择只保存在这个独立键里。
 - 模型列表为空、请求失败或 opencode 服务未就绪时，显示「模型列表不可用，仍使用默认免费模型」，对话照常发送，不会额外向厂商发请求。
 - 所选模型已不在当前列表、或提交的是任意非法字符串时，后端拒绝该值并回退默认免费模型，不把任意字符串交给 opencode；模型下拉在连接后读取一次 `/config/providers` 以填充列表；只有显式选择了模型，发消息阶段才会再读一次做校验。
-- 自动化：`web` 类型检查通过、45 文件 / 666 用例通过、domain 依赖边界通过、生产构建通过；`canvas-agent` 单测 141 条 0 失败、构建通过（新增 8 条模型归一化 / 默认值 / 非法值回退纯函数测试）；上游 `tests/` 的 15 条 bun 测试也通过。
+- 自动化：`web` 类型检查通过、45 文件 / 666 用例通过、domain 依赖边界通过、生产构建通过；`canvas-agent` 单测 72 条（2 条跳过）0 失败、构建通过（含 8 条模型归一化 / 默认值 / 非法值回退纯函数测试）；上游 `tests/` 的 15 条 bun 测试也通过。模型下拉展开、选中与刷新恢复随 2026-11-16 浏览器实测确认；模型列表不可用提示与 Tauri 桌面端仍未验证。
 - **未验证**：侧边栏 UI 的浏览器实测（下拉展开与选中、刷新恢复、列表不可用提示）、选中非默认模型后的真实一轮对话、Tauri 桌面端。本次未发真实厂商请求、未使用任何 API Key。
 - **边界**：不新增超时、重试、大小限制或并发上限；模型选择只影响本轮发送的 `model`，不改会话、事件格式与工具流程。
 

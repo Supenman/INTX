@@ -12,6 +12,8 @@ import { acquireAgentClientId, AGENT_PROTOCOL_VERSION, DEFAULT_AGENT_URL } from 
 import { canvasThemes } from "@/lib/canvas-theme";
 import { randomId } from "@/lib/utils";
 import { activateAgentClient, createOpencodeThread, deleteOpencodeThread, discoverAgentConfig, fetchOpencodeModels, fetchOpencodeThread, fetchOpencodeThreads, interruptOpencodeTurn, postState, sendOpencodeTurn, type OpencodeModelOption } from "@/services/api/canvas-agent";
+import type { AgentSkillSummary } from "@/services/api/canvas-agent";
+import { useAgentSkillStore } from "@/stores/use-agent-skill-store";
 import { useAgentStore, type AgentCanvasContext, type AgentCanvasReference, type AgentChatItem } from "@/stores/use-agent-store";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { AgentChatTimeline, AgentUsageBar } from "./agent-chat";
@@ -235,6 +237,7 @@ export function OpencodeAgentPanel() {
             setAgentState({ connected: true, connectError: "", sending: false, waiting: false, activity: rt("connected") });
             void postState(endpoint, token, clientId, canvasContextRef.current?.snapshot || null);
             if (document.visibilityState === "visible" && document.hasFocus()) void activateAgentClient(endpoint, token, clientId);
+            useAgentSkillStore.getState().reset();
             void loadThreads(true);
         });
         source.addEventListener("agent_event", (event) => {
@@ -308,10 +311,11 @@ export function OpencodeAgentPanel() {
         if (!state.connected || state.sending || state.waiting || state.loadingThreads) return;
         const nodeIds = new Set(state.canvasContext?.snapshot.nodes.map((node) => node.id) || []);
         const references = state.canvasReferences.filter((item) => nodeIds.has(item.nodeId));
-        const requestPrompt = promptWithReferences(text, references);
+        const requestPrompt = withSkill(promptWithReferences(text, references), useAgentSkillStore.getState().selectedSkill);
         if (!requestPrompt) return;
         const messageId = randomId();
         setAgentState({ prompt: "", canvasReferences: [], sending: true, activity: rt("sending"), activeTurnId: "" });
+        useAgentSkillStore.getState().clearSelection();
         addMessage({ id: messageId, itemId: "synthetic:user", clientMessageId: messageId, threadId: state.activeThreadId, turnId: "", role: "user", text: text || rt("canvasReferencesSent", { count: references.length }), canvasReferences: references as AgentCanvasReference[] });
         let threadId = state.activeThreadId;
         try {
@@ -574,6 +578,12 @@ function compact(value: string, maxLength = 120) {
 }
 
 /** opencode 没有图片附件通道，画布引用只带 nodeId 和素材文字。 */
+/** opencode 不认 `$skill` 标记，把 Skill 说明文件路径一并带上，让它自己读。 */
+function withSkill(text: string, skill: AgentSkillSummary | null) {
+    if (!skill) return text;
+    return `${text || "请按这个 Skill 执行。"}\n\n本轮使用的 Skill：$${skill.name}（说明文件 ${skill.path}），先读取该文件，再按其中的步骤执行。`;
+}
+
 function promptWithReferences(text: string, references: AgentCanvasReference[]) {
     if (!references.length) return text;
     const task = text || "请处理引用的画布素材。";

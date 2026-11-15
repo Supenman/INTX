@@ -77,6 +77,10 @@ export function fetchOpencodeModels(endpoint: string, token: string) {
     return fetchAgentJson<OpencodeModelsResponse>(endpoint, token, "/agent/opencode/models");
 }
 
+export function fetchOpencodeSkills(endpoint: string, token: string) {
+    return fetchAgentJson<AgentSkillsResponse>(endpoint, token, "/agent/opencode/skills");
+}
+
 export function fetchOpencodeThreads(endpoint: string, token: string) {
     return fetchAgentJson<OpencodeThreadsResponse>(endpoint, token, "/agent/opencode/threads");
 }

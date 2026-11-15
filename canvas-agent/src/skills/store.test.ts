@@ -229,3 +229,22 @@ test("拒绝读取非对象格式的 interface 元数据", async (context) => {
 
     await assert.rejects(store.get("invalid-interface"), (error: unknown) => error instanceof SkillStoreError && error.statusCode === 409);
 });
+
+test("列出画布专属 Skill，跳过损坏目录并回报", async (context) => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), "canvas-skill-store-"));
+    context.after(() => fs.rm(workspace, { recursive: true, force: true }));
+    const store = new SkillStore(workspace);
+    assert.deepEqual(await store.list(), { skills: [], errors: [] });
+
+    await store.create({ name: "beta", description: "第二个 Skill", instructions: "执行第二步。" });
+    await store.create({ name: "alpha", description: "第一个 Skill", instructions: "执行第一步。" });
+    const brokenDir = path.join(workspace, ".agents", "skills", "broken");
+    await fs.mkdir(brokenDir);
+    await fs.writeFile(path.join(brokenDir, "SKILL.md"), "没有 frontmatter 的正文");
+
+    const listed = await store.list();
+    assert.deepEqual(listed.skills.map((skill) => skill.name), ["alpha", "beta"]);
+    assert.equal(listed.skills[0].revision.length, 64);
+    assert.equal(listed.errors.length, 1);
+    assert.match(listed.errors[0], /^broken:/);
+});

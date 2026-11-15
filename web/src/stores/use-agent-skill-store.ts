@@ -1,13 +1,9 @@
 import { create } from "zustand";
 
-import type { AgentSkillDraft, AgentSkillSummary } from "@/services/api/canvas-agent";
+import { fetchOpencodeSkills, type AgentSkillDraft, type AgentSkillSummary } from "@/services/api/canvas-agent";
 import { useAgentStore } from "@/stores/use-agent-store";
 
-/**
- * Skill 后端路由随 Codex 车道一起移除后，这里只保留输入框 `/` 提及所需的形状：
- * 列表恒为空、不发任何网络请求，避免打到已下线的 /agent/codex/skills。
- * 后续在 opencode 车道重接 Skill 时，替换 loadSkills 的实现即可，输入框无需改动。
- */
+/** Skill 列表来自本地 Agent 读取的站点工作空间 `.agents/skills`，只服务输入框 `/` 提及。 */
 type AgentSkillStore = {
     skills: AgentSkillSummary[];
     selectedSkill: AgentSkillSummary | null;
@@ -36,9 +32,27 @@ export const useAgentSkillStore = create<AgentSkillStore>((set, get) => ({
     draft: null,
     generatingSource: null,
     loading: false,
-    loaded: true,
+    loaded: false,
     errors: [],
-    loadSkills: async () => set({ skills: [], selectedSkill: null, autoPrompt: "", loading: false, loaded: true, errors: [] }),
+    loadSkills: async (endpoint, token) => {
+        if (get().loading) return;
+        set({ loading: true });
+        try {
+            const data = await fetchOpencodeSkills(endpoint, token);
+            const skills = Array.isArray(data.data) ? data.data : [];
+            const selected = get().selectedSkill;
+            set({
+                skills,
+                loading: false,
+                loaded: true,
+                errors: (data.errors || []).map((error) => String(error)),
+                ...(selected && !skills.some((skill) => skill.name === selected.name) ? { selectedSkill: null, autoPrompt: "" } : {}),
+            });
+        } catch (error) {
+            // 读取失败保持未加载，下次输入 `/` 再试；不把失败当成「没有 Skill」。
+            set({ loading: false, errors: [error instanceof Error ? error.message : String(error)] });
+        }
+    },
     selectSkill: (selectedSkill, prompt) => {
         const current = get();
         const agent = useAgentStore.getState();
@@ -61,5 +75,5 @@ export const useAgentSkillStore = create<AgentSkillStore>((set, get) => ({
     },
     setDraft: (draft) => set({ draft }),
     setGeneratingSource: (generatingSource) => set({ generatingSource }),
-    reset: () => set((current) => ({ skills: [], selectedSkill: null, selectionRevision: current.selectionRevision + 1, connectionRevision: current.connectionRevision + 1, autoPrompt: "", draft: null, generatingSource: null, loading: false, loaded: true, errors: [] })),
+    reset: () => set((current) => ({ skills: [], selectedSkill: null, selectionRevision: current.selectionRevision + 1, connectionRevision: current.connectionRevision + 1, autoPrompt: "", draft: null, generatingSource: null, loading: false, loaded: false, errors: [] })),
 }));

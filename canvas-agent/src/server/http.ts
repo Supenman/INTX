@@ -6,6 +6,7 @@ import express, { type NextFunction, type Request, type Response } from "express
 import { messageMetadataStore } from "../agent/message-metadata.js";
 import { createOpencodeThread, deleteOpencodeThread, interruptOpencodeTurn, listOpencodeModels, listOpencodeThreads, readOpencodeThread, runOpencodeTurn } from "../agent/opencode.js";
 import { AGENT_PROTOCOL_VERSION, CanvasSession } from "../canvas/session.js";
+import { SkillStore } from "../skills/store.js";
 import { DEFAULT_PORT, ensureSiteWorkspace, loadConfig, saveConfig, type CanvasAgentConfig } from "../config.js";
 import { logger } from "../utils/logger.js";
 import { checkVersions } from "../version-check.js";
@@ -127,6 +128,12 @@ export function startHttpServer() {
     app.get("/agent/opencode/models", route(async (_req, res) => {
         const workspace = ensureSiteWorkspace(config);
         res.json({ ok: true, ...(await listOpencodeModels(workspace.workspacePath)) });
+    }));
+    /** 本地 Skill 列表：只读站点工作空间的 .agents/skills，供侧边栏 `/` 提及使用。 */
+    app.get("/agent/opencode/skills", route(async (_req, res) => {
+        const workspace = ensureSiteWorkspace(config);
+        const { skills, errors } = await new SkillStore(workspace.workspacePath).list();
+        res.json({ ok: true, data: skills.map((skill) => ({ ...skill, scope: "repo", enabled: true, managed: true })), errors });
     }));
     app.post("/agent/opencode/threads/new", mutation(async (_req, res) => {
         const workspace = ensureSiteWorkspace(config);

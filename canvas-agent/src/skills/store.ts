@@ -44,6 +44,8 @@ export type UpdateManagedSkillInput = {
     expectedRevision: string;
 };
 
+export type ManagedSkillSummary = Pick<ManagedSkillDetail, "name" | "description" | "interface" | "path" | "revision">;
+
 type SkillDocument = {
     raw: string;
     frontmatter: Record<string, unknown>;
@@ -88,6 +90,24 @@ export class SkillStore {
         } catch (error) {
             throw storeError(error, "读取 Skill 失败");
         }
+    }
+
+    /** 列出站点工作空间下的画布专属 Skill；单个 Skill 损坏时跳过并回报。 */
+    async list() {
+        await this.writeQueue.catch(() => undefined);
+        const entries = await fs.readdir(this.skillsPath, { withFileTypes: true }).catch(() => []);
+        const skills: ManagedSkillSummary[] = [];
+        const errors: string[] = [];
+        for (const entry of entries) {
+            if (!entry.isDirectory() || !validName(entry.name)) continue;
+            try {
+                const { name, description, interface: skillInterface, path: skillPath, revision } = await this.get(entry.name);
+                skills.push({ name, description, ...(skillInterface ? { interface: skillInterface } : {}), path: skillPath, revision });
+            } catch (error) {
+                errors.push(`${entry.name}: ${error instanceof Error ? error.message : String(error)}`);
+            }
+        }
+        return { skills: skills.sort((a, b) => a.name.localeCompare(b.name)), errors };
     }
 
     /** 创建新的画布专属 Skill。 */
