@@ -14,7 +14,7 @@ const historyMessageStyle = { contentVisibility: "auto", containIntrinsicSize: "
 
 export function AgentChatTimeline({
     theme,
-    pendingTool,
+    pendingTools,
     pendingApprovals,
     sending,
     waiting,
@@ -23,12 +23,12 @@ export function AgentChatTimeline({
     onApprovalDecision,
 }: {
     theme: (typeof canvasThemes)[keyof typeof canvasThemes];
-    pendingTool: AgentPendingToolCall | null;
+    pendingTools: AgentPendingToolCall[];
     pendingApprovals: AgentPendingApproval[];
     sending: boolean;
     waiting: boolean;
-    onRejectTool: () => void;
-    onApproveTool: () => void;
+    onRejectTool: (requestId: string) => void;
+    onApproveTool: (requestId: string) => void;
     onApprovalDecision: (approval: AgentPendingApproval, decision: "accept" | "acceptForSession" | "decline") => void;
 }) {
     const { t } = useTranslation();
@@ -60,7 +60,7 @@ export function AgentChatTimeline({
     useEffect(() => {
         const frame = requestAnimationFrame(() => (followMessagesRef.current ? scrollToBottom("auto") : updateScrollState()));
         return () => cancelAnimationFrame(frame);
-    }, [messages, pendingApprovals, pendingTool, scrollToBottom, updateScrollState, waiting]);
+    }, [messages, pendingApprovals, pendingTools, scrollToBottom, updateScrollState, waiting]);
     useEffect(() => {
         const content = contentRef.current;
         if (!content) return;
@@ -82,17 +82,19 @@ export function AgentChatTimeline({
                     {timeline.map((entry) => entry.type === "commands"
                         ? <AgentCommandGroupRow key={entry.id} items={entry.items} theme={theme} />
                         : <AgentChatMessageRow key={entry.item.id} item={entry.item} theme={theme} />)}
-                    {pendingTool ? (
+                    {pendingTools.map((tool, index) => (
                         <AgentPendingToolCard
-                            summary={summarizeCanvasAgentOps(pendingTool.input?.ops || []) || toolName(pendingTool.name)}
-                            detail={toolCallDetail(pendingTool.name, pendingTool.input, "pending")}
+                            key={tool.requestId}
+                            summary={summarizeCanvasAgentOps(tool.input?.ops || []) || toolName(tool.name)}
+                            detail={toolCallDetail(tool.name, tool.input, "pending")}
+                            queueLabel={pendingTools.length > 1 ? t("agent.message.pendingToolQueue", { index: index + 1, total: pendingTools.length }) : undefined}
                             theme={theme}
-                            onReject={onRejectTool}
-                            onApprove={onApproveTool}
+                            onReject={() => onRejectTool(tool.requestId)}
+                            onApprove={() => onApproveTool(tool.requestId)}
                         />
-                    ) : null}
+                    ))}
                     {pendingApprovals.map((approval) => <AgentApprovalCard key={approval.requestId} approval={approval} theme={theme} onDecision={(decision) => onApprovalDecision(approval, decision)} />)}
-                    {(sending || waiting || showBootstrap) && !streaming && !pendingTool && !pendingApprovals.length ? <AgentWorkingMessage text={working.text} detail={"detail" in working && typeof working.detail === "string" ? working.detail : undefined} status={showBootstrap ? bootstrapStatus?.status : undefined} mcpStatuses={showBootstrap ? Object.entries(mcpStartupStatuses).map(([name, item]) => ({ name, ...item })) : []} activityKey={working.key} theme={theme} /> : null}
+                    {(sending || waiting || showBootstrap) && !streaming && !pendingTools.length && !pendingApprovals.length ? <AgentWorkingMessage text={working.text} detail={"detail" in working && typeof working.detail === "string" ? working.detail : undefined} status={showBootstrap ? bootstrapStatus?.status : undefined} mcpStatuses={showBootstrap ? Object.entries(mcpStartupStatuses).map(([name, item]) => ({ name, ...item })) : []} activityKey={working.key} theme={theme} /> : null}
                 </div>
             </div>
             {showScrollToBottom ? (

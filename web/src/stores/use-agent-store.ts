@@ -81,7 +81,7 @@ type AgentStore = {
     bootstrapStatus: AgentBootstrapStatus | null;
     mcpStartupStatuses: Record<string, AgentBootstrapStatus>;
     connectError: string;
-    pendingTool: AgentPendingToolCall | null;
+    pendingTools: AgentPendingToolCall[];
     pendingApprovals: AgentPendingApproval[];
     setAgentState: (patch: Partial<Omit<AgentStore, "setAgentState" | "connectAgent" | "disconnectAgent" | "setAgentKind" | "addMessage" | "addEventLog" | "clearEventLogs" | "openPanel" | "closePanel" | "togglePanel" | "setCanvasContext">>) => void;
     setAgentKind: (agentKind: AgentKind) => void;
@@ -135,7 +135,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     bootstrapStatus: null,
     mcpStartupStatuses: {},
     connectError: "",
-    pendingTool: null,
+    pendingTools: [],
     pendingApprovals: [],
     setAgentState: (patch) => set(patch),
     openPanel: () => set({ panelOpen: true, panelMounted: true, panelClosing: false }),
@@ -178,7 +178,8 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
         agentSource = null;
         if (connectTimer) clearTimeout(connectTimer);
         connectTimer = null;
-        set({ enabled: false, connected: false, silentConnect: false, fragmentBootstrap: false, activity: i18n.t("agent.state.offline"), conversation: { revision: 0, conversationId: "", threadId: "", status: "idle", mcpStatuses: {} }, bootstrapStatus: null, mcpStartupStatuses: {}, ...patch });
+        // 待确认工具属于当前连接：断开或切换车道时整队清空，避免 Codex 的请求残留到 opencode 车道。
+        set({ enabled: false, connected: false, silentConnect: false, fragmentBootstrap: false, activity: i18n.t("agent.state.offline"), conversation: { revision: 0, conversationId: "", threadId: "", status: "idle", mcpStatuses: {} }, bootstrapStatus: null, mcpStartupStatuses: {}, pendingTools: [], pendingApprovals: [], ...patch });
     },
     addMessage: (item) => set((state) => ({ messages: [...state.messages, item] })),
     addEventLog: (item) => set((state) => ({ eventLogs: [...state.eventLogs.slice(-160), item] })),

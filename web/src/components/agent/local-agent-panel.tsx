@@ -67,6 +67,7 @@ import { AgentHistoryView } from "./agent-history-view";
 import { AgentKindSwitch } from "./agent-kind-switch";
 import { AgentLogView } from "./agent-log-view";
 import { AgentPanelTabs } from "./agent-panel-tabs";
+import { dequeuePendingTool, enqueuePendingTool, findPendingTool, hasPendingTool } from "./pending-tool-queue";
 import { AgentSkillsView } from "./agent-skills-view";
 
 const MAX_ATTACHMENTS = 6;
@@ -133,7 +134,7 @@ export function LocalAgentPanel({ embedded, headless, autoConnect }: { embedded?
     // canvasContext is intentionally excluded because project updates it every frame during dragging and resizing.
     // The panel uses it only for ref synchronization and debounced postState calls, never during rendering.
     // Subscribing here would rerender the panel every frame and amplify the #185 crash, so it is observed imperatively below.
-    const { width, url, token, connected, enabled, prompt, attachments, sending, waiting, tokenUsage, eventLogs, threads, activeThreadId, workspacePath, loadingThreads, activeTab, confirmTools, permissionMode, models, model, reasoningEffort, activity, conversation, connectError, pendingTool, pendingApprovals } = useAgentStore(
+    const { width, url, token, connected, enabled, prompt, attachments, sending, waiting, tokenUsage, eventLogs, threads, activeThreadId, workspacePath, loadingThreads, activeTab, confirmTools, permissionMode, models, model, reasoningEffort, activity, conversation, connectError, pendingTools, pendingApprovals } = useAgentStore(
         useShallow((state) => ({
             width: state.width,
             url: state.url,
@@ -159,7 +160,7 @@ export function LocalAgentPanel({ embedded, headless, autoConnect }: { embedded?
             activity: state.activity,
             conversation: state.conversation,
             connectError: state.connectError,
-            pendingTool: state.pendingTool,
+            pendingTools: state.pendingTools,
             pendingApprovals: state.pendingApprovals,
         })),
     );
@@ -176,7 +177,6 @@ export function LocalAgentPanel({ embedded, headless, autoConnect }: { embedded?
     const messageCount = useAgentStore((state) => state.messages.length);
     const canvasContextRef = useRef<AgentCanvasContext | null>(useAgentStore.getState().canvasContext);
     const confirmToolsRef = useRef(confirmTools);
-    const pendingToolRef = useRef<AgentPendingToolCall | null>(null);
     const autoConnectRef = useRef(false);
     const connectedRef = useRef(false);
     const errorLoggedRef = useRef(false);
@@ -261,13 +261,12 @@ export function LocalAgentPanel({ embedded, headless, autoConnect }: { embedded?
             : emptyThread ? []
                 : threadChanged ? threadMessagesRef.current.get(nextThreadId) || []
                     : current.messages;
-        pendingToolRef.current = null;
         setAgentState({
             activeThreadId: nextThreadId,
             activeTurnId: threadChanged || emptyThread ? "" : current.activeTurnId,
             messages,
             tokenUsage: threadChanged || emptyThread ? null : current.tokenUsage,
-            pendingTool: null,
+            pendingTools: [],
             pendingApprovals: threadChanged || emptyThread ? [] : current.pendingApprovals,
         });
         return loadThreadsSequenceRef.current;
@@ -333,9 +332,6 @@ export function LocalAgentPanel({ embedded, headless, autoConnect }: { embedded?
     useEffect(() => {
         confirmToolsRef.current = confirmTools;
     }, [confirmTools]);
-    useEffect(() => {
-        pendingToolRef.current = pendingTool;
-    }, [pendingTool]);
     useEffect(() => () => attachmentUrlsRef.current.forEach((url) => URL.revokeObjectURL(url)), []);
 
     useEffect(() => {
@@ -363,7 +359,7 @@ export function LocalAgentPanel({ embedded, headless, autoConnect }: { embedded?
                 protocolRejected = true;
                 source.close();
                 connectedRef.current = false;
-                setAgentState({ enabled: false, connected: false, waiting: false, sending: false, activity: rt("restartRequired"), connectError: text, silentConnect: false, fragmentBootstrap: false, pendingTool: null, pendingApprovals: [] });
+                setAgentState({ enabled: false, connected: false, waiting: false, sending: false, activity: rt("restartRequired"), connectError: text, silentConnect: false, fragmentBootstrap: false, pendingTools: [], pendingApprovals: [] });
                 useAgentSkillStore.getState().reset();
                 addEventLog(rt("versionMismatch"), text, hello);
                 if (!headless) message.error(text);
@@ -552,7 +548,6 @@ export function LocalAgentPanel({ embedded, headless, autoConnect }: { embedded?
             }
             errorLoggedRef.current = true;
             connectedRef.current = false;
-            pendingToolRef.current = null;
             setAgentState({
                 activity: rt(wasConnected ? "connectionLost" : "connectionFailed"),
                 connected: false,
@@ -561,7 +556,7 @@ export function LocalAgentPanel({ embedded, headless, autoConnect }: { embedded?
                 connectError: silent ? "" : text,
                 silentConnect: false,
                 fragmentBootstrap: false,
-                pendingTool: null,
+                pendingTools: [],
                 pendingApprovals: [],
             });
             useAgentSkillStore.getState().reset();
@@ -791,12 +786,20 @@ export function LocalAgentPanel({ embedded, headless, autoConnect }: { embedded?
 
     const handleToolCall = async (endpoint: string, token: string, payload: AgentPendingToolCall) => {
         if (confirmToolsRef.current && isCanvasWriteTool(payload.name)) {
-            if (pendingToolRef.current) {
-                await postToolResult(endpoint, token, clientIdRef.current, { requestId: payload.requestId, error: rt("pendingCanvasTool") });
+            if (!payload.requestId) {
+                // 没有 requestId 就无法回传结果，不能挂进队列变成永远解不开的卡片。
+                addEventLog(rt("invalidToolRequest"), payload, payload);
+                await postToolResult(endpoint, token, clientIdRef.current, { requestId: payload.requestId, error: rt("invalidToolRequest") });
                 return;
             }
-            pendingToolRef.current = payload;
-            setAgentState({ pendingTool: payload });
+            const queue = useAgentStore.getState().pendingTools;
+            if (hasPendingTool(queue, payload.requestId)) {
+                // SSE 重放或后端重发：队列里已有同一请求，忽略重复事件，避免重复回结果。
+                addEventLog(rt("duplicatePendingTool"), payload, payload);
+                return;
+            }
+            const next = enqueuePendingTool(queue, payload);
+            setAgentState({ pendingTools: next });
             addEventLog(rt("awaitingConfirmation"), payload, payload);
             return;
         }
@@ -849,18 +852,19 @@ export function LocalAgentPanel({ embedded, headless, autoConnect }: { embedded?
         }
     };
 
-    const rejectPendingTool = async () => {
-        if (!pendingTool) return;
-        await postToolResult(endpoint, token, clientIdRef.current, { requestId: pendingTool.requestId, error: rt("canvasToolCanceled") });
-        pendingToolRef.current = null;
-        setAgentState({ pendingTool: null });
+    const rejectPendingTool = async (requestId: string) => {
+        const tool = findPendingTool(useAgentStore.getState().pendingTools, requestId);
+        if (!tool) return;
+        await postToolResult(endpoint, token, clientIdRef.current, { requestId: tool.requestId, error: rt("canvasToolCanceled") });
+        const next = dequeuePendingTool(useAgentStore.getState().pendingTools, requestId);
+        setAgentState({ pendingTools: next });
     };
 
-    const approvePendingTool = async () => {
-        if (!pendingTool) return;
-        const tool = pendingTool;
-        pendingToolRef.current = null;
-        setAgentState({ pendingTool: null });
+    const approvePendingTool = async (requestId: string) => {
+        const tool = findPendingTool(useAgentStore.getState().pendingTools, requestId);
+        if (!tool) return;
+        const next = dequeuePendingTool(useAgentStore.getState().pendingTools, requestId);
+        setAgentState({ pendingTools: next });
         await runToolCall(endpoint, token, tool);
     };
 
@@ -992,7 +996,7 @@ export function LocalAgentPanel({ embedded, headless, autoConnect }: { embedded?
             waiting: false,
             sending: false,
             fragmentBootstrap: false,
-            pendingTool: null,
+            pendingTools: [],
             pendingApprovals: [],
             conversation: { revision: 0, conversationId: "", threadId: "", status: "idle", mcpStatuses: {} },
             bootstrapStatus: null,
@@ -1000,7 +1004,6 @@ export function LocalAgentPanel({ embedded, headless, autoConnect }: { embedded?
             ...patch,
         });
         useAgentSkillStore.getState().reset();
-        pendingToolRef.current = null;
     }
 
     const beginThreadOperation = () => {
@@ -1390,14 +1393,14 @@ export function LocalAgentPanel({ embedded, headless, autoConnect }: { embedded?
                 <AgentLogView
                     logs={eventLogs}
                     theme={theme}
-                    context={{ endpoint, connected, enabled, activity, waiting, sending, messages: messageCount, pendingTool: pendingTool?.name }}
+                    context={{ endpoint, connected, enabled, activity, waiting, sending, messages: messageCount, pendingTools: pendingTools.map((item) => item.name) }}
                     onClear={clearEventLogs}
                     onCopied={(text) => message.success(text)}
                     onCopyBlocked={(text) => message.warning(text)}
                 />
             ) : (
                 <>
-                    <AgentChatTimeline theme={theme} pendingTool={pendingTool} pendingApprovals={pendingApprovals} sending={sending} waiting={waiting} onRejectTool={rejectPendingTool} onApproveTool={approvePendingTool} onApprovalDecision={decideApproval} />
+                    <AgentChatTimeline theme={theme} pendingTools={pendingTools} pendingApprovals={pendingApprovals} sending={sending} waiting={waiting} onRejectTool={rejectPendingTool} onApproveTool={approvePendingTool} onApprovalDecision={decideApproval} />
                     <AgentTaskProgress theme={theme} busy={sending || waiting} />
                     {tokenUsage ? <AgentUsageBar usage={tokenUsage} theme={theme} /> : null}
                     <AgentChatComposer

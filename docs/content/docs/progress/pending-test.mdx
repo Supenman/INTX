@@ -7,12 +7,21 @@ description: Implemented changes that still need manual verification
 
 The current release needs manual verification in these areas:
 
+## Local Agent: pending-tool queue (pending user verification)
+
+- With Codex lane's canvas-write confirmation enabled, several write-tool calls in the same turn now stay in a FIFO queue and render as separate cards in arrival order. Cards show a "N of M" badge when more than one is pending, and each can be approved or rejected independently; that is the fix for the old single-slot behaviour where a second call was rejected with "Another canvas tool call is awaiting confirmation".
+- While a `requestId` is still in the queue, replayed SSE events carrying that id do not create duplicate cards. An event without `requestId` is rejected instead of becoming a card that can never be resolved. Disconnecting, switching threads or lanes, and a protocol-version mismatch clear the whole queue, so Codex confirmations never leak into the opencode lane (opencode still does not use tool confirmation).
+- The diagnostics header shows the number of pending tools, and the copied log text lists their names.
+- Automated: `web` typecheck, 46 files / 675 tests (9 new FIFO pure-function tests), domain boundary check and production build pass; the upstream `tests/` bun suite (15 tests) passes.
+- **Not verified**: browser testing of the sidebar (concurrent tools, approving/rejecting one at a time, clearing on disconnect) and the Tauri desktop build. No real provider requests were sent and no API key was used.
+- **Scope**: only the queue and its presentation changed. No new timeouts, retries, size limits or concurrency caps; approved tools still run through the existing path, and disconnecting does not send extra results to the backend. A request that was already approved or rejected is not remembered: if the backend replays it, it enters the queue as a new request (same as the old behaviour). Browser testing should confirm whether the backend ever replays completed `tool_call` events.
+
 ## 本地 Agent：opencode 模型选择（待用户验收）
 
 - 输入框左侧新增 opencode 模型下拉，列表来自本地 opencode 服务的 `GET /config/providers`（经 Canvas Agent 的 `/agent/opencode/models` 转发）；默认仍是固定免费模型 `opencode/nemotron-3.5-lightning-free`，不需要 API Key、不改变今天的行为。
 - 选择保存在独立的 `localStorage` 键 `canvas-agent-opencode-model`，刷新页面后恢复；切到 Codex 车道再切回来不会把两边的选中值串到一起（Codex 仍用自己的 `canvas-agent-model`）。
 - 模型列表为空、请求失败或 opencode 服务未就绪时，显示「模型列表不可用，仍使用默认免费模型」，对话照常发送，不会额外向厂商发请求。
-- 所选模型已不在当前列表、或提交的是任意非法字符串时，后端拒绝该值并回退默认免费模型，不把任意字符串交给 opencode；未显式选择模型时后端不额外读 `/config/providers`。
+- 所选模型已不在当前列表、或提交的是任意非法字符串时，后端拒绝该值并回退默认免费模型，不把任意字符串交给 opencode；模型下拉在连接后读取一次 `/config/providers` 以填充列表；只有显式选择了模型，发消息阶段才会再读一次做校验。
 - 自动化：`web` 类型检查通过、45 文件 / 666 用例通过、domain 依赖边界通过、生产构建通过；`canvas-agent` 单测 141 条 0 失败、构建通过（新增 8 条模型归一化 / 默认值 / 非法值回退纯函数测试）；上游 `tests/` 的 15 条 bun 测试也通过。
 - **未验证**：侧边栏 UI 的浏览器实测（下拉展开与选中、刷新恢复、车道切换后不串值、列表不可用提示）、选中非默认模型后的真实一轮对话、Tauri 桌面端。本次未发真实厂商请求、未使用任何 API Key。
 - **边界**：不新增超时、重试、大小限制或并发上限；模型选择只影响本轮发送的 `model`，不改会话、事件格式与工具流程。

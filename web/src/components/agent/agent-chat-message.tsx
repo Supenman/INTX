@@ -184,7 +184,7 @@ function AgentCanvasMention({ reference, theme }: { reference: AgentCanvasRefere
     );
 }
 
-export function AgentPendingToolCard({ summary, detail, theme, onReject, onApprove }: { summary: string; detail?: unknown; theme: (typeof canvasThemes)[keyof typeof canvasThemes]; onReject?: () => void; onApprove?: () => void }) {
+export function AgentPendingToolCard({ summary, detail, queueLabel, theme, onReject, onApprove }: { summary: string; detail?: unknown; queueLabel?: string; theme: (typeof canvasThemes)[keyof typeof canvasThemes]; onReject?: () => void; onApprove?: () => void }) {
     const { t } = useTranslation();
     const view = userDetail(detail);
     return (
@@ -194,6 +194,7 @@ export function AgentPendingToolCard({ summary, detail, theme, onReject, onAppro
                     <div className="flex min-w-0 items-center gap-2 text-sm font-medium leading-5">
                         <CircleAlert className="size-4 shrink-0 text-amber-600" />
                         <span className="min-w-0 flex-1">{t("agent.message.awaitingConfirmation")}</span>
+                        {queueLabel ? <span className="shrink-0 rounded-full border px-2 py-0.5 text-[11px] leading-4" style={{ borderColor: theme.node.stroke, color: theme.node.muted }}>{queueLabel}</span> : null}
                         {view ? <ChevronDown className="size-3.5 shrink-0 transition-transform group-open:rotate-180" style={{ color: theme.node.muted }} /> : null}
                     </div>
                     <div className="mt-1 pl-6 text-sm leading-5" style={{ color: theme.node.muted }}>{summary}</div>

@@ -55,7 +55,7 @@ export type AgentEventItem = {
 };
 export type AgentUserDetail = { kind: string; status: string; rows?: Array<{ label: string; value: string }>; output?: string; files?: Array<{ path: string; action?: string }>; tasks?: Array<{ step: string; status: string }>; explanation?: string };
 
-export type AgentLogContext = { endpoint: string; connected: boolean; enabled: boolean; activity: string; waiting: boolean; sending: boolean; messages: number; pendingTool?: string };
+export type AgentLogContext = { endpoint: string; connected: boolean; enabled: boolean; activity: string; waiting: boolean; sending: boolean; messages: number; pendingTools?: string[] };
 
 export function agentMessageToChatMessage(item: AgentChatItem, endpoint: string, token: string) {
     return { ...item, meta: item.role === "user" || item.role === "assistant" ? undefined : item.meta, attachments: item.attachments?.map((attachment) => agentAttachmentToChatAttachment(attachment, endpoint, token)) };
@@ -258,7 +258,7 @@ export function formatLogText(logs: AgentEventLog[], context: AgentLogContext) {
         tr("diagnostics"),
         tr("address", { endpoint: context.endpoint }),
         tr("connection", { connection: tr(context.connected ? "online" : context.enabled ? "connecting" : "disabled"), status: context.activity }),
-        tr("messageTool", { messages: context.messages, tool: context.pendingTool ? toolName(context.pendingTool) : tr("none") }),
+        tr("messageTool", { messages: context.messages, tool: context.pendingTools?.length ? context.pendingTools.map((name) => toolName(name)).join(", ") : tr("none") }),
     ].join("\n");
     const body = logs.map((item) => `${item.time} ${item.title}${item.text && item.text !== item.title ? ` · ${item.text}` : ""}`).join("\n");
     return [head, body || tr("noLogs")].join("\n\n");

@@ -518,7 +518,7 @@ export function OpencodeAgentPanel() {
                 />
             ) : (
                 <>
-                    <AgentChatTimeline theme={theme} pendingTool={null} pendingApprovals={[]} sending={sending} waiting={waiting} onRejectTool={noop} onApproveTool={noop} onApprovalDecision={noop} />
+                    <AgentChatTimeline theme={theme} pendingTools={[]} pendingApprovals={[]} sending={sending} waiting={waiting} onRejectTool={noop} onApproveTool={noop} onApprovalDecision={noop} />
                     {tokenUsage ? <AgentUsageBar usage={tokenUsage} theme={theme} /> : null}
                     <AgentChatComposer
                         prompt={prompt}
