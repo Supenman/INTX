@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { App, Button, Tooltip } from "antd";
 import dayjs from "dayjs";
-import { Bot, History, MessageSquare, PanelRightClose, PlugZap, Plus, Terminal } from "lucide-react";
+import { Bot, ChevronUp, Cpu, History, MessageSquare, PanelRightClose, PlugZap, Plus, Terminal } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import { useShallow } from "zustand/react/shallow";
 
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import i18n from "@/i18n";
 import { acquireAgentClientId, AGENT_PROTOCOL_VERSION, DEFAULT_AGENT_URL } from "@/lib/agent/agent-client";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { randomId } from "@/lib/utils";
-import { activateAgentClient, createOpencodeThread, deleteOpencodeThread, discoverAgentConfig, fetchOpencodeThread, fetchOpencodeThreads, interruptOpencodeTurn, postState, sendOpencodeTurn } from "@/services/api/canvas-agent";
+import { activateAgentClient, createOpencodeThread, deleteOpencodeThread, discoverAgentConfig, fetchOpencodeModels, fetchOpencodeThread, fetchOpencodeThreads, interruptOpencodeTurn, postState, sendOpencodeTurn, type OpencodeModelOption } from "@/services/api/canvas-agent";
 import { useAgentStore, type AgentCanvasContext, type AgentCanvasReference, type AgentChatItem } from "@/stores/use-agent-store";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { AgentChatTimeline, AgentUsageBar } from "./agent-chat";
@@ -69,6 +70,10 @@ export function OpencodeAgentPanel() {
     const [searchParams] = useSearchParams();
     const urlBootstrapRef = useRef(false);
     const endpoint = useMemo(() => url.trim().replace(/\/$/, ""), [url]);
+    // 模型选择独立于 Codex 的 canvas-agent-model，切换车道不会把两边的选中值串到一起。
+    const [opencodeModels, setOpencodeModels] = useState<OpencodeModelOption[]>([]);
+    const [opencodeModel, setOpencodeModel] = useState("");
+    const [modelsUnavailable, setModelsUnavailable] = useState(false);
 
     // 带 agentUrl / agentToken 打开页面时直接连上，和 Codex 车道的深链行为一致。
     useEffect(() => {
@@ -252,6 +257,37 @@ export function OpencodeAgentPanel() {
         };
     }, [addEventLog, clientReady, enabled, endpoint, handleAgentEvent, loadThreads, message, setAgentState, token]);
 
+    // 连上后读取 opencode 可用模型；列表为空或请求失败只提示不可用，不阻断对话（后端按默认模型发送）。
+    useEffect(() => {
+        if (!connected) return;
+        let disposed = false;
+        void fetchOpencodeModels(endpoint, token).then((data) => {
+            if (disposed) return;
+            const models = Array.isArray(data.models) ? data.models : [];
+            if (!models.length) {
+                setOpencodeModels([]);
+                setOpencodeModel("");
+                setModelsUnavailable(true);
+                return;
+            }
+            const saved = typeof window === "undefined" ? "" : localStorage.getItem("canvas-agent-opencode-model") || "";
+            const current = models.find((item) => item.id === saved)?.id
+                || (data.defaultId && models.some((item) => item.id === data.defaultId) ? data.defaultId : "")
+                || models[0].id;
+            setOpencodeModels(models);
+            setOpencodeModel(current);
+            setModelsUnavailable(false);
+            localStorage.setItem("canvas-agent-opencode-model", current);
+        }).catch((error) => {
+            if (disposed) return;
+            setOpencodeModels([]);
+            setOpencodeModel("");
+            setModelsUnavailable(true);
+            addEventLog(rt("modelListFailed"), error);
+        });
+        return () => { disposed = true; };
+    }, [addEventLog, connected, endpoint, token]);
+
     // 画布变化只更新 ref，并按 300ms 节流回报，避免拖动时整块面板重渲染。
     useEffect(() => {
         let timer: ReturnType<typeof setTimeout> | null = null;
@@ -287,7 +323,7 @@ export function OpencodeAgentPanel() {
                 setAgentState({ activeThreadId: threadId, messages: useAgentStore.getState().messages.map((item) => item.clientMessageId === messageId ? scopeChatItem(item, threadId, "") : item) });
             }
             addEventLog(rt("sendTask"), compact(text) || rt("canvasReferencesSent", { count: references.length }));
-            await sendOpencodeTurn(endpoint, token, { threadId, prompt: requestPrompt, clientId: clientIdRef.current });
+            await sendOpencodeTurn(endpoint, token, { threadId, prompt: requestPrompt, clientId: clientIdRef.current, ...(opencodeModel ? { model: opencodeModel } : {}) });
             setAgentState({ sending: false, waiting: true, activity: rt("agentRunning") });
         } catch (error) {
             const latest = useAgentStore.getState();
@@ -494,14 +530,45 @@ export function OpencodeAgentPanel() {
                         onSubmit={() => void sendPrompt()}
                         onStop={() => void stopTurn()}
                         left={
-                            <span className="hidden text-[11px] @min-[660px]:inline" style={{ color: theme.node.muted }}>
-                                {t("agent.kind.opencodeModel")}
-                            </span>
+                            opencodeModels.length && opencodeModel ? (
+                                <OpencodeModelSelect models={opencodeModels} model={opencodeModel} onChange={(model) => {
+                                    if (!opencodeModels.some((item) => item.id === model)) return;
+                                    setOpencodeModel(model);
+                                    localStorage.setItem("canvas-agent-opencode-model", model);
+                                }} />
+                            ) : (
+                                <span className="hidden text-[11px] @min-[660px]:inline" style={{ color: theme.node.muted }}>
+                                    {t(modelsUnavailable ? "agent.kind.opencodeModelsUnavailable" : "agent.kind.opencodeModel")}
+                                </span>
+                            )
                         }
                     />
                 </>
             )}
         </>
+    );
+}
+
+/** opencode 模型下拉：只列出 /config/providers 返回过的 id，切换车道不与 Codex 的模型值串用。 */
+function OpencodeModelSelect({ models, model, onChange }: { models: OpencodeModelOption[]; model: string; onChange: (model: string) => void }) {
+    const { t } = useTranslation();
+    const current = models.find((item) => item.id === model) || models[0];
+    const [open, setOpen] = useState(false);
+    return (
+        <Tooltip title={t("agent.kind.selectOpencodeModel", { model: current.label })} placement="top" open={open ? false : undefined}>
+            <span className="inline-flex shrink-0">
+                <Select value={model} open={open} onOpenChange={setOpen} onValueChange={onChange}>
+                    <SelectTrigger hideChevron className="h-9 w-9 min-w-9 justify-center gap-0 rounded-full border-0 bg-transparent px-0 text-xs font-medium shadow-none hover:bg-black/5 focus:ring-0 @min-[660px]:w-auto @min-[660px]:min-w-36 @min-[660px]:max-w-44 @min-[660px]:justify-start @min-[660px]:gap-1.5 @min-[660px]:px-2.5 dark:bg-transparent dark:hover:bg-white/10" aria-label={t("agent.kind.selectOpencodeModel", { model: current.label })}>
+                        <Cpu className="size-3.5 shrink-0 opacity-70" />
+                        <span className="hidden min-w-0 flex-1 truncate text-left @min-[660px]:inline">{current.label}</span>
+                        <ChevronUp className="hidden size-3 opacity-50 @min-[660px]:block" />
+                    </SelectTrigger>
+                    <SelectContent data-canvas-no-zoom position="popper" side="top" align="start" sideOffset={6} className="z-[1200] w-64 rounded-xl border border-border/70 bg-popover p-1 shadow-xl">
+                        {models.map((item) => <SelectItem key={item.id} value={item.id}>{item.label}</SelectItem>)}
+                    </SelectContent>
+                </Select>
+            </span>
+        </Tooltip>
     );
 }
 

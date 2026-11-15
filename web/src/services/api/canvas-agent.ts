@@ -82,6 +82,12 @@ export async function revealAgentLocalFile(endpoint: string, token: string, path
 
 export type OpencodeThreadsResponse = { ok?: boolean; workspace?: { workspacePath?: string }; data?: AgentThreadSummary[] };
 export type OpencodeThreadResponse = { ok?: boolean; thread?: AgentThreadSummary; messages?: AgentChatItem[] };
+export type OpencodeModelOption = { id: string; providerID: string; modelID: string; label: string };
+export type OpencodeModelsResponse = { ok?: boolean; models?: OpencodeModelOption[]; defaultId?: string };
+
+export function fetchOpencodeModels(endpoint: string, token: string) {
+    return fetchAgentJson<OpencodeModelsResponse>(endpoint, token, "/agent/opencode/models");
+}
 
 export function fetchOpencodeThreads(endpoint: string, token: string) {
     return fetchAgentJson<OpencodeThreadsResponse>(endpoint, token, "/agent/opencode/threads");
@@ -99,7 +105,7 @@ export function deleteOpencodeThread(endpoint: string, token: string, threadId: 
     return fetchAgentJson<{ ok?: boolean }>(endpoint, token, `/agent/opencode/threads/${encodeURIComponent(threadId)}/delete`, jsonPost({}));
 }
 
-export function sendOpencodeTurn(endpoint: string, token: string, body: { threadId: string; prompt: string; clientId: string }) {
+export function sendOpencodeTurn(endpoint: string, token: string, body: { threadId: string; prompt: string; clientId: string; model?: string }) {
     return fetchAgentJson<{ ok?: boolean; threadId?: string }>(endpoint, token, "/agent/opencode/turn", jsonPost(body));
 }
 

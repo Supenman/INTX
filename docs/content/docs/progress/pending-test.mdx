@@ -7,6 +7,16 @@ description: Implemented changes that still need manual verification
 
 The current release needs manual verification in these areas:
 
+## 本地 Agent：opencode 模型选择（待用户验收）
+
+- 输入框左侧新增 opencode 模型下拉，列表来自本地 opencode 服务的 `GET /config/providers`（经 Canvas Agent 的 `/agent/opencode/models` 转发）；默认仍是固定免费模型 `opencode/nemotron-3.5-lightning-free`，不需要 API Key、不改变今天的行为。
+- 选择保存在独立的 `localStorage` 键 `canvas-agent-opencode-model`，刷新页面后恢复；切到 Codex 车道再切回来不会把两边的选中值串到一起（Codex 仍用自己的 `canvas-agent-model`）。
+- 模型列表为空、请求失败或 opencode 服务未就绪时，显示「模型列表不可用，仍使用默认免费模型」，对话照常发送，不会额外向厂商发请求。
+- 所选模型已不在当前列表、或提交的是任意非法字符串时，后端拒绝该值并回退默认免费模型，不把任意字符串交给 opencode；未显式选择模型时后端不额外读 `/config/providers`。
+- 自动化：`web` 类型检查通过、45 文件 / 666 用例通过、domain 依赖边界通过、生产构建通过；`canvas-agent` 单测 141 条 0 失败、构建通过（新增 8 条模型归一化 / 默认值 / 非法值回退纯函数测试）；上游 `tests/` 的 15 条 bun 测试也通过。
+- **未验证**：侧边栏 UI 的浏览器实测（下拉展开与选中、刷新恢复、车道切换后不串值、列表不可用提示）、选中非默认模型后的真实一轮对话、Tauri 桌面端。本次未发真实厂商请求、未使用任何 API Key。
+- **边界**：不新增超时、重试、大小限制或并发上限；模型选择只影响本轮发送的 `model`，不改会话、事件格式与工具流程。
+
 ## 本地 Agent：opencode 车道接入侧边栏（待用户验收）
 
 - 侧边栏新增 Agent 车道切换（OpenCode / Codex），默认 OpenCode；切换时清空上一条车道的会话、消息和用量，并用同一个 Local URL / Connect token 重新连接，不需要重新填地址。

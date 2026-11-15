@@ -6,7 +6,7 @@ import express, { type NextFunction, type Request, type Response } from "express
 import { archiveCodexThread, CodexSkillLookupError, configureCodexSkill, generateCodexSkillDraft, interruptCodexTurn, isRecoverableThreadError, listCodexModels, listCodexSkills, listCodexThreads, readCodexThread, resolveCodexApproval, resolveCodexSkill, resumeCodexThread, runCodexTurn, startCodexThread, summarizeCodexThread } from "../agent/codex.js";
 import type { CodexReasoningEffort, CodexSkillSelector } from "../agent/codex-protocol.js";
 import { messageMetadataStore } from "../agent/message-metadata.js";
-import { createOpencodeThread, deleteOpencodeThread, interruptOpencodeTurn, listOpencodeThreads, readOpencodeThread, runOpencodeTurn } from "../agent/opencode.js";
+import { createOpencodeThread, deleteOpencodeThread, interruptOpencodeTurn, listOpencodeModels, listOpencodeThreads, readOpencodeThread, runOpencodeTurn } from "../agent/opencode.js";
 import type { AgentAttachment, AgentPermissionMode } from "../agent/types.js";
 import { AGENT_PROTOCOL_VERSION, CanvasSession } from "../canvas/session.js";
 import { DEFAULT_PORT, ensureSiteWorkspace, loadConfig, saveConfig, updateSiteWorkspace, type CanvasAgentConfig } from "../config.js";
@@ -420,6 +420,11 @@ export function startHttpServer() {
         const ok = await interruptCodexTurn(skillDraftRunning ? undefined : String(req.body?.threadId || ""));
         res.status(ok ? 200 : 409).json({ ok, ...(ok ? {} : { error: "当前没有可停止的任务" }) });
     }));
+    /** opencode 模型列表：服务或接口异常时返回空列表，前端提示不可用并回退默认模型，不阻断连接。 */
+    app.get("/agent/opencode/models", route(async (_req, res) => {
+        const workspace = ensureSiteWorkspace(config);
+        res.json({ ok: true, ...(await listOpencodeModels(workspace.workspacePath)) });
+    }));
     app.post("/agent/opencode/threads/new", codexMutation(async (_req, res) => {
         const workspace = ensureSiteWorkspace(config);
         res.json({ ok: true, threadId: await createOpencodeThread(workspace.workspacePath) });
@@ -445,12 +450,13 @@ export function startHttpServer() {
         if (!threadId) return res.status(400).json({ ok: false, error: "缺少 opencode 会话" });
         const workspace = ensureSiteWorkspace(config);
         const clientId = String(req.body?.clientId || "");
+        const model = typeof req.body?.model === "string" ? req.body.model : "";
         /** opencode 事件按线程广播；带上发起网页，方便它只处理自己的请求。 */
         const turnEmit = (type: string, payload: unknown) => {
             const value = payload && typeof payload === "object" && !Array.isArray(payload) ? payload as Record<string, unknown> : { value: payload };
             emit(type, clientId ? { ...value, sourceClientId: clientId } : value);
         };
-        void runOpencodeTurn(prompt, turnEmit, { threadId, cwd: workspace.workspacePath }).catch((error) => logger.warn("opencode turn failed", { threadId, error }));
+        void runOpencodeTurn(prompt, turnEmit, { threadId, cwd: workspace.workspacePath, model }).catch((error) => logger.warn("opencode turn failed", { threadId, error }));
         res.json({ ok: true, threadId });
     }));
     app.post("/agent/opencode/interrupt", route(async (_req, res) => {

@@ -6,13 +6,13 @@ import { fileURLToPath } from "node:url";
 import { AGENT_PROMPT } from "../config.js";
 import { logger } from "../utils/logger.js";
 import { errorMessage } from "../utils/value.js";
+import { DEFAULT_OPENCODE_MODEL, parseOpencodeModelList, resolveOpencodeModel, type OpencodeModelList } from "./opencode-models.js";
 import { createOpencodeMapperState, failOpencodeTurn, finishOpencodeTurn, mapOpencodeEvent, markOpencodeInterrupted, type OpencodeAgentEvent, type OpencodeMapperState } from "./opencode-events.js";
 import type { AgentEmit } from "./types.js";
 
 /** opencode 版本固定，避免每次拉 latest 导致行为漂移。 */
 const OPENCODE_VERSION = "1.19.5";
-/** 免费模型，用户不需要提供 Key。 */
-export const DEFAULT_OPENCODE_MODEL = { providerID: "opencode", modelID: "nemotron-3.5-lightning-free" };
+export { DEFAULT_OPENCODE_MODEL } from "./opencode-models.js";
 
 type OpencodeServer = { base: string; child: ChildProcess; cwd: string };
 
@@ -100,8 +100,34 @@ function historyItems(threadId: string, entries: Array<{ info?: Record<string, u
     return items;
 }
 
+/** 读取 opencode 当前可用模型；服务或接口异常时返回空列表，由前端提示不可用并回退默认模型。 */
+export async function listOpencodeModels(cwd: string): Promise<OpencodeModelList> {
+    try {
+        const { base } = await ensureServer(cwd);
+        const response = await fetch(`${base}/config/providers`);
+        if (!response.ok) throw new Error(`读取 opencode 模型列表失败：${response.status}`);
+        return parseOpencodeModelList(await response.json().catch(() => ({})));
+    } catch (error) {
+        logger.warn("Failed to list opencode models", { error });
+        return { models: [], defaultId: "" };
+    }
+}
+
+/** 只接受当前列表里的模型 id；未选择或列表异常都回退固定免费模型，绝不把任意字符串交给 opencode。 */
+async function turnModel(base: string, requested: string | undefined) {
+    if (!requested) return { ...DEFAULT_OPENCODE_MODEL };
+    try {
+        const response = await fetch(`${base}/config/providers`);
+        if (!response.ok) throw new Error(`读取 opencode 模型列表失败：${response.status}`);
+        return resolveOpencodeModel(requested, parseOpencodeModelList(await response.json().catch(() => ({}))));
+    } catch (error) {
+        logger.warn("Failed to resolve opencode model, fallback to default", { requested, error });
+        return { ...DEFAULT_OPENCODE_MODEL };
+    }
+}
+
 /** 跑一轮对话；事件经 SSE 归一后由 emit 广播到侧边栏。 */
-export async function runOpencodeTurn(prompt: string, emit: AgentEmit, options: { threadId: string; cwd: string }) {
+export async function runOpencodeTurn(prompt: string, emit: AgentEmit, options: { threadId: string; cwd: string; model?: string }) {
     if (!prompt.trim()) return;
     queue = queue.catch(() => undefined).then(() => runTurnNow(prompt, emit, options));
     await queue;
@@ -121,7 +147,7 @@ export async function interruptOpencodeTurn() {
     return true;
 }
 
-async function runTurnNow(prompt: string, emit: AgentEmit, options: { threadId: string; cwd: string }) {
+async function runTurnNow(prompt: string, emit: AgentEmit, options: { threadId: string; cwd: string; model?: string }) {
     const turnId = `opencode-turn-${Date.now().toString(36)}`;
     const state = createOpencodeMapperState(turnId, options.threadId);
     const controller = new AbortController();
@@ -137,10 +163,11 @@ async function runTurnNow(prompt: string, emit: AgentEmit, options: { threadId: 
         stream.catch(() => undefined);
         // 连上 /event 再发消息；订阅先失败就按本轮失败收尾，不会悬在等连接上。
         await Promise.race([ready, stream]);
+        const model = await turnModel(base, options.model);
         const response = await fetch(`${base}/session/${options.threadId}/message`, {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ model: DEFAULT_OPENCODE_MODEL, system: AGENT_PROMPT, parts: [{ type: "text", text: prompt }] }),
+            body: JSON.stringify({ model, system: AGENT_PROMPT, parts: [{ type: "text", text: prompt }] }),
             signal: controller.signal,
         });
         if (!response.ok) throw new Error(`opencode 请求失败：${response.status} ${(await response.text()).slice(0, 300)}`);
