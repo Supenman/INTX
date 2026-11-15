@@ -3,15 +3,14 @@ import { App, Button, Tooltip } from "antd";
 import dayjs from "dayjs";
 import { Bot, ChevronUp, Cpu, History, MessageSquare, PanelRightClose, PlugZap, Plus, Terminal } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useSearchParams } from "react-router-dom";
 import { useShallow } from "zustand/react/shallow";
 
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import i18n from "@/i18n";
-import { acquireAgentClientId, AGENT_PROTOCOL_VERSION, DEFAULT_AGENT_URL } from "@/lib/agent/agent-client";
+import { acquireAgentClientId, AGENT_PROTOCOL_VERSION, isDesktopApp } from "@/lib/agent/agent-client";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { randomId } from "@/lib/utils";
-import { activateAgentClient, createOpencodeThread, deleteOpencodeThread, discoverAgentConfig, fetchOpencodeModels, fetchOpencodeThread, fetchOpencodeThreads, interruptOpencodeTurn, postState, sendOpencodeTurn, type OpencodeModelOption } from "@/services/api/canvas-agent";
+import { activateAgentClient, createOpencodeThread, deleteOpencodeThread, fetchOpencodeModels, fetchOpencodeThread, fetchOpencodeThreads, interruptOpencodeTurn, postState, sendOpencodeTurn, type OpencodeModelOption } from "@/services/api/canvas-agent";
 import type { AgentSkillSummary } from "@/services/api/canvas-agent";
 import { useAgentSkillStore } from "@/stores/use-agent-skill-store";
 import { useAgentStore, type AgentCanvasContext, type AgentCanvasReference, type AgentChatItem } from "@/stores/use-agent-store";
@@ -52,6 +51,8 @@ export function OpencodeAgentPanel() {
         })),
     );
     const setAgentState = useAgentStore((state) => state.setAgentState);
+    const connectAgent = useAgentStore((state) => state.connectAgent);
+    const connectLocalAgent = useAgentStore((state) => state.connectLocalAgent);
     const addMessage = useAgentStore((state) => state.addMessage);
     const pushEventLog = useAgentStore((state) => state.addEventLog);
     const clearEventLogs = useAgentStore((state) => state.clearEventLogs);
@@ -67,22 +68,11 @@ export function OpencodeAgentPanel() {
     const connectedRef = useRef(false);
     const clientIdRef = useRef("");
     const [clientReady, setClientReady] = useState(false);
-    const [searchParams] = useSearchParams();
-    const urlBootstrapRef = useRef(false);
     const endpoint = useMemo(() => url.trim().replace(/\/$/, ""), [url]);
     // 模型选择只保存在这个面板内，切换会话不需要跨页面共享。
     const [opencodeModels, setOpencodeModels] = useState<OpencodeModelOption[]>([]);
     const [opencodeModel, setOpencodeModel] = useState("");
     const [modelsUnavailable, setModelsUnavailable] = useState(false);
-
-    // 带 agentUrl / agentToken 打开页面时直接连上本地 Agent。
-    useEffect(() => {
-        const urlParam = searchParams.get("agentUrl");
-        const tokenParam = searchParams.get("agentToken");
-        if (!urlParam || !tokenParam || urlBootstrapRef.current) return;
-        urlBootstrapRef.current = true;
-        setAgentState({ url: urlParam.replace(/\/$/, ""), token: tokenParam, enabled: true, connected: false, activity: rt("connecting"), connectError: "" });
-    }, [searchParams, setAgentState]);
 
     useEffect(() => {
         let disposed = false;
@@ -93,6 +83,11 @@ export function OpencodeAgentPanel() {
         });
         return () => { disposed = true; };
     }, []);
+
+    // 连上后从连接页回到对话；用户自己点开连接页看状态时不打扰。
+    useEffect(() => {
+        if (connected && useAgentStore.getState().activeTab === "setup") setAgentState({ activeTab: "chat" });
+    }, [connected, setAgentState]);
 
     const loadSnapshot = useCallback(async (threadId: string) => {
         const data = await fetchOpencodeThread(endpoint, token, threadId);
@@ -415,26 +410,13 @@ export function OpencodeAgentPanel() {
         });
     };
 
-    const toggleAgentConnection = async () => {
+    const toggleAgentConnection = () => {
         if (enabled) {
             setAgentState({ enabled: false, connected: false, activity: rt("offline"), connectError: "", messages: [], threads: [], activeThreadId: "", activeTurnId: "", tokenUsage: null, workspacePath: "" });
             return;
         }
-        const discovered = await discoverAgentConfig(endpoint || DEFAULT_AGENT_URL);
-        const nextEndpoint = (endpoint || discovered?.url || DEFAULT_AGENT_URL).trim().replace(/\/$/, "");
-        const nextToken = (token.trim() || discovered?.token || "").trim();
-        try {
-            const parsed = new URL(nextEndpoint);
-            if (parsed.protocol !== "http:" && parsed.protocol !== "https:") throw new Error("invalid protocol");
-        } catch {
-            setAgentState({ connectError: rt("invalidAddress") });
-            return;
-        }
-        if (!nextToken) {
-            setAgentState({ connectError: rt("agentNotFound") });
-            return;
-        }
-        setAgentState({ url: nextEndpoint, token: nextToken, enabled: true, connected: false, activity: rt("connecting"), connectError: "" });
+        if (isDesktopApp()) void connectLocalAgent();
+        else connectAgent();
     };
 
     const connectionStatus = t(connectError ? "agent.status.failed" : connected ? "agent.status.connected" : enabled ? "agent.status.connecting" : "agent.status.disconnected");
@@ -491,7 +473,7 @@ export function OpencodeAgentPanel() {
                     connectError={connectError}
                     onUrlChange={(url) => setAgentState({ url, connectError: "" })}
                     onTokenChange={(token) => setAgentState({ token, connectError: "" })}
-                    onToggleEnabled={() => void toggleAgentConnection()}
+                    onToggleEnabled={toggleAgentConnection}
                 />
             ) : activeTab === "history" ? (
                 <AgentHistoryView

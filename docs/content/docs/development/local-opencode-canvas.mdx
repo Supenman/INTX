@@ -27,7 +27,7 @@ Canvas writes still follow the same path: `OpenCode → MCP → Canvas Agent →
 
 ## Browser connection and state
 
-Canvas Agent listens on `http://127.0.0.1:17371` by default and generates a connection token. The browser opens an authenticated SSE connection:
+Canvas Agent listens on `http://127.0.0.1:17371` by default and generates a connection token. The desktop shell reads the address and token from `~/.infinite-canvas/canvas-agent.json` and connects on startup, so the user never types them; a browser cannot read that file and must paste the address and token the Agent prints at startup. The canvas then opens an authenticated SSE connection:
 
 ```text
 GET /events?token=xxx&clientId=xxx

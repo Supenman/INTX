@@ -76,7 +76,7 @@ OpenCode -> MCP -> Canvas Agent -> 浏览器画布
 http://127.0.0.1:17371
 ```
 
-启动后会生成 `Connect token`，网页连接时必须携带 token。浏览器连接后会建立一条 SSE 长连接：
+启动后会生成 `Connect token`，画布前端连接时必须携带 token。桌面版启动时由 Tauri 外壳读取 `~/.infinite-canvas/canvas-agent.json` 里的地址和 token 自动连接，用户不需要手动填写；浏览器读不到这个文件，只能在连接页手动填入启动时终端打印的地址和 token。连上后会建立一条 SSE 长连接：
 
 ```txt
 GET /events?token=xxx&clientId=xxx

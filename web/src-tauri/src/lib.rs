@@ -12,6 +12,28 @@
 //! `--features tauri/custom-protocol`（依赖的 feature），我们自己的 feature
 //! 不会被打开，门禁会把正常打包挡掉。改成启动前检查，裸 cargo build
 //! --release 打出来的包一运行就会给出明确报错。
+//!
+//! 唯一的数据读取是本地 Agent 的连接配置：桌面版要自己连上 canvas-agent，
+//! 不能让用户每次填地址和 token，配置由 Agent 写在 `~/.infinite-canvas/canvas-agent.json`。
+
+use std::path::PathBuf;
+
+#[derive(serde::Serialize)]
+struct LocalAgentConfig {
+    url: String,
+    token: String,
+}
+
+/// 读取本地 Canvas Agent 配置；文件不存在时返回 null，前端按「没有 Agent」处理。
+#[tauri::command]
+fn read_agent_config() -> Option<LocalAgentConfig> {
+    let home = std::env::var_os("USERPROFILE").or_else(|| std::env::var_os("HOME"))?;
+    let raw = std::fs::read_to_string(PathBuf::from(home).join(".infinite-canvas").join("canvas-agent.json")).ok()?;
+    let value: serde_json::Value = serde_json::from_str(&raw).ok()?;
+    let url = value.get("url")?.as_str()?.to_string();
+    let token = value.get("token")?.as_str()?.to_string();
+    (!url.is_empty() && !token.is_empty()).then_some(LocalAgentConfig { url, token })
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -20,6 +42,7 @@ pub fn run() {
     }
     tauri::Builder::default()
         .plugin(tauri_plugin_http::init())
+        .invoke_handler(tauri::generate_handler![read_agent_config])
         .run(tauri::generate_context!())
         .expect("启动 INTX 窗口失败");
 }

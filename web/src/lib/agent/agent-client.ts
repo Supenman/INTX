@@ -4,6 +4,9 @@ import { randomId } from "@/lib/utils";
 export const AGENT_PROTOCOL_VERSION = 6;
 export const DEFAULT_AGENT_URL = "http://127.0.0.1:17371";
 
+/** 当前是否跑在 Tauri 桌面壳里；只有桌面版能读本地 Agent 配置。 */
+export const isDesktopApp = () => "__TAURI_INTERNALS__" in window;
+
 type AgentClientGlobal = typeof globalThis & { __infiniteCanvasAgentClientIdPromise?: Promise<string> };
 
 /** 每个标签页一个 client 身份，用 Web Lock 保证同一会话不被两个标签页共用。 */

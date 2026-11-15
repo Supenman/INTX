@@ -7,6 +7,7 @@ import { navigationTools, type NavigationToolSlug } from "@/constant/navigation-
 import { AppConfigModal } from "@/components/layout/app-config-modal";
 import { MobileNavDrawer } from "@/components/layout/mobile-nav-drawer";
 import { UserStatusActions } from "@/components/layout/user-status-actions";
+import { isDesktopApp } from "@/lib/agent/agent-client";
 import { cn } from "@/lib/utils";
 import { useEffect, useRef, useState } from "react";
 import { useAgentStore } from "@/stores/use-agent-store";
@@ -20,17 +21,20 @@ export function AppTopNav() {
     const agentEnabled = useAgentStore((state) => state.enabled);
     const agentConnected = useAgentStore((state) => state.connected);
     const connectAgent = useAgentStore((state) => state.connectAgent);
+    const connectLocalAgent = useAgentStore((state) => state.connectLocalAgent);
     const togglePanel = useAgentStore((state) => state.togglePanel);
     const panelOpen = useAgentStore((state) => state.panelOpen);
     const hideHeader = /^\/canvas\/[^/]+/.test(pathname);
     const slug = pathname.split("/").filter(Boolean)[0];
     const activeToolSlug = navigationTools.some((tool) => tool.slug === slug) ? (slug as NavigationToolSlug) : undefined;
 
+    // 桌面版读本地配置自动连接；浏览器里只能用上次手动填过的地址和 token。
     useEffect(() => {
-        if (autoConnectRef.current || agentEnabled || agentConnected || !agentToken.trim()) return;
+        if (autoConnectRef.current || agentEnabled || agentConnected) return;
         autoConnectRef.current = true;
-        connectAgent({ silent: true });
-    }, [agentConnected, agentEnabled, agentToken, connectAgent]);
+        if (isDesktopApp()) void connectLocalAgent({ silent: true });
+        else if (agentToken.trim()) connectAgent({ silent: true });
+    }, [agentConnected, agentEnabled, agentToken, connectAgent, connectLocalAgent]);
 
     return (
         <>

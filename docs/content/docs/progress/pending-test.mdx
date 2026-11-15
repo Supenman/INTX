@@ -7,14 +7,21 @@ description: Implemented changes that still need manual verification
 
 The current release needs manual verification in these areas:
 
+## Local Agent: desktop auto-connect (pending user verification)
+
+- The desktop shell gains a Tauri `read_agent_config` command that reads the address and token the local Agent writes to `~/.infinite-canvas/canvas-agent.json`, so the app connects on startup.
+- Opening the desktop app should already show a connected Agent and land in the chat. In the desktop app the connection view has no address or token fields — only the status, the start command and Connect / Disconnect.
+- With the Agent not running the status stays disconnected; Connect re-reads the config, and a second failure tells the user to start the local Agent first.
+- A browser cannot read the local config, so the address and token fields stay there as a debugging fallback (remembered in localStorage); the `?agentUrl=&agentToken=` bootstrap is removed.
+- Automated: `web` typecheck passes with 45 files / 666 tests, and `cargo check` passes. **Verified**: the rebuilt Tauri dev window connected on reopen with no input — the Agent logged a new SSE client and `/health` reported one connection. The UI state is left for the user to confirm. **Not verified**: the browser manual fallback and the packaged build. No real provider requests were sent and no API key was used.
+
 ## Local Agent: opencode single lane (pending user verification)
 
 - The Codex adapter (7 backend modules and every `/agent/codex/*` route), the Codex sidebar panel and the lane switch were removed. The sidebar now uses opencode only, there is no lane-switch control, and the top-bar status always reads OpenCode.
-- The connection view keeps only the "run the local Agent" command and the web connection form; all plugin guidance is gone. The model picker, thread list, send/stop, usage bar, diagnostics log and `@` canvas references keep their previous behaviour.
+- The connection view keeps only the "run the local Agent" command and the connection status; all plugin guidance is gone. The model picker, thread list, send/stop, usage bar, diagnostics log and `@` canvas references keep their previous behaviour.
 - The Skill manager, draft extraction and Skill list API were retired with the Codex lane. The `/` mention now yields an empty candidate list and no longer calls the removed endpoint; the standalone `skills/store.ts` module is kept but not wired up, ready for a future opencode-side reconnect.
 - Automated: `web` typecheck, `vitest run src`, domain boundary check, production build, upstream `bun test tests/`, and `canvas-agent` tests/build all pass (exact counts in the state record).
-- **Verified**: the user tested the single-lane sidebar in the browser on 2026-11-16 — connect, new / restore / delete thread, model pick, one turn, stop, and `/` mention (empty candidate list by design).
-- **Not verified**: MCP registration in a packaged build and the Tauri desktop app. No real provider requests were sent and no API key was used.
+- **Verified**: the user tested the single-lane sidebar on 2026-11-16 — connect, new / restore / delete thread, model pick, one turn, stop, and `/` mention (empty candidate list by design). MCP registration in a packaged build was also checked by installing the packed tarball under an isolated profile: the `initialize` / `tools/list` handshake returned 34 tools. The Tauri desktop app was re-tested by the user. No real provider requests were sent and no API key was used.
 - **Scope**: no new timeouts, retries, size limits or concurrency caps. Session state, replay and the write lock in `canvas/session.ts` now use lane-neutral names; the `codex-workspaces/site` config path keeps its historical name because existing Skills and opencode threads resolve to it.
 
 ## Local Agent: Skill list and `/` mention reconnected (pending user verification)

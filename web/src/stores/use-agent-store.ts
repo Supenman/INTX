@@ -3,6 +3,7 @@ import i18n from "@/i18n";
 
 import type { CanvasAgentOp, CanvasAgentSnapshot } from "@/lib/canvas/canvas-agent-ops";
 import type { CanvasResourceReference } from "@/lib/canvas/canvas-resource-references";
+import { readLocalAgentConfig } from "@/services/api/canvas-agent";
 
 export type AgentChatRole = "user" | "assistant" | "system" | "tool" | "error";
 export type AgentAttachment = { id: string; name: string; type: string; size: number; width: number; height: number; url: string; dataUrl: string };
@@ -73,13 +74,14 @@ type AgentStore = {
     bootstrapStatus: AgentBootstrapStatus | null;
     mcpStartupStatuses: Record<string, AgentBootstrapStatus>;
     connectError: string;
-    setAgentState: (patch: Partial<Omit<AgentStore, "setAgentState" | "connectAgent" | "disconnectAgent" | "addMessage" | "addEventLog" | "clearEventLogs" | "openPanel" | "closePanel" | "togglePanel" | "setCanvasContext">>) => void;
+    setAgentState: (patch: Partial<Omit<AgentStore, "setAgentState" | "connectAgent" | "connectLocalAgent" | "disconnectAgent" | "addMessage" | "addEventLog" | "clearEventLogs" | "openPanel" | "closePanel" | "togglePanel" | "setCanvasContext">>) => void;
     openPanel: () => void;
     closePanel: () => void;
     togglePanel: () => void;
     setCanvasContext: (context: AgentCanvasContext | null) => void;
     connectAgent: (options?: { silent?: boolean }) => void;
-    disconnectAgent: (patch?: Partial<Omit<AgentStore, "setAgentState" | "connectAgent" | "disconnectAgent" | "addMessage" | "addEventLog" | "clearEventLogs" | "openPanel" | "closePanel" | "togglePanel" | "setCanvasContext">>) => void;
+    connectLocalAgent: (options?: { silent?: boolean }) => Promise<void>;
+    disconnectAgent: (patch?: Partial<Omit<AgentStore, "setAgentState" | "connectAgent" | "connectLocalAgent" | "disconnectAgent" | "addMessage" | "addEventLog" | "clearEventLogs" | "openPanel" | "closePanel" | "togglePanel" | "setCanvasContext">>) => void;
     addMessage: (item: AgentChatItem) => void;
     addEventLog: (item: AgentEventLog) => void;
     clearEventLogs: () => void;
@@ -93,8 +95,9 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     panelMounted: true,
     panelClosing: false,
     canvasContext: null,
-    url: typeof window === "undefined" ? "http://127.0.0.1:17371" : localStorage.getItem("canvas-agent-url") || "http://127.0.0.1:17371",
-    token: typeof window === "undefined" ? "" : localStorage.getItem("canvas-agent-token") || "",
+    // 桌面版由 connectLocalAgent 从本地配置填入；浏览器里只能从上次手动填写处恢复。
+    url: (typeof window !== "undefined" && localStorage.getItem("canvas-agent-url")) || "http://127.0.0.1:17371",
+    token: (typeof window !== "undefined" && localStorage.getItem("canvas-agent-token")) || "",
     connected: false,
     enabled: false,
     silentConnect: false,
@@ -140,10 +143,21 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
         } catch {
             return set({ connectError: silent ? "" : i18n.t("agent.state.invalidUrl") });
         }
+        // 仅浏览器兜底会走到这里：记住手动填过的地址和 token。桌面版由本地配置直接覆盖。
         localStorage.setItem("canvas-agent-url", endpoint);
         localStorage.setItem("canvas-agent-token", token);
         // Only set enabled here; OpencodeAgentPanel's effect owns SSE initialization.
         set({ url: endpoint, token, enabled: true, silentConnect: silent, fragmentBootstrap: false, activity: i18n.t("agent.status.connecting"), connectError: "" });
+    },
+    // 桌面版直接读本地 Agent 自己写的配置，用户不需要知道地址和 token。
+    connectLocalAgent: async (options) => {
+        const config = await readLocalAgentConfig();
+        if (!config) {
+            if (!options?.silent) set({ connectError: i18n.t("agent.runtime.agentNotFound") });
+            return;
+        }
+        set({ url: config.url, token: config.token });
+        get().connectAgent({ silent: true });
     },
     disconnectAgent: (patch = {}) => {
         agentSource?.close();

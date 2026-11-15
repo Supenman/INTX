@@ -2,6 +2,8 @@
 
 ## Unreleased
 
++ [调整] 桌面版打开即自动连接本地 Agent：由桌面壳读取本地 Agent 写下的地址与 token（`~/.infinite-canvas/canvas-agent.json`），桌面版连接页不再出现地址和 token 输入框；浏览器里读不到本地配置，仍保留手动填写作为调试兜底，URL 参数连接已移除。
++ [修复] `canvas-agent` 构建前先清空 `dist`：删掉的车道模块不会再作为旧编译产物被打进 npm 包（此前重新打包会额外带上 7 个已删除模块）。
 + [新增] 本地 Agent 的 Skill 列表与输入框 `/` 提及在 opencode 车道重接：列表由本地 Agent 读取站点工作空间的 `.agents/skills`，单个 Skill 损坏时跳过并回报，不影响其它条目。
 + [调整] 文档站删除过期的「Codex App 插件」页面（中英各一页）及其导航入口。
 + [调整] 开发文档「本地 Codex 连接画布原理」改写为「本地 OpenCode 连接画布原理」（中英各一页，路径同步改为 `/docs/development/local-opencode-canvas`），按 opencode 单车道描述会话接口、模型选择和写入执行方式。

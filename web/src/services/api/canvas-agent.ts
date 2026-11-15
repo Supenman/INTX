@@ -1,8 +1,9 @@
+import { invoke } from "@tauri-apps/api/core";
+
 import i18n from "@/i18n";
 import type { CanvasAgentSnapshot } from "@/lib/canvas/canvas-agent-ops";
 import type { AgentChatItem, AgentReasoningEffort, AgentThreadSummary } from "@/stores/use-agent-store";
 
-type AgentConfigResponse = { ok?: boolean; protocolVersion?: number; url?: string; token?: string; hasToken?: boolean };
 const AGENT_MESSAGE_ASSET_PATTERN = /^agent-asset:([a-f0-9]{64})\/([a-f0-9]{64}\.(?:gif|jpe?g|png|webp))$/;
 
 export class AgentApiError<T = unknown> extends Error {
@@ -120,12 +121,11 @@ export async function fetchAgentJson<T>(endpoint: string, token: string, path: s
     return data;
 }
 
-export async function discoverAgentConfig(endpoint: string) {
+/** 读取桌面壳拿到的本地 Agent 配置；浏览器里没有 Tauri 命令，返回 null。 */
+export async function readLocalAgentConfig() {
     try {
-        const res = await fetch(`${endpoint}/config`);
-        if (!res.ok) return null;
-        const data = (await res.json()) as AgentConfigResponse;
-        return data.ok ? data : null;
+        const config = await invoke<{ url: string; token: string } | null>("read_agent_config");
+        return config?.url && config.token ? config : null;
     } catch {
         return null;
     }
