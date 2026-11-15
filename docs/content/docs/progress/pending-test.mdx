@@ -29,7 +29,7 @@ The current release needs manual verification in these areas:
 - `canvas/session.ts` state, replay and write lock use lane-neutral names, the `hello` field is now `agent`, and the dead approval queue plus the `@openai/codex` dependency (npm and bun lockfiles) are removed.
 - The development doc page is now "How Local OpenCode Connects to the Canvas" at `/docs/development/local-opencode-canvas` (both languages); the docs index, nav meta and top tabs point there. The Codex / ZCode plugin package `plugins/infinite-canvas`, its local marketplace registration and the README link are removed; external MCP clients can still connect with `npx -y @basketikun/canvas-agent@latest mcp`.
 - Automated: `canvas-agent` build passes with 73 tests (71 pass / 2 skipped / 0 fail); `web` typecheck passes and 45 files / 666 tests pass.
-- **Not verified**: docs-site rendering of the renamed page, packaged build, Tauri desktop app.
+- **Verified**: after restarting the local Agent on the new build, the user re-ran the sidebar on 2026-11-16 — one turn with a canvas tool call, history restore, `/` Skill pick, and a canvas write followed by undo all behaved as before, and the browser reconnected to the same URL/token. **Not verified**: docs-site rendering of the renamed page, packaged build, Tauri desktop app.
 
 ## Local Agent: pending-tool queue (retired)
 
