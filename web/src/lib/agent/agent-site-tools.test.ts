@@ -13,6 +13,11 @@ vi.mock('@/components/video-settings-panel', () => ({ videoResolutionOptions: []
 vi.mock('@/stores/use-asset-store', () => ({ useAssetStore: { getState: () => ({ addAsset: mocks.addAsset, confirmSave: mocks.confirmSave }) } }));
 vi.mock('@/stores/canvas/use-canvas-store', () => ({ useCanvasStore: { getState: () => ({}) } }));
 vi.mock('@/stores/use-workbench-agent-store', () => ({ useWorkbenchAgentStore: { getState: () => ({}) } }));
+vi.mock('./agent-canvas-generation', () => ({
+    ensureCanvasReady: vi.fn(),
+    launchAgentImageGeneration: vi.fn(),
+    launchAgentVideoGeneration: vi.fn(),
+}));
 vi.mock('@/stores/use-config-store', () => ({
     useConfigStore: { getState: () => ({}) },
     modelOptionLabel: vi.fn(),

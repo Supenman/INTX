@@ -1,15 +1,8 @@
 import { create } from "zustand";
 
-// The Agent panel dispatches commands through this store to set workbench prompts and optionally start generation.
-// The panel writes model, quality, size, count, and other options to use-config-store, which workbench pages read directly.
-// Prompt and run are sent here; pages identify new commands by nonce and call clear after consuming them.
-
-export type WorkbenchCommand = {
-    nonce: number;
-    taskId?: string;
-    prompt?: string;
-    run: boolean;
-};
+// Agent 生成任务追踪。旧版把命令派发给生图/视频工作台页面执行；
+// 工作台下线后，生成直接落画布（见 lib/agent/agent-canvas-generation.ts），
+// 这里只保留「追踪最近 30 条生成」供 generation_get_status 查询。
 
 export type WorkbenchGenerationTask = {
     id: string;
@@ -21,44 +14,28 @@ export type WorkbenchGenerationTask = {
     successCount?: number;
     failCount?: number;
     error?: string;
+    projectId?: string;
+    nodeId?: string;
 };
 
 type WorkbenchAgentStore = {
-    imageCommand: WorkbenchCommand | null;
-    videoCommand: WorkbenchCommand | null;
     tasks: WorkbenchGenerationTask[];
-    dispatchImage: (command: Omit<WorkbenchCommand, "nonce" | "taskId">) => string | undefined;
-    dispatchVideo: (command: Omit<WorkbenchCommand, "nonce" | "taskId">) => string | undefined;
-    updateTask: (id: string, patch: Partial<Pick<WorkbenchGenerationTask, "status" | "successCount" | "failCount" | "error">>) => void;
-    clearImageCommand: () => void;
-    clearVideoCommand: () => void;
+    /** 登记一条新的 Agent 生成，返回追踪 id。 */
+    track: (kind: "image" | "video", prompt?: string) => string;
+    updateTask: (id: string, patch: Partial<Pick<WorkbenchGenerationTask, "status" | "successCount" | "failCount" | "error" | "projectId" | "nodeId">>) => void;
 };
 
-let nonce = 0;
-const nextNonce = () => (nonce += 1);
+let counter = 0;
 
 export const useWorkbenchAgentStore = create<WorkbenchAgentStore>((set) => ({
-    imageCommand: null,
-    videoCommand: null,
     tasks: [],
-    dispatchImage: (command) => {
-        const commandNonce = nextNonce();
-        const task = command.run ? createTask("image", commandNonce, command.prompt) : undefined;
-        set((state) => ({ imageCommand: { ...command, nonce: commandNonce, taskId: task?.id }, tasks: task ? [task, ...state.tasks].slice(0, 30) : state.tasks }));
-        return task?.id;
-    },
-    dispatchVideo: (command) => {
-        const commandNonce = nextNonce();
-        const task = command.run ? createTask("video", commandNonce, command.prompt) : undefined;
-        set((state) => ({ videoCommand: { ...command, nonce: commandNonce, taskId: task?.id }, tasks: task ? [task, ...state.tasks].slice(0, 30) : state.tasks }));
-        return task?.id;
+    track: (kind, prompt) => {
+        counter += 1;
+        const now = new Date().toISOString();
+        const id = `${kind}-${counter}`;
+        const task: WorkbenchGenerationTask = { id, kind, status: "queued", prompt, createdAt: now, updatedAt: now };
+        set((state) => ({ tasks: [task, ...state.tasks].slice(0, 30) }));
+        return id;
     },
     updateTask: (id, patch) => set((state) => ({ tasks: state.tasks.map((task) => (task.id === id ? { ...task, ...patch, updatedAt: new Date().toISOString() } : task)) })),
-    clearImageCommand: () => set({ imageCommand: null }),
-    clearVideoCommand: () => set({ videoCommand: null }),
 }));
-
-function createTask(kind: "image" | "video", commandNonce: number, prompt?: string): WorkbenchGenerationTask {
-    const now = new Date().toISOString();
-    return { id: `${kind}-${commandNonce}`, kind, status: "queued", prompt, createdAt: now, updatedAt: now };
-}

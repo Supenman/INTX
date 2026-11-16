@@ -1,17 +1,9 @@
-import { FileText, ImagePlus, Images, ListChecks, Maximize2, Settings2, Video } from "lucide-react";
+import { FileText, Images, ListChecks, Maximize2, Settings2 } from "lucide-react";
 
 export const navigationTools = [
     {
         slug: "canvas",
         icon: Maximize2,
-    },
-    {
-        slug: "image",
-        icon: ImagePlus,
-    },
-    {
-        slug: "video",
-        icon: Video,
     },
     {
         slug: "prompts",

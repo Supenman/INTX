@@ -10,6 +10,7 @@ import { clampVideoSeconds } from "@/lib/media-size";
 import { useCanvasStore } from "@/stores/canvas/use-canvas-store";
 import { useAssetStore } from "@/stores/use-asset-store";
 import { modelOptionLabel, modelOptionName, normalizeModelOptionValue, selectableModelsByCapability, useConfigStore } from "@/stores/use-config-store";
+import { launchAgentImageGeneration, launchAgentVideoGeneration } from "@/lib/agent/agent-canvas-generation";
 import { useWorkbenchAgentStore } from "@/stores/use-workbench-agent-store";
 
 // Execute site-level Agent tools in the browser, including canvas lists, workbench generation, prompt search, and asset operations.
@@ -159,7 +160,8 @@ function getImageConfig() {
     };
 }
 
-function runImageWorkbench(input: SiteToolInput, navigate: NavigateFunction) {
+async function runImageWorkbench(input: SiteToolInput, navigate: NavigateFunction) {
+    void navigate;
     const configStore = useConfigStore.getState();
     const applied: Record<string, unknown> = {};
     if (typeof input.model === "string" && input.model.trim()) {
@@ -182,9 +184,12 @@ function runImageWorkbench(input: SiteToolInput, navigate: NavigateFunction) {
     }
     const prompt = typeof input.prompt === "string" ? input.prompt : undefined;
     const run = input.run !== false;
-    navigate("/image");
-    const taskId = useWorkbenchAgentStore.getState().dispatchImage({ prompt, run });
-    return { ok: true, navigated: "/image", prompt, run, taskId, applied, note: siteText(run ? "imageGenerationStarted" : "imageConfigApplied") };
+    if (!run) {
+        return { ok: true, prompt, run, applied, note: siteText("imageConfigApplied") };
+    }
+    if (!prompt) throw new Error(siteText("promptRequired"));
+    const launched = await launchAgentImageGeneration({ prompt, count: Number(applied.count) || undefined });
+    return { ok: true, prompt, run, taskId: launched.taskId, projectId: launched.projectId, applied, note: siteText("imageGenerationStarted") };
 }
 
 function getVideoConfig() {
@@ -212,7 +217,8 @@ function getVideoConfig() {
     };
 }
 
-function runVideoWorkbench(input: SiteToolInput, navigate: NavigateFunction) {
+async function runVideoWorkbench(input: SiteToolInput, navigate: NavigateFunction) {
+    void navigate;
     const configStore = useConfigStore.getState();
     const applied: Record<string, unknown> = {};
     if (typeof input.model === "string" && input.model.trim()) {
@@ -247,9 +253,12 @@ function runVideoWorkbench(input: SiteToolInput, navigate: NavigateFunction) {
     }
     const prompt = typeof input.prompt === "string" ? input.prompt : undefined;
     const run = input.run !== false;
-    navigate("/video");
-    const taskId = useWorkbenchAgentStore.getState().dispatchVideo({ prompt, run });
-    return { ok: true, navigated: "/video", prompt, run, taskId, applied, note: siteText(run ? "videoGenerationStarted" : "videoConfigApplied") };
+    if (!run) {
+        return { ok: true, prompt, run, applied, note: siteText("videoConfigApplied") };
+    }
+    if (!prompt) throw new Error(siteText("promptRequired"));
+    const launched = await launchAgentVideoGeneration({ prompt });
+    return { ok: true, prompt, run, taskId: launched.taskId, projectId: launched.projectId, applied, note: siteText("videoGenerationStarted") };
 }
 
 async function searchPrompts(input: SiteToolInput) {
