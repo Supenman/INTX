@@ -459,8 +459,8 @@ export default function VideoPage() {
                                 </div>
                             </div>
 
-                            <div className="flex items-center justify-between gap-3 rounded-md bg-[var(--surface-sunken)] px-3 py-2 sm:hidden">
-                                <span className="typ-caption truncate text-muted-foreground">
+                            <div className="flex items-start justify-between gap-3 rounded-md bg-[var(--surface-sunken)] px-3 py-2 sm:hidden">
+                                <span className="typ-caption line-clamp-2 text-muted-foreground">
                                     {modelOptionLabel(effectiveConfig, model)} · {normalizeResolution(effectiveConfig.vquality)}p · {videoSizeLabel(effectiveConfig.size)} · {normalizeVideoSeconds(effectiveConfig.videoSeconds)}s · {videoModeLabel(effectiveConfig.videoMode)}
                                 </span>
                                 <Button size="small" type="text" icon={<SlidersHorizontal className="size-4" />} onClick={() => setSettingsOpen(true)}>
@@ -474,7 +474,7 @@ export default function VideoPage() {
                         </div>
 
                         <div className="mt-4 shrink-0 border-t border-border/60 pt-4">
-                            <Button type="primary" size="large" block icon={<Sparkles className="size-4" />} loading={running} disabled={!canGenerate || running} onClick={() => void generate()}>
+                            <Button type="primary" size="large" block className="disabled:!text-foreground/55" icon={<Sparkles className="size-4" />} loading={running} disabled={!canGenerate || running} onClick={() => void generate()}>
                                 {t("workbench.generate")}
                             </Button>
                             <p className="typ-caption mt-2 hidden truncate text-center text-muted-foreground sm:block">
