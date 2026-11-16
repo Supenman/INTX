@@ -7,6 +7,17 @@ description: Implemented changes that still need manual verification
 
 The current release needs manual verification in these areas:
 
+## M2 real-machine closure checklist (for the user to run)
+
+Corresponds to the M2 gate in `mature-product-plan.mdx`; run each item and fill the result in here. **Everything in this section is currently unverified.**
+
+1. **Real generation**: put a real key in a channel (only in app settings — never in the repo or pasted into chat). Use desktop dev (Rust-side HTTP) or a browser with the local proxy `npx @basketikun/canvas-proxy@latest`. Expected: one image on the canvas, a task record in the ledger, and no key in that record.
+2. **Bad key**: switch the channel to an invalid key and generate. Expected: HTTP 401, no task id, no half-written ledger record.
+3. **Cancel mid-generation**: hit stop right after sending. Expected: the task id is kept, the task is judged "needs confirmation", and no "confirm and resend" style prompt appears.
+4. **Channel egress mode**: switch between "follow local proxy / direct" in the channel drawer and generate with each. Expected: the actual request path matches the choice.
+
+Pass criteria: one real image; the failure paths (bad key, cancel mid-generation) carry correct semantics; the ledger is complete and contains no key.
+
 ## Canvas agent: three permission levels and paid-action confirmation (pending user verification)
 
 - The permission menu at the bottom-right of the agent composer existed but was never wired up. It now works, and all three levels — `Ask for approval`, `Automatic review`, `Full access` — apply to canvas operations.
