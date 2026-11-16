@@ -9,7 +9,10 @@ The current release needs manual verification in these areas:
 
 ## M2 real-machine closure checklist (for the user to run)
 
-Corresponds to the M2 gate in `mature-product-plan.mdx`; run each item and fill the result in here. **Everything in this section is currently unverified.**
+Corresponds to the M2 gate in `mature-product-plan.mdx`; run each item and fill the result in here.
+
+- **Verified on the desktop build** (user ran it on a real machine, 2026-11-16, local proxy off): one real image ("completed", 13.5s, 1 request, 1 result); bad key failed in 0.2s with no image, judged "needs confirmation" with **no task id**; cancelling mid-generation failed after 3.1s, judged "needs confirmation" with the **task id kept** for checking against the provider console; switching back to a valid key generated normally.
+- **Not verified**: the browser comparison of "follow local proxy / direct" request paths (the desktop build sends requests from Rust, so `proxyMode` makes no difference there); a record-by-record check that the ledger contains no key text.
 
 1. **Real generation**: put a real key in a channel (only in app settings — never in the repo or pasted into chat). Use desktop dev (Rust-side HTTP) or a browser with the local proxy `npx @basketikun/canvas-proxy@latest`. Expected: one image on the canvas, a task record in the ledger, and no key in that record.
 2. **Bad key**: switch the channel to an invalid key and generate. Expected: HTTP 401, no task id, no half-written ledger record.
@@ -27,6 +30,14 @@ Pass criteria: one real image; the failure paths (bad key, cancel mid-generation
 - Automated: typecheck, 50 files / 711 cases, domain boundary check, production build and the three-viewport overflow check pass. 25 new cases (`agent-permissions.test.ts` — 20 pinning the three-level table and that confirmation replays only the pending part; `agent-permission-persist.test.ts` — 5 pinning the default, stale-value fallback and that a failed write still applies in-session), all checked destructively (reverting the replay list to "all" turns 3 cases red; dropping the stale-value guard turns the fallback case red).
 - **Verified in browser**: the three menu entries and their descriptions render, picking `Ask for approval` updates the label, `localStorage` gets `request`, `Full access` survives a reload, and the dropdown stays inside the viewport at both 1440 and 390.
 - **Not verified**: a real `run_generation` confirmation card driven by a connected local agent (needs a local agent and a real key; no provider request was sent this round), and the cost estimate against an actual charge (depends on the channel unit price).
+
+## Canvas failure nodes stop offering retry when the order may already be placed (pending user verification)
+
+- The canvas node's retry entry (the error card and the hover toolbar item) now consults the task outcome first. When `readTaskOutcome()` says `confirm` — submission uncertain, local save failed, or upstream accepted the order but no result arrived — the node shows a note to check the task id in the task center instead of a retry button; the retry handler re-checks the same flag, so a bypass cannot quietly submit a fresh order.
+- Rate limits, 5xx and other failures that never reached the provider still offer retry as before.
+- Automated: typecheck, 51 files / 716 cases, domain boundary check and production build pass. 5 new cases (`lib/canvas/task-retry-guard.test.ts`) pin the three confirm blocks plus the rate-limit / 5xx / plain-error passes, checked destructively (treating every task error as blocked turns the rate-limit case red).
+- **Verified on the desktop build** (2026-11-16): a failure produced by a bad key shows only the red message and the "check the task id in the task center" note — no retry button on the card and no retry item in the hover toolbar; switching back to a valid key generated normally.
+- **Not verified**: the same behaviour for submission uncertainty created by a dropped connection.
 
 ## Image presets: three-view / storyboard / multi-camera (pending user verification)
 

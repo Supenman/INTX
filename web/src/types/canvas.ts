@@ -50,6 +50,8 @@ export type CanvasNodeMetadata = {
     prompt?: string;
     status?: CanvasNodeStatus;
     errorDetails?: string;
+    /** 失败这单被判「需先确认」（可能已收单）：不给重试入口，避免点一下再扣一次钱。 */
+    retryBlocked?: boolean;
     fontSize?: number;
     generationMode?: CanvasGenerationMode;
     generationType?: CanvasImageGenerationType;

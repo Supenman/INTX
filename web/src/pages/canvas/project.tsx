@@ -79,6 +79,7 @@ import {
     resolveMetadataReferences,
     sourceNodeReferenceImages,
 } from "@/lib/canvas/canvas-generation-helpers";
+import { retryBlockedByError } from "@/lib/canvas/task-retry-guard";
 import { getNodeDefinition, isBuiltinNodeType as isBuiltinType, useNodeRegistryVersion } from "@/lib/canvas/node-registry";
 import { registerBuiltinNodes } from "@/components/canvas/nodes/builtin-nodes";
 import { CanvasPluginManagerModal } from "@/components/canvas/canvas-plugin-manager-modal";
@@ -397,6 +398,7 @@ function InfiniteCanvasPage() {
                                       ...item.metadata,
                                       status: item.metadata?.content ? NODE_STATUS_SUCCESS : NODE_STATUS_ERROR,
                                       errorDetails: item.metadata?.content ? undefined : errorDetails,
+                                      retryBlocked: retryBlockedByError(error) || undefined,
                                       ...(isVideoTaskFailed(error) ? { videoTaskId: undefined } : {}),
                                   },
                               }
@@ -2100,7 +2102,7 @@ function InfiniteCanvasPage() {
                 if (isGenerationCanceled(error)) return;
                 const errorDetails = error instanceof Error ? error.message : t("canvas.projectPage.maskFailed");
                 message.error(errorDetails);
-                setNodes((prev) => prev.map((item) => (item.id === childId ? { ...item, metadata: { ...item.metadata, status: NODE_STATUS_ERROR, errorDetails } } : item)));
+                setNodes((prev) => prev.map((item) => (item.id === childId ? { ...item, metadata: { ...item.metadata, status: NODE_STATUS_ERROR, errorDetails, retryBlocked: retryBlockedByError(error) || undefined } } : item)));
             } finally {
                 finishGenerationRequest(childId, controller);
                 setRunningNodeId(null);
@@ -2180,7 +2182,7 @@ function InfiniteCanvasPage() {
             } catch (error) {
                 if (isGenerationCanceled(error)) return;
                 const errorDetails = error instanceof Error ? error.message : t("canvas.projectPage.generationFailed");
-                setNodes((prev) => prev.map((item) => (item.id === childId ? { ...item, metadata: { ...item.metadata, status: NODE_STATUS_ERROR, errorDetails } } : item)));
+                setNodes((prev) => prev.map((item) => (item.id === childId ? { ...item, metadata: { ...item.metadata, status: NODE_STATUS_ERROR, errorDetails, retryBlocked: retryBlockedByError(error) || undefined } } : item)));
             } finally {
                 finishGenerationRequest(childId, controller);
                 setRunningNodeId(null);
@@ -2263,7 +2265,7 @@ function InfiniteCanvasPage() {
                     // 用户取消就停手：后面几张还没买，不该继续花。
                     if (isGenerationCanceled(error)) break;
                     const errorDetails = error instanceof Error ? error.message : t("canvas.projectPage.generationFailed");
-                    setNodes((prev) => prev.map((item) => (item.id === childId ? { ...item, metadata: { ...item.metadata, status: NODE_STATUS_ERROR, errorDetails } } : item)));
+                    setNodes((prev) => prev.map((item) => (item.id === childId ? { ...item, metadata: { ...item.metadata, status: NODE_STATUS_ERROR, errorDetails, retryBlocked: retryBlockedByError(error) || undefined } } : item)));
                 } finally {
                     finishGenerationRequest(childId, controller);
                     setRunningNodeId(null);
@@ -2488,7 +2490,7 @@ function InfiniteCanvasPage() {
                     if (!isGenerationCanceled(error)) {
                         const errorDetails = error instanceof Error ? error.message : t("canvas.projectPage.generationFailed");
                         message.error(errorDetails);
-                        setNodes((prev) => prev.map((node) => (node.id === nodeId ? { ...node, metadata: { ...node.metadata, status: NODE_STATUS_ERROR, errorDetails } } : node)));
+                        setNodes((prev) => prev.map((node) => (node.id === nodeId ? { ...node, metadata: { ...node.metadata, status: NODE_STATUS_ERROR, errorDetails, retryBlocked: retryBlockedByError(error) || undefined } } : node)));
                     }
                 } finally {
                     finishGenerationRequest(nodeId, controller);
@@ -2600,6 +2602,7 @@ function InfiniteCanvasPage() {
                     const controller = rootId === nodeId ? runController : startGenerationRequest(rootId, nodeId, nodeId, runController);
                     let hasSuccess = false;
                     let hasFailure = false;
+                    let hasConfirm = false;
                     let firstError = "";
                     await runImageSlots({
                         count: imageIds.length,
@@ -2645,6 +2648,7 @@ function InfiniteCanvasPage() {
                             const errorDetails = outcome.error instanceof Error ? outcome.error.message : t("canvas.projectPage.generationFailed");
                             if (!firstError) firstError = errorDetails;
                             hasFailure = true;
+                            if (retryBlockedByError(outcome.error)) hasConfirm = true;
                             const imageId = imageIds[outcome.index];
                             setNodes((prev) => prev.map((node) => (node.id === rootId ? { ...node, metadata: { ...node.metadata, images: node.metadata?.images?.map((image) => (image.id === imageId ? { ...image, status: NODE_STATUS_ERROR, errorDetails } : image)) } } : node)));
                         },
@@ -2662,7 +2666,7 @@ function InfiniteCanvasPage() {
                             node.id === nodeId && isConfigNode
                                 ? { ...node, metadata: { ...node.metadata, status: hasSuccess ? NODE_STATUS_SUCCESS : NODE_STATUS_ERROR, errorDetails: hasSuccess ? undefined : t("canvas.projectPage.generationFailed") } }
                                 : node.id === rootId
-                                  ? { ...node, metadata: { ...node.metadata, status: hasSuccess ? NODE_STATUS_SUCCESS : NODE_STATUS_ERROR, errorDetails: hasSuccess ? undefined : t("canvas.projectPage.allFailed") } }
+                                  ? { ...node, metadata: { ...node.metadata, status: hasSuccess ? NODE_STATUS_SUCCESS : NODE_STATUS_ERROR, errorDetails: hasSuccess ? undefined : t("canvas.projectPage.allFailed"), retryBlocked: hasSuccess ? undefined : hasConfirm || undefined } }
                                     : node,
                         ),
                     );
@@ -2881,6 +2885,7 @@ function InfiniteCanvasPage() {
                                           ...node.metadata,
                                           status: NODE_STATUS_ERROR,
                                           errorDetails,
+                                          retryBlocked: retryBlockedByError(error) || undefined,
                                           ...(isVideoTaskFailed(error) && node.type === CanvasNodeType.Video ? { videoTaskId: undefined } : {}),
                                       },
                                   }
@@ -2902,6 +2907,11 @@ function InfiniteCanvasPage() {
         async (node: CanvasNodeData, imageId?: string) => {
             if (hasResumableVideoTask(node)) {
                 await pollVideoNodeTask(node);
+                return;
+            }
+            // 这一单可能已经收单：重试等于新提交一张、再扣一次钱，旧单只能去任务中心核对任务号。
+            if (node.metadata?.retryBlocked) {
+                message.warning(t("canvas.node.retryBlockedHint"));
                 return;
             }
             const sourceNode = findRetrySourceNode(node.id, nodesRef.current, connectionsRef.current) || node;
@@ -3035,6 +3045,7 @@ function InfiniteCanvasPage() {
                                       ...item.metadata,
                                       status: item.metadata?.content ? NODE_STATUS_SUCCESS : NODE_STATUS_ERROR,
                                       errorDetails: item.metadata?.content ? undefined : errorDetails,
+                                      retryBlocked: retryBlockedByError(error) || undefined,
                                       images: item.metadata?.images?.map((image) => (image.id === imageId ? { ...image, status: NODE_STATUS_ERROR, errorDetails } : image)),
                                       ...(isVideoTaskFailed(error) && item.type === CanvasNodeType.Video ? { videoTaskId: undefined } : {}),
                                   },

@@ -119,7 +119,8 @@ export function CanvasNodeHoverToolbar({
     const hasAudio = isAudio && Boolean(node.metadata?.content);
     const isText = node.type === CanvasNodeType.Text;
     const isConfig = node.type === CanvasNodeType.Config;
-    const canRetry = node.metadata?.status === "error" && !(isVideo && Boolean(node.metadata?.videoTaskId) && !hasVideo);
+    // 已收单/需先确认的失败不给重试入口：点一下就是新提交一单（见 lib/canvas/task-retry-guard.ts）。
+    const canRetry = node.metadata?.status === "error" && !node.metadata?.retryBlocked && !(isVideo && Boolean(node.metadata?.videoTaskId) && !hasVideo);
     const canQueryVideoTask = isVideo && Boolean(node.metadata?.videoTaskId) && !hasVideo && node.metadata?.status !== "loading";
     const quickImageToolIdSet = new Set(quickImageToolIds);
     const copyImagePrompt = (target: CanvasNodeData) => {
