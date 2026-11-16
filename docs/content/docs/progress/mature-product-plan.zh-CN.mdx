@@ -6,6 +6,8 @@ description: 参考 BeefTV 2.2.5、OpenDirector、hero8152 三个源码库，规
 # 成熟产品实施计划（v2）
 
 > 2026-11-16 修订。旧版计划写于 React Flow 旧线；主线已切换为 `intx-next`（infinite-canvas v0.20.0 基座 + 嫁接的 INTX domain），本版按新基座与三个参考源码重写。
+>
+> 2026-11-17 更新：确定只以桌面版交付，浏览器降为开发/自动检查通道；新增 M2.5 架构底座，排在 M3 之前。
 
 ## 0. 参考库与许可边界（决定"能不能抄"）
 
@@ -18,7 +20,23 @@ description: 参考 BeefTV 2.2.5、OpenDirector、hero8152 三个源码库，规
 
 复用顺序固定为：**我们已有实现 → 现有依赖 → OpenDirector（Apache 可抄）→ BeefTV/hero 行为参考 → 自己写**。
 
-## 1. 当前基线（2026-11-16，按验证方式标注）
+## 1. 产品形态与双端边界（2026-11-17 定）
+
+**只以桌面版交付**（Tauri，Windows 优先）。同一份 `web/` 前端既是桌面应用内嵌的页面，也是开发与自动检查的通道。
+
+| 形态 | 地位 | 说明 |
+| --- | --- | --- |
+| 桌面版（Tauri） | 唯一对外产品、唯一验收口径 | 承载全部用户功能 |
+| 浏览器 | 开发调试 + 自动检查通道 | `vite dev` 被 `tauri dev` 复用；`vite build` 产物被桌面内嵌；Playwright 窄屏检查跑在 Chromium。不作为发布物，不承诺用户体验 |
+| Docker / Vercel / Render 部署链 | 暂留，待删 | 在 Windows 安装包真机验证通过前保留，作为唯一免安装通道；通过后整体移除 |
+
+边界规则：
+
+- **不加项目后端**：厂商请求由前端发出——桌面端经 Rust 侧 HTTP，浏览器端经本地代理。这是「本地优先」的产品性格，不是临时状态。
+- **不做双端对等**：不为浏览器维护第二套行为。只在浏览器存在的能力（本地代理开关、手填 Agent 连接）降为开发通道使用，不再作为对外功能说明。
+- **平台判断只允许出现在能力适配层**（M2.5 落地后为 `web/src/lib/runtime/`），业务代码不写 `isDesktopApp`。
+
+## 2. 当前基线（2026-11-16，按验证方式标注）
 
 ### 已验证
 
@@ -28,10 +46,12 @@ description: 参考 BeefTV 2.2.5、OpenDirector、hero8152 三个源码库，规
 | Tauri 桌面壳、启动自动连接本地 Agent | 用户真机确认（dev 窗口与 `--no-bundle` release exe） |
 | 本地 Agent（opencode 单车道）、模型选择、Skill 列表 | 单测 + 浏览器/桌面实测（用户确认一轮对话） |
 | 任务中心页、费用预估、生成历史回填、窄屏收口 | 本次交付：tsc/单测/构建 + 浏览器 375/768 实测 |
+| 真实厂商出图（ModelScope，桌面版，未开本地代理） | 2026-11-16 用户真机：出图 1 张、台账「已完成」；Key 错误与生成中取消的三态语义正确（明细见 `pending-test`） |
+| 失败节点不再引导重发 | 2026-11-16 用户真机：Key 错误节点只显示提示，无重试入口 |
 
 ### 未验证（不得写成通过）
 
-- **真实厂商出图/出视频：零真实请求**。ModelScope 异步链路代码已就绪，但未真机出图。
+- 浏览器 + 本地代理的出图路径：未单独对照（桌面端已验，浏览器代理路径未验）。
 - 安装包（MSI / NSIS）、SmartScreen、WebView2。
 - 视频链路真机；时间线/导出尚未开始。
 
@@ -39,21 +59,45 @@ description: 参考 BeefTV 2.2.5、OpenDirector、hero8152 三个源码库，规
 
 - 本环境 antd 离场动画会停在 `ant-zoom-leave`，弹窗/抽屉关闭需"关闭即卸载"模式；其他存量弹窗需逐个确认。
 - 浏览器直连 ModelScope 受 CORS 限制：需本地代理，或走桌面端 Rust 侧 HTTP。
+- 22 个厂商请求发起点里只有 ModelScope 的 4 处真正走 Rust；其余 18 处（image / video / audio / model-plugin 等）两端都在 WebView 里发，所以「桌面端无 CORS」目前只对 ModelScope 成立。M2.5 收口。
+- 渠道级「直连上游」只对 ModelScope 生效：`buildApiUrl` 的 5 个调用方都没有把渠道 `proxyMode` 传下去。M2.5 修复。
+- `exportAppConfig()` 会把 `channels[].apiKey` 与 WebDAV 密码原样明文写进导出文件。M2.5 修复。
+- CI 的 `checks.yml` 只跑 45 个文件 / 666 个用例，`image.test.ts`、`channel-proxy-mode.test.ts`、`agent-permissions.test.ts` 不在门禁内。M2.5 改为全量。
 
-## 2. 里程碑
+## 3. 里程碑
 
 ### M1 体验与治理面（已完成）
 
 任务中心（四态筛选/详情/诊断导出/红线提示）、生成前费用预估（渠道单价）、生成历史回填画布、窄屏收口。
 
-### M2 真机闭环（门槛，唯一尚未通过的"真能用"证明）
+### M2 真机闭环（已完成，2026-11-16 用户真机）
 
-1. ModelScope 出图：桌面 dev 版（Rust 侧 HTTP）或浏览器 + 本地代理，配真实 Key 出一次图。
+1. ModelScope 出图：桌面版（Rust 侧 HTTP，未开本地代理）真实出图 1 张。
 2. 失败注入：Key 错误 → HTTP 401 且无任务号；生成中取消 → 保留任务号、判「需先确认」，不得引导重发。
 3. 参考 OpenDirector `src/backend/models.ts` 的 `proxyMode: "system" | "direct"`，在渠道配置里增加直连/代理选择（行为参考即可，代码可借）。
-4. 验收清单文档化（配置步骤、预期现象、失败排查），由用户执行并回填结果。
+4. 验收清单文档化，已由用户执行并回填到 `pending-test`。
 
-**通过标准**：真实出图 1 张；三类失败路径语义正确；台账记录完整且不含 Key。
+**通过标准**：已达成。浏览器 + 本地代理的对照路径记为「未验证」，不作为 M2 前置；仅浏览器生效的实现细节由 M2.5 收口。
+
+### M2.5 架构底座（在 M3 之前）
+
+目标：把「双端怎么收口」一次做完，使 M3 之后每加一个网络功能只改一处、只验桌面。
+
+1. **修两个现存缺陷**（已实现，待真机确认）
+   - 渠道 `proxyMode` 未透传：`buildApiUrl` 的 5 个调用方（`audio.ts:13`、`image.ts:329`、`image.ts:994`、`video.ts:43`、`model-plugin.ts:44`）都没把渠道值传下去，导致「直连上游」只对 ModelScope 生效。
+   - 配置导出含明文密钥：`config-file.ts` 的 `exportAppConfig()` 原样导出 `channels[].apiKey` 与 `webdav.password`。
+2. **网络出口收口**（9–13 天，代码已完成、待真机确认：`capabilities.ts` 与 `ProviderTransport`（含 `blob()`）已落地，图片、模型列表、视频、音频、脚本插件、Prompt 源与 ModelScope 全部迁移；边界检查脚本已拦截 axios / `plugin-http` / 裸 `fetch`。剩余的是真机验证：非 ModelScope 渠道出图/出片、脚本与 Prompt 源的桌面端请求、真实断网重试）
+   - 新增 `web/src/lib/runtime/capabilities.ts` 作为唯一平台判断点。
+   - 把 `ModelScopeTransport` 提升为通用 `ProviderTransport`（request / stream / blob），两套实现：桌面走 `@tauri-apps/plugin-http`，浏览器走原生 fetch + `withLocalProxy`。
+   - 22 个厂商请求发起点全部改走它；provider 层禁止直接使用 axios / fetch / `@tauri-apps`，由边界检查脚本拦截。
+   - 收口后「桌面端无 CORS」对所有厂商成立，`proxyMode` 降为浏览器开发通道的实现细节。
+3. **桌面最小能力**（4–6 天）
+   - 原生另存为，替换 `file-saver` 直落下载，并让「导出成功」可确认而不是无脑提示。
+   - Windows 未签名安装包（NSIS/MSI）构建并真机安装。
+
+**通过标准**：`pnpm exec vitest run src` 全量绿并作为 CI 门禁；至少一个非 ModelScope 厂商在桌面端不开本地代理能发出请求；导出的配置文件不含任何 Key；安装包在干净 Windows 上装得上、打得开。
+
+**顺序约束**：M2.5 完成前不启动 M3 功能；网页部署链只有在第 3 项安装包验证通过后才可删除。
 
 ### M3 复用与助手（OpenDirector 首批移植）
 
@@ -70,7 +114,7 @@ description: 参考 BeefTV 2.2.5、OpenDirector、hero8152 三个源码库，规
 2. **媒体加工链**：截首/尾/当前帧、音视频分离、宫格拆图、超分、调色、合并（BeefTV 行为参考，已有部分）。
 3. **分镜流水线**：脚本行 → 镜头节点 → 批量生成与成本 → 成片（BeefTV 行为参考）。
 4. **项目库运营**：文件夹、回收站、导入/导出、批量关联。
-5. **安装包**：MSI/NSIS 构建与真机安装，覆盖 SmartScreen / WebView2 验证。
+5. **签名与更新**：代码签名（Authenticode）与自动更新源。安装包本体已在 M2.5 完成，这里补的是分发质量。
 
 **通过标准**：时间线能导出可播放 MP4；安装包在干净 Windows 环境装、开、用、升级。
 
@@ -78,7 +122,7 @@ description: 参考 BeefTV 2.2.5、OpenDirector、hero8152 三个源码库，规
 
 技能体系、插件市场、模板沉淀、LOD 与大画布性能——只在出现真实需求或测得瓶颈后启动。
 
-## 3. 移植义务清单（Apache-2.0）
+## 4. 移植义务清单（Apache-2.0）
 
 每移植一块 OpenDirector 代码：
 
@@ -87,9 +131,10 @@ description: 参考 BeefTV 2.2.5、OpenDirector、hero8152 三个源码库，规
 3. 依赖变化登记到 CHANGELOG；MPL 依赖不修改源码。
 4. 改写成 intx-next 的结构（基座风格、i18n、tokens），不原样贴 React Flow 组件。
 
-## 4. 纪律（沿用并强化）
+## 5. 纪律（沿用并强化）
 
 - 测试绿 ≠ 真机通过；没验的写「未验证」及原因。
+- 桌面端是唯一验收口径；浏览器只用于开发与自动检查，不作为通过依据。
 - 三态不可退化：已收单一律 `confirm`，不在失败卡片引导重发。
 - 任何 Key 不写进文件；未经同意不发真实请求。
 - 新增边界值（超时/重试/上限）先向用户说明并确认。

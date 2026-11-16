@@ -1,7 +1,6 @@
-import axios from "axios";
 
 import i18n from "@/i18n";
-import { buildApiUrl, resolveModelRequestConfig, resolveModelScript, withLocalProxy, type AiConfig, type ModelChannel } from "@/stores/use-config-store";
+import { buildApiUrl, resolveModelRequestConfig, resolveModelScript, type AiConfig, type ModelChannel } from "@/stores/use-config-store";
 import { normalizePluginImages, runModelPlugin } from "./model-plugin";
 import { nanoid } from "nanoid";
 import { dataUrlToFile } from "@/lib/image-utils";
@@ -23,6 +22,8 @@ import {
     type SubmitHooks,
 } from "@/services/generation";
 import { createModelScopeTransport } from "./modelscope-transport";
+import { readApiErrorMessage } from "./provider-errors";
+import { assertProviderOk, createProviderTransport, ProviderHttpError, ProviderTransportError, type ProviderResponse } from "./provider-transport";
 import { resolveImageCapabilities } from "@/domain/provider/imageCapabilities";
 
 const apiText = (key: string, options?: Record<string, unknown>) => i18n.t(`apiErrors.${key}`, options);
@@ -260,52 +261,13 @@ function parseImagePayload(payload: ImageApiResponse) {
     return images;
 }
 
-function readApiErrorMessage(value: unknown): string {
-    if (!value) return "";
-    if (typeof value === "string") {
-        // The value may be serialized JSON, such as error.message, or a plain-text error.
-        try {
-            const parsed = JSON.parse(value);
-            const inner = readApiErrorMessage(parsed) || value;
-            // Treat an empty parsed object such as "{}" as having no useful message.
-            if (inner === value && typeof parsed === "object" && Object.keys(parsed).length === 0) return "";
-            return inner;
-        } catch {
-            // Detect HTML error pages.
-            if (/<[a-z][\s\S]*>/i.test(value)) return apiText("htmlError", { preview: `${value.slice(0, 80)}...` });
-            return value;
-        }
-    }
-    if (typeof value !== "object") return "";
-    const payload = value as { msg?: unknown; message?: unknown; error?: unknown; detail?: unknown };
-    // error may be a string or an object containing a message.
-    const errorMsg =
-        typeof payload.error === "string"
-            ? payload.error
-            : (payload.error as { message?: unknown })?.message;
-    return (
-        readApiErrorMessage(payload.msg) ||
-        readApiErrorMessage(payload.message) ||
-        readApiErrorMessage(errorMsg) ||
-        readApiErrorMessage(payload.detail) ||
-        ""
-    );
-}
 
-function readAxiosError(error: unknown, fallback: string) {
-    if (axios.isCancel(error)) return apiText("requestCanceled");
-    if (axios.isAxiosError(error)) {
-        if (error.code === "ECONNABORTED" || error.code === "ETIMEDOUT") return apiText("imageTimeout");
-        if (!error.response && error.code === "ERR_NETWORK") return apiText("requestFailed");
-        const responseData = error.response?.data;
-        // Prefer the API error from the response body.
-        const apiMsg = readApiErrorMessage(responseData);
-        if (apiMsg) return apiMsg;
-        // Infer the error from the HTTP status when the response body has no usable message.
-        const statusMsg = readStatusError(error.response?.status, fallback);
-        if (statusMsg) return statusMsg;
-        // Fall back to Axios's own error message.
-        return error.message || fallback;
+function readRequestError(error: unknown, fallback: string) {
+    // 传输层只把「没拿到 HTTP 响应」的情况抛到这里；有状态码的走 ProviderHttpError。
+    if (error instanceof ProviderTransportError) {
+        if (error.kind === "aborted") return apiText("requestCanceled");
+        if (error.kind === "timeout") return apiText("imageTimeout");
+        return apiText("requestFailed");
     }
     if (error instanceof DOMException && error.name === "AbortError") return apiText("requestCanceled");
     return error instanceof Error ? readApiErrorMessage(error.message) || error.message : fallback;
@@ -320,13 +282,27 @@ function readStatusError(status: number | undefined, fallback: string) {
     return status ? apiText("httpFailed", { status }) : fallback;
 }
 
+/** 非 2xx 直接抛；正文里的厂商错误优先，和原来 axios 抛错的语义一致。 */
+async function assertResponseOk(response: ProviderResponse, fallback: string) {
+    await assertProviderOk(response, (text) => {
+        let data: unknown = text;
+        try {
+            data = JSON.parse(text);
+        } catch {
+            // 纯文本错误页，交给 readApiErrorMessage 截断
+        }
+        return readApiErrorMessage(data) || readStatusError(response.status, fallback);
+    });
+}
+
 function withSystemPrompt(config: AiConfig, prompt: string) {
     const systemPrompt = config.systemPrompt.trim();
     return systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt;
 }
 
+/** 完整厂商地址；本地代理前缀由 ProviderTransport 按出网方式加，这里不加。 */
 function aiApiUrl(config: AiConfig, path: string) {
-    return buildApiUrl(config.baseUrl, path);
+    return buildApiUrl(config.baseUrl, path, "direct");
 }
 
 function aiHeaders(config: AiConfig, contentType?: string) {
@@ -348,8 +324,8 @@ function geminiModelName(model: string) {
 
 function geminiApiUrl(config: Pick<AiConfig, "baseUrl" | "model">, action?: "generateContent" | "streamGenerateContent") {
     const baseUrl = geminiBaseUrl(config);
-    if (!action) return withLocalProxy(`${baseUrl}/models`);
-    return withLocalProxy(`${baseUrl}/models/${encodeURIComponent(geminiModelName(config.model))}:${action}`);
+    if (!action) return `${baseUrl}/models`;
+    return `${baseUrl}/models/${encodeURIComponent(geminiModelName(config.model))}:${action}`;
 }
 
 function geminiHeaders(config: Pick<AiConfig, "apiKey">) {
@@ -485,8 +461,9 @@ function consumeResponseStreamText(state: ResponseStreamState, text: string, onD
 }
 
 async function requestStreamingResponse(config: AiConfig, body: Record<string, unknown>, onDelta?: (text: string) => void, options?: RequestOptions): Promise<ToolResponseResult> {
-    const response = await fetch(aiApiUrl(config, "/responses"), {
+    const response = await createProviderTransport(config.proxyMode).stream({
         method: "POST",
+        url: aiApiUrl(config, "/responses"),
         headers: { ...aiHeaders(config, "application/json"), Accept: "text/event-stream" },
         body: JSON.stringify({ ...body, stream: true }),
         signal: options?.signal,
@@ -592,8 +569,9 @@ function toGeminiToolOptions(tools: ResponseFunctionTool[], toolChoice: ToolChoi
 }
 
 async function requestGeminiStreamingResponse(config: AiConfig, body: Record<string, unknown>, onDelta?: (text: string) => void, options?: RequestOptions): Promise<ToolResponseResult> {
-    const response = await fetch(`${geminiApiUrl(config, "streamGenerateContent")}?alt=sse`, {
+    const response = await createProviderTransport(config.proxyMode).stream({
         method: "POST",
+        url: `${geminiApiUrl(config, "streamGenerateContent")}?alt=sse`,
         headers: geminiHeaders(config),
         body: JSON.stringify(body),
         signal: options?.signal,
@@ -679,15 +657,19 @@ async function requestGeminiImagesOnce(config: AiConfig, prompt: string, referen
     for (const image of references) {
         parts.push(toGeminiImagePart(await imageToDataUrl(image)));
     }
-    const response = await axios.post<GeminiPayload>(
-        geminiApiUrl(config, "generateContent"),
-        {
+    const response = await createProviderTransport(config.proxyMode).request({
+        method: "POST",
+        url: geminiApiUrl(config, "generateContent"),
+        headers: geminiHeaders(config),
+        body: JSON.stringify({
             ...toGeminiBody(config, [{ role: "user", content: prompt }], { generationConfig: { responseModalities: ["TEXT", "IMAGE"], ...resolveGeminiImageConfig(config) } }),
             contents: [{ role: "user", parts }],
-        },
-        { headers: geminiHeaders(config), signal: options?.signal, timeout: IMAGE_REQUEST_TIMEOUT_MS },
-    );
-    return parseGeminiImagePayload(response.data);
+        }),
+        timeoutMs: IMAGE_REQUEST_TIMEOUT_MS,
+        signal: options?.signal,
+    });
+    await assertResponseOk(response, apiText("requestFailed"));
+    return parseGeminiImagePayload((await response.json()) as GeminiPayload);
 }
 
 function parseGeminiImagePayload(payload: GeminiPayload) {
@@ -803,23 +785,25 @@ async function requestGenerationRaw(config: AiConfig, prompt: string, options?: 
             });
             return normalizePluginImages(result).map((dataUrl) => ({ id: nanoid(), dataUrl }));
         } catch (error) {
-            throw new Error(readAxiosError(error, apiText("requestFailed")));
+            throw new Error(readRequestError(error, apiText("requestFailed")));
         }
     }
     if (requestConfig.apiFormat === "gemini") {
         try {
             return await requestGeminiImages(requestConfig, prompt, [], n, options);
         } catch (error) {
-            throw new Error(readAxiosError(error, apiText("requestFailed")));
+            throw new Error(readRequestError(error, apiText("requestFailed")));
         }
     }
     const quality = capabilities.quality === "supported" ? normalizeQuality(config.quality) : undefined;
     const requestSize = capabilities.size === "supported" ? resolveRequestSize(config.size) : undefined;
     const background = capabilities.background === "supported" ? normalizeBackground(config.background) : undefined;
     try {
-        const response = await axios.post<ImageApiResponse>(
-            aiApiUrl(requestConfig, "/images/generations"),
-            {
+        const response = await createProviderTransport(requestConfig.proxyMode).request({
+            method: "POST",
+            url: aiApiUrl(requestConfig, "/images/generations"),
+            headers: aiHeaders(requestConfig, "application/json"),
+            body: JSON.stringify({
                 model: requestConfig.model,
                 prompt: withSystemPrompt(requestConfig, prompt),
                 n,
@@ -829,24 +813,23 @@ async function requestGenerationRaw(config: AiConfig, prompt: string, options?: 
                 // gpt-image models reject response_format; they always return b64.
                 ...(/gpt-image/.test(requestConfig.model) ? {} : { response_format: "b64_json" }),
                 output_format: IMAGE_OUTPUT_FORMAT,
-            },
-            {
-                headers: aiHeaders(requestConfig, "application/json"),
-                signal: options?.signal,
-                timeout: IMAGE_REQUEST_TIMEOUT_MS,
-            },
-        );
+            }),
+            timeoutMs: IMAGE_REQUEST_TIMEOUT_MS,
+            signal: options?.signal,
+        });
+        await assertResponseOk(response, apiText("requestFailed"));
+        const payload = (await response.json()) as ImageApiResponse;
         // HTTP 2xx 但没有任何图：上游已经收单、可能已计费。ModelScope 端点就地
         // 查这一单取图；其他厂商留任务号判 confirm，绝不落回「空结果 → 原样重试」。
-        if (classifyImagePayload(response.data) === "pending") {
-            return await recoverSubmittedModelScope(requestConfig, response.data, options, hooks);
+        if (classifyImagePayload(payload) === "pending") {
+            return await recoverSubmittedModelScope(requestConfig, payload, options, hooks);
         }
-        const images = await parseImagePayload(response.data);
+        const images = await parseImagePayload(payload);
         return images;
     } catch (error) {
         if (error instanceof ProviderResultPendingError || error instanceof TaskPersistenceError) throw error;
-        const status = axios.isAxiosError(error) ? error.response?.status : undefined;
-        const message = readAxiosError(error, apiText("requestFailed"));
+        const status = error instanceof ProviderHttpError ? error.status : undefined;
+        const message = readRequestError(error, apiText("requestFailed"));
         // 保留状态码线索，domain 的 normalizeError 才能识别 401/429/451/5xx
         throw new Error(status ? `HTTP ${status}: ${message}` : message);
     }
@@ -889,14 +872,14 @@ async function requestEditRaw(config: AiConfig, prompt: string, references: Refe
             });
             return normalizePluginImages(result).map((dataUrl) => ({ id: nanoid(), dataUrl }));
         } catch (error) {
-            throw new Error(readAxiosError(error, apiText("requestFailed")));
+            throw new Error(readRequestError(error, apiText("requestFailed")));
         }
     }
     if (requestConfig.apiFormat === "gemini") {
         try {
             return await requestGeminiImages(requestConfig, requestPrompt, references, n, options);
         } catch (error) {
-            throw new Error(readAxiosError(error, apiText("requestFailed")));
+            throw new Error(readRequestError(error, apiText("requestFailed")));
         }
     }
 
@@ -926,18 +909,27 @@ async function requestEditRaw(config: AiConfig, prompt: string, references: Refe
     files.forEach((file) => formData.append(imageField, file));
 
     try {
-        const response = await axios.post<ImageApiResponse>(aiApiUrl(requestConfig, "/images/edits"), formData, { headers: aiHeaders(requestConfig), signal: options?.signal, timeout: IMAGE_REQUEST_TIMEOUT_MS });
+        const response = await createProviderTransport(requestConfig.proxyMode).request({
+            method: "POST",
+            url: aiApiUrl(requestConfig, "/images/edits"),
+            headers: aiHeaders(requestConfig),
+            body: formData,
+            timeoutMs: IMAGE_REQUEST_TIMEOUT_MS,
+            signal: options?.signal,
+        });
+        await assertResponseOk(response, apiText("requestFailed"));
+        const payload = (await response.json()) as ImageApiResponse;
         // HTTP 2xx 但没有任何图：上游已经收单、可能已计费。ModelScope 端点就地
         // 查这一单取图；其他厂商留任务号判 confirm，绝不落回「空结果 → 原样重试」。
-        if (classifyImagePayload(response.data) === "pending") {
-            return await recoverSubmittedModelScope(requestConfig, response.data, options, hooks);
+        if (classifyImagePayload(payload) === "pending") {
+            return await recoverSubmittedModelScope(requestConfig, payload, options, hooks);
         }
-        const images = await parseImagePayload(response.data);
+        const images = await parseImagePayload(payload);
         return images;
     } catch (error) {
         if (error instanceof ProviderResultPendingError || error instanceof TaskPersistenceError) throw error;
-        const status = axios.isAxiosError(error) ? error.response?.status : undefined;
-        const message = readAxiosError(error, apiText("requestFailed"));
+        const status = error instanceof ProviderHttpError ? error.status : undefined;
+        const message = readRequestError(error, apiText("requestFailed"));
         // 保留状态码线索，domain 的 normalizeError 才能识别 401/429/451/5xx
         throw new Error(status ? `HTTP ${status}: ${message}` : message);
     }
@@ -960,7 +952,7 @@ export async function requestImageQuestion(config: AiConfig, messages: AiTextMes
             if (text === apiText("noContent")) onDelta(text);
             return text;
         } catch (error) {
-            throw new Error(readAxiosError(error, apiText("requestFailed")));
+            throw new Error(readRequestError(error, apiText("requestFailed")));
         }
     }
     try {
@@ -977,36 +969,45 @@ export async function requestImageQuestion(config: AiConfig, messages: AiTextMes
         if (answer === apiText("noContent")) onDelta(answer);
         return answer;
     } catch (error) {
-        throw new Error(readAxiosError(error, apiText("requestFailed")));
+        throw new Error(readRequestError(error, apiText("requestFailed")));
     }
 }
 
-export async function fetchImageModels(config: Pick<AiConfig, "baseUrl" | "apiKey" | "apiFormat">) {
+export async function fetchImageModels(config: Pick<AiConfig, "baseUrl" | "apiKey" | "apiFormat" | "proxyMode">) {
+    const transport = createProviderTransport(config.proxyMode);
     try {
         if (config.apiFormat === "gemini") {
-            const response = await axios.get<GeminiPayload>(geminiApiUrl({ ...defaultGeminiConfig, ...config }), { headers: geminiHeaders({ ...defaultGeminiConfig, ...config }) });
-            validateGeminiPayload(response.data);
-            return (response.data.models || [])
+            const geminiConfig = { ...defaultGeminiConfig, ...config };
+            // 读模型列表是幂等的 GET，失败可按传输层的规则重试。
+            const response = await transport.request({ method: "GET", url: geminiApiUrl(geminiConfig), headers: geminiHeaders(geminiConfig) });
+            await assertResponseOk(response, apiText("modelReadFailed"));
+            const payload = (await response.json()) as GeminiPayload;
+            validateGeminiPayload(payload);
+            return (payload.models || [])
                 .map((model) => model.name?.replace(/^models\//, ""))
                 .filter((id): id is string => Boolean(id))
                 .sort((a, b) => a.localeCompare(b));
         }
-        const response = await axios.get<{ data?: Array<{ id?: string }>; error?: { message?: string } }>(buildApiUrl(config.baseUrl, "/models"), {
+        const response = await transport.request({
+            method: "GET",
+            url: buildApiUrl(config.baseUrl, "/models", "direct"),
             headers: {
                 Authorization: `Bearer ${config.apiKey}`,
             },
         });
-        return (response.data.data || [])
+        await assertResponseOk(response, apiText("modelReadFailed"));
+        const payload = (await response.json()) as { data?: Array<{ id?: string }> };
+        return (payload.data || [])
             .map((model) => model.id)
             .filter((id): id is string => Boolean(id))
             .sort((a, b) => a.localeCompare(b));
     } catch (error) {
-        throw new Error(readAxiosError(error, apiText("modelReadFailed")));
+        throw new Error(readRequestError(error, apiText("modelReadFailed")));
     }
 }
 
 export async function fetchChannelModels(channel: ModelChannel) {
-    return fetchImageModels({ baseUrl: channel.baseUrl, apiKey: channel.apiKey, apiFormat: channel.apiFormat });
+    return fetchImageModels({ baseUrl: channel.baseUrl, apiKey: channel.apiKey, apiFormat: channel.apiFormat, proxyMode: channel.proxyMode });
 }
 
 const defaultGeminiConfig: Pick<AiConfig, "baseUrl" | "apiKey" | "apiFormat" | "model" | "systemPrompt"> = {

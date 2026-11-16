@@ -1,14 +1,26 @@
-import axios, { type AxiosRequestConfig } from "axios";
-
 import i18n from "@/i18n";
-import { buildApiUrl, withLocalProxy, type AiConfig, type ModelCapability } from "@/stores/use-config-store";
+import { buildApiUrl, type AiConfig, type ModelCapability } from "@/stores/use-config-store";
+import { readApiErrorMessage } from "./provider-errors";
+import { assertProviderOk, createProviderTransport, ProviderTransportError, type ProviderRequest, type ProviderTransport } from "./provider-transport";
 
 type RequestOptions = { signal?: AbortSignal };
+
+export type PluginResponseType = "json" | "blob" | "text" | "arraybuffer";
 
 export type PluginHttpOptions = {
     headers?: Record<string, string>;
     params?: Record<string, unknown>;
-    responseType?: "json" | "blob" | "text" | "arraybuffer";
+    responseType?: PluginResponseType;
+};
+
+/** 脚本里 `request()` 的入参，字段与原来的 axios 配置同名，脚本不用改。 */
+export type PluginRequestConfig = {
+    url: string;
+    method?: string;
+    headers?: Record<string, string>;
+    data?: unknown;
+    params?: Record<string, unknown>;
+    responseType?: PluginResponseType;
 };
 
 export type PluginHttp = {
@@ -39,37 +51,82 @@ function pluginHeaders(extra?: Record<string, string>, hasJsonBody = false): Rec
     return { ...headers, ...extra };
 }
 
+/** 完整厂商地址；本地代理前缀由传输层按渠道出网方式加。 */
 function pluginUrl(config: AiConfig, path: string) {
-    if (/^https?:/i.test(path)) return withLocalProxy(path);
-    return buildApiUrl(config.baseUrl, path.startsWith("/") ? path : `/${path}`);
+    if (/^https?:/i.test(path)) return path;
+    return buildApiUrl(config.baseUrl, path.startsWith("/") ? path : `/${path}`, "direct");
+}
+
+function withParams(url: string, params?: Record<string, unknown>) {
+    if (!params) return url;
+    const search = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+        if (value !== undefined && value !== null) search.append(key, String(value));
+    }
+    const query = search.toString();
+    return query ? `${url}${url.includes("?") ? "&" : "?"}${query}` : url;
+}
+
+/** 对象 body 交给 JSON.stringify；FormData 原样传，boundary 由浏览器补。 */
+function pluginBody(body: unknown, headers: Record<string, string>) {
+    if (body === undefined || (typeof FormData !== "undefined" && body instanceof FormData)) return body as FormData | undefined;
+    if (typeof body === "string") return body;
+    headers["Content-Type"] = headers["Content-Type"] || "application/json";
+    return JSON.stringify(body);
+}
+
+/**
+ * 一次脚本请求的返回值。非 2xx 直接抛（和原来的 axios 一致），
+ * 脚本拿不到错误体当成功结果继续跑。
+ */
+async function pluginResult(transport: ProviderTransport, request: ProviderRequest, responseType: PluginResponseType = "json") {
+    if (responseType === "blob") return transport.blob(request);
+    if (responseType === "arraybuffer") return (await transport.blob(request)).arrayBuffer();
+    const response = await transport.request(request);
+    await assertProviderOk(response, (text) => readApiErrorMessage(text) || `HTTP ${response.status}`);
+    return responseType === "text" ? response.text() : response.json();
 }
 
 function createPluginHttp(config: AiConfig, options?: RequestOptions): PluginHttp {
-    const run = async (method: "get" | "post", path: string, body: unknown, opts?: PluginHttpOptions) => {
+    const transport = createProviderTransport(config.proxyMode);
+    const run = async (method: "GET" | "POST", path: string, body: unknown, opts?: PluginHttpOptions) => {
         const isForm = typeof FormData !== "undefined" && body instanceof FormData;
-        const response = await axios.request({
-            method,
-            url: pluginUrl(config, path),
-            data: method === "post" ? body : undefined,
-            params: opts?.params,
-            headers: pluginHeaders({ Authorization: `Bearer ${config.apiKey}`, ...opts?.headers }, method === "post" && !isForm && body !== undefined),
-            responseType: opts?.responseType || "json",
-            signal: options?.signal,
-        });
-        return response.data;
+        const headers = pluginHeaders({ Authorization: `Bearer ${config.apiKey}`, ...opts?.headers }, method === "POST" && !isForm && body !== undefined);
+        return pluginResult(
+            transport,
+            {
+                method,
+                url: withParams(pluginUrl(config, path), opts?.params),
+                headers,
+                body: method === "POST" ? pluginBody(body, headers) : undefined,
+                signal: options?.signal,
+            },
+            opts?.responseType,
+        );
     };
     return {
         url: (path) => pluginUrl(config, path),
-        post: (path, body, opts) => run("post", path, body, opts),
-        get: (path, opts) => run("get", path, undefined, opts),
+        post: (path, body, opts) => run("POST", path, body, opts),
+        get: (path, opts) => run("GET", path, undefined, opts),
     };
 }
 
 /** Raw request with no automatic auth header — the script controls method, url, headers, body entirely. */
 function createPluginRequest(config: AiConfig, options?: RequestOptions) {
-    return async (requestConfig: AxiosRequestConfig & { url: string }) => {
-        const response = await axios.request({ ...requestConfig, url: pluginUrl(config, requestConfig.url), signal: options?.signal });
-        return response.data;
+    const transport = createProviderTransport(config.proxyMode);
+    return async (requestConfig: PluginRequestConfig) => {
+        const headers = { ...requestConfig.headers };
+        return pluginResult(
+            transport,
+            {
+                method: (requestConfig.method || "GET").toUpperCase() as ProviderRequest["method"],
+                url: withParams(pluginUrl(config, requestConfig.url), requestConfig.params),
+                headers,
+                body: pluginBody(requestConfig.data, headers),
+                signal: options?.signal,
+            },
+            requestConfig.responseType,
+        );
     };
 }
 
@@ -157,7 +214,8 @@ export async function runModelPlugin<T = unknown>(args: RunPluginArgs): Promise<
         );
     } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") throw error;
-        if (axios.isCancel(error)) throw error;
+        // 取消要原样抛给上层：各 service 的 readRequestError 按 kind 把它翻成「已取消」。
+        if (error instanceof ProviderTransportError && error.kind === "aborted") throw error;
         const message = error instanceof Error ? error.message : String(error);
         throw new Error(i18n.t("modelPlugin.executionFailed", { message }));
     }

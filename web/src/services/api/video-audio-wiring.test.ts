@@ -1,0 +1,151 @@
+/**
+ * `services/api/video.ts` / `audio.ts` 迁移到 ProviderTransport 后的接线回归。
+ *
+ * 这里不测重试（重试语义在 provider-transport.test.ts 里钉住了），
+ * 只测这两条真机扣费链路的接线有没有接错：提交是不是走 /v1/videos 或 /v1/audio/speech、
+ * FormData 有没有被自己补上 Content-Type、成品下载失败会不会误报成任务失败、
+ * 以及 proxyMode 有没有真的传到传输层。
+ */
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const h = vi.hoisted(() => {
+    const store = new Map<string, string>();
+    (globalThis as unknown as { localStorage: unknown }).localStorage = {
+        getItem: (key: string) => store.get(key) ?? null,
+        setItem: (key: string, value: string) => void store.set(key, String(value)),
+        removeItem: (key: string) => void store.delete(key),
+        clear: () => store.clear(),
+        key: (index: number) => [...store.keys()][index] ?? null,
+        get length() {
+            return store.size;
+        },
+    };
+    return { store };
+});
+
+// 任务层（台账、落盘、续查）自己有一整套用例；这里只借它的提交壳，别写 IndexedDB。
+vi.mock('@/services/generation', async () => {
+    const actual = await vi.importActual<typeof import('@/services/generation')>('@/services/generation');
+    return {
+        ...actual,
+        submitVideoTask: async ({ transport }: { transport: { submit: () => Promise<unknown> } }) => ({ handle: await transport.submit(), task: {} }),
+    };
+});
+
+import { defaultConfig, type AiConfig } from '@/stores/use-config-store';
+import { requestAudioGeneration } from './audio';
+import { createVideoGenerationTask, pollVideoGenerationTask } from './video';
+
+const BASE = 'https://api.example.com';
+
+function config(overrides: Partial<AiConfig> = {}): AiConfig {
+    const models = [
+        { name: 'vd', capability: 'video' as const },
+        { name: 'ad', capability: 'audio' as const },
+    ];
+    return {
+        ...defaultConfig,
+        baseUrl: BASE,
+        apiKey: 'k',
+        apiFormat: 'openai',
+        proxyMode: 'direct',
+        channels: [{ ...defaultConfig.channels[0], baseUrl: BASE, apiKey: 'k', apiFormat: 'openai', proxyMode: 'direct', models }],
+        model: 'vd',
+        videoModel: 'vd',
+        audioModel: 'ad',
+        ...overrides,
+    };
+}
+
+function json(status: number, body: unknown) {
+    return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+}
+
+let fetchMock: ReturnType<typeof vi.fn>;
+
+beforeEach(() => {
+    h.store.clear();
+    fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+});
+
+afterEach(() => {
+    vi.unstubAllGlobals();
+});
+
+describe('视频提交/查单接线', () => {
+    it('OpenAI 视频提交走 POST /v1/videos，FormData 不自己写 Content-Type', async () => {
+        fetchMock.mockResolvedValue(json(200, { id: 'v-1' }));
+        const task = await createVideoGenerationTask(config(), '海边日落');
+        expect(task).toMatchObject({ id: 'v-1', provider: 'openai' });
+        const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+        expect(url).toBe('https://api.example.com/v1/videos');
+        expect(init.method).toBe('POST');
+        expect(init.body).toBeInstanceOf(FormData);
+        expect((init.headers as Record<string, string>)['Content-Type']).toBeUndefined();
+        expect((init.headers as Record<string, string>).Authorization).toBe('Bearer k');
+    });
+
+    it('OpenAI 视频提交失败只发一次（可能已收单，不能重发）', async () => {
+        fetchMock.mockResolvedValue(json(502, { error: { message: '上游繁忙' } }));
+        await expect(createVideoGenerationTask(config(), '海边日落')).rejects.toThrow('上游繁忙');
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('查单 completed 时按 content 端点下载成品', async () => {
+        fetchMock
+            .mockResolvedValueOnce(json(200, { status: 'completed' }))
+            .mockResolvedValueOnce(new Response(new Blob(['mp4'], { type: 'video/mp4' }), { status: 200 }));
+        const state = await pollVideoGenerationTask(config(), { id: 'v-1', provider: 'openai', model: 'vd' });
+        expect(state.status).toBe('completed');
+        expect(state.status === 'completed' && state.result.blob?.type).toBe('video/mp4');
+        expect((fetchMock.mock.calls[1] as [string])[0]).toBe('https://api.example.com/v1/videos/v-1/content');
+    });
+
+    it('成品下载失败回退成 URL，不把任务标成失败', async () => {
+        fetchMock
+            .mockResolvedValueOnce(json(200, { status: 'completed', video_url: 'https://cdn.example.com/v.mp4' }))
+            .mockResolvedValueOnce(json(500, { error: { message: '下载失败' } }));
+        const state = await pollVideoGenerationTask(config(), { id: 'v-1', provider: 'openai', model: 'vd' });
+        expect(state).toEqual({ status: 'completed', result: { url: 'https://cdn.example.com/v.mp4', mimeType: 'video/mp4' } });
+    });
+
+    it('Gemini 视频提交走 /v1beta/models/{model}:predictLongRunning', async () => {
+        fetchMock.mockResolvedValue(json(200, { name: 'operations/abc' }));
+        const gemini = config({ apiFormat: 'gemini' });
+        gemini.channels = gemini.channels.map((channel) => ({ ...channel, apiFormat: 'gemini' }));
+        const task = await createVideoGenerationTask(gemini, '海边日落');
+        expect(task).toMatchObject({ id: 'operations/abc', provider: 'gemini' });
+        expect((fetchMock.mock.calls[0] as [string])[0]).toBe('https://api.example.com/v1beta/models/vd:predictLongRunning');
+    });
+});
+
+describe('音频接线', () => {
+    it('走 POST /v1/audio/speech，JSON body 与返回 Blob', async () => {
+        fetchMock.mockImplementation(async () => new Response(new Blob(['mp3'], { type: 'audio/mpeg' }), { status: 200 }));
+        const blob = await requestAudioGeneration(config({ model: 'ad' }), '你好');
+        expect(blob.type).toBe('audio/mpeg');
+        const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+        expect(url).toBe('https://api.example.com/v1/audio/speech');
+        expect(init.method).toBe('POST');
+        expect(JSON.parse(String(init.body))).toMatchObject({ model: 'ad', input: '你好', response_format: 'mp3' });
+    });
+
+    it('厂商 JSON 错误体被翻译成可读文案', async () => {
+        fetchMock.mockResolvedValue(json(400, { error: { message: '音色不存在' } }));
+        await expect(requestAudioGeneration(config({ model: 'ad' }), '你好')).rejects.toThrow('音色不存在');
+    });
+
+    it('proxyMode 传到传输层：direct 直连，system 走本地代理', async () => {
+        fetchMock.mockImplementation(async () => new Response(new Blob(['mp3'], { type: 'audio/mpeg' }), { status: 200 }));
+        await requestAudioGeneration(config({ model: 'ad' }), '你好');
+        expect((fetchMock.mock.calls[0] as [string])[0]).toBe('https://api.example.com/v1/audio/speech');
+
+        const { useConfigStore } = await import('@/stores/use-config-store');
+        useConfigStore.setState((state) => ({ config: { ...state.config, proxyEnabled: true, proxyUrl: 'http://127.0.0.1:23210' } }));
+        const viaProxy = config({ model: 'ad', proxyMode: 'system' });
+        viaProxy.channels = viaProxy.channels.map((channel) => ({ ...channel, proxyMode: 'system' }));
+        await requestAudioGeneration(viaProxy, '你好');
+        expect((fetchMock.mock.calls[1] as [string])[0]).toBe('http://127.0.0.1:23210/https://api.example.com/v1/audio/speech');
+    });
+});

@@ -1,5 +1,6 @@
 import i18n from "@/i18n";
 import type { PromptSource } from "./prompt-source-presets";
+import { createProviderTransport, ProviderTransportError } from "./provider-transport";
 
 export type RawPrompt = {
     id: string;
@@ -23,7 +24,8 @@ export type RawPrompt = {
 type RunOptions = { signal?: AbortSignal };
 
 async function fetchSource(source: PromptSource, options?: RunOptions) {
-    const response = await fetch(source.url, { cache: "no-store", signal: options?.signal });
+    // 提示词源不是渠道的一部分，按全局本地代理开关出网；桌面端由 Rust 侧发出，不受 CORS 限制。
+    const response = await createProviderTransport().request({ method: "GET", url: source.url, cache: "no-store", signal: options?.signal });
     if (!response.ok) throw new Error(i18n.t("config.promptSources.runtime.requestFailed", { status: response.status }));
     return response.json();
 }
@@ -35,6 +37,7 @@ export async function runPromptSource(source: PromptSource, options?: RunOptions
         data = await fetchSource(source, options);
     } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") throw error;
+        if (error instanceof ProviderTransportError && error.kind === "aborted") throw error;
         throw new Error(i18n.t("config.promptSources.runtime.fetchFailed", { name: source.name, error: error instanceof Error ? error.message : String(error) }));
     }
 

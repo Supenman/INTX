@@ -6,6 +6,8 @@ description: Roadmap to a mature product, updated against the BeefTV 2.2.5, Open
 # Mature Product Plan (v2)
 
 > Revised 2026-11-16. The previous plan targeted the old React Flow line; the mainline is now `intx-next` (infinite-canvas v0.20.0 base + grafted INTX domain). This version is rewritten against the new base and the three source references.
+>
+> Updated 2026-11-17: the desktop build is the only shipped product and the only acceptance target; the browser is a development and automated-check channel. M2.5 (architecture groundwork) now sits before M3.
 
 ## 0. Reference libraries and license boundaries
 
@@ -18,7 +20,23 @@ description: Roadmap to a mature product, updated against the BeefTV 2.2.5, Open
 
 Reuse order is fixed: **existing implementation → existing dependencies → OpenDirector (Apache, copyable) → BeefTV/hero behavior reference → write it ourselves**.
 
-## 1. Current baseline (2026-11-16, labeled by verification)
+## 1. Product form and dual-target boundaries (decided 2026-11-17)
+
+**Only the desktop build ships** (Tauri, Windows first). The single `web/` frontend is both the page embedded in the desktop app and the channel for development and automated checks.
+
+| Form | Status | Notes |
+| --- | --- | --- |
+| Desktop (Tauri) | The only shipped product and the only acceptance target | Carries every user-facing feature |
+| Browser | Development and automated-check channel | `vite dev` backs `tauri dev`; `vite build` output is embedded in the desktop app; the Playwright narrow-screen check runs in Chromium. Not a release artifact, no UX promise |
+| Docker / Vercel / Render deployment chain | Kept for now, to be removed | Stays until a Windows installer passes on a real machine, as the only install-free channel; removed afterwards |
+
+Boundary rules:
+
+- **No project backend**: provider requests are issued by the frontend — desktop through the Rust side, browser through the local proxy. This is the local-first product character, not a temporary state.
+- **No dual-target parity**: no second behavior set for the browser. Browser-only capabilities (local proxy toggle, manual Agent connection) become development-channel tools and stop appearing in user-facing docs.
+- **Platform checks live only in the capability layer** (`web/src/lib/runtime/` once M2.5 lands); business code never calls `isDesktopApp`.
+
+## 2. Current baseline (2026-11-16, labeled by verification)
 
 ### Verified
 
@@ -28,10 +46,12 @@ Reuse order is fixed: **existing implementation → existing dependencies → Op
 | Tauri desktop shell, auto-connect to local Agent | Confirmed by user on a real machine (dev window and `--no-bundle` release exe) |
 | Local Agent (opencode single lane), model selection, Skill list | Unit tests + browser/desktop runs (one user-confirmed conversation) |
 | Task center, cost estimate, generation history backfill, narrow-screen pass | This delivery: tsc/tests/build + browser at 375/768 |
+| Real provider generation (ModelScope, desktop, no local proxy) | 2026-11-16 on the user's machine: one image, ledger "completed"; wrong-key and mid-generation cancel kept the correct tri-state (details in `pending-test`) |
+| Failed nodes stop offering retry | 2026-11-16 on the user's machine: the wrong-key node shows the hint only, no retry entry |
 
 ### Not verified (must not be reported as passing)
 
-- **Real provider image/video generation: zero real requests.** The ModelScope async path is implemented but has not produced an image on a real machine.
+- Browser + local proxy generation: not compared separately (desktop verified; the browser proxy path is not).
 - Installers (MSI / NSIS), SmartScreen, WebView2.
 - Video path on a real machine; timeline has not started.
 
@@ -39,21 +59,45 @@ Reuse order is fixed: **existing implementation → existing dependencies → Op
 
 - In this environment antd leave animations stall at `ant-zoom-leave`; modals/drawers must unmount on close. Existing dialogs need individual checks.
 - Browsers hitting ModelScope directly face CORS; use the local proxy or the desktop Rust HTTP path.
+- Only ModelScope's 4 request sites actually go through Rust; the other 18 (image / video / audio / model-plugin, etc.) are issued from the WebView on both desktop and web, so "the desktop has no CORS" currently holds only for ModelScope. Fixed in M2.5.
+- Per-channel "direct" mode only reaches ModelScope: none of `buildApiUrl`'s 5 callers passes the channel `proxyMode`. Fixed in M2.5.
+- `exportAppConfig()` writes `channels[].apiKey` and the WebDAV password in plaintext into the exported file. Fixed in M2.5.
+- CI's `checks.yml` runs only 45 files / 666 cases; `image.test.ts`, `channel-proxy-mode.test.ts` and `agent-permissions.test.ts` are outside the gate. M2.5 makes it the full suite.
 
-## 2. Milestones
+## 3. Milestones
 
 ### M1 Experience and governance surface (done)
 
 Task center (four-state filters, detail drawer, diagnostics export, red-line hints), pre-generation cost estimate (per-model unit price), generation history backfill into canvas, narrow-screen pass.
 
-### M2 Real-machine closure (gate — the only missing proof of "actually works")
+### M2 Real-machine closure (done, user's machine 2026-11-16)
 
-1. Generate one image from ModelScope: desktop dev build (Rust HTTP) or browser + local proxy, with the user's real key.
-2. Failure injection: wrong key → HTTP 401 with no task id; cancel mid-generation → keep the task id, judge "confirm first", never suggest resubmitting.
+1. ModelScope generation: the desktop build (Rust-side HTTP, no local proxy) produced one real image.
+2. Failure injection: wrong key → HTTP 401 with no task id; cancel mid-generation → the task id is kept and judged "confirm first", never suggesting resubmission.
 3. Adopt OpenDirector's `proxyMode: "system" | "direct"` idea (`src/backend/models.ts`) as a per-channel network mode.
-4. Document an acceptance checklist (setup, expected behavior, troubleshooting) for the user to run and report.
+4. Acceptance checklist documented, run by the user and filled back into `pending-test`.
 
-**Pass condition:** one real image; all three failure paths correct; ledger complete and free of keys.
+**Pass condition:** met. The browser + local-proxy comparison is recorded as unverified and is not a gate; the browser-only implementation detail is absorbed by M2.5.
+
+### M2.5 Architecture groundwork (before M3)
+
+Goal: settle how the two targets converge, once, so every later network feature changes one place and is verified on desktop only.
+
+1. **Fix two existing defects** (implemented, pending real-machine check)
+   - `proxyMode` is not passed through: none of `buildApiUrl`'s 5 callers (`audio.ts:13`, `image.ts:329`, `image.ts:994`, `video.ts:43`, `model-plugin.ts:44`) forwards the channel value, so per-channel "direct" only works for ModelScope.
+   - Exported config contains plaintext secrets: `exportAppConfig()` in `config-file.ts` writes `channels[].apiKey` and `webdav.password` verbatim.
+2. **One network exit** (9–13 days; code complete, awaiting real-machine confirmation — `capabilities.ts` and `ProviderTransport` (with `blob()`) exist; images, model listing, video, audio, scripted plugins, prompt sources and ModelScope are all migrated; the boundary check rejects axios / `plugin-http` / bare `fetch`. What is left is verification on a real machine: a non-ModelScope generation, script and prompt-source requests on desktop, and retries under a real dropped connection)
+   - Add `web/src/lib/runtime/capabilities.ts` as the single platform check.
+   - Promote `ModelScopeTransport` to a general `ProviderTransport` (request / stream / blob) with two implementations: desktop via `@tauri-apps/plugin-http`, browser via native fetch + `withLocalProxy`.
+   - Move all 22 provider request sites onto it; a boundary-check script forbids axios / fetch / `@tauri-apps` in the provider layer.
+   - Afterwards "the desktop has no CORS" holds for every provider, and `proxyMode` becomes an implementation detail of the browser dev channel.
+3. **Minimum desktop capabilities** (4–6 days)
+   - Native save-as, replacing the `file-saver` download, with an export result that can actually be confirmed.
+   - Build and install a Windows NSIS/MSI installer (unsigned).
+
+**Pass condition:** `pnpm exec vitest run src` is fully green and is the CI gate; at least one non-ModelScope provider issues a request from the desktop with no local proxy; the exported config file contains no keys; the installer installs and opens on a clean Windows machine.
+
+**Ordering:** no M3 feature work starts before M2.5 is done; the web deployment chain may only be removed after item 3 passes on a real machine.
 
 ### M3 Reuse and assistant (first OpenDirector ports)
 
@@ -70,7 +114,7 @@ Task center (four-state filters, detail drawer, diagnostics export, red-line hin
 2. **Media pipeline**: first/last/current frame capture, audio/video split, grid split, upscale, color grade, merge (BeefTV behavior reference; partially present).
 3. **Storyboard pipeline**: script rows → shot nodes → batch generation with cost → final cut (BeefTV behavior reference).
 4. **Project library operations**: folders, trash, import/export, batch linking.
-5. **Installer**: MSI/NSIS build and real-machine install, covering SmartScreen / WebView2.
+5. **Signing and updates**: code signing (Authenticode) and an update feed. The installer itself ships in M2.5; this adds distribution quality.
 
 **Pass condition:** timeline exports a playable MP4; installer installs, opens, works and upgrades on a clean Windows machine.
 
@@ -78,7 +122,7 @@ Task center (four-state filters, detail drawer, diagnostics export, red-line hin
 
 Skills, plugin marketplace, templates, LOD and large-canvas performance — only when real demand or a measured bottleneck appears.
 
-## 3. Porting obligations (Apache-2.0)
+## 4. Porting obligations (Apache-2.0)
 
 For every OpenDirector port:
 
@@ -87,9 +131,10 @@ For every OpenDirector port:
 3. Log dependency changes in CHANGELOG; never modify MPL dependencies.
 4. Rewrite to intx-next conventions (base style, i18n, tokens) instead of pasting React Flow components verbatim.
 
-## 4. Discipline
+## 5. Discipline
 
 - Green tests ≠ real-machine pass; unverified items say "unverified" and why.
+- The desktop build is the only acceptance target; the browser is for development and automated checks, not a pass criterion.
 - Tri-state never regresses: accepted orders are always `confirm`; failed cards never invite resubmission.
 - No key in any file; no real requests without consent.
 - New boundary values (timeouts, retries, limits) are explained and confirmed first.

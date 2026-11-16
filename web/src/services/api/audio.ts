@@ -1,16 +1,19 @@
-import axios from "axios";
 
 import i18n from "@/i18n";
+import { readLocalBlob } from "@/lib/media-blob";
 import { audioMimeType, normalizeAudioFormatValue, normalizeAudioSpeedValue, normalizeAudioVoiceValue } from "@/lib/audio-generation";
 import { uploadMediaFile, type UploadedFile } from "@/services/file-storage";
-import { buildApiUrl, resolveModelRequestConfig, resolveModelScript, withLocalProxy, type AiConfig } from "@/stores/use-config-store";
+import { buildApiUrl, resolveModelRequestConfig, resolveModelScript, type AiConfig, type ChannelProxyMode } from "@/stores/use-config-store";
 import { runModelPlugin } from "./model-plugin";
+import { readApiErrorMessage } from "./provider-errors";
+import { createProviderTransport, ProviderTransportError } from "./provider-transport";
 
 type RequestOptions = { signal?: AbortSignal };
 const apiText = (key: string, options?: Record<string, unknown>) => i18n.t(`apiErrors.${key}`, options);
 
+/** 完整厂商地址；本地代理前缀由 ProviderTransport 按出网方式加，这里不加。 */
 function aiApiUrl(config: AiConfig, path: string) {
-    return buildApiUrl(config.baseUrl, path);
+    return buildApiUrl(config.baseUrl, path, "direct");
 }
 
 function aiHeaders(config: AiConfig) {
@@ -38,35 +41,37 @@ export async function requestAudioGeneration(config: AiConfig, prompt: string, o
                 params: { voice: normalizeAudioVoiceValue(config.audioVoice), format, speed: normalizeAudioSpeedValue(config.audioSpeed), instructions: config.audioInstructions.trim() },
                 signal: options?.signal,
             });
-            return await audioPluginBlob(result, format);
+            return await audioPluginBlob(result, format, requestConfig.proxyMode);
         } catch (error) {
-            throw new Error(readAxiosError(error, apiText("audioGenerationFailed")));
+            throw new Error(readRequestError(error, apiText("audioGenerationFailed")));
         }
     }
     assertAudioConfig(requestConfig, model);
     const instructions = config.audioInstructions.trim();
 
     try {
-        const response = await axios.post<Blob>(
-            aiApiUrl(requestConfig, "/audio/speech"),
-            {
+        const blob = await createProviderTransport(requestConfig.proxyMode).blob({
+            method: "POST",
+            url: aiApiUrl(requestConfig, "/audio/speech"),
+            headers: aiHeaders(requestConfig),
+            body: JSON.stringify({
                 model,
                 input: prompt,
                 voice: normalizeAudioVoiceValue(config.audioVoice),
                 response_format: format,
                 speed: Number(normalizeAudioSpeedValue(config.audioSpeed)),
                 ...(instructions ? { instructions } : {}),
-            },
-            { headers: aiHeaders(requestConfig), responseType: "blob", signal: options?.signal },
-        );
-        await assertAudioBlob(response.data);
-        return response.data.type.startsWith("audio/") ? response.data : new Blob([response.data], { type: audioMimeType(format) });
+            }),
+            signal: options?.signal,
+        });
+        await assertAudioBlob(blob);
+        return blob.type.startsWith("audio/") ? blob : new Blob([blob], { type: audioMimeType(format) });
     } catch (error) {
-        throw new Error(readAxiosError(error, apiText("audioGenerationFailed")));
+        throw new Error(readRequestError(error, apiText("audioGenerationFailed")));
     }
 }
 
-async function audioPluginBlob(result: unknown, format: string): Promise<Blob> {
+async function audioPluginBlob(result: unknown, format: string, proxyMode: ChannelProxyMode): Promise<Blob> {
     if (result instanceof Blob) return result.type.startsWith("audio/") ? result : new Blob([result], { type: audioMimeType(format) });
     let source = "";
     if (typeof result === "string") source = result;
@@ -76,7 +81,8 @@ async function audioPluginBlob(result: unknown, format: string): Promise<Blob> {
     }
     if (!source) throw new Error(apiText("scriptNoAudio"));
     const url = source.startsWith("data:") || /^https?:/i.test(source) ? source : `data:${audioMimeType(format)};base64,${source}`;
-    const blob = await (await fetch(withLocalProxy(url))).blob();
+    // data URL 不是网络请求，桌面端也不能丢给 Rust 侧，直接用浏览器 fetch。
+    const blob = url.startsWith("data:") ? await readLocalBlob(url) : await createProviderTransport(proxyMode).blob({ method: "GET", url });
     return blob.type.startsWith("audio/") ? blob : new Blob([blob], { type: audioMimeType(format) });
 }
 
@@ -104,44 +110,12 @@ async function assertAudioBlob(blob: Blob) {
     if (payload.error?.message) throw new Error(payload.error.message);
 }
 
-function readApiErrorMessage(value: unknown): string {
-    if (!value) return "";
-    if (typeof value === "string") {
-        try {
-            const parsed = JSON.parse(value);
-            const inner = readApiErrorMessage(parsed) || value;
-            if (inner === value && typeof parsed === "object" && Object.keys(parsed).length === 0) return "";
-            return inner;
-        } catch {
-            if (/<[a-z][\s\S]*>/i.test(value)) return apiText("htmlError", { preview: `${value.slice(0, 80)}...` });
-            return value;
-        }
-    }
-    if (typeof value !== "object") return "";
-    const payload = value as { msg?: unknown; message?: unknown; error?: unknown; detail?: unknown };
-    const errorMsg =
-        typeof payload.error === "string"
-            ? payload.error
-            : (payload.error as { message?: unknown })?.message;
-    return (
-        readApiErrorMessage(payload.msg) ||
-        readApiErrorMessage(payload.message) ||
-        readApiErrorMessage(errorMsg) ||
-        readApiErrorMessage(payload.detail) ||
-        ""
-    );
-}
 
-function readAxiosError(error: unknown, fallback: string) {
-    if (axios.isCancel(error)) return apiText("requestCanceled");
-    if (axios.isAxiosError(error)) {
-        if (!error.response && error.code === "ERR_NETWORK") return apiText("requestFailed");
-        const responseData = error.response?.data;
-        const apiMsg = readApiErrorMessage(responseData);
-        if (apiMsg) return apiMsg;
-        const statusMsg = statusMessage(error.response?.status, fallback);
-        if (statusMsg) return statusMsg;
-        return error.message || fallback;
+function readRequestError(error: unknown, fallback: string) {
+    if (error instanceof ProviderTransportError) {
+        if (error.kind === "aborted") return apiText("requestCanceled");
+        if (error.kind === "http") return readApiErrorMessage(error.message) || statusMessage(error.status, fallback);
+        return apiText("requestFailed");
     }
     if (error instanceof DOMException && error.name === "AbortError") return apiText("requestCanceled");
     return error instanceof Error ? readApiErrorMessage(error.message) || error.message : fallback;
