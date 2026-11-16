@@ -20,7 +20,10 @@ type AppConfigFile = {
 export function exportAppConfig() {
     const { config, webdav } = useConfigStore.getState();
     const { sources, schedule } = usePromptSourceStore.getState();
-    const data: AppConfigFile = { app: "infinite-canvas", version: 1, exportedAt: new Date().toISOString(), config, webdav, promptSources: { sources, schedule } };
+    // 导出文件会离开本机：API Key 与 WebDAV 密码不写进去，导入后由用户重新填写。
+    const safeConfig: AiConfig = { ...config, apiKey: "", channels: config.channels.map((channel) => ({ ...channel, apiKey: "" })) };
+    const safeWebdav: WebdavSyncConfig = { ...webdav, password: "" };
+    const data: AppConfigFile = { app: "infinite-canvas", version: 1, exportedAt: new Date().toISOString(), config: safeConfig, webdav: safeWebdav, promptSources: { sources, schedule } };
     saveAs(new Blob([JSON.stringify(data, null, 2)], { type: "application/json;charset=utf-8" }), "infinite-canvas-config.json");
 }
 
