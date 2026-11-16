@@ -55,7 +55,7 @@ export function AppTopNav() {
 
                             <button
                                 type="button"
-                                className="ml-3 inline-flex size-8 shrink-0 items-center justify-center text-stone-600 transition hover:text-stone-950 md:hidden dark:text-stone-300 dark:hover:text-white"
+                                className="ml-3 inline-flex size-8 shrink-0 items-center justify-center text-stone-600 transition hover:text-stone-950 lg:hidden dark:text-stone-300 dark:hover:text-white"
                                 onClick={() => setMobileNavOpen(true)}
                                 aria-label={t("topNav.openMenu")}
                                 title={t("topNav.menu")}
@@ -63,9 +63,8 @@ export function AppTopNav() {
                                 <Menu className="size-5" />
                             </button>
 
-                            {/* md–lg 显示图标导航（带 tooltip），lg 以上才带文字：
-                                768 下 7 个带文字的入口放不下，会压到右侧图标上 */}
-                            <nav className="hide-scrollbar ml-4 hidden h-14 min-w-0 items-center gap-4 overflow-x-auto md:flex lg:ml-8 lg:gap-7">
+                            {/* lg 以下收起导航：768 宽度放不下 7 个入口，会压到右侧图标上 */}
+                            <nav className="hide-scrollbar ml-8 hidden h-14 min-w-0 items-center gap-7 overflow-x-auto lg:flex">
                                 {navigationTools.map((tool) => {
                                     const Icon = tool.icon;
                                     const active = tool.slug === activeToolSlug;
@@ -73,8 +72,6 @@ export function AppTopNav() {
                                         <Link
                                             key={tool.slug}
                                             to={`/${tool.slug}`}
-                                            title={t(`navigation.${tool.slug}`)}
-                                            aria-label={t(`navigation.${tool.slug}`)}
                                             className={cn(
                                                 "relative flex h-14 shrink-0 items-center gap-2 text-sm leading-6 transition after:absolute after:inset-x-0 after:bottom-0 after:h-px",
                                                 active
@@ -83,7 +80,7 @@ export function AppTopNav() {
                                             )}
                                         >
                                             <Icon className="size-4" />
-                                            <span className="hidden truncate lg:inline">{t(`navigation.${tool.slug}`)}</span>
+                                            <span className="truncate">{t(`navigation.${tool.slug}`)}</span>
                                         </Link>
                                     );
                                 })}
