@@ -1,0 +1,97 @@
+---
+title: Mature Product Plan (v2)
+description: Roadmap to a mature product, updated against the BeefTV 2.2.5, OpenDirector and hero8152 source references with license boundaries and acceptance criteria
+---
+
+# Mature Product Plan (v2)
+
+> Revised 2026-11-16. The previous plan targeted the old React Flow line; the mainline is now `intx-next` (infinite-canvas v0.20.0 base + grafted INTX domain). This version is rewritten against the new base and the three source references.
+
+## 0. Reference libraries and license boundaries
+
+| Reference | License | What we may do |
+| --- | --- | --- |
+| infinite-canvas v0.20.0 (base) | MIT | Modify and distribute freely, keep attribution |
+| OpenDirector v0.1.4 | **Apache-2.0** | **Copy and modify code**; keep copyright and NOTICE, include the license text, mark changes. Its timeline depends on mediabunny (MPL-2.0) — consume unmodified from npm |
+| BeefTV 2.2.5 | Source Available | **Behavior/UX reference only, no code copying** |
+| hero8152 Infinite-Canvas fork | Non-commercial | **Ideas only** (whole-chain execution, server gateway, content-addressed assets) |
+
+Reuse order is fixed: **existing implementation → existing dependencies → OpenDirector (Apache, copyable) → BeefTV/hero behavior reference → write it ourselves**.
+
+## 1. Current baseline (2026-11-16, labeled by verification)
+
+### Verified
+
+| Item | How |
+| --- | --- |
+| Storage transactions, crash evidence, save barriers | Unit tests + fake IndexedDB; real browser/Tauri failure UI not verified |
+| Tauri desktop shell, auto-connect to local Agent | Confirmed by user on a real machine (dev window and `--no-bundle` release exe) |
+| Local Agent (opencode single lane), model selection, Skill list | Unit tests + browser/desktop runs (one user-confirmed conversation) |
+| Task center, cost estimate, generation history backfill, narrow-screen pass | This delivery: tsc/tests/build + browser at 375/768 |
+
+### Not verified (must not be reported as passing)
+
+- **Real provider image/video generation: zero real requests.** The ModelScope async path is implemented but has not produced an image on a real machine.
+- Installers (MSI / NSIS), SmartScreen, WebView2.
+- Video path on a real machine; timeline has not started.
+
+### Known issues
+
+- In this environment antd leave animations stall at `ant-zoom-leave`; modals/drawers must unmount on close. Existing dialogs need individual checks.
+- Browsers hitting ModelScope directly face CORS; use the local proxy or the desktop Rust HTTP path.
+
+## 2. Milestones
+
+### M1 Experience and governance surface (done)
+
+Task center (four-state filters, detail drawer, diagnostics export, red-line hints), pre-generation cost estimate (per-model unit price), generation history backfill into canvas, narrow-screen pass.
+
+### M2 Real-machine closure (gate — the only missing proof of "actually works")
+
+1. Generate one image from ModelScope: desktop dev build (Rust HTTP) or browser + local proxy, with the user's real key.
+2. Failure injection: wrong key → HTTP 401 with no task id; cancel mid-generation → keep the task id, judge "confirm first", never suggest resubmitting.
+3. Adopt OpenDirector's `proxyMode: "system" | "direct"` idea (`src/backend/models.ts`) as a per-channel network mode.
+4. Document an acceptance checklist (setup, expected behavior, troubleshooting) for the user to run and report.
+
+**Pass condition:** one real image; all three failure paths correct; ledger complete and free of keys.
+
+### M3 Reuse and assistant (first OpenDirector ports)
+
+1. **Image presets (pilot)**: character/face/product three-view sheets, storyboard, multi-camera — per README behavior and `src/canvas/providerPresets.ts`; integrate into the image workbench.
+2. **Canvas assistant UX**: reference `AssistantPanel.tsx`, `AssistantConversations.tsx`, `AssistantPickers.tsx`, `AssistantLinkInfo.tsx`; permission and paid-generation confirmation follow BeefTV behavior (tiered permissions, proposal → price → confirm).
+3. **Selection → workflow**: save a selected subgraph as a reusable workflow (BeefTV behavior reference).
+4. **One-click whole-chain run** (hero idea): pick a target node, topologically order upstream, execute, log every step.
+
+**Pass condition:** presets generate; the assistant never bypasses tri-state or paid confirmation; a failed chain stops at the first failure and keeps finished outputs.
+
+### M4 Product ceiling (major OpenDirector ports)
+
+1. **Timeline editing + MP4 export** (largest product-level gap): reference `TimelineEditor.tsx`, `timeline.ts`, `timelineRender.ts`, `timelineExport.ts`, `timeline-editor.css`; use mediabunny as an unmodified npm dependency. Optional JSON/FCPXML export.
+2. **Media pipeline**: first/last/current frame capture, audio/video split, grid split, upscale, color grade, merge (BeefTV behavior reference; partially present).
+3. **Storyboard pipeline**: script rows → shot nodes → batch generation with cost → final cut (BeefTV behavior reference).
+4. **Project library operations**: folders, trash, import/export, batch linking.
+5. **Installer**: MSI/NSIS build and real-machine install, covering SmartScreen / WebView2.
+
+**Pass condition:** timeline exports a playable MP4; installer installs, opens, works and upgrades on a clean Windows machine.
+
+### M5 Deferred (on demand)
+
+Skills, plugin marketplace, templates, LOD and large-canvas performance — only when real demand or a measured bottleneck appears.
+
+## 3. Porting obligations (Apache-2.0)
+
+For every OpenDirector port:
+
+1. Update `THIRD_PARTY_NOTICES.md` with copyright, license text location, and a change note.
+2. Mark source and modifications in the file header (Apache §4(b)).
+3. Log dependency changes in CHANGELOG; never modify MPL dependencies.
+4. Rewrite to intx-next conventions (base style, i18n, tokens) instead of pasting React Flow components verbatim.
+
+## 4. Discipline
+
+- Green tests ≠ real-machine pass; unverified items say "unverified" and why.
+- Tri-state never regresses: accepted orders are always `confirm`; failed cards never invite resubmission.
+- No key in any file; no real requests without consent.
+- New boundary values (timeouts, retries, limits) are explained and confirmed first.
+- New code lives in its own files; `project.tsx` stays untouched.
+- After each item: update CHANGELOG and `pending-test`; move to features only after user confirmation.
