@@ -109,5 +109,9 @@
 - BeefTV 仅作设计参考（Source Available Part A），**禁止复制其代码**；infinite-canvas 上游代码可按 MIT 复用，保留署名。许可边界见 `THIRD_PARTY_NOTICES.md`。
 - domain 层保持零 IO、零 React（纯函数 + 纯类型），测试用 vitest（`pnpm exec vitest run src/domain`）；上游 tests/ 用 bun test，两套并存。
 - 验证命令（Windows 本机 corepack 有坑）：`COREPACK_INTEGRITY_KEYS=0 corepack pnpm@10.28.2 ...`；pnpm 11 与本机老 corepack 不兼容，必须钉 10.28.2。
+- **改前端布局后跑窄屏溢出检查**：`cd web && npm run build && npm run check:overflow`（390 / 768 / 1440 三视口 × 六个页面）。tsc、单测、构建都抓不到 flex 子项不收缩导致的横向溢出；历史上两轮 UI 回归都是「只测了桌面宽度」。CI 在 `.github/workflows/ui-overflow.yml`。
+- **渠道出网方式**：`ModelChannel.proxyMode` 为 `"system"`（跟随全局本地代理开关）或 `"direct"`（恒直连）。新增发请求的入口时，一律通过 `withLocalProxy(url, proxyMode)` / `createModelScopeTransport(proxyMode)` 走这个开关，不要自己判断代理。
+- **动 `services/api/image.ts` 必须跑 `src/services/api/image.test.ts`**：那一层是唯一没有被 service 层测试罩住的接线（端点判定、proxyMode 取渠道、提交/查单取舍）。里面三条失败路径（401 无任务号 / 提交后取消 / 2xx 无 task_id）就是 M2 的验收语义，改动用例前先确认不是把 `confirm` 改回 `allowed`。新加的用例要做破坏性自检：故意改坏被测接线，确认它会红。
+- **Agent 的每个画布 op 都要过 `planAgentOps()`**（`lib/canvas/agent-permissions.ts`）：`run_generation` 一次就是一单扣费，绕过这层等于 Agent 能用一句对话替用户下 N 单。加新的 op 类型时同步在 `agent-permissions.ts` 里分类（花钱 / 破坏性 / 只读），并在 `agent-permissions.test.ts` 补一条「它不会自己跑」的断言。用户确认后只重放 `confirmedOps(plan)`（待确认那部分），**不能回放全量**——已执行的 op 会重复加节点、重复下单。
 - **ModelScope 在浏览器里必须开本地代理**：`api-inference.modelscope.cn` 的 CORS 预检只允许 `Content-Type` / `Authorization` 等，不允许 `X-ModelScope-Async-Mode`。直连时 POST 在预检阶段就被浏览器拦掉，节点显示 `submission_uncertain`（「可能已提交（没等到回复）」），但请求实际没发出、不会扣费。用 ModelScope 前先跑 `npx @basketikun/canvas-proxy@latest`，在「设置 → 本地代理」打开开关并测试连接。
 - **桌面壳（Tauri）不需要本地代理**：`web/src-tauri` 挂了 `tauri-plugin-http`，ModelScope 的提交/查单/取图在桌面端经 `modelscope-transport.ts` 走 Rust 侧请求，没有 CORS 预检。浏览器与桌面两条路径都要保留，改动 transport 时两边都别退化。桌面版已真机验证：关代理可直接出图（2026-11-14）。

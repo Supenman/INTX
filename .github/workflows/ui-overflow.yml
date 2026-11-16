@@ -1,0 +1,60 @@
+name: UI Overflow Check
+
+# 三视口横向溢出回归检查。
+# 背景：连续两轮 UI 问题都出在「只测了桌面宽度」，tsc / 单测 / 构建都抓不到
+# flex 子项不收缩导致的横向溢出，只能在真实窄视口里渲染一遍。
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - "web/src/**"
+      - "web/scripts/check-overflow.mjs"
+      - "web/package.json"
+      - "web/pnpm-lock.yaml"
+      - ".github/workflows/ui-overflow.yml"
+  pull_request:
+    paths:
+      - "web/src/**"
+      - "web/scripts/check-overflow.mjs"
+      - "web/package.json"
+      - "web/pnpm-lock.yaml"
+
+jobs:
+  overflow:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Check horizontal overflow (390 / 768 / 1440)
+        run: pnpm run check:overflow
+
+      - name: Upload failure screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-overflow-artifacts
+          path: web/ui-overflow-artifacts/
+          if-no-files-found: ignore
+          retention-days: 7
