@@ -2,6 +2,7 @@ import { create } from "zustand";
 import i18n from "@/i18n";
 
 import type { CanvasAgentOp, CanvasAgentSnapshot } from "@/lib/canvas/canvas-agent-ops";
+import { isAgentPermissionMode } from "@/lib/canvas/agent-permissions";
 import type { CanvasResourceReference } from "@/lib/canvas/canvas-resource-references";
 import { readLocalAgentConfig } from "@/services/api/canvas-agent";
 
@@ -10,7 +11,23 @@ export type AgentAttachment = { id: string; name: string; type: string; size: nu
 export type AgentMessageAttachment = Pick<AgentAttachment, "id" | "name" | "url"> & Partial<Pick<AgentAttachment, "type" | "size" | "width" | "height" | "dataUrl">>;
 export type AgentCanvasReference = Pick<CanvasResourceReference, "nodeId" | "label" | "title" | "kind" | "previewUrl" | "text">;
 export type AgentSkillReference = { name: string; path: string; displayName?: string };
-export type AgentChatItem = { id: string; itemId?: string; clientMessageId?: string; threadId?: string; turnId?: string; role: AgentChatRole; title?: string; text: string; meta?: string; detail?: unknown; attachments?: AgentMessageAttachment[]; canvasReferences?: AgentCanvasReference[]; skill?: AgentSkillReference; streamId?: string; activityItems?: Record<string, string> };
+export type AgentChatItem = {
+    id: string;
+    itemId?: string;
+    clientMessageId?: string;
+    threadId?: string;
+    turnId?: string;
+    role: AgentChatRole;
+    title?: string;
+    text: string;
+    meta?: string;
+    detail?: unknown;
+    attachments?: AgentMessageAttachment[];
+    canvasReferences?: AgentCanvasReference[];
+    skill?: AgentSkillReference;
+    streamId?: string;
+    activityItems?: Record<string, string>;
+};
 export type AgentEventLog = { id: string; time: string; title: string; text: string; raw?: unknown };
 export type AgentPermissionMode = "request" | "automatic" | "full";
 export type AgentReasoningEffort = "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
@@ -23,7 +40,20 @@ export type AgentModel = {
     isDefault?: boolean;
 };
 export type AgentApprovalDecision = "accept" | "acceptForSession" | "decline";
-export type AgentPendingApproval = { requestId: string; method: string; threadId?: string; turnId?: string; itemId?: string; reason?: string; command?: unknown; cwd?: string; grantRoot?: string; networkApprovalContext?: unknown; permissions?: unknown; deciding?: AgentApprovalDecision };
+export type AgentPendingApproval = {
+    requestId: string;
+    method: string;
+    threadId?: string;
+    turnId?: string;
+    itemId?: string;
+    reason?: string;
+    command?: unknown;
+    cwd?: string;
+    grantRoot?: string;
+    networkApprovalContext?: unknown;
+    permissions?: unknown;
+    deciding?: AgentApprovalDecision;
+};
 export type AgentCanvasContext = { snapshot: CanvasAgentSnapshot; applyOps: (ops?: CanvasAgentOp[]) => CanvasAgentSnapshot; undoOps: () => CanvasAgentSnapshot | null; canUndo: boolean };
 export type AgentThreadSummary = { id: string; preview: string; name?: string | null; cwd?: string; status?: string; source?: unknown; createdAt?: number; updatedAt?: number };
 export type AgentTokenUsage = { input: number; cached: number; output: number };
@@ -42,6 +72,18 @@ export type AgentPanelTab = "chat" | "setup" | "history" | "skills" | "log";
 const CONNECT_TIMEOUT_MS = 6000;
 let agentSource: EventSource | null = null;
 let connectTimer: ReturnType<typeof setTimeout> | null = null;
+
+export const AGENT_PERMISSION_KEY = "infinite-canvas:agent-permission";
+
+/** 权限偏好跟着人走，不跟项目：换画布不该改变安全习惯。 */
+function readStoredPermission(): AgentPermissionMode {
+    try {
+        const stored = localStorage.getItem(AGENT_PERMISSION_KEY);
+        return isAgentPermissionMode(stored) ? stored : "automatic";
+    } catch {
+        return "automatic";
+    }
+}
 
 type AgentStore = {
     width: number;
@@ -74,14 +116,21 @@ type AgentStore = {
     bootstrapStatus: AgentBootstrapStatus | null;
     mcpStartupStatuses: Record<string, AgentBootstrapStatus>;
     connectError: string;
-    setAgentState: (patch: Partial<Omit<AgentStore, "setAgentState" | "connectAgent" | "connectLocalAgent" | "disconnectAgent" | "addMessage" | "addEventLog" | "clearEventLogs" | "openPanel" | "closePanel" | "togglePanel" | "setCanvasContext">>) => void;
+    /** Agent 三档权限；默认 automatic（花钱与删除仍需确认）。 */
+    permission: AgentPermissionMode;
+    setPermission: (permission: AgentPermissionMode) => void;
+    setAgentState: (
+        patch: Partial<Omit<AgentStore, "setAgentState" | "setPermission" | "connectAgent" | "connectLocalAgent" | "disconnectAgent" | "addMessage" | "addEventLog" | "clearEventLogs" | "openPanel" | "closePanel" | "togglePanel" | "setCanvasContext">>,
+    ) => void;
     openPanel: () => void;
     closePanel: () => void;
     togglePanel: () => void;
     setCanvasContext: (context: AgentCanvasContext | null) => void;
     connectAgent: (options?: { silent?: boolean }) => void;
     connectLocalAgent: (options?: { silent?: boolean }) => Promise<void>;
-    disconnectAgent: (patch?: Partial<Omit<AgentStore, "setAgentState" | "connectAgent" | "connectLocalAgent" | "disconnectAgent" | "addMessage" | "addEventLog" | "clearEventLogs" | "openPanel" | "closePanel" | "togglePanel" | "setCanvasContext">>) => void;
+    disconnectAgent: (
+        patch?: Partial<Omit<AgentStore, "setAgentState" | "setPermission" | "connectAgent" | "connectLocalAgent" | "disconnectAgent" | "addMessage" | "addEventLog" | "clearEventLogs" | "openPanel" | "closePanel" | "togglePanel" | "setCanvasContext">>,
+    ) => void;
     addMessage: (item: AgentChatItem) => void;
     addEventLog: (item: AgentEventLog) => void;
     clearEventLogs: () => void;
@@ -121,6 +170,15 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     bootstrapStatus: null,
     mcpStartupStatuses: {},
     connectError: "",
+    permission: readStoredPermission(),
+    setPermission: (permission) => {
+        set({ permission });
+        try {
+            localStorage.setItem(AGENT_PERMISSION_KEY, permission);
+        } catch {
+            // 存不下就只在本次会话生效，不因为存储故障拦住权限切换
+        }
+    },
     setAgentState: (patch) => set(patch),
     openPanel: () => set({ panelOpen: true, panelMounted: true, panelClosing: false }),
     closePanel: () => {
@@ -164,7 +222,17 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
         agentSource = null;
         if (connectTimer) clearTimeout(connectTimer);
         connectTimer = null;
-        set({ enabled: false, connected: false, silentConnect: false, fragmentBootstrap: false, activity: i18n.t("agent.state.offline"), conversation: { revision: 0, conversationId: "", threadId: "", status: "idle", mcpStatuses: {} }, bootstrapStatus: null, mcpStartupStatuses: {}, ...patch });
+        set({
+            enabled: false,
+            connected: false,
+            silentConnect: false,
+            fragmentBootstrap: false,
+            activity: i18n.t("agent.state.offline"),
+            conversation: { revision: 0, conversationId: "", threadId: "", status: "idle", mcpStatuses: {} },
+            bootstrapStatus: null,
+            mcpStartupStatuses: {},
+            ...patch,
+        });
     },
     addMessage: (item) => set((state) => ({ messages: [...state.messages, item] })),
     addEventLog: (item) => set((state) => ({ eventLogs: [...state.eventLogs.slice(-160), item] })),

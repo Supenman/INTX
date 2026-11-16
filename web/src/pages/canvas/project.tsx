@@ -9,7 +9,7 @@ import { requestImageQuestion, requestSingleImage } from "@/services/api/image";
 import { runImageSlots } from "@/services/generation";
 import { requestAudioGeneration, storeGeneratedAudio } from "@/services/api/audio";
 import { createVideoGenerationTask, isVideoTaskFailed, storeGeneratedVideo, waitForVideoGenerationTask } from "@/services/api/video";
-import { defaultConfig, useConfigStore, useEffectiveConfig } from "@/stores/use-config-store";
+import { defaultConfig, findChannelModelPricing, useConfigStore, useEffectiveConfig } from "@/stores/use-config-store";
 import { ensureImagePreview, uploadImage } from "@/services/image-storage";
 import { uploadMediaFile, type UploadedFile } from "@/services/file-storage";
 import { nanoid } from "nanoid";
@@ -20,6 +20,9 @@ import { useAssetStore } from "@/stores/use-asset-store";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { cropDataUrl, splitDataUrl, upscaleDataUrl } from "@/lib/canvas/canvas-image-data";
 import { fitNodeSize, nodeSizeFromRatio } from "@/lib/canvas/canvas-node-size";
+import { resolveImagePreset, type ImagePresetId } from "@/lib/canvas/image-presets";
+import { estimateGenerationCost } from "@/domain/cost";
+import { type AgentPlanVerdict } from "@/lib/canvas/agent-permissions";
 import { captureVideoFrame, type VideoFramePosition } from "@/lib/canvas/canvas-video-frame";
 import { App, Button, Modal } from "antd";
 import { NODE_DEFAULT_SIZE, getNodeSpec } from "@/constant/canvas";
@@ -28,6 +31,8 @@ import { CanvasConfigComposer } from "@/components/canvas/canvas-config-composer
 import { CanvasConfigNodePanel } from "@/components/canvas/canvas-config-node-panel";
 import { CanvasNodeContextMenu } from "@/components/canvas/canvas-context-menu";
 import { CanvasNodeAngleDialog, type CanvasImageAngleParams } from "@/components/canvas/canvas-node-angle-dialog";
+import { CanvasNodePresetDialog } from "@/components/canvas/canvas-node-preset-dialog";
+import { AgentConfirmDialog } from "@/components/canvas/agent-confirm-dialog";
 import { CanvasNodeCropDialog, type CanvasImageCropRect } from "@/components/canvas/canvas-node-crop-dialog";
 import { CanvasNodeMaskEditDialog, type CanvasImageMaskEditPayload } from "@/components/canvas/canvas-node-mask-edit-dialog";
 import { CanvasNodeSplitDialog, type CanvasImageSplitParams } from "@/components/canvas/canvas-node-split-dialog";
@@ -133,6 +138,7 @@ const EMPTY_REFERENCES: CanvasResourceReference[] = [];
 const CONNECTION_HANDLE_HIT_RADIUS = 40;
 const CONNECTION_NODE_HIT_PADDING = 32;
 const NODE_STATUS_IDLE = "idle" as const;
+
 const NODE_STATUS_LOADING = "loading" as const;
 const NODE_STATUS_SUCCESS = "success" as const;
 const NODE_STATUS_ERROR = "error" as const;
@@ -267,6 +273,12 @@ function InfiniteCanvasPage() {
     const [upscaleNodeId, setUpscaleNodeId] = useState<string | null>(null);
     const [superResolveNodeId, setSuperResolveNodeId] = useState<string | null>(null);
     const [angleNodeId, setAngleNodeId] = useState<string | null>(null);
+    const [presetNodeId, setPresetNodeId] = useState<string | null>(null);
+    // Agent 权限：默认 automatic（改画布直接执行，花钱和删除先问）。
+    // 存进 store 并落 localStorage，否则每次进画布都要重选一遍，用户会烦到直接选 full 图省事。
+    // 用 store 而不是本地 state：输入框右下角的三档菜单（PermissionModeMenu）要改同一个值。
+    const agentPermission = useAgentStore((state) => state.permission);
+    const [pendingAgentPlan, setPendingAgentPlan] = useState<{ plan: AgentPlanVerdict; proceed: () => void } | null>(null);
     const [previewNodeId, setPreviewNodeId] = useState<string | null>(null);
     const [hoverPreviewNodeId, setHoverPreviewNodeId] = useState<string | null>(null);
     const [previewImageId, setPreviewImageId] = useState<string | null>(null);
@@ -754,6 +766,7 @@ function InfiniteCanvasPage() {
     const upscaleNode = upscaleNodeId ? nodeById.get(upscaleNodeId) || null : null;
     const superResolveNode = superResolveNodeId ? nodeById.get(superResolveNodeId) || null : null;
     const angleNode = angleNodeId ? nodeById.get(angleNodeId) || null : null;
+    const presetNode = presetNodeId ? nodeById.get(presetNodeId) || null : null;
     const contextMenuNode = contextMenu?.type === "node" ? nodeById.get(contextMenu.nodeId) || null : null;
     const previewNode = previewNodeId ? nodeById.get(previewNodeId) || null : null;
     const previewContent = previewImageId ? previewNode?.metadata?.images?.find((image) => image.id === previewImageId)?.content : previewNode?.metadata?.content;
@@ -834,6 +847,8 @@ function InfiniteCanvasPage() {
         setSelectedConnectionId,
         setViewport,
         setContextMenu,
+        agentPermission,
+        onAgentPlanPending: (plan, proceed) => setPendingAgentPlan({ plan, proceed }),
     });
 
     const { pluginHost, renderPluginPanel, buildNodeToolbarItems } = usePluginHost({
@@ -2174,6 +2189,90 @@ function InfiniteCanvasPage() {
         [effectiveConfig, finishGenerationRequest, openConfigDialog, startGenerationRequest, t],
     );
 
+    /**
+     * 待确认生成的预估费用。只算「花钱的那几条」，按各自节点当前的张数算。
+     * 任一模型没填单价就整体返回 null——报个小数比不报更糟。
+     */
+    const pendingAgentCost = useMemo(() => {
+        const spend = pendingAgentPlan?.plan.pending.filter((verdict) => verdict.reason === "costs_money") ?? [];
+        if (!spend.length) return null;
+        let amount = 0;
+        let currency: string | null = null;
+        for (const verdict of spend) {
+            const op = verdict.op;
+            if (op.type !== "run_generation") continue;
+            const target = nodes.find((node) => node.id === op.nodeId);
+            const kind = op.mode ?? "image";
+            // 音频没有按张计价的单价模型，估不出来就老实返回 null，不编号码。
+            if (kind === "audio") return null;
+            const config = buildGenerationConfig(effectiveConfig, target, kind);
+            const pricing = findChannelModelPricing(config, config.model || config.imageModel);
+            const count = Math.max(1, Number(config.count) || 1);
+            const cost = estimateGenerationCost({ pricing, kind, outputCount: count, modelId: config.model });
+            if (!cost) return null;
+            amount += cost.amount;
+            currency = currency ?? cost.currency;
+        }
+        return currency ? `${currency} ${amount.toFixed(2)}` : null;
+    }, [pendingAgentPlan, nodes, effectiveConfig]);
+
+    const generatePresetNode = useCallback(
+        async (node: CanvasNodeData, presetId: ImagePresetId) => {
+            if (!node.metadata?.content) return;
+            const preset = resolveImagePreset(presetId);
+            // 先收起预设框：配置没填完时不该让它压在配置弹窗底下。
+            setPresetNodeId(null);
+            // 尺寸由预设固定：三视图的等宽格子被渠道的 1:1 一压就变形，不能跟着节点设置走。
+            const generationConfig = { ...buildGenerationConfig(effectiveConfig, node, "image"), count: "1", size: preset.size };
+            if (!isAiConfigReady(generationConfig, generationConfig.model)) {
+                openConfigDialog(true);
+                return;
+            }
+            const reference = [{ id: node.id, name: `${node.title || node.id}.png`, type: node.metadata.mimeType || "image/png", dataUrl: node.metadata.content, storageKey: node.metadata.storageKey }];
+            const imageConfig = NODE_DEFAULT_SIZE[CanvasNodeType.Image];
+            const originX = node.position.x + node.width + 96;
+            const stepY = imageConfig.height + 24;
+
+            // 串行而不是并发：四张同时发容易撞厂商限流，账单也不好看清是哪张失败。
+            for (const [index, prompt] of preset.prompts.entries()) {
+                const childId = nanoid();
+                const title = preset.prompts.length > 1 ? `${preset.title} ${index + 1}` : preset.title;
+                const generationMetadata = buildImageGenerationMetadata("edit", generationConfig, 1, reference);
+                setNodes((prev) => [
+                    ...prev,
+                    {
+                        id: childId,
+                        type: CanvasNodeType.Image,
+                        title,
+                        position: { x: originX, y: node.position.y + index * stepY },
+                        width: imageConfig.width,
+                        height: imageConfig.height,
+                        metadata: { prompt, status: NODE_STATUS_LOADING, ...generationMetadata },
+                    },
+                ]);
+                setConnections((prev) => [...prev, { id: nanoid(), fromNodeId: node.id, toNodeId: childId }]);
+                setSelectedNodeIds(new Set([childId]));
+                const controller = startGenerationRequest(childId, node.id, childId);
+                setRunningNodeId(childId);
+                try {
+                    const image = await requestSingleImage(generationConfig, prompt, reference, { signal: controller.signal });
+                    const uploaded = await uploadImage(image.dataUrl, { signal: controller.signal });
+                    const size = fitNodeSize(uploaded.width, uploaded.height, imageConfig.width, imageConfig.height);
+                    setNodes((prev) => prev.map((item) => (item.id === childId ? { ...item, width: size.width, height: size.height, metadata: { ...item.metadata, ...imageMetadata(uploaded), prompt, ...generationMetadata } } : item)));
+                } catch (error) {
+                    // 用户取消就停手：后面几张还没买，不该继续花。
+                    if (isGenerationCanceled(error)) break;
+                    const errorDetails = error instanceof Error ? error.message : t("canvas.projectPage.generationFailed");
+                    setNodes((prev) => prev.map((item) => (item.id === childId ? { ...item, metadata: { ...item.metadata, status: NODE_STATUS_ERROR, errorDetails } } : item)));
+                } finally {
+                    finishGenerationRequest(childId, controller);
+                    setRunningNodeId(null);
+                }
+            }
+        },
+        [effectiveConfig, finishGenerationRequest, openConfigDialog, startGenerationRequest, t],
+    );
+
     const handleFontSizeChange = useCallback((nodeId: string, fontSize: number) => {
         setNodes((prev) => prev.map((node) => (node.id === nodeId ? { ...node, metadata: { ...node.metadata, fontSize } } : node)));
     }, []);
@@ -3376,6 +3475,7 @@ function InfiniteCanvasPage() {
                     onUpscale={(node) => setUpscaleNodeId(node.id)}
                     onSuperResolve={(node) => setSuperResolveNodeId(node.id)}
                     onAngle={(node) => setAngleNodeId(node.id)}
+                    onPreset={(node) => setPresetNodeId(node.id)}
                     onViewImage={handleNodeViewImage}
                     onReversePrompt={createImageReversePromptNodes}
                     onRetry={(node) => void handleRetryNode(node)}
@@ -3476,6 +3576,18 @@ function InfiniteCanvasPage() {
                 </Modal>
 
                 {angleNode?.metadata?.content ? <CanvasNodeAngleDialog dataUrl={angleNode.metadata.content} open={Boolean(angleNode)} onClose={() => setAngleNodeId(null)} onConfirm={(params) => void generateAngleNode(angleNode!, params)} /> : null}
+                <AgentConfirmDialog
+                    plan={pendingAgentPlan?.plan ?? null}
+                    open={Boolean(pendingAgentPlan)}
+                    costText={pendingAgentCost}
+                    onCancel={() => setPendingAgentPlan(null)}
+                    onConfirm={() => {
+                        const run = pendingAgentPlan?.proceed;
+                        setPendingAgentPlan(null);
+                        run?.();
+                    }}
+                />
+                {presetNode?.metadata?.content ? <CanvasNodePresetDialog dataUrl={presetNode.metadata.content} open={Boolean(presetNode)} onClose={() => setPresetNodeId(null)} onConfirm={(id) => void generatePresetNode(presetNode!, id)} /> : null}
 
                 <Modal
                     title={t("canvas.projectPage.imageDetails")}

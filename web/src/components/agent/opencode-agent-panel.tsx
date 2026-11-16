@@ -18,7 +18,20 @@ import { useThemeStore } from "@/stores/use-theme-store";
 import { AgentChatTimeline, AgentUsageBar } from "./agent-chat";
 import { AgentChatComposer } from "./agent-chat-composer";
 import { AgentConnectView } from "./agent-connect-view";
-import { agentErrorView, bindPendingTurnMessages, eventUsage, formatAgentActivity, isCurrentThreadEvent, normalizeHistoryMessages, normalizeText, parseEventData, scopeChatItem, stringText, upsertAgentMessage, type AgentEventPayload } from "./agent-event-formatters";
+import {
+    agentErrorView,
+    bindPendingTurnMessages,
+    eventUsage,
+    formatAgentActivity,
+    isCurrentThreadEvent,
+    normalizeHistoryMessages,
+    normalizeText,
+    parseEventData,
+    scopeChatItem,
+    stringText,
+    upsertAgentMessage,
+    type AgentEventPayload,
+} from "./agent-event-formatters";
 import { AgentHistoryView } from "./agent-history-view";
 import { AgentLogView } from "./agent-log-view";
 import { AgentPanelTabs } from "./agent-panel-tabs";
@@ -57,12 +70,19 @@ export function OpencodeAgentPanel() {
     const pushEventLog = useAgentStore((state) => state.addEventLog);
     const clearEventLogs = useAgentStore((state) => state.clearEventLogs);
     const closePanel = useAgentStore((state) => state.closePanel);
-    const addEventLog = useCallback((title: string, text: unknown, raw?: unknown) => {
-        const value = normalizeText(text) || title;
-        const last = useAgentStore.getState().eventLogs.at(-1);
-        if (last?.title === title && last.text === value) return;
-        pushEventLog({ id: `${Date.now()}-${Math.random()}`, time: dayjs().format("YYYY-MM-DD HH:mm:ss"), title, text: value, raw });
-    }, [pushEventLog]);
+    // 三档权限同时管两件事：画布 op 是否放行（use-agent-bridge 读它），
+    // 以及输入框右下角那个菜单显示什么。放 store 是为了两边读同一个值。
+    const permissionMode = useAgentStore((state) => state.permission);
+    const setPermissionMode = useAgentStore((state) => state.setPermission);
+    const addEventLog = useCallback(
+        (title: string, text: unknown, raw?: unknown) => {
+            const value = normalizeText(text) || title;
+            const last = useAgentStore.getState().eventLogs.at(-1);
+            if (last?.title === title && last.text === value) return;
+            pushEventLog({ id: `${Date.now()}-${Math.random()}`, time: dayjs().format("YYYY-MM-DD HH:mm:ss"), title, text: value, raw });
+        },
+        [pushEventLog],
+    );
     const messageCount = useAgentStore((state) => state.messages.length);
     const canvasContextRef = useRef<AgentCanvasContext | null>(useAgentStore.getState().canvasContext);
     const connectedRef = useRef(false);
@@ -81,7 +101,9 @@ export function OpencodeAgentPanel() {
             clientIdRef.current = clientId;
             setClientReady(true);
         });
-        return () => { disposed = true; };
+        return () => {
+            disposed = true;
+        };
     }, []);
 
     // 连上后从连接页回到对话；用户自己点开连接页看状态时不打扰。
@@ -89,29 +111,35 @@ export function OpencodeAgentPanel() {
         if (connected && useAgentStore.getState().activeTab === "setup") setAgentState({ activeTab: "chat" });
     }, [connected, setAgentState]);
 
-    const loadSnapshot = useCallback(async (threadId: string) => {
-        const data = await fetchOpencodeThread(endpoint, token, threadId);
-        if (useAgentStore.getState().activeThreadId !== threadId) return;
-        setAgentState({ messages: normalizeHistoryMessages(data.messages || []), activeTurnId: "", tokenUsage: null });
-    }, [endpoint, setAgentState, token]);
+    const loadSnapshot = useCallback(
+        async (threadId: string) => {
+            const data = await fetchOpencodeThread(endpoint, token, threadId);
+            if (useAgentStore.getState().activeThreadId !== threadId) return;
+            setAgentState({ messages: normalizeHistoryMessages(data.messages || []), activeTurnId: "", tokenUsage: null });
+        },
+        [endpoint, setAgentState, token],
+    );
 
-    const loadThreads = useCallback(async (resume = false) => {
-        setAgentState({ loadingThreads: true });
-        try {
-            const data = await fetchOpencodeThreads(endpoint, token);
-            const list = data.data || [];
-            const current = useAgentStore.getState();
-            const active = list.some((item) => item.id === current.activeThreadId) ? current.activeThreadId : list[0]?.id || "";
-            setAgentState({ threads: list, workspacePath: data.workspace?.workspacePath || "", activeThreadId: active, ...(active === current.activeThreadId ? {} : { messages: [], activeTurnId: "", tokenUsage: null }) });
-            // 只在进入面板或手动刷新时重读历史；一轮刚结束时按消息流为准，不覆盖正在显示的内容。
-            if (resume && active && !current.sending && !current.waiting) await loadSnapshot(active);
-            if (!active) setAgentState({ messages: [], activeTurnId: "", tokenUsage: null });
-        } catch (error) {
-            addEventLog(rt("historyReadFailed"), error);
-        } finally {
-            setAgentState({ loadingThreads: false });
-        }
-    }, [addEventLog, endpoint, loadSnapshot, setAgentState, token]);
+    const loadThreads = useCallback(
+        async (resume = false) => {
+            setAgentState({ loadingThreads: true });
+            try {
+                const data = await fetchOpencodeThreads(endpoint, token);
+                const list = data.data || [];
+                const current = useAgentStore.getState();
+                const active = list.some((item) => item.id === current.activeThreadId) ? current.activeThreadId : list[0]?.id || "";
+                setAgentState({ threads: list, workspacePath: data.workspace?.workspacePath || "", activeThreadId: active, ...(active === current.activeThreadId ? {} : { messages: [], activeTurnId: "", tokenUsage: null }) });
+                // 只在进入面板或手动刷新时重读历史；一轮刚结束时按消息流为准，不覆盖正在显示的内容。
+                if (resume && active && !current.sending && !current.waiting) await loadSnapshot(active);
+                if (!active) setAgentState({ messages: [], activeTurnId: "", tokenUsage: null });
+            } catch (error) {
+                addEventLog(rt("historyReadFailed"), error);
+            } finally {
+                setAgentState({ loadingThreads: false });
+            }
+        },
+        [addEventLog, endpoint, loadSnapshot, setAgentState, token],
+    );
 
     const scopeEventItem = useCallback((event: AgentEventPayload, item: Omit<AgentChatItem, "id"> & { id?: string }, itemId: string) => {
         const threadId = event.threadId || event.thread_id || "";
@@ -119,90 +147,105 @@ export function OpencodeAgentPanel() {
         return scopeChatItem({ ...item, id: item.id || itemId, itemId } as AgentChatItem, threadId, turnId);
     }, []);
 
-    const appendStreamText = useCallback((event: AgentEventPayload, text: string) => {
-        const itemId = event.item?.id;
-        if (!itemId || !text) return;
-        const scoped = scopeEventItem(event, { role: "assistant", title: "opencode", text, streamId: itemId }, itemId);
-        const messages = useAgentStore.getState().messages;
-        const index = messages.findIndex((item) => item.id === scoped.id);
-        if (index < 0) {
-            addMessage(scoped);
-            return;
-        }
-        setAgentState({ messages: messages.map((item, itemIndex) => itemIndex === index ? { ...item, text: `${item.text}${text}` } : item) });
-    }, [addMessage, scopeEventItem, setAgentState]);
+    const appendStreamText = useCallback(
+        (event: AgentEventPayload, text: string) => {
+            const itemId = event.item?.id;
+            if (!itemId || !text) return;
+            const scoped = scopeEventItem(event, { role: "assistant", title: "opencode", text, streamId: itemId }, itemId);
+            const messages = useAgentStore.getState().messages;
+            const index = messages.findIndex((item) => item.id === scoped.id);
+            if (index < 0) {
+                addMessage(scoped);
+                return;
+            }
+            setAgentState({ messages: messages.map((item, itemIndex) => (itemIndex === index ? { ...item, text: `${item.text}${text}` } : item)) });
+        },
+        [addMessage, scopeEventItem, setAgentState],
+    );
 
-    const finishStreamText = useCallback((event: AgentEventPayload) => {
-        const itemId = event.item?.id;
-        if (!itemId) return;
-        const text = stringText(event.item?.text);
-        const scoped = scopeEventItem(event, { role: "assistant", title: "opencode", text }, itemId);
-        const messages = useAgentStore.getState().messages;
-        const index = messages.findIndex((item) => item.id === scoped.id);
-        if (index < 0) {
-            if (text) addMessage(scoped);
-            return;
-        }
-        setAgentState({ messages: messages.map((item, itemIndex) => itemIndex === index ? { ...item, text: text || item.text, streamId: undefined } : item) });
-    }, [addMessage, scopeEventItem, setAgentState]);
+    const finishStreamText = useCallback(
+        (event: AgentEventPayload) => {
+            const itemId = event.item?.id;
+            if (!itemId) return;
+            const text = stringText(event.item?.text);
+            const scoped = scopeEventItem(event, { role: "assistant", title: "opencode", text }, itemId);
+            const messages = useAgentStore.getState().messages;
+            const index = messages.findIndex((item) => item.id === scoped.id);
+            if (index < 0) {
+                if (text) addMessage(scoped);
+                return;
+            }
+            setAgentState({ messages: messages.map((item, itemIndex) => (itemIndex === index ? { ...item, text: text || item.text, streamId: undefined } : item)) });
+        },
+        [addMessage, scopeEventItem, setAgentState],
+    );
 
-    const upsertActivity = useCallback((event: AgentEventPayload, activity: Omit<AgentChatItem, "id">) => {
-        const itemId = event.item?.id;
-        if (!itemId) return;
-        const messages = useAgentStore.getState().messages;
-        const scoped = scopeEventItem(event, activity, itemId);
-        const existing = messages.find((item) => item.id === scoped.id);
-        setAgentState({ messages: upsertAgentMessage(messages, { ...scoped, text: scoped.text || existing?.text || "" }) });
-    }, [scopeEventItem, setAgentState]);
+    const upsertActivity = useCallback(
+        (event: AgentEventPayload, activity: Omit<AgentChatItem, "id">) => {
+            const itemId = event.item?.id;
+            if (!itemId) return;
+            const messages = useAgentStore.getState().messages;
+            const scoped = scopeEventItem(event, activity, itemId);
+            const existing = messages.find((item) => item.id === scoped.id);
+            setAgentState({ messages: upsertAgentMessage(messages, { ...scoped, text: scoped.text || existing?.text || "" }) });
+        },
+        [scopeEventItem, setAgentState],
+    );
 
-    const showError = useCallback((value: unknown, scopeThreadId = useAgentStore.getState().activeThreadId, scopeTurnId = useAgentStore.getState().activeTurnId) => {
-        const error = agentErrorView(value);
-        addMessage(scopeChatItem({ id: randomId(), role: "error", title: error.title, text: error.text }, scopeThreadId, scopeTurnId));
-        addEventLog(error.title, error.text);
-    }, [addEventLog, addMessage]);
+    const showError = useCallback(
+        (value: unknown, scopeThreadId = useAgentStore.getState().activeThreadId, scopeTurnId = useAgentStore.getState().activeTurnId) => {
+            const error = agentErrorView(value);
+            addMessage(scopeChatItem({ id: randomId(), role: "error", title: error.title, text: error.text }, scopeThreadId, scopeTurnId));
+            addEventLog(error.title, error.text);
+        },
+        [addEventLog, addMessage],
+    );
 
-    const handleAgentEvent = useCallback((event: AgentEventPayload) => {
-        if (event.type === "thread.started") {
-            setAgentState({ activity: rt("agentRunning") });
-            return;
-        }
-        if (event.type === "turn.started") {
-            const threadId = event.threadId || event.thread_id || "";
-            const turnId = event.turnId || event.turn_id || "";
-            if (!threadId || !turnId) return;
-            setAgentState({ activeTurnId: turnId, sending: false, waiting: true, activity: rt("agentRunning"), messages: bindPendingTurnMessages(useAgentStore.getState().messages, threadId, turnId) });
-            return;
-        }
-        if (event.type === "usage.updated") {
-            setAgentState({ tokenUsage: eventUsage(event) });
-            return;
-        }
-        if (event.type === "item.updated" && event.item?.type === "agent_message") {
-            appendStreamText(event, stringText(event.item.delta));
-            return;
-        }
-        if (event.type === "item.completed" && event.item?.type === "agent_message") {
-            finishStreamText(event);
-            return;
-        }
-        if (event.type === "turn.completed") {
-            const state = useAgentStore.getState();
-            const threadId = event.threadId || event.thread_id || "";
-            const turnId = event.turnId || event.turn_id || "";
-            setAgentState({
-                sending: false,
-                waiting: false,
-                activeTurnId: state.activeTurnId === turnId ? "" : state.activeTurnId,
-                activity: event.status === "failed" ? rt("processingFailed") : rt("completed"),
-                messages: state.messages.map((item) => item.threadId === threadId && item.turnId === turnId && item.streamId ? { ...item, streamId: undefined } : item),
-            });
-            if (event.status === "failed") showError(event.error?.message || i18n.t("agent.events.taskFailed"), threadId, turnId);
-            void loadThreads();
-            return;
-        }
-        const activity = formatAgentActivity(event);
-        if (activity) upsertActivity(event, activity);
-    }, [appendStreamText, finishStreamText, loadThreads, setAgentState, showError, upsertActivity]);
+    const handleAgentEvent = useCallback(
+        (event: AgentEventPayload) => {
+            if (event.type === "thread.started") {
+                setAgentState({ activity: rt("agentRunning") });
+                return;
+            }
+            if (event.type === "turn.started") {
+                const threadId = event.threadId || event.thread_id || "";
+                const turnId = event.turnId || event.turn_id || "";
+                if (!threadId || !turnId) return;
+                setAgentState({ activeTurnId: turnId, sending: false, waiting: true, activity: rt("agentRunning"), messages: bindPendingTurnMessages(useAgentStore.getState().messages, threadId, turnId) });
+                return;
+            }
+            if (event.type === "usage.updated") {
+                setAgentState({ tokenUsage: eventUsage(event) });
+                return;
+            }
+            if (event.type === "item.updated" && event.item?.type === "agent_message") {
+                appendStreamText(event, stringText(event.item.delta));
+                return;
+            }
+            if (event.type === "item.completed" && event.item?.type === "agent_message") {
+                finishStreamText(event);
+                return;
+            }
+            if (event.type === "turn.completed") {
+                const state = useAgentStore.getState();
+                const threadId = event.threadId || event.thread_id || "";
+                const turnId = event.turnId || event.turn_id || "";
+                setAgentState({
+                    sending: false,
+                    waiting: false,
+                    activeTurnId: state.activeTurnId === turnId ? "" : state.activeTurnId,
+                    activity: event.status === "failed" ? rt("processingFailed") : rt("completed"),
+                    messages: state.messages.map((item) => (item.threadId === threadId && item.turnId === turnId && item.streamId ? { ...item, streamId: undefined } : item)),
+                });
+                if (event.status === "failed") showError(event.error?.message || i18n.t("agent.events.taskFailed"), threadId, turnId);
+                void loadThreads();
+                return;
+            }
+            const activity = formatAgentActivity(event);
+            if (activity) upsertActivity(event, activity);
+        },
+        [appendStreamText, finishStreamText, loadThreads, setAgentState, showError, upsertActivity],
+    );
 
     useEffect(() => {
         if (!clientReady || !enabled || !token.trim()) return;
@@ -211,9 +254,13 @@ export function OpencodeAgentPanel() {
         let eventQueue = Promise.resolve();
         const isCurrent = () => !disposed && clientIdRef.current === clientId;
         const enqueue = (task: () => void) => {
-            eventQueue = eventQueue.then(() => { if (isCurrent()) task(); }).catch((error) => {
-                if (isCurrent()) addEventLog(rt("conversationSyncFailed"), error);
-            });
+            eventQueue = eventQueue
+                .then(() => {
+                    if (isCurrent()) task();
+                })
+                .catch((error) => {
+                    if (isCurrent()) addEventLog(rt("conversationSyncFailed"), error);
+                });
         };
         const source = new EventSource(`${endpoint}/events?token=${encodeURIComponent(token)}&clientId=${encodeURIComponent(clientId)}`);
         source.addEventListener("hello", (event) => {
@@ -237,9 +284,10 @@ export function OpencodeAgentPanel() {
         });
         source.addEventListener("agent_event", (event) => {
             const data = parseEventData<AgentEventPayload>(event);
-            if (data) enqueue(() => {
-                if (isCurrentThreadEvent(data)) handleAgentEvent(data);
-            });
+            if (data)
+                enqueue(() => {
+                    if (isCurrentThreadEvent(data)) handleAgentEvent(data);
+                });
         });
         source.onerror = () => {
             // 连上之后的断线交给浏览器自动重连；一直没握手成功才算连接失败。
@@ -257,31 +305,33 @@ export function OpencodeAgentPanel() {
     useEffect(() => {
         if (!connected) return;
         let disposed = false;
-        void fetchOpencodeModels(endpoint, token).then((data) => {
-            if (disposed) return;
-            const models = Array.isArray(data.models) ? data.models : [];
-            if (!models.length) {
+        void fetchOpencodeModels(endpoint, token)
+            .then((data) => {
+                if (disposed) return;
+                const models = Array.isArray(data.models) ? data.models : [];
+                if (!models.length) {
+                    setOpencodeModels([]);
+                    setOpencodeModel("");
+                    setModelsUnavailable(true);
+                    return;
+                }
+                const saved = typeof window === "undefined" ? "" : localStorage.getItem("canvas-agent-opencode-model") || "";
+                const current = models.find((item) => item.id === saved)?.id || (data.defaultId && models.some((item) => item.id === data.defaultId) ? data.defaultId : "") || models[0].id;
+                setOpencodeModels(models);
+                setOpencodeModel(current);
+                setModelsUnavailable(false);
+                localStorage.setItem("canvas-agent-opencode-model", current);
+            })
+            .catch((error) => {
+                if (disposed) return;
                 setOpencodeModels([]);
                 setOpencodeModel("");
                 setModelsUnavailable(true);
-                return;
-            }
-            const saved = typeof window === "undefined" ? "" : localStorage.getItem("canvas-agent-opencode-model") || "";
-            const current = models.find((item) => item.id === saved)?.id
-                || (data.defaultId && models.some((item) => item.id === data.defaultId) ? data.defaultId : "")
-                || models[0].id;
-            setOpencodeModels(models);
-            setOpencodeModel(current);
-            setModelsUnavailable(false);
-            localStorage.setItem("canvas-agent-opencode-model", current);
-        }).catch((error) => {
-            if (disposed) return;
-            setOpencodeModels([]);
-            setOpencodeModel("");
-            setModelsUnavailable(true);
-            addEventLog(rt("modelListFailed"), error);
-        });
-        return () => { disposed = true; };
+                addEventLog(rt("modelListFailed"), error);
+            });
+        return () => {
+            disposed = true;
+        };
     }, [addEventLog, connected, endpoint, token]);
 
     // 画布变化只更新 ref，并按 300ms 节流回报，避免拖动时整块面板重渲染。
@@ -311,13 +361,22 @@ export function OpencodeAgentPanel() {
         const messageId = randomId();
         setAgentState({ prompt: "", canvasReferences: [], sending: true, activity: rt("sending"), activeTurnId: "" });
         useAgentSkillStore.getState().clearSelection();
-        addMessage({ id: messageId, itemId: "synthetic:user", clientMessageId: messageId, threadId: state.activeThreadId, turnId: "", role: "user", text: text || rt("canvasReferencesSent", { count: references.length }), canvasReferences: references as AgentCanvasReference[] });
+        addMessage({
+            id: messageId,
+            itemId: "synthetic:user",
+            clientMessageId: messageId,
+            threadId: state.activeThreadId,
+            turnId: "",
+            role: "user",
+            text: text || rt("canvasReferencesSent", { count: references.length }),
+            canvasReferences: references as AgentCanvasReference[],
+        });
         let threadId = state.activeThreadId;
         try {
             if (!threadId) {
                 threadId = (await createOpencodeThread(endpoint, token)).threadId || "";
                 if (!threadId) throw new Error(rt("startConversationFailed"));
-                setAgentState({ activeThreadId: threadId, messages: useAgentStore.getState().messages.map((item) => item.clientMessageId === messageId ? scopeChatItem(item, threadId, "") : item) });
+                setAgentState({ activeThreadId: threadId, messages: useAgentStore.getState().messages.map((item) => (item.clientMessageId === messageId ? scopeChatItem(item, threadId, "") : item)) });
             }
             addEventLog(rt("sendTask"), compact(text) || rt("canvasReferencesSent", { count: references.length }));
             await sendOpencodeTurn(endpoint, token, { threadId, prompt: requestPrompt, clientId: clientIdRef.current, ...(opencodeModel ? { model: opencodeModel } : {}) });
@@ -433,7 +492,14 @@ export function OpencodeAgentPanel() {
                         </span>
                         <div className="hidden text-base font-semibold leading-5 @min-[560px]:block">Agent</div>
                         <Tooltip title={t("agent.panel.connectionSettings", { status: connectionStatus })} placement="bottom">
-                            <Button size="small" type="text" className="!h-8 !w-8 !min-w-8 !px-0 @min-[560px]:!w-auto @min-[560px]:!min-w-0 @min-[560px]:!px-[7px]" aria-label={t("agent.panel.connectionSettingsLabel", { status: connectionStatus })} icon={<PlugZap className="size-3.5" style={{ color: connectionStatusColor }} />} onClick={() => setAgentState({ activeTab: "setup" })}>
+                            <Button
+                                size="small"
+                                type="text"
+                                className="!h-8 !w-8 !min-w-8 !px-0 @min-[560px]:!w-auto @min-[560px]:!min-w-0 @min-[560px]:!px-[7px]"
+                                aria-label={t("agent.panel.connectionSettingsLabel", { status: connectionStatus })}
+                                icon={<PlugZap className="size-3.5" style={{ color: connectionStatusColor }} />}
+                                onClick={() => setAgentState({ activeTab: "setup" })}
+                            >
                                 <span className="hidden @min-[560px]:inline">{connectionStatus}</span>
                             </Button>
                         </Tooltip>
@@ -451,7 +517,15 @@ export function OpencodeAgentPanel() {
                 right={
                     <>
                         <Tooltip title={t("agent.history.newThread")} placement="bottom">
-                            <Button size="small" type="text" className="!h-8 !w-8 !min-w-8 !px-0 @min-[560px]:!w-auto @min-[560px]:!min-w-0 @min-[560px]:!px-[7px]" aria-label={t("agent.history.newThread")} disabled={!connected || loadingThreads || sending || waiting} icon={<Plus className="size-3.5" />} onClick={() => void startNewThread()}>
+                            <Button
+                                size="small"
+                                type="text"
+                                className="!h-8 !w-8 !min-w-8 !px-0 @min-[560px]:!w-auto @min-[560px]:!min-w-0 @min-[560px]:!px-[7px]"
+                                aria-label={t("agent.history.newThread")}
+                                disabled={!connected || loadingThreads || sending || waiting}
+                                icon={<Plus className="size-3.5" />}
+                                onClick={() => void startNewThread()}
+                            >
                                 <span className="hidden @min-[560px]:inline">{t("agent.history.newThread")}</span>
                             </Button>
                         </Tooltip>
@@ -511,13 +585,19 @@ export function OpencodeAgentPanel() {
                         onPromptChange={(prompt) => setAgentState({ prompt })}
                         onSubmit={() => void sendPrompt()}
                         onStop={() => void stopTurn()}
+                        permissionMode={permissionMode}
+                        onPermissionModeChange={setPermissionMode}
                         left={
                             opencodeModels.length && opencodeModel ? (
-                                <OpencodeModelSelect models={opencodeModels} model={opencodeModel} onChange={(model) => {
-                                    if (!opencodeModels.some((item) => item.id === model)) return;
-                                    setOpencodeModel(model);
-                                    localStorage.setItem("canvas-agent-opencode-model", model);
-                                }} />
+                                <OpencodeModelSelect
+                                    models={opencodeModels}
+                                    model={opencodeModel}
+                                    onChange={(model) => {
+                                        if (!opencodeModels.some((item) => item.id === model)) return;
+                                        setOpencodeModel(model);
+                                        localStorage.setItem("canvas-agent-opencode-model", model);
+                                    }}
+                                />
                             ) : (
                                 <span className="hidden text-[11px] @min-[660px]:inline" style={{ color: theme.node.muted }}>
                                     {t(modelsUnavailable ? "agent.kind.opencodeModelsUnavailable" : "agent.kind.opencodeModel")}
@@ -540,13 +620,21 @@ function OpencodeModelSelect({ models, model, onChange }: { models: OpencodeMode
         <Tooltip title={t("agent.kind.selectOpencodeModel", { model: current.label })} placement="top" open={open ? false : undefined}>
             <span className="inline-flex shrink-0">
                 <Select value={model} open={open} onOpenChange={setOpen} onValueChange={onChange}>
-                    <SelectTrigger hideChevron className="h-9 w-9 min-w-9 justify-center gap-0 rounded-full border-0 bg-transparent px-0 text-xs font-medium shadow-none hover:bg-black/5 focus:ring-0 @min-[660px]:w-auto @min-[660px]:min-w-36 @min-[660px]:max-w-44 @min-[660px]:justify-start @min-[660px]:gap-1.5 @min-[660px]:px-2.5 dark:bg-transparent dark:hover:bg-white/10" aria-label={t("agent.kind.selectOpencodeModel", { model: current.label })}>
+                    <SelectTrigger
+                        hideChevron
+                        className="h-9 w-9 min-w-9 justify-center gap-0 rounded-full border-0 bg-transparent px-0 text-xs font-medium shadow-none hover:bg-black/5 focus:ring-0 @min-[660px]:w-auto @min-[660px]:min-w-36 @min-[660px]:max-w-44 @min-[660px]:justify-start @min-[660px]:gap-1.5 @min-[660px]:px-2.5 dark:bg-transparent dark:hover:bg-white/10"
+                        aria-label={t("agent.kind.selectOpencodeModel", { model: current.label })}
+                    >
                         <Cpu className="size-3.5 shrink-0 opacity-70" />
                         <span className="hidden min-w-0 flex-1 truncate text-left @min-[660px]:inline">{current.label}</span>
                         <ChevronUp className="hidden size-3 opacity-50 @min-[660px]:block" />
                     </SelectTrigger>
                     <SelectContent data-canvas-no-zoom position="popper" side="top" align="start" sideOffset={6} className="z-[1200] w-64 rounded-xl border border-border/70 bg-popover p-1 shadow-xl">
-                        {models.map((item) => <SelectItem key={item.id} value={item.id}>{item.label}</SelectItem>)}
+                        {models.map((item) => (
+                            <SelectItem key={item.id} value={item.id}>
+                                {item.label}
+                            </SelectItem>
+                        ))}
                     </SelectContent>
                 </Select>
             </span>
