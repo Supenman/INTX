@@ -7,15 +7,49 @@ description: Implemented changes that still need manual verification
 
 The current release needs manual verification in these areas:
 
-## 生成统一收口到画布：下线生图工作台 / 视频创作台（待用户验收）
+## Canvas agent: three permission levels and paid-action confirmation (pending user verification)
 
-- 删除 `/image`、`/video` 两个独立页面及其路由，顶部导航精简为「我的画布 / 提示词库 / 我的资产 / 任务中心 / 配置」五个入口；旧地址直接返回 404「页面不存在」，不做重定向。
-- Agent 的「生成图片 / 生成视频」工具保留原有工具名和参数设置行为：传 `run: false` 只更新参数、不触发生成，返回「已更新生图参数，未触发生成」。
-- 传 `run: true` 时不再跳转页面，直接在当前最近更新的画布项目（没有项目就新建一个）里建节点：图片按张数逐张独立生成，每张成功后落成图片节点并写入素材库；视频先落一张 loading 节点，产物回来后写回同一节点，失败时节点标记错误并带上原因，都不跳页。
-- 生成仍走任务台账：任务中心能看到对应记录，图片失败/需确认时沿用三态语义，失败卡不引导重发；自动生成不额外发真实厂商请求，成本提示照旧。
-- 自动化：`web` 类型检查通过，45 文件 / 666 用例通过，生产构建通过。
-- **本地已验证**：导航只剩五项、`/image` 与 `/video` 404、`run: false` 只改参数、`run: true` 缺 prompt 时报「生成需要提供 prompt 提示词」、带 prompt 时在画布项目建节点并返回 projectId / taskId。用无效 Key 触发的失败路径在任务中心落了两条「需先确认」记录，没有产生费用。
-- **未验证**：用真实 Key 走 Agent 路径成功出图并落到画布、视频路径端到端（loading 节点 → 产物写回）、Tauri 桌面端。本次未发真实厂商请求、未使用任何 API Key。
+- The permission menu at the bottom-right of the agent composer existed but was never wired up. It now works, and all three levels — `Ask for approval`, `Automatic review`, `Full access` — apply to canvas operations.
+- `Automatic review` (default): canvas edits run directly, while **paid generation and deletions still show a confirmation card**. `Ask for approval`: every non-read-only change needs a click. `Full access`: even paid generation runs without asking (the menu shows this in orange). Read-only operations (viewport moves, selection changes) never prompt in any level.
+- The confirmation card reports only what matters: how many actions cost money (with an estimate; when a channel has no unit price it says "no unit price configured" instead of showing 0), how many deletes, how many other edits. Confirming **replays only the pending operations**, so already-applied nodes are not added twice and no order is placed twice; both halves of a batch share one undo snapshot, so a single undo reverts the whole batch.
+- The level is stored in `localStorage` under `infinite-canvas:agent-permission` and survives reloads and canvas switches.
+- Automated: typecheck, 50 files / 711 cases, domain boundary check, production build and the three-viewport overflow check pass. 25 new cases (`agent-permissions.test.ts` — 20 pinning the three-level table and that confirmation replays only the pending part; `agent-permission-persist.test.ts` — 5 pinning the default, stale-value fallback and that a failed write still applies in-session), all checked destructively (reverting the replay list to "all" turns 3 cases red; dropping the stale-value guard turns the fallback case red).
+- **Verified in browser**: the three menu entries and their descriptions render, picking `Ask for approval` updates the label, `localStorage` gets `request`, `Full access` survives a reload, and the dropdown stays inside the viewport at both 1440 and 390.
+- **Not verified**: a real `run_generation` confirmation card driven by a connected local agent (needs a local agent and a real key; no provider request was sent this round), and the cost estimate against an actual charge (depends on the channel unit price).
+
+## Image presets: three-view / storyboard / multi-camera (pending user verification)
+
+- The image node's floating toolbar has a new "Presets" entry (visible by default). It offers character three-view, face three-view, product three-view, storyboard sequence and multi-camera; each card shows the shot count and output size.
+- The three-view presets produce 1 sheet each, storyboard and multi-camera produce 4. The four shots are submitted one after another, each becomes its own child node linked back to the source image, and one failing shot does not stop the rest.
+- Size comes from the preset and ignores the node / channel size setting: three-view, storyboard and multi-camera use `2048x1152` (2K 16:9), face three-view uses `3456x1152` (3:1).
+- Prompts and sizes are ported from OpenDirector v0.1.4 `tool_image_edits.py` (`PRESETS`); licence and modification notes are in `THIRD_PARTY_NOTICES.md`.
+- Automated: typecheck passes; 7 cases in `web/src/lib/canvas/image-presets.test.ts` pin the shot counts, the exact 3.0 size ratio, that the prompts are distinct, and the shared consistency suffix.
+- **Verified in browser**: the "Presets" button appears on a selected image node; the dialog lays out all five entries with correct counts and sizes; with no channel configured, clicking any entry closes the preset dialog first and then opens "Configuration" — **no provider request was sent**; console shows no errors.
+- **Not verified**: a real generation (zero provider requests this round; needs a real key on real hardware), the actual timing and abort behaviour of four sequential shots, desktop rendering, and how the dialog and toolbar look at 390px.
+
+## Channel egress mode: local proxy / direct (pending user verification)
+
+- The channel editor drawer gains an "Egress" segmented control below the API key: `Follow local proxy` (default) and `Direct to upstream`.
+- `Follow local proxy` behaves exactly as before: the global proxy switch decides whether requests are rewritten to the `127.0.0.1` proxy prefix.
+- `Direct to upstream` stops routing this channel through the local proxy — the URL is left alone even when the global proxy switch is on.
+- Scope: ModelScope async submit and polling, upstream image download, re-checking failed tasks in the task centre, and the OpenAI-compatible URL builder all read the same switch.
+- No migration needed: a channel without a `proxyMode` field normalizes to `system`, so behaviour is unchanged.
+- Automated: `web` typecheck, 47 files / 679 cases (13 new: 6 for normalization, direct not rewriting, system following the global switch and request-config pass-through; 7 wiring and failure-injection cases reached through `requestSingleImage`, see next bullet), domain boundary check and production build all pass.
+- **Wiring and failure injection are pinned** (`web/src/services/api/image.test.ts`): the tests enter through `requestSingleImage`, the function the canvas node actually calls, and only fake the transport layer so the real branches in `image.ts` run — endpoint detection (channel protocol says openai but the host is ModelScope, still async), `proxyMode` taken from the channel, the three failure paths (401 / cancelled after submit / 2xx without a task id), and that the ledger never contains the token or the base URL.
+- **These cases were checked destructively**: calling `createModelScopeTransport(requestConfig.proxyMode)` without the argument makes "egress mode follows the channel" fail immediately; restoring it turns everything green. "Green" alone was not accepted as proof.
+- **Verified in browser**: on the config page, the control renders full-width under the API key, defaults to `Follow local proxy`, and the hint text switches when selecting `Direct to upstream`; console shows no errors.
+- **Not verified**: an actual request with `Direct to upstream` (needs a real key on real hardware; no provider request was sent this round), and the switch's real effect on desktop (the Rust side has no CORS, so both values should be equivalent).
+- **Known limitation (state it in the acceptance expectation)**: in a browser, choosing `Direct to upstream` for ModelScope is stopped at the CORS preflight (the preflight does not allow `X-ModelScope-Async-Mode`), so nothing is sent and nothing is billed — but the node shows "possibly submitted (no reply)". The control's hint says this; for case C1 treat "fails as expected but bills nothing" as a pass.
+
+## Generation consolidated into the canvas: workbenches removed (pending user verification)
+
+- The standalone `/image` and `/video` pages and their routes are gone; the top navigation is down to Canvas / Prompts / Assets / Tasks / Config. Old URLs return a 404 "page not found" page instead of redirecting.
+- The Agent's "generate image / generate video" tools keep their names and parameter behaviour: `run: false` only updates parameters and returns "image parameters updated, generation not triggered".
+- With `run: true` the tool no longer navigates. It builds nodes in the most recently updated canvas project (creating one if needed): images are generated one by one, each success becoming an image node and an asset entry; video first creates a loading node, writes the result back into the same node, and marks the node as failed with the reason on error. No page switch either way.
+- Generation still goes through the task ledger, so the task centre shows the records; image failures keep the three-state semantics and failed cards never suggest resubmitting; automatic generation does not send extra provider requests and cost hints are unchanged.
+- Automated: `web` typecheck, 45 files / 666 cases and the production build pass.
+- **Verified locally**: only five nav entries remain, `/image` and `/video` 404, `run: false` only updates parameters, `run: true` without a prompt reports "generation needs a prompt", and with a prompt it creates nodes in a canvas project and returns projectId / taskId. The failure path triggered by an invalid key produced two "needs confirmation" records in the task centre and cost nothing.
+- **Not verified**: a successful image generation through the Agent path with a real key, the video path end to end (loading node → result written back), and the Tauri desktop build. No real provider request was sent and no API key was used this round.
 
 ## Local Agent: desktop auto-connect (pending user verification)
 
