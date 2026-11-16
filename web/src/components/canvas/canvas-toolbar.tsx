@@ -90,10 +90,12 @@ export function CanvasToolbar({
         return () => document.removeEventListener("pointerdown", handlePointerDown, true);
     }, [extensionsOpen, appearanceOpen]);
 
+    // 窄屏左侧没有固定面板：不能沿用桌面 300px 偏移，否则工具栏只剩一条缝；
+    // 窄屏改成换行两行，让图片/视频/生成配置等主操作不用横向滚动也能看见。
     return (
-        <div ref={rootRef} className="pointer-events-none absolute bottom-5 z-50 flex justify-center" style={{ left: 300, right: 16 }} data-canvas-bottom-toolbar>
+        <div ref={rootRef} className="pointer-events-none absolute bottom-5 left-2 right-4 z-50 flex justify-center sm:left-[300px]" data-canvas-bottom-toolbar>
             {tip ? <DockTip label={tip} x={tipX} theme={theme} /> : null}
-            <div ref={wrapRef} className="thin-scrollbar pointer-events-auto flex h-14 max-w-full items-center gap-1 overflow-x-auto rounded-xl border px-2 shadow-lg backdrop-blur [&>*]:shrink-0" style={dockStyle}>
+            <div ref={wrapRef} className="thin-scrollbar pointer-events-auto flex h-14 max-w-full items-center gap-1 overflow-x-auto rounded-xl border px-2 shadow-lg backdrop-blur [&>*]:shrink-0 max-sm:h-auto max-sm:flex-wrap max-sm:justify-center max-sm:overflow-visible max-sm:py-1.5" style={dockStyle}>
                 <ToolbarButton id={`tool-${canvasTool}`} label={t(`canvas.toolbar.${canvasTool}`)} active hovered={hovered} activeStyle={activeStyle} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={() => onCanvasToolChange(canvasTool === "select" ? "pan" : "select")}>
                     {canvasTool === "select" ? <MousePointer2 className="size-4.5" /> : <Hand className="size-4.5" />}
                 </ToolbarButton>
