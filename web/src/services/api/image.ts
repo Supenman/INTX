@@ -22,7 +22,7 @@ import {
     runWithTask,
     type SubmitHooks,
 } from "@/services/generation";
-import { browserModelScopeTransport } from "./modelscope-transport";
+import { createModelScopeTransport } from "./modelscope-transport";
 import { resolveImageCapabilities } from "@/domain/provider/imageCapabilities";
 
 const apiText = (key: string, options?: Record<string, unknown>) => i18n.t(`apiErrors.${key}`, options);
@@ -752,7 +752,9 @@ function isModelScopeRequest(requestConfig: AiConfig) {
 }
 
 async function requestModelScopeImages(requestConfig: AiConfig, prompt: string, referenceCount: number, options: RequestOptions | undefined, hooks: SubmitHooks | undefined) {
-    const images = await generateModelScopeImages(browserModelScopeTransport, {
+    // 出网方式跟渠道走：渠道选「直连」就不套本地代理。
+    const transport = createModelScopeTransport(requestConfig.proxyMode);
+    const images = await generateModelScopeImages(transport, {
         baseUrl: requestConfig.baseUrl,
         apiKey: requestConfig.apiKey,
         model: requestConfig.model,
@@ -772,7 +774,7 @@ async function recoverSubmittedModelScope(requestConfig: AiConfig, payload: unkn
     const taskId = readUpstreamTaskId(payload);
     if (!taskId || !isModelScopeRequest(requestConfig)) throw pendingResultFrom(payload);
     await hooks?.onSubmitted(taskId);
-    const images = await pollModelScopeTask(browserModelScopeTransport, { baseUrl: requestConfig.baseUrl, apiKey: requestConfig.apiKey, signal: options?.signal }, taskId);
+    const images = await pollModelScopeTask(createModelScopeTransport(requestConfig.proxyMode), { baseUrl: requestConfig.baseUrl, apiKey: requestConfig.apiKey, signal: options?.signal }, taskId);
     return images.map((image) => ({ id: nanoid(), dataUrl: image.dataUrl }));
 }
 

@@ -11,6 +11,8 @@ export interface RecoveryChannelView {
   name?: string;
   baseUrl: string;
   apiKey: string;
+  /** 出网方式；缺省按 system（跟随全局本地代理开关）处理。 */
+  proxyMode?: 'system' | 'direct';
 }
 
 /**

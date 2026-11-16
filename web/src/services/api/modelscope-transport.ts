@@ -11,7 +11,7 @@
 import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
 import axios from "axios";
 
-import { withLocalProxy } from "@/stores/use-config-store";
+import { withLocalProxy, type ChannelProxyMode } from "@/stores/use-config-store";
 import type { ModelScopeTransport, TransportResponse } from "@/services/generation";
 
 /** 桌面壳注入的标记；浏览器里不存在。 */
@@ -36,42 +36,51 @@ function blobToDataUrl(blob: Blob) {
     });
 }
 
-export const browserModelScopeTransport: ModelScopeTransport = {
-    async request(url, init) {
-        if (inTauri) {
-            const response = await tauriFetch(url, {
+/**
+ * 按渠道出网方式构造传输实现。
+ * `proxyMode: "direct"` 时浏览器也直连上游，不套本地代理（配了系统级代理或支持 CORS 的上游可用）。
+ */
+export function createModelScopeTransport(proxyMode: ChannelProxyMode = "system"): ModelScopeTransport {
+    return {
+        async request(url, init) {
+            if (inTauri) {
+                const response = await tauriFetch(url, {
+                    method: init.method,
+                    headers: init.headers,
+                    body: init.body,
+                    signal: init.signal,
+                });
+                const text = await response.text();
+                let data: unknown = text;
+                try {
+                    data = JSON.parse(text);
+                } catch {
+                    // 保留原文，错误信息里还能看到厂商返回的纯文本
+                }
+                return toResponse(response.status, data);
+            }
+            const response = await axios.request({
+                url: withLocalProxy(url, proxyMode),
                 method: init.method,
                 headers: init.headers,
-                body: init.body,
+                data: init.body,
                 signal: init.signal,
+                // 非 2xx 不抛，交给任务层按 HTTP 状态归类（401/429/5xx 各有三态语义）
+                validateStatus: () => true,
             });
-            const text = await response.text();
-            let data: unknown = text;
-            try {
-                data = JSON.parse(text);
-            } catch {
-                // 保留原文，错误信息里还能看到厂商返回的纯文本
+            return toResponse(response.status, response.data);
+        },
+        async fetchImage(url, signal) {
+            if (inTauri) {
+                const response = await tauriFetch(url, { signal });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                return blobToDataUrl(await response.blob());
             }
-            return toResponse(response.status, data);
-        }
-        const response = await axios.request({
-            url: withLocalProxy(url),
-            method: init.method,
-            headers: init.headers,
-            data: init.body,
-            signal: init.signal,
-            // 非 2xx 不抛，交给任务层按 HTTP 状态归类（401/429/5xx 各有三态语义）
-            validateStatus: () => true,
-        });
-        return toResponse(response.status, response.data);
-    },
-    async fetchImage(url, signal) {
-        if (inTauri) {
-            const response = await tauriFetch(url, { signal });
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            return blobToDataUrl(await response.blob());
-        }
-        const response = await axios.get<Blob>(withLocalProxy(url), { responseType: "blob", signal });
-        return blobToDataUrl(response.data);
-    },
-};
+            const response = await axios.get<Blob>(withLocalProxy(url, proxyMode), { responseType: "blob", signal });
+            return blobToDataUrl(response.data);
+        },
+    };
+}
+
+/** 默认（system）实现，保留给不关心渠道开关的调用点。 */
+export const browserModelScopeTransport: ModelScopeTransport = createModelScopeTransport("system");

@@ -18,12 +18,20 @@ export type ChannelModel = {
     pricing?: ModelPricing;
 };
 
+/**
+ * 渠道出网方式（行为参考 OpenDirector `proxyMode`）：
+ * - `"system"`：按全局「本地代理」开关决定是否经 127.0.0.1 转发（浏览器默认，绕 CORS）；
+ * - `"direct"`：始终直连上游，不经过本地代理。桌面端（Rust 侧 HTTP）本就没有 CORS，用这个更省一层。
+ */
+export type ChannelProxyMode = "system" | "direct";
+
 export type ModelChannel = {
     id: string;
     name: string;
     baseUrl: string;
     apiKey: string;
     apiFormat: ApiCallFormat;
+    proxyMode: ChannelProxyMode;
     models: ChannelModel[];
 };
 
@@ -32,6 +40,8 @@ export type AiConfig = {
     baseUrl: string;
     apiKey: string;
     apiFormat: ApiCallFormat;
+    /** 当前生效渠道的出网方式，由 resolveModelRequestConfig 从渠道带入。 */
+    proxyMode: ChannelProxyMode;
     channels: ModelChannel[];
     model: string;
     imageModel: string;
@@ -87,6 +97,7 @@ export const defaultConfig: AiConfig = {
     baseUrl: OPENAI_BASE_URL,
     apiKey: "",
     apiFormat: "openai",
+    proxyMode: "system",
     channels: [
         {
             id: "default",
@@ -94,6 +105,7 @@ export const defaultConfig: AiConfig = {
             baseUrl: OPENAI_BASE_URL,
             apiKey: "",
             apiFormat: "openai",
+            proxyMode: "system",
             models: [
                 { name: "gpt-image-2", capability: "image" },
                 { name: "grok-imagine-video", capability: "video" },
@@ -323,6 +335,10 @@ export function normalizeChannelModels(models: Array<string | ChannelModel> | un
     return result;
 }
 
+function normalizeProxyMode(value: unknown): ChannelProxyMode {
+    return value === "direct" ? "direct" : "system";
+}
+
 export function createModelChannel(channel?: Partial<ModelChannel>): ModelChannel {
     const apiFormat = normalizeApiFormat(channel?.apiFormat);
     return {
@@ -331,6 +347,7 @@ export function createModelChannel(channel?: Partial<ModelChannel>): ModelChanne
         baseUrl: channel?.baseUrl?.trim() || defaultBaseUrlForApiFormat(apiFormat),
         apiKey: channel?.apiKey || "",
         apiFormat,
+        proxyMode: normalizeProxyMode(channel?.proxyMode),
         models: normalizeChannelModels(channel?.models),
     };
 }
@@ -455,6 +472,7 @@ export function resolveModelRequestConfig(config: AiConfig, value: string) {
         baseUrl: channel.baseUrl,
         apiKey: channel.apiKey,
         apiFormat: channel.apiFormat,
+        proxyMode: channel.proxyMode,
     };
 }
 
@@ -496,11 +514,11 @@ function uniqueModelOptions(models: string[]) {
     return Array.from(new Set((models || []).map((model) => model.trim()).filter(Boolean)));
 }
 
-export function buildApiUrl(baseUrl: string, path: string) {
+export function buildApiUrl(baseUrl: string, path: string, proxyMode: ChannelProxyMode = "system") {
     const normalizedBaseUrl = baseUrl.trim().replace(/\/+$/, "");
     const lowerBaseUrl = normalizedBaseUrl.toLowerCase();
     const apiBaseUrl = lowerBaseUrl.endsWith("/v1") ? normalizedBaseUrl : `${normalizedBaseUrl}/v1`;
-    return withLocalProxy(`${apiBaseUrl}${path}`);
+    return withLocalProxy(`${apiBaseUrl}${path}`, proxyMode);
 }
 
 export function normalizeLocalProxyUrl(value: string) {
@@ -509,8 +527,14 @@ export function normalizeLocalProxyUrl(value: string) {
     return /^https?:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`;
 }
 
-/** Prefix an outgoing request with the local forwarding proxy so the browser is not blocked by CORS. */
-export function withLocalProxy(url: string) {
+/**
+ * Prefix an outgoing request with the local forwarding proxy so the browser is not blocked by CORS.
+ *
+ * `proxyMode === "direct"` 的渠道始终直连，不受全局代理开关影响；
+ * 不传则按全局开关走（默认行为，老调用点无需改动）。
+ */
+export function withLocalProxy(url: string, proxyMode: ChannelProxyMode = "system") {
+    if (proxyMode === "direct") return url;
     const { proxyEnabled, proxyUrl } = useConfigStore.getState().config;
     if (!proxyEnabled || !/^https?:\/\//i.test(url)) return url;
     const base = normalizeLocalProxyUrl(proxyUrl);

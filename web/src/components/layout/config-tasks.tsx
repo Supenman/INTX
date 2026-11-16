@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next";
 import type { Task } from "@/domain/task/model";
 import { useCopyText } from "@/hooks/use-copy-text";
 import { commitRecoveryAtomically } from "@/infrastructure/storage/atomic-commit";
-import { browserModelScopeTransport } from "@/services/api/modelscope-transport";
+import { createModelScopeTransport } from "@/services/api/modelscope-transport";
 import { pollVideoGenerationTask, storeGeneratedVideo } from "@/services/api/video";
 import { assetDrafts, adoptCommittedTask, browserTaskLog, commitRecovered, forgetPendingCommit, forgetRecoveredAssets, loadTaskLog, planDraftRecovery, planRecoveredTask, recoveredAssetIds, rememberPendingCommit, rememberRecoveredAssets, retryTaskSave, TaskPersistenceError, pollModelScopeTask, resumableTasks, useTaskLogStore, videoHandleFromTask } from "@/services/generation";
 import { pickModelScopeChannel, recoveryAction, type RecoveryChannelView } from "@/services/generation/taskRecovery";
@@ -75,7 +75,7 @@ export function ConfigTasks() {
 
     const recoverImage = async (task: Task, channel: RecoveryChannelView | null) => {
         if (!channel || !task.upstreamRef) return null;
-        const images = await pollModelScopeTask(browserModelScopeTransport, { baseUrl: channel.baseUrl, apiKey: channel.apiKey }, task.upstreamRef);
+        const images = await pollModelScopeTask(createModelScopeTransport(channel.proxyMode), { baseUrl: channel.baseUrl, apiKey: channel.apiKey }, task.upstreamRef);
         return saveImageAssets(task, images);
     };
 
