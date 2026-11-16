@@ -187,15 +187,17 @@ export default function TasksPage() {
                 </div>
             </main>
 
-            <Drawer
-                open={selected !== null}
-                size="large"
-                onClose={() => setSelectedId(null)}
-                title={selected ? `${t(`tasks.kind.${selected.kind}`, { defaultValue: selected.kind })} · ${t(`tasks.status.${selected.status}`)}` : ""}
-                destroyOnHidden
-            >
-                {selected ? <TaskDetail task={selected} reasonText={reasonText} onCopy={copyText} onExport={exportDiagnostics} /> : null}
-            </Drawer>
+            {selected ? (
+                <Drawer
+                    open
+                    size="large"
+                    onClose={() => setSelectedId(null)}
+                    title={`${t(`tasks.kind.${selected.kind}`, { defaultValue: selected.kind })} · ${t(`tasks.status.${selected.status}`)}`}
+                    destroyOnHidden
+                >
+                    <TaskDetail task={selected} reasonText={reasonText} onCopy={copyText} onExport={exportDiagnostics} />
+                </Drawer>
+            ) : null}
         </PageShell>
     );
 }

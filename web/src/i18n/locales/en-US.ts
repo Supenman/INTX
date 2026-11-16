@@ -231,6 +231,14 @@ export default {
         emptyTitle: "Results will show up here",
     },
     canvas: {
+        generationHistory: {
+            entry: "Generation history",
+            title: "Generation history",
+            description: "Recent successful results. Click any image to insert it into the current canvas; read-only ledger, nothing is regenerated.",
+            insert: "Insert into canvas",
+            empty: "No results to insert yet",
+            emptyHint: "Generate successfully from the image or video studio and results will show up here.",
+        },
         defaultTitle: "Infinite Canvas {{count}}",
         library: "Canvas library",
         title: "Infinite Canvas",

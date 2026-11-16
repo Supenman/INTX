@@ -231,6 +231,14 @@ export default {
         emptyTitle: "生成结果会出现在这里",
     },
     canvas: {
+        generationHistory: {
+            entry: "生成历史",
+            title: "生成历史",
+            description: "最近成功的生成结果，点击任意一张插入当前画布；只读台账，不会重新生成。",
+            insert: "插入当前画布",
+            empty: "还没有可插入的生成结果",
+            emptyHint: "在生图或视频工作台生成成功后，这里会出现结果。",
+        },
         defaultTitle: "无限画布 {{count}}",
         library: "画布库",
         title: "无限画布",

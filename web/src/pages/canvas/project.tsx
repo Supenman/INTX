@@ -41,6 +41,7 @@ import { CanvasNode } from "@/components/canvas/canvas-node";
 import { CanvasNodePromptPanel, type CanvasNodeGenerationMode } from "@/components/canvas/canvas-node-prompt-panel";
 import { CanvasToolbar } from "@/components/canvas/canvas-toolbar";
 import { AssetPickerModal, type InsertAssetPayload } from "@/components/canvas/asset-picker-modal";
+import { CanvasGenerationHistoryModal } from "@/components/canvas/canvas-generation-history-modal";
 import { CanvasSidePanel } from "@/components/canvas/canvas-side-panel";
 import { CanvasZoomControls } from "@/components/canvas/canvas-zoom-controls";
 import { useAgentStore } from "@/stores/use-agent-store";
@@ -252,6 +253,7 @@ function InfiniteCanvasPage() {
     const [showImageInfo, setShowImageInfo] = useState(false);
     const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
     const [assetPickerOpen, setAssetPickerOpen] = useState(false);
+    const [generationHistoryOpen, setGenerationHistoryOpen] = useState(false);
     const [loadedProjectId, setLoadedProjectId] = useState<string | null>(null);
     const projectLoaded = loadedProjectId === projectId;
     const [toolbarNodeId, setToolbarNodeId] = useState<string | null>(null);
@@ -3207,6 +3209,7 @@ function InfiniteCanvasPage() {
                     onDeleteProject={deleteCurrentProject}
                     onExportProject={exportCurrentProject}
                     onImportImage={() => handleUploadRequest()}
+                    onOpenGenerationHistory={() => setGenerationHistoryOpen(true)}
                     onOpenPlugins={() => setPluginManagerOpen(true)}
                     onUndo={undoCanvas}
                     onRedo={redoCanvas}
@@ -3504,6 +3507,10 @@ function InfiniteCanvasPage() {
                 </Modal>
 
                 <AssetPickerModal open={assetPickerOpen} onInsert={handleAssetInsert} onClose={() => setAssetPickerOpen(false)} />
+                {/* 关闭即卸载：本环境 antd 离场动画会停在 ant-zoom-leave，视觉上关不掉 */}
+                {generationHistoryOpen ? (
+                    <CanvasGenerationHistoryModal open onInsert={handleAssetInsert} onClose={() => setGenerationHistoryOpen(false)} />
+                ) : null}
             </section>
         </main>
     );
