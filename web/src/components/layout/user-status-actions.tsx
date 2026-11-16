@@ -36,28 +36,33 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
     const languageLabel = t("topNav.switchLanguage", { language: t(nextLocale === "zh-CN" ? "locale.zhCN" : "locale.enUS") });
 
     return (
-        <div className="inline-flex shrink-0 items-center gap-1">
+        <div className="inline-flex shrink-0 items-center gap-0.5">
+            {/* 资源：插件 / 文档 / 仓库。窄屏收起，改由导航抽屉承载，避免顶栏被挤压 */}
             {onOpenPlugins ? (
-                <button type="button" className={naturalIconClass} style={iconStyle} onClick={onOpenPlugins} aria-label={t("topNav.plugins")} title={t("topNav.plugins")}>
+                <button type="button" className={cn(naturalIconClass, "hidden sm:inline-flex")} style={iconStyle} onClick={onOpenPlugins} aria-label={t("topNav.plugins")} title={t("topNav.plugins")}>
                     <Puzzle className="size-4" />
                 </button>
             ) : null}
-            <a href={DOCS_URL} target="_blank" rel="noopener noreferrer" className={naturalIconClass} style={iconStyle} aria-label={t("topNav.docs")} title={t("topNav.docs")}>
+            <a href={DOCS_URL} target="_blank" rel="noopener noreferrer" className={cn(naturalIconClass, "hidden sm:inline-flex")} style={iconStyle} aria-label={t("topNav.docs")} title={t("topNav.docs")}>
                 <BookOpen className="size-4" />
             </a>
-            {showConfig ? (
-                <button type="button" className={naturalIconClass} style={iconStyle} onClick={() => openConfigDialog(false)} aria-label={t("navigation.config")} title={t("navigation.config")}>
-                    <Settings2 className="size-4" />
-                </button>
-            ) : null}
+            <GitHubLink className={cn("hidden bg-transparent hover:bg-transparent sm:flex dark:hover:bg-transparent", gitHubClassName)} style={gitHubStyle} />
+            <StatusDivider className="hidden sm:block" />
+            {/* 外观：语言 / 主题 */}
             <Tooltip title={languageLabel} mouseEnterDelay={0.2}>
                 <button type="button" className={`${naturalIconClass} text-[11px] font-semibold tracking-tight`} style={iconStyle} onClick={() => void changeAppLocale(nextLocale)} aria-label={languageLabel}>
                     {locale === "zh-CN" ? "中" : "EN"}
                 </button>
             </Tooltip>
             <AnimatedThemeToggler theme={theme} onThemeChange={setTheme} className={naturalIconClass} style={iconStyle} aria-label={t(theme === "dark" ? "topNav.lightTheme" : "topNav.darkTheme")} title={t(theme === "dark" ? "topNav.lightTheme" : "topNav.darkTheme")} />
-            <VersionReleaseModal style={versionStyle} />
-            <GitHubLink className={cn("bg-transparent hover:bg-transparent dark:hover:bg-transparent", gitHubClassName)} style={gitHubStyle} />
+            <StatusDivider />
+            {/* 应用：配置 / 版本 / 快捷键 */}
+            {showConfig ? (
+                <button type="button" className={naturalIconClass} style={iconStyle} onClick={() => openConfigDialog(false)} aria-label={t("navigation.config")} title={t("navigation.config")}>
+                    <Settings2 className="size-4" />
+                </button>
+            ) : null}
+            <VersionReleaseModal style={versionStyle} className="hidden sm:flex" />
             {onOpenShortcuts ? (
                 <button type="button" className={naturalIconClass} style={iconStyle} onClick={onOpenShortcuts} aria-label={t("topNav.shortcuts")} title={t("topNav.shortcuts")}>
                     <Keyboard className="size-4" />
@@ -65,4 +70,9 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
             ) : null}
         </div>
     );
+}
+
+/** 顶栏图标分组分隔线：只交代归属，不增加视觉重量。 */
+function StatusDivider({ className }: { className?: string }) {
+    return <span aria-hidden className={cn("mx-1 h-3.5 w-px shrink-0 bg-border", className)} />;
 }

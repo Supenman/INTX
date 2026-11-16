@@ -1,8 +1,9 @@
-import { FolderPlus, Search } from "lucide-react";
+import { FolderPlus, Search, SearchX } from "lucide-react";
 import { type ReactNode, type UIEvent, useEffect, useState } from "react";
-import { App, Button, Empty, Input, Spin, Tag } from "antd";
+import { App, Button, Input, Spin, Tag } from "antd";
 import { useTranslation } from "react-i18next";
 
+import { PageHeader, PageShell } from "@/components/layout/page-header";
 import { PromptCard } from "@/components/prompts/prompt-card";
 import { usePromptList } from "@/components/prompts/use-prompt-list";
 import { PromptDetailDialog } from "./components/prompt-detail-dialog";
@@ -46,47 +47,123 @@ export default function PromptsPage() {
         if (query.hasNextPage && !query.isFetchingNextPage && target.scrollTop + target.clientHeight >= target.scrollHeight - 160) void query.fetchNextPage();
     };
 
+    const hasFilter = Boolean(titleKeyword.trim()) || selectedTags.length > 0 || selectedCategory !== ALL_PROMPTS_OPTION;
+
     return (
-        <div className="flex h-full flex-col overflow-hidden bg-background text-stone-800 dark:text-stone-100">
-            <main className="min-h-0 flex-1 overflow-y-auto bg-background bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] px-4 py-6 [background-size:16px_16px] sm:px-6 lg:py-8 dark:bg-[radial-gradient(rgba(245,245,244,.16)_1px,transparent_1px)]" onScroll={handleListScroll}>
-                <div className="mx-auto max-w-7xl">
-                    <div className="text-center">
-                        <h1 className="text-2xl font-semibold text-stone-950 dark:text-stone-100">{t("prompts.title")}</h1>
-                        <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">{t("prompts.total", { count: totalPrompts })}</p>
-                    </div>
-                    <div className="mt-5 grid items-start gap-5 lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-6">
-                        <aside className="thin-scrollbar max-h-72 overflow-y-auto border-b border-stone-200 pb-5 lg:sticky lg:top-0 lg:max-h-[calc(100dvh-6rem)] lg:border-b-0 lg:border-r lg:pb-8 lg:pr-5 dark:border-stone-800">
-                            <PromptFilter label={t("prompts.category")} options={promptCategoryOptions} selected={selectedCategory} onChange={setSelectedCategory} />
-                            <div className="mt-6">
-                                <div className="mb-2 text-xs font-semibold uppercase tracking-widest text-stone-400 dark:text-stone-500">{t("prompts.tags")}</div>
-                                <div className="flex flex-wrap gap-1.5">
-                                    {promptTags.map((tag) => {
-                                        const active = tag === ALL_PROMPTS_OPTION ? selectedTags.length === 0 : selectedTags.includes(tag);
-                                        return <Tag.CheckableTag key={tag} checked={active} className={cn("prompt-filter-tag", active && "is-active")} onChange={() => toggleTag(tag)}>{tag === ALL_PROMPTS_OPTION ? t("common.all") : tag}</Tag.CheckableTag>;
-                                    })}
-                                </div>
+        <PageShell className="px-4 py-4 sm:px-6 sm:py-5">
+            <main className="min-h-0 flex-1 overflow-y-auto" onScroll={handleListScroll}>
+                <PageHeader
+                    title={t("prompts.title")}
+                    description={t("prompts.total", { count: totalPrompts })}
+                    actions={
+                        <Input
+                            allowClear
+                            prefix={<Search className="size-3.5 text-muted-foreground" />}
+                            value={titleKeyword}
+                            placeholder={t("prompts.search")}
+                            onChange={(event) => setTitleKeyword(event.target.value)}
+                            className="w-full sm:w-72"
+                        />
+                    }
+                />
+
+                <div className="mt-5 grid items-start gap-6 lg:grid-cols-[208px_minmax(0,1fr)]">
+                    <aside className="thin-scrollbar border-b border-border/60 pb-5 lg:sticky lg:top-0 lg:max-h-[calc(100dvh-8rem)] lg:overflow-y-auto lg:border-b-0 lg:pb-2 dark:border-border/60">
+                        <PromptFilter label={t("prompts.category")} options={promptCategoryOptions} selected={selectedCategory} onChange={setSelectedCategory} />
+                        <div className="mt-6">
+                            <div className="typ-overline mb-2.5 text-muted-foreground">{t("prompts.tags")}</div>
+                            <div className="flex flex-wrap gap-1.5">
+                                {promptTags.map((tag) => {
+                                    const active = tag === ALL_PROMPTS_OPTION ? selectedTags.length === 0 : selectedTags.includes(tag);
+                                    return (
+                                        <Tag.CheckableTag key={tag} checked={active} className={cn("prompt-filter-tag", active && "is-active")} onChange={() => toggleTag(tag)}>
+                                            {tag === ALL_PROMPTS_OPTION ? t("common.all") : tag}
+                                        </Tag.CheckableTag>
+                                    );
+                                })}
                             </div>
-                        </aside>
-                        <section className="min-w-0">
-                            <Input size="large" prefix={<Search className="size-4 text-stone-400" />} value={titleKeyword} placeholder={t("prompts.search")} onChange={(event) => setTitleKeyword(event.target.value)} />
-                            {query.isLoading ? <div className="flex h-60 items-center justify-center"><Spin /></div> : null}
-                            {!query.isLoading ? <div className="mt-5"><PromptGrid items={promptItems} onOpen={setSelectedPrompt} renderActions={(item) => <Button type="text" size="small" icon={<FolderPlus className="size-3.5" />} onClick={() => savePromptAsset(item)}>{t("common.addToAssets")}</Button>} onCopy={(item) => copyText(item.prompt, t("common.promptCopied"))} emptyText={t("prompts.empty")} /></div> : null}
-                            <div className="mt-6 text-center text-xs text-stone-500 dark:text-stone-400">{query.isFetchingNextPage ? t("prompts.loading") : query.hasNextPage ? t("prompts.loadMore") : promptItems.length > 0 ? t("prompts.end") : null}</div>
-                        </section>
-                    </div>
+                        </div>
+                    </aside>
+
+                    <section className="min-w-0">
+                        {query.isLoading ? (
+                            <div className="flex h-64 items-center justify-center rounded-xl bg-[var(--surface-sunken)]">
+                                <Spin />
+                            </div>
+                        ) : null}
+                        {!query.isLoading ? (
+                            <PromptGrid
+                                items={promptItems}
+                                onOpen={setSelectedPrompt}
+                                renderActions={(item) => (
+                                    <Button type="text" size="small" icon={<FolderPlus className="size-3.5" />} onClick={() => savePromptAsset(item)}>
+                                        {t("common.addToAssets")}
+                                    </Button>
+                                )}
+                                onCopy={(item) => copyText(item.prompt, t("common.promptCopied"))}
+                                emptyTitle={hasFilter ? t("prompts.empty") : t("prompts.emptyAll")}
+                                emptyHint={hasFilter ? t("prompts.emptyFilteredHint") : t("prompts.emptyAllHint")}
+                            />
+                        ) : null}
+                        <div className="typ-caption mt-6 text-center text-muted-foreground">{query.isFetchingNextPage ? t("prompts.loading") : query.hasNextPage ? t("prompts.loadMore") : promptItems.length > 0 ? t("prompts.end") : null}</div>
+                    </section>
                 </div>
             </main>
 
             <PromptDetailDialog prompt={selectedPrompt} onClose={() => setSelectedPrompt(null)} onCopy={(prompt) => copyText(prompt, t("common.promptCopied"))} onSaveAsset={savePromptAsset} />
-        </div>
+        </PageShell>
     );
 }
 
 function PromptFilter({ label, options, selected, onChange }: { label: string; options: string[]; selected: string; onChange: (value: string) => void }) {
     const { t } = useTranslation();
-    return <div><div className="mb-2 text-xs font-semibold uppercase tracking-widest text-stone-400 dark:text-stone-500">{label}</div><div className="flex flex-wrap gap-1.5">{options.map((option) => <Tag.CheckableTag key={option} checked={selected === option} className={cn("prompt-filter-tag", selected === option && "is-active")} onChange={() => onChange(option)}>{option === ALL_PROMPTS_OPTION ? t("common.all") : option}</Tag.CheckableTag>)}</div></div>;
+    return (
+        <div>
+            <div className="typ-overline mb-2.5 text-muted-foreground">{label}</div>
+            <div className="flex flex-wrap gap-1.5">
+                {options.map((option) => (
+                    <Tag.CheckableTag key={option} checked={selected === option} className={cn("prompt-filter-tag", selected === option && "is-active")} onChange={() => onChange(option)}>
+                        {option === ALL_PROMPTS_OPTION ? t("common.all") : option}
+                    </Tag.CheckableTag>
+                ))}
+            </div>
+        </div>
+    );
 }
 
-function PromptGrid({ items, onOpen, onCopy, renderActions, emptyText }: { items: Prompt[]; onOpen: (item: Prompt) => void; onCopy: (item: Prompt) => void; renderActions: (item: Prompt) => ReactNode; emptyText: string }) {
-    return <div><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{items.map((item) => <PromptCard key={`${item.sourceId}:${item.id}`} item={item} onOpen={() => onOpen(item)} onCopy={() => onCopy(item)} extraAction={renderActions(item)} />)}</div>{items.length === 0 ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={emptyText} className="py-16" /> : null}</div>;
+function PromptGrid({
+    items,
+    onOpen,
+    onCopy,
+    renderActions,
+    emptyTitle,
+    emptyHint,
+}: {
+    items: Prompt[];
+    onOpen: (item: Prompt) => void;
+    onCopy: (item: Prompt) => void;
+    renderActions: (item: Prompt) => ReactNode;
+    emptyTitle: string;
+    emptyHint: string;
+}) {
+    if (!items.length) return <PromptEmpty title={emptyTitle} hint={emptyHint} />;
+    return (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            {items.map((item) => (
+                <PromptCard key={`${item.sourceId}:${item.id}`} item={item} onOpen={() => onOpen(item)} onCopy={() => onCopy(item)} extraAction={renderActions(item)} />
+            ))}
+        </div>
+    );
+}
+
+function PromptEmpty({ title, hint }: { title: string; hint: string }) {
+    return (
+        <div className="flex min-h-[280px] flex-col items-center justify-center rounded-xl bg-[var(--surface-sunken)] px-6 py-16 text-center">
+            <div className="flex size-11 items-center justify-center rounded-full bg-[var(--surface-card)] text-muted-foreground">
+                <SearchX className="size-5" />
+            </div>
+            <p className="typ-heading mt-4">{title}</p>
+            <p className="typ-caption mt-1.5 max-w-xs text-muted-foreground">{hint}</p>
+        </div>
+    );
 }

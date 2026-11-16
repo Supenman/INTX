@@ -1,9 +1,10 @@
-import { Copy, Download, PencilLine, Search, Trash2, Upload } from "lucide-react";
+import { Copy, Download, PencilLine, Plus, Search, Trash2, Upload } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { App, Button, Card, Drawer, Empty, Form, Image, Input, Modal, Pagination, Select, Space, Tag, Typography } from "antd";
 import { saveAs } from "file-saver";
 import { useTranslation } from "react-i18next";
 
+import { PageHeader, PageShell } from "@/components/layout/page-header";
 import { useCopyText } from "@/hooks/use-copy-text";
 import { formatBytes, readFileAsDataUrl } from "@/lib/image-utils";
 import { getMediaBlob } from "@/services/file-storage";
@@ -69,6 +70,8 @@ export default function AssetsPage() {
         const start = (page - 1) * pageSize;
         return filteredAssets.slice(start, start + pageSize);
     }, [filteredAssets, page, pageSize]);
+
+    const hasFilter = Boolean(keyword.trim()) || kindFilter !== "all";
 
     useEffect(() => {
         const maxPage = Math.max(1, Math.ceil(filteredAssets.length / pageSize));
@@ -213,103 +216,98 @@ export default function AssetsPage() {
     if (!hydrated) return <main className="flex h-full items-center justify-center bg-background text-foreground"><SnapshotStorageStatus kind="assets" /></main>;
 
     return (
-        <div className="flex h-full flex-col overflow-hidden bg-background text-stone-900 dark:text-stone-100">
-            <main className="min-h-0 flex-1 overflow-y-auto bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] px-6 py-8 [background-size:16px_16px] dark:bg-[radial-gradient(rgba(245,245,244,.14)_1px,transparent_1px)]">
-                <div className="pb-8">
-                    <div className="mx-auto max-w-5xl text-center">
-                        <h1 className="text-4xl font-semibold tracking-tight text-stone-950 dark:text-stone-100">{t("assets.title")}</h1>
-                        <div className="mt-2 flex justify-center"><SnapshotStorageStatus kind="assets" /></div>
-                        <p className="mt-3 text-sm text-stone-500 dark:text-stone-400">{t("assets.description")}</p>
-                    </div>
-
-                    <div className="mx-auto mt-8 w-full max-w-2xl">
-                        <Input.Search
-                            className="w-full"
-                            size="large"
-                            allowClear
-                            prefix={<Search className="size-4 text-stone-400" />}
-                            value={keyword}
-                            placeholder={t("assets.search")}
-                            onChange={(event) => {
-                                setPage(1);
-                                setKeyword(event.target.value);
-                            }}
-                            onSearch={(value) => {
-                                setPage(1);
-                                setKeyword(value);
-                            }}
-                        />
-                    </div>
-
-                    <div className="mx-auto mt-6 grid max-w-6xl gap-3 text-left">
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <div className="grid gap-2 sm:grid-cols-[56px_minmax(0,1fr)] sm:items-center">
-                                <div className="text-xs font-medium text-stone-500 dark:text-stone-400">{t("assets.type")}</div>
-                                <div className="flex flex-wrap gap-2">
-                                    {kindOptions.map((option) => (
-                                        <Tag.CheckableTag
-                                            key={option}
-                                            checked={kindFilter === option}
-                                            className={cn("prompt-filter-tag", kindFilter === option && "is-active")}
-                                            onChange={() => {
-                                                setPage(1);
-                                                setKindFilter(option);
-                                            }}
-                                        >
-                                            {option === "all" ? t("common.all") : t(`assets.kinds.${option}`)}
-                                        </Tag.CheckableTag>
-                                    ))}
-                                </div>
-                            </div>
-                            <div className="flex flex-wrap gap-4">
-                                <button
-                                    type="button"
-                                    className="cursor-pointer text-sm font-medium text-stone-700 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:underline dark:text-stone-300"
-                                    onClick={() => void exportAllAssets()}
-                                >
+        <PageShell className="px-4 py-4 sm:px-6 sm:py-5">
+            <main className="min-h-0 flex-1 overflow-y-auto">
+                <div className="mx-auto w-full max-w-6xl">
+                    <PageHeader
+                        title={t("assets.title")}
+                        description={t("assets.description")}
+                        actions={
+                            <>
+                                <Button type="text" onClick={() => void exportAllAssets()}>
                                     {t("assets.export")}
-                                </button>
-                                <button
-                                    type="button"
-                                    className="cursor-pointer text-sm font-medium text-stone-700 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:underline dark:text-stone-300"
-                                    onClick={() => assetInputRef.current?.click()}
-                                >
+                                </Button>
+                                <Button type="text" onClick={() => assetInputRef.current?.click()}>
                                     {t("assets.import")}
-                                </button>
-                                <button
-                                    type="button"
-                                    className="cursor-pointer text-sm font-medium text-stone-700 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:underline dark:text-stone-300"
-                                    onClick={openCreate}
-                                >
+                                </Button>
+                                <Button type="primary" icon={<Plus className="size-4" />} onClick={openCreate}>
                                     {t("assets.add")}
-                                </button>
+                                </Button>
+                            </>
+                        }
+                    />
+
+                    <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <span className="typ-overline mr-1 text-muted-foreground">{t("assets.type")}</span>
+                            {kindOptions.map((option) => (
+                                <Tag.CheckableTag
+                                    key={option}
+                                    checked={kindFilter === option}
+                                    className={cn("prompt-filter-tag", kindFilter === option && "is-active")}
+                                    onChange={() => {
+                                        setPage(1);
+                                        setKindFilter(option);
+                                    }}
+                                >
+                                    {option === "all" ? t("common.all") : t(`assets.kinds.${option}`)}
+                                </Tag.CheckableTag>
+                            ))}
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                            <div className="hidden sm:block">
+                                <SnapshotStorageStatus kind="assets" />
                             </div>
+                            <Input
+                                allowClear
+                                className="w-full sm:w-64"
+                                prefix={<Search className="size-3.5 text-muted-foreground" />}
+                                value={keyword}
+                                placeholder={t("assets.search")}
+                                onChange={(event) => {
+                                    setPage(1);
+                                    setKeyword(event.target.value);
+                                }}
+                                onPressEnter={(event) => {
+                                    setPage(1);
+                                    setKeyword((event.target as HTMLInputElement).value);
+                                }}
+                            />
                         </div>
                     </div>
-                </div>
 
-                <div className="mx-auto flex max-w-7xl flex-col gap-5">
-                    <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                         {visibleAssets.map((asset) => (
                             <AssetCard key={asset.id} asset={asset} onOpen={() => setPreviewAsset(asset)} onEdit={() => openEdit(asset)} onCopy={copyAssetText} onDownload={downloadImage} onDelete={() => setDeletingAsset(asset)} />
                         ))}
                     </div>
 
-                    {!visibleAssets.length ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t("assets.empty")} className="py-20" /> : null}
+                    {!visibleAssets.length ? (
+                        <div className="mt-5 flex min-h-[280px] flex-col items-center justify-center rounded-xl bg-[var(--surface-sunken)] px-6 py-16 text-center">
+                            <div className="flex size-11 items-center justify-center rounded-full bg-[var(--surface-card)] text-muted-foreground">
+                                <Search className="size-5" />
+                            </div>
+                            <p className="typ-heading mt-4">{hasFilter ? t("assets.empty") : t("assets.emptyAll")}</p>
+                            <p className="typ-caption mt-1.5 max-w-xs text-muted-foreground">{hasFilter ? t("assets.emptyHint") : t("assets.emptyAllHint")}</p>
+                        </div>
+                    ) : null}
 
-                    <div className="flex justify-center">
-                        <Pagination
-                            current={page}
-                            pageSize={pageSize}
-                            total={filteredAssets.length}
-                            showSizeChanger
-                            pageSizeOptions={[10, 20, 50, 100]}
-                            onChange={(nextPage, nextPageSize) => {
-                                setPage(nextPage);
-                                setPageSize(nextPageSize);
-                            }}
-                        />
-                    </div>
+                    {filteredAssets.length > pageSize ? (
+                        <div className="mt-5 flex justify-center">
+                            <Pagination
+                                current={page}
+                                pageSize={pageSize}
+                                total={filteredAssets.length}
+                                showSizeChanger
+                                pageSizeOptions={[10, 20, 50, 100]}
+                                onChange={(nextPage, nextPageSize) => {
+                                    setPage(nextPage);
+                                    setPageSize(nextPageSize);
+                                }}
+                            />
+                        </div>
+                    ) : null}
                 </div>
             </main>
 
@@ -353,30 +351,30 @@ export default function AssetsPage() {
                             </Form.Item>
                         ) : (
                             <Form.Item label={t("assets.fields.imageContent")} required>
-                                <div className="rounded-lg border border-dashed border-stone-300 p-4 dark:border-stone-700">
+                                <div className="flex flex-wrap items-center gap-3 rounded-lg border border-dashed border-border p-3.5">
                                     <Button icon={<Upload className="size-4" />} onClick={() => imageInputRef.current?.click()}>
                                         {t("assets.selectImageFile")}
                                     </Button>
                                     {imageDraft ? (
-                                        <Typography.Text type="secondary" className="ml-3 text-xs">
+                                        <span className="typ-caption text-muted-foreground">
                                             {imageDraft.width}x{imageDraft.height} · {formatBytes(imageDraft.bytes)}
-                                        </Typography.Text>
+                                        </span>
                                     ) : (
-                                        <Typography.Text type="secondary" className="ml-3 text-xs">
+                                        <span className="typ-caption text-muted-foreground">
                                             {t("assets.noImageSelected")}
-                                        </Typography.Text>
+                                        </span>
                                     )}
                                 </div>
                             </Form.Item>
                         )}
                     </Form>
-                    <div className="rounded-xl border border-stone-200 bg-stone-50 p-4 dark:border-stone-800 dark:bg-stone-950">
+                    <div className="rounded-xl bg-[var(--surface-sunken)] p-4">
                         <Typography.Text strong>{t("assets.preview")}</Typography.Text>
-                        <div className="mt-3 overflow-hidden rounded-lg border border-stone-200 bg-background dark:border-stone-800">
+                        <div className="mt-3 overflow-hidden rounded-lg bg-[var(--surface-card)]">
                             {coverUrl || imageDraft?.dataUrl ? (
                                 <img src={coverUrl || imageDraft?.dataUrl} alt="" className="aspect-[4/3] w-full object-cover" />
                             ) : (
-                                <div className="flex aspect-[4/3] items-center justify-center bg-stone-100 p-5 text-center text-sm text-stone-500 dark:bg-stone-900">{content || t("assets.noCover")}</div>
+                                <div className="line-clamp-6 flex aspect-[4/3] items-center justify-center overflow-hidden bg-[var(--surface-sunken)] p-4 text-center text-xs leading-5 break-words whitespace-pre-wrap text-muted-foreground">{content || t("assets.noCover")}</div>
                             )}
                             <div className="p-4">
                                 <Typography.Text strong ellipsis className="block">
@@ -426,7 +424,7 @@ export default function AssetsPage() {
             <Modal title={t("assets.deleteTitle")} open={Boolean(deletingAsset)} onCancel={() => setDeletingAsset(null)} onOk={confirmDelete} okText={t("common.delete")} okButtonProps={{ danger: true }} cancelText={t("common.cancel")}>
                 {t("assets.deleteConfirm", { name: deletingAsset?.title })}
             </Modal>
-        </div>
+        </PageShell>
     );
 }
 
@@ -438,33 +436,29 @@ function AssetCard({ asset, onOpen, onEdit, onCopy, onDownload, onDelete }: { as
     return (
         <Card
             hoverable
-            className="overflow-hidden"
+            className="surface-card-interactive overflow-hidden"
             styles={{ body: { padding: 0 } }}
             cover={
                 <button type="button" className="block w-full text-left" onClick={onOpen}>
                     {cover ? (
                         <img src={cover} alt={asset.title} className="aspect-[4/3] w-full object-cover" />
                     ) : (
-                        <div className="flex aspect-[4/3] items-center justify-center bg-stone-100 p-5 text-center text-sm leading-6 text-stone-600 dark:bg-stone-900 dark:text-stone-300">{asset.kind === "text" ? asset.data.content : t("assets.noCover")}</div>
+                        <div className="line-clamp-5 aspect-[4/3] overflow-hidden bg-[var(--surface-sunken)] p-4 text-xs leading-5 break-words whitespace-pre-wrap text-muted-foreground">{asset.kind === "text" ? asset.data.content : t("assets.noCover")}</div>
                     )}
                 </button>
             }
         >
             <button type="button" className="block w-full text-left" onClick={onOpen}>
-                <div className="p-4">
+                <div className="p-3.5">
                     <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                            <h2 className="line-clamp-1 text-sm font-semibold text-stone-950 dark:text-stone-100">{asset.title}</h2>
-                            <Typography.Text type="secondary" className="mt-1 block text-xs">
-                                {asset.source || t("assets.unknownSource")}
-                            </Typography.Text>
+                            <h2 className="typ-body-compact line-clamp-1 font-medium text-foreground">{asset.title}</h2>
+                            <p className="typ-caption mt-0.5 line-clamp-1 text-muted-foreground">{asset.source || t("assets.unknownSource")}</p>
                         </div>
                         <Tag className="m-0 shrink-0 text-[11px]">{t(`assets.kinds.${asset.kind}`)}</Tag>
                     </div>
-                    <Typography.Paragraph type="secondary" ellipsis={{ rows: 3 }} className="!mb-0 !mt-2 !text-xs !leading-5">
-                        {summary}
-                    </Typography.Paragraph>
-                    <div className="mt-3 flex flex-wrap gap-1.5">
+                    {asset.kind === "image" || asset.kind === "video" ? <p className="typ-caption mt-2 line-clamp-1 text-muted-foreground">{summary}</p> : null}
+                    <div className="mt-2.5 flex flex-wrap gap-1.5">
                         {(asset.tags || []).slice(0, 3).map((tag) => (
                             <Tag key={tag} className="m-0 text-[11px]">
                                 {tag}
@@ -474,28 +468,24 @@ function AssetCard({ asset, onOpen, onEdit, onCopy, onDownload, onDelete }: { as
                     </div>
                 </div>
             </button>
-            <div className="flex items-center gap-2 px-4 pb-4">
-                <Button size="small" onClick={onOpen}>
+            <div className="flex items-center gap-1.5 border-t border-border/60 px-2.5 py-2">
+                <Button type="text" size="small" onClick={onOpen}>
                     {t("common.view")}
                 </Button>
                 {asset.kind !== "video" ? (
-                    <Button size="small" icon={<PencilLine className="size-3.5" />} onClick={onEdit}>
+                    <Button type="text" size="small" icon={<PencilLine className="size-3.5" />} onClick={onEdit}>
                         {t("common.edit")}
                     </Button>
                 ) : null}
                 {asset.kind === "text" ? (
-                    <Button size="small" icon={<Copy className="size-3.5" />} onClick={() => void onCopy(asset)}>
+                    <Button type="text" size="small" icon={<Copy className="size-3.5" />} onClick={() => void onCopy(asset)}>
                         {t("common.copy")}
                     </Button>
                 ) : null}
                 {asset.kind === "image" || asset.kind === "video" ? (
-                    <Button size="small" icon={<Download className="size-3.5" />} onClick={() => onDownload(asset)}>
-                        {t("common.download")}
-                    </Button>
+                    <Button type="text" size="small" icon={<Download className="size-3.5" />} onClick={() => onDownload(asset)} />
                 ) : null}
-                <Button size="small" danger icon={<Trash2 className="size-3.5" />} onClick={onDelete}>
-                    {t("common.delete")}
-                </Button>
+                <Button type="text" size="small" danger className="ml-auto" icon={<Trash2 className="size-3.5" />} onClick={onDelete} />
             </div>
         </Card>
     );
@@ -512,7 +502,7 @@ function AssetDrawer({ asset, onClose, onCopy, onDownload }: { asset: Asset | nu
                     {cover ? (
                         <Image src={assetCoverUrl(asset)} preview={{ src: cover }} alt={asset.title} className="rounded-lg" />
                     ) : (
-                        <div className="rounded-lg border border-stone-200 bg-stone-50 p-5 text-sm leading-6 text-stone-600 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-300">{asset.kind === "text" ? asset.data.content : t("assets.noCover")}</div>
+                        <div className="rounded-lg bg-[var(--surface-sunken)] p-4 text-sm leading-6 break-words whitespace-pre-wrap text-foreground/80">{asset.kind === "text" ? asset.data.content : t("assets.noCover")}</div>
                     )}
                     <div>
                         <Typography.Title level={4} className="!mb-2">
@@ -525,7 +515,7 @@ function AssetDrawer({ asset, onClose, onCopy, onDownload }: { asset: Asset | nu
                             ))}
                         </Space>
                     </div>
-                    <div className="rounded-lg border border-stone-200 p-4 dark:border-stone-800">
+                    <div className="rounded-lg bg-[var(--surface-sunken)] p-4">
                         <Typography.Text type="secondary" className="block text-xs">
                             {t("assets.fields.textContent")}
                         </Typography.Text>

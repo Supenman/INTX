@@ -1,0 +1,256 @@
+/* =========================================================================
+   Design Tokens — 参考 BeefTV 三层架构（Primitive → Semantic → Component）裁剪版
+
+   本文件只新增「基础层」：色彩档位、间距栅格、字号档位、圆角、阴影、排版语义类。
+   现有 globals.css 的语义变量（--background / --primary / --card ...）保持不变，
+   由下方 @theme 映射指过来，避免影响存量样式。
+
+   规范：新增组件禁止裸 text-[Npx] / rounded-[Npx] / gap-[Npx]，
+        一律使用本文件的 token 或 .typ-* 语义类。
+
+   注意：Tailwind v4 下自定义工具类必须用 @utility 声明，
+        写成 @layer utilities { .foo {} } 会被内置工具类覆盖（实测 h1 被压成 14px）。
+   ========================================================================= */
+
+/* -------------------------------------------------------------------------
+   Layer 1: Primitive — 纯值，无语义，不随主题变化
+   ------------------------------------------------------------------------- */
+:root {
+    /* --- 字体栈：Inter 优先，中文回落系统字体 --- */
+    --intx-font-sans: "Inter", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
+    --intx-font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+    /* --- 色彩：中性色 12 档（oklch，与现有主题同色域）--- */
+    --neutral-0: oklch(1 0 0);
+    --neutral-50: oklch(0.985 0 0);
+    --neutral-100: oklch(0.97 0 0);
+    --neutral-200: oklch(0.922 0 0);
+    --neutral-300: oklch(0.87 0 0);
+    --neutral-400: oklch(0.708 0 0);
+    --neutral-500: oklch(0.556 0 0);
+    --neutral-600: oklch(0.439 0 0);
+    --neutral-700: oklch(0.371 0 0);
+    --neutral-800: oklch(0.269 0 0);
+    --neutral-900: oklch(0.205 0 0);
+    --neutral-950: oklch(0.145 0 0);
+
+    /* --- 间距：4px 栅格 + 半距 --- */
+    --space-0: 0px;
+    --space-half: 2px;
+    --space-1: 4px;
+    --space-1-half: 6px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-8: 32px;
+    --space-10: 40px;
+    --space-12: 48px;
+    --space-16: 64px;
+    --space-20: 80px;
+
+    /* --- 字号：9 档（覆盖角标到页面主标题）--- */
+    --fs-micro: 10px;      /* 角标、计数 */
+    --fs-label: 11px;      /* 标签、tag */
+    --fs-caption: 12px;    /* 辅助说明 */
+    --fs-body: 13px;       /* 紧凑正文（侧栏、列表）*/
+    --fs-body-lg: 14px;    /* 正文基准 */
+    --fs-heading: 16px;    /* 小标题 */
+    --fs-heading-lg: 18px; /* 区块标题 */
+    --fs-title: 22px;      /* 页面标题 */
+    --fs-display: 32px;    /* 页面主标题 */
+
+    /* --- 圆角：6 档 --- */
+    --r-xs: 4px;
+    --r-sm: 6px;
+    --r-md: 8px;
+    --r-lg: 12px;
+    --r-xl: 16px;
+    --r-full: 9999px;
+
+    /* --- 阴影：4 档；浮层另用 hairline 交代边界，避免暗色下白影刺眼 --- */
+    --shadow-xs: 0 1px 2px rgb(0 0 0 / 4%);
+    --shadow-sm: 0 2px 6px rgb(0 0 0 / 6%);
+    --shadow-md: 0 6px 18px rgb(0 0 0 / 8%);
+    --shadow-lg: 0 18px 48px rgb(0 0 0 / 12%);
+    --hairline: inset 0 0 0 1px color-mix(in oklch, var(--foreground) 10%, transparent);
+}
+
+/* -------------------------------------------------------------------------
+   Layer 2: Semantic — 引用 Primitive，随明暗切换
+   只补现有 globals.css 缺的：卡片表面分层、实心按钮、选中态
+   ------------------------------------------------------------------------- */
+:root {
+    /* 卡片：亮色靠轻微灰底托出层次，暗色靠提亮；两者都不依赖描边 */
+    --surface-card: color-mix(in oklch, var(--foreground) 2.6%, var(--background));
+    --surface-card-hover: color-mix(in oklch, var(--foreground) 5.2%, var(--background));
+    --surface-raised: var(--background);
+    --surface-sunken: color-mix(in oklch, var(--foreground) 5.5%, var(--background));
+
+    /* 实心主按钮：与普通选中态是两种角色，禁止互相复用 */
+    --btn-solid-bg: var(--primary);
+    --btn-solid-hover-bg: color-mix(in oklch, var(--primary) 88%, var(--background));
+    --btn-solid-fg: var(--primary-foreground);
+
+    /* 普通选择 / 勾选态 */
+    --control-selected-bg: color-mix(in oklch, var(--foreground) 8%, transparent);
+    --control-selected-hover-bg: color-mix(in oklch, var(--foreground) 12%, transparent);
+    --control-selected-fg: var(--foreground);
+
+    /* 焦点环：暗色下也需要看得见 */
+    --focus-ring: 0 0 0 2px var(--background), 0 0 0 4px color-mix(in oklch, var(--ring) 60%, transparent);
+}
+
+.dark {
+    --surface-card: color-mix(in oklch, var(--foreground) 4.5%, var(--background));
+    --surface-card-hover: color-mix(in oklch, var(--foreground) 7.5%, var(--background));
+    --surface-sunken: color-mix(in oklch, var(--foreground) 3.5%, var(--background));
+    --hairline: inset 0 0 0 1px color-mix(in oklch, var(--foreground) 12%, transparent);
+}
+
+/* -------------------------------------------------------------------------
+   Layer 3: 排版语义类 — 字号 / 行高 / 字重 / 字距打包，禁止组件自行拼装
+   Tailwind v4 必须用 @utility 注册，否则会被内置 text-* 工具类覆盖。
+   ------------------------------------------------------------------------- */
+
+/* 页面主标题 */
+@utility typ-display {
+    font-family: var(--intx-font-sans);
+    font-size: var(--fs-display);
+    font-weight: 500;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+}
+
+/* 页面 / 区块标题 */
+@utility typ-title {
+    font-family: var(--intx-font-sans);
+    font-size: var(--fs-title);
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+}
+
+@utility typ-heading-lg {
+    font-family: var(--intx-font-sans);
+    font-size: var(--fs-heading-lg);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    line-height: 1.4;
+}
+
+@utility typ-heading {
+    font-family: var(--intx-font-sans);
+    font-size: var(--fs-heading);
+    font-weight: 600;
+    letter-spacing: 0;
+    line-height: 1.4;
+}
+
+/* 正文基准 */
+@utility typ-body {
+    font-family: var(--intx-font-sans);
+    font-size: var(--fs-body-lg);
+    font-weight: 400;
+    letter-spacing: 0;
+    line-height: 1.65;
+}
+
+/* 紧凑正文：侧栏、列表、卡片描述 */
+@utility typ-body-compact {
+    font-family: var(--intx-font-sans);
+    font-size: var(--fs-body);
+    font-weight: 400;
+    letter-spacing: 0;
+    line-height: 1.55;
+}
+
+/* 辅助说明 */
+@utility typ-caption {
+    font-family: var(--intx-font-sans);
+    font-size: var(--fs-caption);
+    font-weight: 400;
+    letter-spacing: 0;
+    line-height: 1.55;
+}
+
+/* 标签、tag */
+@utility typ-label {
+    font-family: var(--intx-font-sans);
+    font-size: var(--fs-label);
+    font-weight: 500;
+    letter-spacing: 0;
+    line-height: 1.45;
+}
+
+/* 全大写小标签：分区标题、表头 */
+@utility typ-overline {
+    font-family: var(--intx-font-sans);
+    font-size: var(--fs-label);
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    line-height: 1.45;
+    text-transform: uppercase;
+}
+
+@utility typ-code {
+    font-family: var(--intx-font-mono);
+    font-size: var(--fs-caption);
+    font-weight: 400;
+    letter-spacing: 0;
+    line-height: 1.6;
+}
+
+/* -------------------------------------------------------------------------
+   表面与抬升：替代「有的加 border 有的加 shadow」的混乱
+   ------------------------------------------------------------------------- */
+
+@utility surface-card {
+    background: var(--surface-card);
+    border-radius: var(--r-lg);
+}
+
+@utility surface-card-interactive {
+    background: var(--surface-card);
+    border-radius: var(--r-lg);
+    transition:
+        background 150ms ease,
+        box-shadow 150ms ease;
+}
+
+@utility elevation-overlay {
+    background: var(--popover);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-lg), var(--hairline);
+}
+
+/* 统一焦点可见性：键盘可达 */
+@utility focus-ring {
+    &:focus-visible {
+        box-shadow: var(--focus-ring);
+        outline: none;
+    }
+}
+
+/* 空态/兜底页的点阵底纹：只用前景色极低透明度，避免写死明暗两套颜色 */
+@utility bg-dot-grid {
+    background-image: radial-gradient(color-mix(in oklch, var(--foreground) 8%, transparent) 1px, transparent 1px);
+    background-size: 16px 16px;
+}
+
+/* -------------------------------------------------------------------------
+   配置页标签：共 7 个标签，窄屏靠「更多」收尾是正常的。
+   这里只收紧间距，让可见标签尽量多，不改变 antd 的交互语义。
+   ------------------------------------------------------------------------- */
+.config-tabs .ant-tabs-tab.ant-tabs-tab {
+    padding-inline: 0;
+    margin-inline-end: 22px;
+}
+
+@media (max-width: 480px) {
+    .config-tabs .ant-tabs-tab.ant-tabs-tab {
+        margin-inline-end: 12px;
+        font-size: 13px;
+    }
+}

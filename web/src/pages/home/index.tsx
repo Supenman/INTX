@@ -1,5 +1,5 @@
 import { ArrowRight } from "lucide-react";
-import { type ReactNode, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { App, Button, Image, Tag } from "antd";
 import { useNavigate } from "react-router-dom";
 import { Trans, useTranslation } from "react-i18next";
@@ -8,19 +8,6 @@ import { fetchPrompts, type Prompt } from "@/services/api/prompts";
 import { navigationTools } from "@/constant/navigation-tools";
 import i18n from "@/i18n";
 import { cn } from "@/lib/utils";
-
-function Highlighter({ action, color, children }: { action: "highlight" | "underline"; color: string; children?: ReactNode }) {
-    return (
-        <span className="relative inline-block px-1">
-            {action === "highlight" ? (
-                <span className="absolute inset-x-0 bottom-0 top-1 rounded-sm opacity-45" style={{ backgroundColor: color }} />
-            ) : (
-                <span className="absolute inset-x-0 bottom-0 h-1 rounded-full opacity-80" style={{ backgroundColor: color }} />
-            )}
-            <span className="relative font-medium text-stone-800 dark:text-stone-200">{children}</span>
-        </span>
-    );
-}
 
 export default function IndexPage() {
     const { message } = App.useApp();
@@ -38,17 +25,35 @@ export default function IndexPage() {
     }, [message]);
 
     return (
-        <main className="relative h-full overflow-y-auto bg-background bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px] text-stone-950 dark:bg-[radial-gradient(rgba(245,245,244,.18)_1px,transparent_1px)] dark:text-stone-100">
-            <section className="relative mx-auto min-h-[calc(100vh-4rem)] max-w-7xl overflow-hidden px-6">
-                <div className="pointer-events-none absolute left-[15%] top-24 size-20 rounded-full border border-dashed border-stone-200 dark:border-stone-800" />
-                <div className="pointer-events-none absolute right-[23%] top-[48%] size-20 rounded-full border border-dashed border-stone-200 dark:border-stone-800" />
+        <main className="relative h-full overflow-y-auto bg-background bg-[radial-gradient(var(--border)_1px,transparent_1px)] [background-size:22px_22px] text-foreground">
+            <section className="relative mx-auto max-w-6xl px-6">
+                {/* Hero：收紧垂直节奏，标题不再用 48→96px 的断崖，改用 display 令牌 + 窄容器 */}
+                <div className="relative flex flex-col items-center pb-16 pt-24 text-center sm:pb-20 sm:pt-28">
+                    <div className="pointer-events-none absolute inset-0 overflow-hidden">
+                        <div className="absolute left-[18%] top-16 size-16 rounded-full border border-dashed border-border/70" />
+                        <div className="absolute right-[20%] top-[46%] size-16 rounded-full border border-dashed border-border/70" />
+                    </div>
 
-                <div className="relative flex min-h-[620px] flex-col items-center justify-center pt-10 text-center">
-                    <h1 className="ai-title-aurora max-w-5xl text-balance text-5xl font-semibold tracking-normal sm:text-7xl lg:text-8xl">{t("meta.title")}</h1>
-                    <p className="mt-8 max-w-3xl text-balance text-lg leading-8 text-stone-500 dark:text-stone-400">
-                        <Trans i18nKey="home.description" components={{ canvas: <Highlighter action="underline" color="#FF9800" />, content: <Highlighter action="highlight" color="#87CEFA" /> }} />
+                    <span className="typ-label relative mb-6 inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-muted-foreground">
+                        <span className="size-1.5 rounded-full bg-emerald-500" />
+                        {t("home.heroBadge")}
+                    </span>
+
+                    <h1 className="typ-display relative max-w-3xl text-balance text-foreground sm:text-[40px] sm:leading-[1.08]">
+                        {t("home.heroTitle")}
+                    </h1>
+
+                    <p className="typ-body relative mt-5 max-w-xl text-balance text-muted-foreground">
+                        <Trans
+                            i18nKey="home.description"
+                            components={{
+                                canvas: <span className="border-b border-foreground/40 pb-px font-medium text-foreground" />,
+                                content: <span className="rounded-[3px] bg-foreground/8 px-1 py-px font-medium text-foreground" />,
+                            }}
+                        />
                     </p>
-                    <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
+
+                    <div className="relative mt-8 flex flex-wrap items-center justify-center gap-2.5">
                         <Button type="primary" size="large" onClick={() => navigate(`/${primaryTool.slug}`)} icon={<ArrowRight className="size-4" />} iconPlacement="end">
                             {t("home.start")}
                         </Button>
@@ -58,18 +63,27 @@ export default function IndexPage() {
                     </div>
                 </div>
 
-                <section className="relative mx-auto mb-20 max-w-6xl border-t border-stone-200 pt-12 dark:border-stone-800">
-                    <div className="mb-8 grid gap-4 md:grid-cols-[1fr_auto_1fr] md:items-start">
-                        <div />
-                        <div className="max-w-2xl text-center">
-                            <h2 className="text-3xl font-semibold text-stone-950 dark:text-stone-100">{t("home.showcaseTitle")}</h2>
-                            <p className="mt-3 text-base leading-7 text-stone-500 dark:text-stone-400">{t("home.showcaseDescription")}</p>
+                <section className="relative pb-20">
+                    {/* 标题栏：窄屏把入口按钮挪到下一行，避免描述被挤成孤字行 */}
+                    <div className="mb-5 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+                        <div className="min-w-0">
+                            <h2 className="typ-heading-lg text-foreground">{t("home.showcaseTitle")}</h2>
+                            <p className="typ-caption mt-1.5 text-pretty text-muted-foreground sm:max-w-lg">{t("home.showcaseDescription")}</p>
                         </div>
-                        <Button type="link" onClick={() => navigate("/prompts")} className="justify-self-center md:justify-self-end" icon={<ArrowRight className="size-4" />} iconPlacement="end">
+                        <Button type="text" size="small" onClick={() => navigate("/prompts")} icon={<ArrowRight className="size-3.5" />} iconPlacement="end" className="shrink-0 self-start text-muted-foreground sm:self-auto">
                             {t("home.viewPrompts")}
                         </Button>
                     </div>
-                    <div className="grid auto-rows-[210px] gap-4 md:grid-cols-4">
+
+                    {/* 作品墙：统一圆角与表面层级，去掉逐卡描边 */}
+                    {promptShowcase.length === 0 ? (
+                        /* 空态不占满整块，避免整屏最重的区域却没有信息 */
+                        <div className="surface-card flex flex-col items-center gap-1.5 px-6 py-9 text-center">
+                            <p className="typ-body-compact font-medium text-foreground">{t("home.showcaseEmpty")}</p>
+                            <p className="typ-caption text-muted-foreground">{t("home.showcaseEmptyHint")}</p>
+                        </div>
+                    ) : (
+                    <div className="grid auto-rows-[180px] gap-3 sm:grid-cols-2 md:auto-rows-[200px] md:grid-cols-4">
                         {promptShowcase.map((item, index) => (
                             <button
                                 key={item.id}
@@ -79,26 +93,35 @@ export default function IndexPage() {
                                     setPreviewOpen(true);
                                 }}
                                 className={cn(
-                                    "group relative cursor-pointer overflow-hidden border border-stone-200 bg-stone-100 text-left dark:border-stone-800 dark:bg-stone-900",
-                                    index === 0 && "md:col-span-2 md:row-span-2",
+                                    "surface-card-interactive group relative cursor-pointer overflow-hidden text-left focus-ring",
+                                    index === 0 && "sm:col-span-2 md:row-span-2",
                                     index === 3 && "md:col-span-2",
                                 )}
                             >
-                                <img src={item.coverUrl} alt={item.title} className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" />
-                                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/35 to-transparent p-4 text-white">
-                                    <div className="mb-2 flex flex-wrap gap-1.5">
+                                <img
+                                    src={item.coverUrl}
+                                    alt={item.title}
+                                    loading="lazy"
+                                    className="size-full object-cover transition duration-500 group-hover:scale-[1.02]"
+                                />
+                                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent px-3.5 pb-3 pt-10 text-white">
+                                    <div className="mb-1.5 flex flex-wrap gap-1">
                                         {item.tags.slice(0, 2).map((tag) => (
-                                            <Tag key={tag} variant="filled" className="m-0 bg-white/15 text-[11px] text-white backdrop-blur">
+                                            <span key={tag} className="typ-label rounded-full bg-white/18 px-2 py-0.5 text-white/95 backdrop-blur-sm">
                                                 {tag}
-                                            </Tag>
+                                            </span>
                                         ))}
                                     </div>
-                                    <h3 className="text-sm font-medium">{item.title}</h3>
-                                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-white/75">{item.prompt}</p>
+                                    <h3 className="typ-body-compact line-clamp-1 font-medium">{item.title}</h3>
+                                    {/* 描述默认收起，悬停 / 键盘聚焦时展开：让作品图本身占主导 */}
+                                    <p className="typ-caption mt-1 line-clamp-2 max-h-0 overflow-hidden text-white/75 opacity-0 transition-all duration-300 group-hover:max-h-12 group-hover:opacity-100 group-focus-visible:max-h-12 group-focus-visible:opacity-100">
+                                        {item.prompt}
+                                    </p>
                                 </div>
                             </button>
                         ))}
                     </div>
+                    )}
                 </section>
             </section>
             <Image.PreviewGroup

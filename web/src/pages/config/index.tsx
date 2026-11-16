@@ -1,19 +1,21 @@
 import { useTranslation } from "react-i18next";
 
 import { AppConfigPanel } from "@/components/layout/app-config-modal";
+import { PageHeader, PageShell } from "@/components/layout/page-header";
 
 export default function ConfigPage() {
     const { t } = useTranslation();
 
     return (
-        <main className="h-full overflow-y-auto bg-background">
-            <div className="mx-auto max-w-6xl px-6 py-6">
-                <div className="mb-5">
-                    <h1 className="text-xl font-semibold text-stone-950 dark:text-stone-100">{t("config.title")}</h1>
-                    <p className="mt-1 text-sm text-stone-500">{t("config.description")}</p>
+        <PageShell className="px-4 py-4 sm:px-6 sm:py-5">
+            <main className="min-h-0 flex-1 overflow-y-auto">
+                <div className="mx-auto w-full max-w-5xl pb-6">
+                    <PageHeader title={t("config.title")} description={t("config.description")} />
+                    <div className="surface-card mt-5 min-h-[calc(100dvh-13rem)] p-5">
+                        <AppConfigPanel />
+                    </div>
                 </div>
-                <AppConfigPanel />
-            </div>
-        </main>
+            </main>
+        </PageShell>
     );
 }

@@ -1,6 +1,6 @@
 import { App, Button, Form, Input, Modal, Progress, Radio, Select, Switch, Tabs } from "antd";
 import type { TFunction } from "i18next";
-import { Cloud, Download, Pencil, Plus, RefreshCw, Trash2, Upload, Wifi } from "lucide-react";
+import { Cloud, Download, Ellipsis, Pencil, Plus, RefreshCw, Trash2, Upload, Wifi } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -182,6 +182,9 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
             </div>
             <Tabs
                 activeKey={activeTab}
+                /* 窄屏放不下时 antd 只会裁掉末尾并塞进「更多」，改用下拉模式保证每个标签都能点到 */
+                more={{ icon: <Ellipsis className="size-4" /> }}
+                className="config-tabs"
                 onChange={(key) => setActiveTab(key as ConfigTabKey)}
                 items={[
                     {

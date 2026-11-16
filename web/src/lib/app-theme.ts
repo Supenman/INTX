@@ -45,6 +45,18 @@ export function getAntThemeConfig(dark: boolean): ThemeConfig {
             controlItemBgHover: color.itemHoverBg,
             controlItemBgActive: color.itemSelectedBg,
             controlItemBgActiveHover: color.itemSelectedHoverBg,
+            // 与 styles/tokens.css 的 Primitive 层对齐，避免 antd 与 Tailwind 各用一套圆角 / 行高。
+            borderRadius: 8,
+            borderRadiusSM: 6,
+            borderRadiusLG: 12,
+            controlHeight: 32,
+            controlHeightSM: 26,
+            controlHeightLG: 40,
+            fontSize: 14,
+            fontSizeSM: 12,
+            fontSizeLG: 16,
+            lineHeight: 1.5715,
+            motionDurationMid: "0.15s",
         },
         components: {
             Button: {
