@@ -51,16 +51,13 @@ export function VideoSettingsPanel({ config, onConfigChange, theme, showTitle = 
             <div className={className} style={{ color: theme.node.text }} onMouseDown={(event) => event.stopPropagation()}>
                 {showTitle ? <div className="text-lg font-semibold">{t("settingsPanels.video.title")}</div> : null}
                 <SettingGroup title={t("settingsPanels.video.quality")} color={theme.node.muted}>
-                    <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4">
+                    <div className="grid grid-cols-4 gap-2.5">
                         {resolutionOptions.map((item) => (
                             <OptionPill key={item.value} selected={resolution === item.value} theme={theme} onClick={() => selectResolution(item.value)}>
                                 {item.label}
                             </OptionPill>
                         ))}
-                        {/* 自定义清晰度：窄屏单独占一行并限宽，避免和一个胶囊等宽时数字与 p 被挤到两端 */}
-                        <div className="col-span-3 justify-self-start max-sm:max-w-[150px] sm:col-span-1 sm:w-full">
-                            <ResolutionInput value={resolution} theme={theme} onChange={selectResolution} />
-                        </div>
+                        <ResolutionInput value={resolution} theme={theme} onChange={selectResolution} />
                     </div>
                 </SettingGroup>
                 <SettingGroup title={t("settingsPanels.video.size")} color={theme.node.muted}>
@@ -166,9 +163,8 @@ function SettingGroup({ title, color, children }: { title: string; color: string
 }
 
 function ResolutionInput({ value, theme, onChange }: { value: string; theme: CanvasTheme; onChange: (value: string) => void }) {
-    const { t } = useTranslation();
     return (
-        <label className="flex h-9 w-full overflow-hidden rounded-lg border border-dashed text-sm" title={t("settingsPanels.video.customQuality")} aria-label={t("settingsPanels.video.customQuality")} style={{ borderColor: theme.node.stroke, color: theme.node.text }}>
+        <label className="flex h-9 overflow-hidden rounded-full border text-sm" style={{ borderColor: theme.node.stroke, color: theme.node.text }}>
             <input type="number" min={1} className="min-w-0 flex-1 bg-transparent px-3 text-center outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" value={value} onChange={(event) => onChange(event.target.value)} onMouseDown={(event) => event.stopPropagation()} />
             <span className="grid w-7 place-items-center pr-1" style={{ color: theme.node.muted }}>
                 p

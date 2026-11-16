@@ -3,7 +3,6 @@ import type { TFunction } from "i18next";
 import { Cloud, Download, Ellipsis, Pencil, Plus, RefreshCw, Trash2, Upload, Wifi } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useLocation } from "react-router-dom";
 
 import { ModelPicker } from "@/components/model-picker";
 import { videoResolutionOptions } from "@/components/video-settings-panel";
@@ -376,16 +375,9 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
 
 export function AppConfigModal() {
     const { t } = useTranslation();
-    const { pathname } = useLocation();
     const isConfigOpen = useConfigStore((state) => state.isConfigOpen);
     const configTab = useConfigStore((state) => state.configTab);
     const setConfigDialogOpen = useConfigStore((state) => state.setConfigDialogOpen);
-
-    // 切页时关闭弹窗：它是从顶栏齿轮打开的全局浮层，跟着路由走会在新页面盖住内容。
-    useEffect(() => {
-        setConfigDialogOpen(false);
-    }, [pathname, setConfigDialogOpen]);
-
     return (
         <Modal
             title={
