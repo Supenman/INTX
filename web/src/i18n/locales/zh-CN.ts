@@ -429,6 +429,11 @@ export default {
         loading: "正在读取任务台账…",
         redLine: "任务号是上游已收单的凭据。不要直接重新提交（会再扣一次钱），先去厂商后台按任务号核对。",
     },
+    costEstimate: {
+        estimated: "预计 {{currency}} {{amount}} · {{count}} 张",
+        missing: "未配置单价",
+        hint: "单价在「配置 → 渠道 → 模型」里填写；只做本地预估，不代表厂商账单",
+    },
     version: {
         viewUpdates: "查看版本更新",
         title: "版本更新",
@@ -631,6 +636,8 @@ export default {
             models: "渠道模型",
             modelDescription: "已选 {{count}} 个；为每个模型指定能力并可自定义调用脚本。",
             selectModels: "选择模型",
+            price: "单价",
+            priceHint: "本地预估单价（每张图 / 每次视频），只存在本机，用于生成前预估",
             scriptReady: "脚本已设",
             script: "调用脚本",
             empty: "点击「选择模型」拉取或手动增加模型。",

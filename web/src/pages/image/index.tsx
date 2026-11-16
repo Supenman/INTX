@@ -5,6 +5,7 @@ import localforage from "localforage";
 import { saveAs } from "file-saver";
 import { useTranslation } from "react-i18next";
 
+import { GenerationCostBadge } from "@/components/generation/generation-cost-badge";
 import { ImageSettingsPanel } from "@/components/image-settings-panel";
 import { PageHeader, PageShell } from "@/components/layout/page-header";
 import { ModelPicker } from "@/components/model-picker";
@@ -497,6 +498,9 @@ export default function ImagePage() {
                         </div>
 
                         <div className="mt-4 shrink-0 border-t border-border/60 pt-4">
+                            <div className="mb-2 flex justify-center">
+                                <GenerationCostBadge config={effectiveConfig} model={model} count={generationCount} />
+                            </div>
                             <Button type="primary" size="large" block icon={<Sparkles className="size-4" />} loading={running} disabled={!canGenerate || running} onClick={() => void generate()}>
                                 {t("workbench.generate")}
                             </Button>

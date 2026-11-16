@@ -189,7 +189,7 @@ export default function TasksPage() {
 
             <Drawer
                 open={selected !== null}
-                width={520}
+                size="large"
                 onClose={() => setSelectedId(null)}
                 title={selected ? `${t(`tasks.kind.${selected.kind}`, { defaultValue: selected.kind })} · ${t(`tasks.status.${selected.status}`)}` : ""}
                 destroyOnHidden

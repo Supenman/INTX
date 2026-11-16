@@ -431,6 +431,11 @@ export default {
         loading: "Loading task ledger…",
         redLine: "The task id proves the provider accepted it. Do not resubmit (you would be charged again) — verify it in the provider dashboard first.",
     },
+    costEstimate: {
+        estimated: "Est. {{currency}} {{amount}} · {{count}} images",
+        missing: "No unit price",
+        hint: "Set the unit price under Settings → Providers → Models. Local estimate only, not a provider bill.",
+    },
     version: {
         viewUpdates: "View release updates",
         title: "Release updates",
@@ -633,6 +638,8 @@ export default {
             models: "Provider models",
             modelDescription: "{{count}} selected; assign a capability to each model and optionally customize its request script.",
             selectModels: "Select models",
+            price: "Price",
+            priceHint: "Local unit price (per image / per video). Stored on this device only, used for pre-generation estimate.",
             scriptReady: "Script set",
             script: "Request script",
             empty: "Select models to fetch or manually add models.",

@@ -1,4 +1,4 @@
-import { Button, Drawer, Input, Segmented, Select, Space } from "antd";
+import { Button, Drawer, Input, InputNumber, Segmented, Select, Space } from "antd";
 import { ListPlus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -41,6 +41,17 @@ export function ChannelEditorDrawer({ open, channel, onSave, onClose }: { open: 
 
     const setCapability = (name: string, capability: ModelCapability) => setModels(draft.models.map((model) => (model.name === name ? { ...model, capability } : model)));
     const setScript = (name: string, script: string) => setModels(draft.models.map((model) => (model.name === name ? { ...model, script: script || undefined } : model)));
+    /** 单价：只有正的有限数字才留下，否则清空（预估显示「未配置单价」）。 */
+    const setPricing = (name: string, patch: { amount?: number | null; currency?: string }) =>
+        setModels(
+            draft.models.map((model) => {
+                if (model.name !== name) return model;
+                const amount = patch.amount === undefined ? model.pricing?.perImage : patch.amount ?? undefined;
+                const currency = patch.currency ?? model.pricing?.currency ?? "CNY";
+                const valid = typeof amount === "number" && Number.isFinite(amount) && amount > 0;
+                return { ...model, pricing: valid ? { perImage: amount, currency } : undefined };
+            }),
+        );
     const removeModel = (name: string) => setModels(draft.models.filter((model) => model.name !== name));
 
     const save = () => {
@@ -102,6 +113,27 @@ export function ChannelEditorDrawer({ open, channel, onSave, onClose }: { open: 
                             </span>
                             <div className="flex shrink-0 items-center gap-2">
                                 <Segmented size="small" value={model.capability} options={capabilityOptions} onChange={(value) => setCapability(model.name, value as ModelCapability)} />
+                                {model.capability === "image" || model.capability === "video" ? (
+                                    <div className="flex items-center gap-1">
+                                        <InputNumber
+                                            size="small"
+                                            className="w-20"
+                                            min={0}
+                                            step={0.01}
+                                            placeholder={t("config.channelEditor.price")}
+                                            title={t("config.channelEditor.priceHint")}
+                                            value={model.pricing?.perImage}
+                                            onChange={(value) => setPricing(model.name, { amount: typeof value === "number" ? value : null })}
+                                        />
+                                        <Select
+                                            size="small"
+                                            className="w-[4.25rem]"
+                                            value={model.pricing?.currency ?? "CNY"}
+                                            options={[{ value: "CNY" }, { value: "USD" }]}
+                                            onChange={(currency) => setPricing(model.name, { currency })}
+                                        />
+                                    </div>
+                                ) : null}
                                 <Button size="small" type={model.script ? "primary" : "default"} ghost={Boolean(model.script)} onClick={() => setScriptTarget({ name: model.name, capability: model.capability, value: model.script || "" })}>
                                     {t(model.script ? "config.channelEditor.scriptReady" : "config.channelEditor.script")}
                                 </Button>

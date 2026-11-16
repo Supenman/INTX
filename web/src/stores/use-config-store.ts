@@ -4,6 +4,7 @@ import { persist } from "zustand/middleware";
 import { nanoid } from "nanoid";
 
 import i18n from "@/i18n";
+import type { ModelPricing } from "@/domain";
 
 export type ApiCallFormat = "openai" | "gemini";
 export type ModelCapability = "image" | "video" | "text" | "audio";
@@ -13,6 +14,8 @@ export type ChannelModel = {
     name: string;
     capability: ModelCapability;
     script?: string;
+    /** 本地单价，仅用于生成前预估；没填就不猜，预估显示「未配置单价」。 */
+    pricing?: ModelPricing;
 };
 
 export type ModelChannel = {
@@ -179,6 +182,11 @@ export function modelCapabilityOf(config: AiConfig, value: string): ModelCapabil
     return findChannelModel(config, value)?.model.capability;
 }
 
+/** 当前选中模型在渠道里登记的单价；没登记返回 undefined（预估显示「未配置单价」）。 */
+export function findChannelModelPricing(config: AiConfig, value: string): ModelPricing | undefined {
+    return findChannelModel(config, value)?.model.pricing;
+}
+
 export function modelMatchesCapability(config: AiConfig, value: string, capability?: ModelCapability) {
     if (!capability) return true;
     return modelCapabilityOf(config, value) === capability;
@@ -306,7 +314,11 @@ export function normalizeChannelModels(models: Array<string | ChannelModel> | un
         seen.add(name);
         const capability = typeof item === "string" ? guessCapability(name) : item.capability || guessCapability(name);
         const script = typeof item === "string" ? undefined : item.script?.trim() || undefined;
-        result.push({ name, capability, script });
+        // 单价只接受正的有限数字；没有就整项丢掉，绝不留 0 假装免费。
+        const raw = typeof item === "string" ? undefined : item.pricing;
+        const perImage = raw && Number.isFinite(raw.perImage) && (raw.perImage as number) > 0 ? (raw.perImage as number) : undefined;
+        const pricing: ModelPricing | undefined = raw && perImage !== undefined ? { perImage, currency: (raw.currency || "CNY").trim() || "CNY" } : undefined;
+        result.push({ name, capability, script, ...(pricing ? { pricing } : {}) });
     }
     return result;
 }
