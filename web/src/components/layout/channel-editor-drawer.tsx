@@ -104,7 +104,7 @@ export function ChannelEditorDrawer({ open, channel, onSave, onClose }: { open: 
                         ]}
                         onChange={(value) => patch({ proxyMode: value as ChannelProxyMode })}
                     />
-                    <span className="mt-1 block text-xs text-stone-500">
+                    <span className="mt-1 block text-xs text-muted-foreground">
                         {draft.proxyMode === "direct" ? t("config.channelEditor.proxyModeDirectHint") : t("config.channelEditor.proxyModeSystemHint")}
                     </span>
                 </label>
@@ -113,14 +113,14 @@ export function ChannelEditorDrawer({ open, channel, onSave, onClose }: { open: 
             <div className="mt-6 mb-3 flex flex-wrap items-center justify-between gap-2">
                 <div>
                     <div className="text-sm font-semibold">{t("config.channelEditor.models")}</div>
-                    <div className="mt-0.5 text-xs text-stone-500">{t("config.channelEditor.modelDescription", { count: draft.models.length })}</div>
+                    <div className="mt-0.5 text-xs text-muted-foreground">{t("config.channelEditor.modelDescription", { count: draft.models.length })}</div>
                 </div>
                 <Button type="primary" icon={<ListPlus className="size-4" />} onClick={() => setSelectOpen(true)}>
                     {t("config.channelEditor.selectModels")}
                 </Button>
             </div>
 
-            <div className="space-y-2 rounded-lg border border-stone-200 p-2 dark:border-stone-800">
+            <div className="space-y-2 rounded-lg border border-border p-2">
                 {draft.models.length ? (
                     draft.models.map((model) => (
                         <div key={model.name} className="flex flex-wrap items-center gap-3 rounded-md px-2 py-1.5 hover:bg-stone-50 dark:hover:bg-stone-900/40">
@@ -158,7 +158,7 @@ export function ChannelEditorDrawer({ open, channel, onSave, onClose }: { open: 
                         </div>
                     ))
                 ) : (
-                    <div className="px-2 py-8 text-center text-sm text-stone-500">{t("config.channelEditor.empty")}</div>
+                    <div className="px-2 py-8 text-center text-sm text-muted-foreground">{t("config.channelEditor.empty")}</div>
                 )}
             </div>
 

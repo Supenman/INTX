@@ -37,7 +37,7 @@ beforeEach(() => {
 
 describe("导出配置不含凭据", () => {
     it("API Key 与 WebDAV 密码不写进导出文件", async () => {
-        exportAppConfig();
+        await exportAppConfig();
 
         const blob = h.saveAs.mock.calls[0][0] as Blob;
         const text = await blob.text();

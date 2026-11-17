@@ -1,6 +1,5 @@
 import { App, Button, Drawer, Input, Segmented, Spin, Tag } from "antd";
 import dayjs from "dayjs";
-import { saveAs } from "file-saver";
 import { ClipboardList, Copy, Download, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -9,6 +8,7 @@ import { PageHeader, PageShell } from "@/components/layout/page-header";
 import type { Task } from "@/domain/task/model";
 import { readTaskOutcome, type OutcomeReason } from "@/domain/task/outcome";
 import { useCopyText } from "@/hooks/use-copy-text";
+import { useSaveFile } from "@/hooks/use-save-file";
 import { loadTaskLog, useTaskLogStore } from "@/services/generation";
 
 type Bucket = "all" | "running" | "succeeded" | "ended";
@@ -39,6 +39,7 @@ function formatDuration(ms: number | null): string {
 export default function TasksPage() {
     const { t } = useTranslation();
     const copyText = useCopyText();
+    const saveFileWithNotice = useSaveFile();
     const tasks = useTaskLogStore((state) => state.tasks);
     const loading = useTaskLogStore((state) => state.loading);
     const hydrated = useTaskLogStore((state) => state.hydrated);
@@ -77,7 +78,7 @@ export default function TasksPage() {
             task: value,
             outcome: readTaskOutcome(task),
         };
-        saveAs(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }), `task-${task.id}.json`);
+        void saveFileWithNotice(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }), `task-${task.id}.json`);
     };
 
     const reasonText = (reason: OutcomeReason) => t(`tasks.reason.${reason}`, { defaultValue: reason });

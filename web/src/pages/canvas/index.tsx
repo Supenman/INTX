@@ -4,6 +4,7 @@ import { App, Button } from "antd";
 import { Download, FileUp, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { useSaveNotice } from "@/hooks/use-save-file";
 import { readZip } from "@/lib/zip";
 import { setMediaBlob } from "@/services/file-storage";
 import { setImageBlob } from "@/services/image-storage";
@@ -20,6 +21,7 @@ import { SnapshotStorageStatus } from "@/components/layout/snapshot-storage-stat
 export default function CanvasPage() {
     const { message } = App.useApp();
     const { t } = useTranslation();
+    const saveNotice = useSaveNotice();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const inputRef = useRef<HTMLInputElement>(null);
@@ -92,7 +94,11 @@ export default function CanvasPage() {
                                         <Button
                                             disabled={!hydrated}
                                             icon={<Download className="size-4" />}
-                                            onClick={() => void exportCanvasProjects(projects.filter((project) => selectedIds.includes(project.id)), `${t("canvas.title")}-${selectedIds.length}`)}
+                                            onClick={() => {
+                                                void exportCanvasProjects(projects.filter((project) => selectedIds.includes(project.id)), `${t("canvas.title")}-${selectedIds.length}`)
+                                                    .then(saveNotice)
+                                                    .catch((error) => saveNotice({ status: "failed", error }));
+                                            }}
                                         >
                                             {t("canvas.exportSelected")}
                                         </Button>

@@ -1,11 +1,11 @@
 import { Copy, Download, PencilLine, Plus, Search, Trash2, Upload } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { App, Button, Card, Drawer, Empty, Form, Image, Input, Modal, Pagination, Select, Space, Tag, Typography } from "antd";
-import { saveAs } from "file-saver";
 import { useTranslation } from "react-i18next";
 
 import { PageHeader, PageShell } from "@/components/layout/page-header";
 import { useCopyText } from "@/hooks/use-copy-text";
+import { useSaveFile, useSaveNotice } from "@/hooks/use-save-file";
 import { formatBytes, readFileAsDataUrl } from "@/lib/image-utils";
 import { getMediaBlob } from "@/services/file-storage";
 import { getImageBlob, getImagePreviewRevision, subscribeImagePreviews, uploadImage } from "@/services/image-storage";
@@ -32,6 +32,8 @@ export default function AssetsPage() {
     const { message } = App.useApp();
     const { t } = useTranslation();
     const copyText = useCopyText();
+    const saveFileWithNotice = useSaveFile();
+    const saveNotice = useSaveNotice();
     const [form] = Form.useForm<AssetFormValues>();
     const coverInputRef = useRef<HTMLInputElement>(null);
     const imageInputRef = useRef<HTMLInputElement>(null);
@@ -163,7 +165,7 @@ export default function AssetsPage() {
                 return;
             }
             const ext = asset.data.mimeType?.split("/")[1]?.split("+")[0] || (asset.kind === "video" ? "mp4" : "png");
-            saveAs(blob, `${asset.title || "asset"}.${ext}`);
+            await saveFileWithNotice(blob, `${asset.title || "asset"}.${ext}`);
         } catch {
             message.error(t("assets.downloadFailed"));
         }
@@ -174,7 +176,12 @@ export default function AssetsPage() {
             message.warning(t("assets.noneToExport"));
             return;
         }
-        await exportAssets(validAssets, t("assets.packageName"));
+        try {
+            saveNotice(await exportAssets(validAssets, t("assets.packageName")));
+        } catch (error) {
+            console.error(error);
+            message.error(t("common.saveFailed"));
+        }
     };
 
     const importAssetZip = async (file?: File) => {

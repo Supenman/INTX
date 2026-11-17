@@ -1,5 +1,4 @@
-import { saveAs } from "file-saver";
-
+import { saveFile, type SaveFileOutcome } from "@/lib/runtime/save-file";
 import { createZip, readZip } from "@/lib/zip";
 import { getMediaBlob, setMediaBlob } from "@/services/file-storage";
 import { getImageBlob, setImageBlob } from "@/services/image-storage";
@@ -20,7 +19,7 @@ type AssetExportItem = {
     bytes: number;
 };
 
-export async function exportAssets(assets: Asset[], filename: string) {
+export async function exportAssets(assets: Asset[], filename: string): Promise<SaveFileOutcome> {
     const files: AssetExportItem[] = [];
     const zipFiles: { name: string; data: BlobPart }[] = [];
 
@@ -39,7 +38,7 @@ export async function exportAssets(assets: Asset[], filename: string) {
 
     const data: AssetExportFile = { app: "infinite-canvas", version: 1, exportedAt: new Date().toISOString(), assets, files };
     const zip = await createZip([{ name: "assets.json", data: JSON.stringify(data, null, 2) }, ...zipFiles]);
-    saveAs(zip, filename);
+    return saveFile(zip, filename);
 }
 
 export async function readAssetPackage(file: File) {

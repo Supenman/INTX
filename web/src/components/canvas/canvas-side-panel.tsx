@@ -201,7 +201,10 @@ function CanvasNodesTab({ nodes, selectedNodeIds, onFocusNode, onPreviewNode, on
         setExporting(true);
         const hide = message.loading(t("canvas.sidePanel.exporting"), 0);
         try {
-            await exportCanvasNodes(targets, t("canvas.sidePanel.exportName", { count: targets.length }));
+            const outcome = await exportCanvasNodes(targets, t("canvas.sidePanel.exportName", { count: targets.length }));
+            // 用户在「另存为」里点了取消：静默结束，不能报成功。
+            if (outcome.status === "canceled") return;
+            if (outcome.status === "failed") throw outcome.error ?? new Error("export failed");
             message.success(t("canvas.sidePanel.exported", { count: targets.length }));
             exitSelect();
         } catch (error) {

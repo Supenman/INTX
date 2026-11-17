@@ -92,8 +92,8 @@ description: 参考 BeefTV 2.2.5、OpenDirector、hero8152 三个源码库，规
    - 22 个厂商请求发起点全部改走它；provider 层禁止直接使用 axios / fetch / `@tauri-apps`，由边界检查脚本拦截。
    - 收口后「桌面端无 CORS」对所有厂商成立，`proxyMode` 降为浏览器开发通道的实现细节。
 3. **桌面最小能力**（4–6 天）
-   - 原生另存为，替换 `file-saver` 直落下载，并让「导出成功」可确认而不是无脑提示。
-   - Windows 未签名安装包（NSIS/MSI）构建并真机安装。
+   - 原生另存为（代码完成，待真机确认）：`lib/runtime/save-file.ts` 统一出口，桌面走 `plugin-dialog` 保存框 + `plugin-fs` 写盘，取消与写盘失败不再报成功；浏览器保留 `file-saver` 降级。全部 8 处导出/下载已迁移。
+   - Windows 未签名安装包（NSIS/MSI）构建并真机安装（未开始，需有 Windows 环境的机器）。
 
 **通过标准**：`pnpm exec vitest run src` 全量绿并作为 CI 门禁；至少一个非 ModelScope 厂商在桌面端不开本地代理能发出请求；导出的配置文件不含任何 Key；安装包在干净 Windows 上装得上、打得开。
 

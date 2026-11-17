@@ -1,13 +1,24 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "INTX 桌面窗口：只开核心权限。数据全在前端 IndexedDB，Rust 侧不需要 fs。",
-  "windows": ["main"],
+  "description": "INTX 桌面窗口：只开核心权限。数据全在前端 IndexedDB；fs 只用于「另存为」写用户当场选中的那个文件（dialog 会把该路径加入运行时 scope）。",
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "core:default",
+    "dialog:allow-save",
+    "fs:allow-write-file",
     {
       "identifier": "http:default",
-      "allow": [{ "url": "https://**" }, { "url": "http://**" }]
+      "allow": [
+        {
+          "url": "https://**"
+        },
+        {
+          "url": "http://**"
+        }
+      ]
     }
   ]
 }

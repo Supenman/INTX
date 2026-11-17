@@ -92,8 +92,8 @@ Goal: settle how the two targets converge, once, so every later network feature 
    - Move all 22 provider request sites onto it; a boundary-check script forbids axios / fetch / `@tauri-apps` in the provider layer.
    - Afterwards "the desktop has no CORS" holds for every provider, and `proxyMode` becomes an implementation detail of the browser dev channel.
 3. **Minimum desktop capabilities** (4–6 days)
-   - Native save-as, replacing the `file-saver` download, with an export result that can actually be confirmed.
-   - Build and install a Windows NSIS/MSI installer (unsigned).
+   - Native save-as (code done, awaiting real-device confirmation): `lib/runtime/save-file.ts` is the single exit; desktop uses the `plugin-dialog` save dialog plus `plugin-fs`, so cancel and write failures are no longer reported as success; the browser keeps `file-saver` as a fallback. All 8 export/download call sites migrated.
+   - Build and install a Windows NSIS/MSI installer (unsigned) — not started, needs a Windows machine.
 
 **Pass condition:** `pnpm exec vitest run src` is fully green and is the CI gate; at least one non-ModelScope provider issues a request from the desktop with no local proxy; the exported config file contains no keys; the installer installs and opens on a clean Windows machine.
 

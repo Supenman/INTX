@@ -3,6 +3,8 @@ import type { TFunction } from "i18next";
 import { Cloud, Download, Ellipsis, Pencil, Plus, RefreshCw, Trash2, Upload, Wifi } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+
+import { useSaveNotice } from "@/hooks/use-save-file";
 import { useLocation } from "react-router-dom";
 
 import { ModelPicker } from "@/components/model-picker";
@@ -53,6 +55,7 @@ function createWebdavDomainProgress(): Record<AppSyncDomainKey, WebdavDomainProg
 export function AppConfigPanel({ showDoneButton = false, initialTab = "channels" }: { showDoneButton?: boolean; initialTab?: ConfigTabKey }) {
     const { message } = App.useApp();
     const { i18n, t } = useTranslation();
+    const saveNotice = useSaveNotice();
     const configInputRef = useRef<HTMLInputElement>(null);
     const [activeTab, setActiveTab] = useState<ConfigTabKey>(initialTab);
     const [editingChannelId, setEditingChannelId] = useState("");
@@ -174,7 +177,7 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
                     <Button icon={<Upload className="size-4" />} onClick={() => configInputRef.current?.click()}>
                         {t("config.import")}
                     </Button>
-                    <Button icon={<Download className="size-4" />} onClick={exportAppConfig}>
+                    <Button icon={<Download className="size-4" />} onClick={() => void exportAppConfig().then(saveNotice)}>
                         {t("config.export")}
                     </Button>
                     <input ref={configInputRef} type="file" accept="application/json,.json" className="hidden" onChange={(event) => event.target.files?.[0] && void loadConfigFile(event.target.files[0])} />

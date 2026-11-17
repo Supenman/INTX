@@ -5,6 +5,18 @@ description: Implemented changes that still need manual verification
 
 # Pending Tests
 
+## Native save-as (M2.5 item 3, awaiting real-device verification)
+
+- On desktop, exporting canvas projects / selected projects / side-panel nodes, exporting all assets, downloading a single asset, downloading node images or a batch, exporting task diagnostics, and exporting settings should all open the system Save dialog with the correct default name and extension — not silently drop the file into the download folder as before.
+- Choosing Cancel in the dialog must not show a success toast; the UI stays unchanged.
+- Saving to a writable location should report "Saved to <path>", and the file must exist and open correctly (zip extracts, image previews, JSON parses).
+- Saving to an unwritable location (for example `C:\Program Files\INTX`) or over a locked file should report a save failure without crashing or losing the canvas.
+- Canvas "Download image / video / audio" follows the same path; verify data URLs, blob URLs, and remote URLs all produce files of the expected size.
+- The browser dev channel (`vite dev`) still downloads directly without the system dialog.
+- Automated: `cargo check` passes (dialog and fs plugins registered; capabilities grant only `dialog:allow-save` and `fs:allow-write-file`); `vitest run src` is 758/758 green (6 new cases in `lib/runtime/save-file.test.ts` covering cancel, write failure, data-URL decoding, and filename sanitising); tsc reports 0 errors; `vite build` passes.
+- **Not verified**: dialog behaviour in a real Windows window, the read-only directory error message, and file placement from an installed build.
+
+
 The current release needs manual verification in these areas:
 
 ## Desktop-only layout

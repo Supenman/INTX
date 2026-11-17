@@ -187,14 +187,14 @@ export function ConfigTasks() {
 
     return (
         <div>
-            <div className="mb-4 text-xs text-stone-500">{t("config.tasks.description")}</div>
+            <div className="mb-4 text-xs text-muted-foreground">{t("config.tasks.description")}</div>
             {loadError ? (
                 <div role="alert" className="mb-3 text-sm">
                     {loadError} <Button size="small" onClick={() => void loadTaskLog()}>{t("config.tasks.reload")}</Button>
                 </div>
             ) : null}
             {Object.values(unsaved).map(({ evidence: task, error }) => (
-                <div key={task.id} role="alert" className="mb-2 rounded-lg border border-stone-200 px-4 py-3 dark:border-stone-800">
+                <div key={task.id} role="alert" className="mb-2 rounded-lg border border-border px-4 py-3">
                     <div className="text-sm font-semibold">{task.params.model} · {t("config.tasks.unsaved")}</div>
                     <div className="mt-1 text-xs">{error} · {task.error?.message}</div>
                     <div className="mt-2 flex gap-2">
@@ -211,18 +211,18 @@ export function ConfigTasks() {
                         const commitOnly = Boolean(pendingCommit && pendingCommit.upstreamRef === (task.upstreamRef ?? ""));
                         const draftOnly = Boolean(pendingCommit?.drafts?.length);
                         return (
-                            <div key={task.id} className="rounded-lg border border-stone-200 px-4 py-3 dark:border-stone-800">
+                            <div key={task.id} className="rounded-lg border border-border px-4 py-3">
                                 <div className="flex flex-wrap items-start justify-between gap-3">
                                     <div className="min-w-0">
                                         <div className="truncate text-sm font-semibold">
                                             {t(`config.tasks.kind.${task.kind}`)} · {task.params.model || t("config.tasks.unknownModel")}
                                         </div>
-                                        <div className="mt-1 truncate text-xs text-stone-500">{task.params.prompt || "—"}</div>
-                                        <div className="mt-1 text-xs text-stone-500">
+                                        <div className="mt-1 truncate text-xs text-muted-foreground">{task.params.prompt || "—"}</div>
+                                        <div className="mt-1 text-xs text-muted-foreground">
                                             {dayjs(task.createdAt).format("MM-DD HH:mm")} · {task.error?.message || t("config.tasks.runningHint")}
                                         </div>
                                         {commitOnly ? (
-                                            <div className="mt-1 text-xs text-stone-500">{t(draftOnly ? "config.tasks.recoveredDraftHint" : "config.tasks.recoveredHint")}</div>
+                                            <div className="mt-1 text-xs text-muted-foreground">{t(draftOnly ? "config.tasks.recoveredDraftHint" : "config.tasks.recoveredHint")}</div>
                                         ) : null}
                                     </div>
                                     <div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -235,7 +235,7 @@ export function ConfigTasks() {
                                     </div>
                                 </div>
                                 {action === "manual" && !commitOnly ? (
-                                    <div className="mt-2 text-xs text-stone-500">
+                                    <div className="mt-2 text-xs text-muted-foreground">
                                         {task.params.extras?.endpoint === "modelscope" ? t("config.tasks.noModelscopeChannel") : t("config.tasks.manual")}
                                     </div>
                                 ) : null}
@@ -244,12 +244,12 @@ export function ConfigTasks() {
                     })}
                 </div>
             ) : hydrated && !loading && !loadError && !Object.keys(unsaved).length ? (
-                <div className="rounded-lg border border-dashed border-stone-300 px-4 py-8 text-center text-sm text-stone-500 dark:border-stone-700">
+                <div className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
                     <ClipboardCheck className="mx-auto mb-2 size-5" />
                     {t("config.tasks.empty")}
                 </div>
             ) : loading ? <div>{t("config.tasks.loading")}</div> : null}
-            <div className="mt-4 text-xs text-stone-500">{t("config.tasks.footer")}</div>
+            <div className="mt-4 text-xs text-muted-foreground">{t("config.tasks.footer")}</div>
         </div>
     );
 }
