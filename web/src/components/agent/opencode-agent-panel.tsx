@@ -10,7 +10,7 @@ import i18n from "@/i18n";
 import { acquireAgentClientId, AGENT_PROTOCOL_VERSION, isDesktopApp } from "@/lib/agent/agent-client";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { randomId } from "@/lib/utils";
-import { activateAgentClient, createOpencodeThread, deleteOpencodeThread, fetchOpencodeModels, fetchOpencodeThread, fetchOpencodeThreads, interruptOpencodeTurn, postState, sendOpencodeTurn, type OpencodeModelOption } from "@/services/api/canvas-agent";
+import { activateAgentClient, createOpencodeThread, deleteOpencodeThread, fetchOpencodeModels, fetchOpencodeThread, fetchOpencodeThreads, interruptOpencodeTurn, postState, renameOpencodeThread, sendOpencodeTurn, type OpencodeModelOption } from "@/services/api/canvas-agent";
 import type { AgentSkillSummary } from "@/services/api/canvas-agent";
 import { useAgentSkillStore } from "@/stores/use-agent-skill-store";
 import { useAgentStore, type AgentCanvasContext, type AgentCanvasReference, type AgentChatItem } from "@/stores/use-agent-store";
@@ -469,6 +469,24 @@ export function OpencodeAgentPanel() {
         });
     };
 
+    /** 重命名一个会话；成功后刷新列表，失败回滚列表并用错误提示。 */
+    const renameThread = async (threadId: string, title: string) => {
+        const state = useAgentStore.getState();
+        if (!state.connected || state.sending || state.waiting) return;
+        setAgentState({ loadingThreads: true });
+        try {
+            await renameOpencodeThread(endpoint, token, threadId, title);
+            await loadThreads();
+            message.success(rt("conversationRenamed"));
+        } catch (error) {
+            await loadThreads();
+            addEventLog(rt("renameConversationFailed"), error);
+            message.error(error instanceof Error ? error.message : rt("renameConversationFailed"));
+        } finally {
+            setAgentState({ loadingThreads: false });
+        }
+    };
+
     const toggleAgentConnection = () => {
         if (enabled) {
             setAgentState({ enabled: false, connected: false, activity: rt("offline"), connectError: "", messages: [], threads: [], activeThreadId: "", activeTurnId: "", tokenUsage: null, workspacePath: "" });
@@ -562,6 +580,7 @@ export function OpencodeAgentPanel() {
                     onNewThread={() => void startNewThread()}
                     onResumeThread={(threadId) => void resumeThread(threadId)}
                     onDeleteThreads={confirmDeleteThreads}
+                    onRenameThread={(threadId, title) => void renameThread(threadId, title)}
                 />
             ) : activeTab === "log" ? (
                 <AgentLogView

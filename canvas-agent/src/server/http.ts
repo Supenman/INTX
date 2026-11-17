@@ -4,7 +4,7 @@ import path from "node:path";
 import express, { type NextFunction, type Request, type Response } from "express";
 
 import { messageMetadataStore } from "../agent/message-metadata.js";
-import { createOpencodeThread, deleteOpencodeThread, interruptOpencodeTurn, listOpencodeModels, listOpencodeThreads, readOpencodeThread, runOpencodeTurn } from "../agent/opencode.js";
+import { createOpencodeThread, deleteOpencodeThread, interruptOpencodeTurn, listOpencodeModels, listOpencodeThreads, readOpencodeThread, renameOpencodeThread, runOpencodeTurn } from "../agent/opencode.js";
 import { AGENT_PROTOCOL_VERSION, CanvasSession } from "../canvas/session.js";
 import { SkillStore } from "../skills/store.js";
 import { DEFAULT_PORT, ensureSiteWorkspace, loadConfig, saveConfig, type CanvasAgentConfig } from "../config.js";
@@ -151,6 +151,14 @@ export function startHttpServer() {
         const workspace = ensureSiteWorkspace(config);
         await deleteOpencodeThread(workspace.workspacePath, routeParam(req.params.threadId));
         res.json({ ok: true });
+    }));
+    app.post("/agent/opencode/threads/:threadId/rename", mutation(async (req, res) => {
+        const workspace = ensureSiteWorkspace(config);
+        const threadId = routeParam(req.params.threadId);
+        const title = String(req.body?.title || "").trim();
+        if (!title) return res.status(400).json({ ok: false, error: "会话名称不能为空" });
+        await renameOpencodeThread(workspace.workspacePath, threadId, title);
+        res.json({ ok: true, threadId, title });
     }));
     app.post("/agent/opencode/turn", mutation(async (req, res) => {
         const prompt = String(req.body?.prompt || "");

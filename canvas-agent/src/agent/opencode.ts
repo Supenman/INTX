@@ -69,6 +69,17 @@ export async function deleteOpencodeThread(cwd: string, threadId: string) {
     if (!response.ok) throw new Error(`删除 opencode 会话失败：${response.status}`);
 }
 
+/** 重命名 opencode 会话（opencode 的 PATCH /session/{id} 接受 title）。 */
+export async function renameOpencodeThread(cwd: string, threadId: string, title: string) {
+    const { base } = await ensureServer(cwd);
+    const response = await fetch(`${base}/session/${encodeURIComponent(threadId)}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title }),
+    });
+    if (!response.ok) throw new Error(`重命名 opencode 会话失败：${response.status}`);
+}
+
 const value = (input: unknown) => (typeof input === "string" ? input : "");
 
 /** 历史快照沿用实时事件的 item / turn 归属：turn = 用户消息 id。 */

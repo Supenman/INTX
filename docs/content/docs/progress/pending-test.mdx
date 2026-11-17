@@ -306,6 +306,39 @@ Pass criteria: one real image; the failure paths (bad key, cancel mid-generation
 - Asset image download: opening an image that still previews in My Assets and clicking Download image should save the file. Titles with Chinese characters, spaces, or brackets such as `【】` should remain the downloaded filename and must not need renaming. Images saved from the canvas in the same session should download as well.
 - Canvas video task resume: starting an OpenAI-style video generation should store the remote task ID on the video node. After a page refresh, a still-pending video should keep polling automatically; if polling stopped, **Get task status** should resume with that task ID until the video is ready, the task fails, or the status request errors. Task failure should then allow a normal retry that creates a new generation.
 
+## M3.2 Conversations / references / trace / permissions end-to-end acceptance (pending real-machine run)
+
+Background: the plan's M3.2 described referencing OpenDirector's Assistant components to implement conversations / references / trace. Verified conclusion: all four blocks are already wired and usable in the current opencode single-lane panel. This round only added **search + rename** on conversations incrementally; no OpenDirector component was ported.
+
+### Conversations (including the new search and rename)
+
+- New / resume / delete / switch: after connecting the local Agent, create a conversation from History; after a turn ends, clicking any conversation in History should restore the full transcript; selecting multiple and deleting should prompt for confirmation, the entries disappear from the list, and deleting the active conversation clears the chat area.
+- Search: typing a keyword into the search box at the top of History keeps only conversations whose title or preview contains it; clearing the box restores the full list; no match shows "没有匹配的对话"; checkbox selection and deletion in the filtered list apply only to the visible entries. **Verified in browser**: 19 conversations filtered to 1 by a timestamp keyword, no-match message shown, clearing restored all 19.
+- Rename: clicking the pencil icon on a conversation row opens an inline input pre-filled with the current title; typing a new name and pressing Enter updates the list title immediately without an error; an empty name does not submit, and Esc or clicking away cancels the edit without changing the title; after renaming, refreshing or reloading the list should keep the new title (persisted by opencode). **Verified in browser** (local Agent + real opencode service, no vendor request sent): title updated on submit, survived a list refresh, reverted to the original name, console clean. **Unverified**: Esc / click-away cancel behavior, dark-theme appearance.
+- Conversation timestamps: History rows previously parsed opencode's millisecond timestamps as seconds and showed far-future dates such as "58849/5/27"; now parsed as milliseconds. **Verified in browser**: rows show the current date and time.
+- Automation: `web` type check, `vitest run src` 758 tests, production build, `check:tokens` / `check:boundaries` / `check:overflow` (1280/1440/1920) all green; `canvas-agent` 74 passed / 2 skipped / 0 failed, type check clean, build passes.
+
+### References
+
+- With a canvas project open, typing `@` in the Agent composer should show the canvas's image / video / audio / text candidates; selecting one inserts a compact tag into the message and sends the reference by exact node ID, with image content passed to the Agent.
+- With the candidate menu open, Enter should select a candidate instead of sending; Esc closes the menu; Backspace / Delete should remove a candidate tag as one block.
+- **Unverified**: that referenced image content actually reaches the model in a real turn (needs a real vendor request; none sent this round).
+
+### Trace
+
+- After a turn runs, the chat area should show tool-call cards (tool name, running state, completed / failed) and a result summary after completion, without raw event JSON leaking into the UI.
+- External links in replies should trigger a confirmation dialog and only open after approval; local file paths should offer "show in file manager" and act on confirmation.
+- The Logs tab should show the turn's event timeline (send / start / reply / tool / done / error) without duplicating streaming deltas.
+- **Unverified**: the link-confirmation dialog and file reveal on the desktop shell.
+
+### Permissions
+
+- The composer permission menu's three modes (Ask for approval / Automatic review / Full access) should sync the selection and description on change; Full access requires a risk confirmation first.
+- Under Automatic review, letting the Agent start a generation should first show a confirmation card reporting only the spending count and estimated amount (or "未配置单价" when no unit price is configured); confirming replays only that op without double-charging.
+- Under Ask for approval, every non-read-only change should ask first; read-only operations should not prompt.
+- The permission choice should survive a refresh.
+- **Unverified**: confirmation-card amounts under a real paid scenario, and the Agent's real `run_generation` confirmation card (needs a local Agent + real Key; no vendor request sent this round).
+
 The Chinese version contains the complete item-by-item acceptance checklist.
 
 ## 图片分辨率尺寸表

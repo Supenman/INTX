@@ -98,6 +98,10 @@ export function deleteOpencodeThread(endpoint: string, token: string, threadId: 
     return fetchAgentJson<{ ok?: boolean }>(endpoint, token, `/agent/opencode/threads/${encodeURIComponent(threadId)}/delete`, jsonPost({}));
 }
 
+export function renameOpencodeThread(endpoint: string, token: string, threadId: string, title: string) {
+    return fetchAgentJson<{ ok?: boolean; threadId?: string; title?: string }>(endpoint, token, `/agent/opencode/threads/${encodeURIComponent(threadId)}/rename`, jsonPost({ title }));
+}
+
 export function sendOpencodeTurn(endpoint: string, token: string, body: { threadId: string; prompt: string; clientId: string; model?: string }) {
     return fetchAgentJson<{ ok?: boolean; threadId?: string }>(endpoint, token, "/agent/opencode/turn", jsonPost(body));
 }

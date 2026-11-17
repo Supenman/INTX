@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { Button, Checkbox } from "antd";
-import { FolderOpen, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Button, Checkbox, Input, Tooltip } from "antd";
+import { FolderOpen, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { canvasThemes } from "@/lib/canvas-theme";
@@ -18,6 +18,7 @@ export function AgentHistoryView({
     onNewThread,
     onResumeThread,
     onDeleteThreads,
+    onRenameThread,
 }: {
     theme: (typeof canvasThemes)[keyof typeof canvasThemes];
     threads: AgentThreadSummary[];
@@ -30,9 +31,18 @@ export function AgentHistoryView({
     onNewThread: () => void;
     onResumeThread: (threadId: string) => void;
     onDeleteThreads: (threadIds: string[]) => void;
+    onRenameThread: (threadId: string, title: string) => void;
 }) {
     const { i18n, t } = useTranslation();
     const [selectedIds, setSelectedIds] = useState(() => new Set<string>());
+    const [keyword, setKeyword] = useState("");
+    const [editingId, setEditingId] = useState("");
+    const [editingTitle, setEditingTitle] = useState("");
+    const matches = useMemo(() => {
+        const query = keyword.trim().toLowerCase();
+        if (!query) return threads;
+        return threads.filter((thread) => `${thread.name || ""}\n${thread.preview || ""}`.toLowerCase().includes(query));
+    }, [keyword, threads]);
     const selectedThreads = threads.filter((thread) => selectedIds.has(thread.id));
     const allSelected = Boolean(threads.length) && selectedThreads.length === threads.length;
     const canResume = connected && !loading && !busy;
@@ -53,10 +63,19 @@ export function AgentHistoryView({
                         {workspacePath || t("agent.history.defaultWorkspace")}
                     </span>
                 </div>
+                <Input
+                    allowClear
+                    size="small"
+                    value={keyword}
+                    placeholder={t("agent.history.searchPlaceholder")}
+                    aria-label={t("agent.history.searchPlaceholder")}
+                    onChange={(event) => setKeyword(event.target.value)}
+                    onKeyDown={(event) => event.stopPropagation()}
+                />
                 <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2 text-sm" style={{ color: theme.node.muted }}>
-                        {threads.length ? <Checkbox checked={allSelected} indeterminate={Boolean(selectedThreads.length) && !allSelected} disabled={loading || busy} onChange={() => setSelectedIds(allSelected ? new Set() : new Set(threads.map((thread) => thread.id)))} /> : null}
-                        <span>{selectedThreads.length ? t("agent.history.selected", { count: selectedThreads.length }) : threads.length ? t("agent.history.count", { count: threads.length }) : connected ? t("agent.history.empty") : t("agent.status.disconnected")}</span>
+                        {matches.length ? <Checkbox checked={allSelected} indeterminate={Boolean(selectedThreads.length) && !allSelected} disabled={loading || busy} onChange={() => setSelectedIds(allSelected ? new Set() : new Set(matches.map((thread) => thread.id)))} /> : null}
+                        <span>{selectedThreads.length ? t("agent.history.selected", { count: selectedThreads.length }) : matches.length ? t("agent.history.count", { count: matches.length }) : connected ? keyword.trim() ? t("agent.history.noMatch") : t("agent.history.empty") : t("agent.status.disconnected")}</span>
                     </div>
                     <div className="flex items-center gap-2">
                         {selectedThreads.length ? (
@@ -73,8 +92,9 @@ export function AgentHistoryView({
                     </div>
                 </div>
                 <div className="space-y-2">
-                    {threads.map((thread) => {
+                    {matches.map((thread) => {
                         const active = thread.id === activeThreadId;
+                        const editing = editingId === thread.id;
                         return (
                             <div
                                 key={thread.id}
@@ -84,10 +104,10 @@ export function AgentHistoryView({
                                 className={`${canResume ? "cursor-pointer hover:bg-black/5 dark:hover:bg-white/10" : "cursor-default opacity-60"} rounded-lg border px-2.5 py-2 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/20`}
                                 style={{ borderColor: active ? theme.node.text : theme.node.stroke, background: "transparent", color: theme.node.text }}
                                 onClick={() => {
-                                    if (canResume) onResumeThread(thread.id);
+                                    if (canResume && !editing) onResumeThread(thread.id);
                                 }}
                                 onKeyDown={(event) => {
-                                    if (!canResume || (event.key !== "Enter" && event.key !== " ")) return;
+                                    if (editing || !canResume || (event.key !== "Enter" && event.key !== " ")) return;
                                     event.preventDefault();
                                     onResumeThread(thread.id);
                                 }}
@@ -108,7 +128,43 @@ export function AgentHistoryView({
                                                     {t("agent.history.current")}
                                                 </span>
                                             ) : null}
-                                            <div className="truncate text-sm font-medium leading-5">{thread.name || thread.preview || t("agent.history.untitled")}</div>
+                                            {editing ? (
+                                                <Input
+                                                    size="small"
+                                                    autoFocus
+                                                    value={editingTitle}
+                                                    onClick={(event) => event.stopPropagation()}
+                                                    onKeyDown={(event) => {
+                                                        event.stopPropagation();
+                                                        if (event.key === "Enter") {
+                                                            if (editingTitle.trim()) onRenameThread(thread.id, editingTitle.trim());
+                                                            setEditingId("");
+                                                        }
+                                                        if (event.key === "Escape") setEditingId("");
+                                                    }}
+                                                    onChange={(event) => setEditingTitle(event.target.value)}
+                                                />
+                                            ) : (
+                                                <>
+                                                    <div className="truncate text-sm font-medium leading-5">{thread.name || thread.preview || t("agent.history.untitled")}</div>
+                                                    <Tooltip title={t("agent.history.rename")} placement="bottom">
+                                                        <button
+                                                            type="button"
+                                                            aria-label={t("agent.history.rename")}
+                                                            disabled={loading || busy}
+                                                            onClick={(event) => {
+                                                                event.stopPropagation();
+                                                                setEditingId(thread.id);
+                                                                setEditingTitle(thread.name || thread.preview || "");
+                                                            }}
+                                                            style={{ color: theme.node.muted, opacity: loading || busy ? 0.4 : 0.8 }}
+                                                            className="shrink-0 rounded p-0.5 transition hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/30"
+                                                        >
+                                                            <Pencil className="size-3" />
+                                                        </button>
+                                                    </Tooltip>
+                                                </>
+                                            )}
                                         </div>
                                         <div className="truncate text-[11px] leading-4 opacity-65">{thread.preview || thread.id}</div>
                                     </div>
@@ -117,9 +173,9 @@ export function AgentHistoryView({
                             </div>
                         );
                     })}
-                    {!threads.length ? (
+                    {!matches.length ? (
                         <div className="px-3 py-8 text-center text-sm" style={{ color: theme.node.muted }}>
-                            {t(connected ? "agent.history.noWorkspaceThreads" : "agent.history.connectHint")}
+                            {keyword.trim() ? t("agent.history.noMatch") : t(connected ? "agent.history.noWorkspaceThreads" : "agent.history.connectHint")}
                         </div>
                     ) : null}
                 </div>
@@ -130,5 +186,6 @@ export function AgentHistoryView({
 
 function formatThreadTime(value: number | undefined, locale: string) {
     if (!value) return "";
-    return new Date(value * 1000).toLocaleString(locale);
+    // opencode 的会话时间戳已是毫秒，直接传给 Date。
+    return new Date(value).toLocaleString(locale);
 }
