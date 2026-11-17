@@ -9,7 +9,6 @@ import { ModelPicker } from "@/components/model-picker";
 import { videoResolutionOptions } from "@/components/video-settings-panel";
 import { ChannelEditorDrawer } from "@/components/layout/channel-editor-drawer";
 import { ConfigLocalProxy } from "@/components/layout/config-local-proxy";
-import { ConfigPromptSources } from "@/components/layout/config-prompt-sources";
 import { ConfigLocalStorage } from "@/components/layout/config-local-storage";
 import { ConfigTasks } from "@/components/layout/config-tasks";
 import type { AppLocale } from "@/i18n";
@@ -183,7 +182,7 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
             </div>
             <Tabs
                 activeKey={activeTab}
-                /* 窄屏放不下时 antd 只会裁掉末尾并塞进「更多」，改用下拉模式保证每个标签都能点到 */
+                /* 空间不足时 antd 只会裁掉末尾并塞进「更多」，改用下拉模式保证每个标签都能点到 */
                 more={{ icon: <Ellipsis className="size-4" /> }}
                 className="config-tabs"
                 onChange={(key) => setActiveTab(key as ConfigTabKey)}
@@ -236,7 +235,7 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
                         children: (
                             <Form layout="vertical" requiredMark={false}>
                                 <div className="mb-2 text-sm font-semibold">{t("config.preferences.defaultModels")}</div>
-                                <div className="mb-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                                <div className="mb-4 grid grid-cols-2 gap-4 xl:grid-cols-4">
                                     {modelGroups.map((group) => (
                                         <Form.Item key={group.modelKey} label={t(group.labelKey)} className="mb-0">
                                             <ModelPicker config={config} value={config[group.modelKey]} onChange={(model) => updateConfig(group.modelKey, model)} capability={group.capability} fullWidth />
@@ -244,7 +243,7 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
                                     ))}
                                 </div>
                                 <div className="mb-2 text-sm font-semibold">{t("config.preferences.generation")}</div>
-                                <div className="grid gap-4 md:grid-cols-4">
+                                <div className="grid grid-cols-4 gap-4">
                                     <Form.Item label={t("config.preferences.canvasImageCount")} extra={t("config.preferences.canvasImageCountDescription")} className="mb-4">
                                         <Input
                                             type="number"
@@ -307,11 +306,6 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
                         ),
                     },
                     {
-                        key: "prompt-sources",
-                        label: t("config.tabs.promptSources"),
-                        children: <ConfigPromptSources />,
-                    },
-                    {
                         key: "webdav",
                         label: "WebDAV",
                         children: (
@@ -327,7 +321,7 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
                                         </div>
                                         <div className="text-xs text-muted-foreground">{webdav.lastSyncedAt ? t("config.webdav.lastSynced", { time: formatWebdavTime(webdav.lastSyncedAt, locale) }) : t("config.webdav.neverSynced")}</div>
                                     </div>
-                                    <div className="grid gap-4 md:grid-cols-2">
+                                    <div className="grid grid-cols-2 gap-4">
                                         <Form.Item label={t("config.webdav.url")} className="mb-4">
                                             <Input value={webdav.url} placeholder="https://nas.example.com/webdav" onChange={(event) => updateWebdavConfig("url", event.target.value)} />
                                         </Form.Item>

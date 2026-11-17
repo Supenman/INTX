@@ -203,7 +203,7 @@ export function ImageToolSettingsModal({
                         </Space>
                     }
                 >
-                    <Checkbox.Group value={selectedIds} className="grid w-full gap-3 md:grid-cols-3" onChange={(values) => updateSelectedTools(values as ImageQuickToolId[])}>
+                    <Checkbox.Group value={selectedIds} className="grid w-full grid-cols-3 gap-3" onChange={(values) => updateSelectedTools(values as ImageQuickToolId[])}>
                         {tools.map((tool) => (
                             <Checkbox key={tool.id} value={tool.id} className="m-0">
                                 <span className="inline-flex items-center gap-2">

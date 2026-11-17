@@ -79,7 +79,7 @@ export default function CanvasPage() {
     if (hydrated && (mode === "new" || mode === "recent")) return <main className="flex h-full items-center justify-center bg-background typ-caption text-muted-foreground">{t("canvas.opening")}</main>;
 
     return (
-        <PageShell className="px-4 py-4 sm:px-6 sm:py-5">
+        <PageShell className="px-6 py-5">
             <main className="min-h-0 flex-1 overflow-y-auto">
                 <div className="mx-auto w-full max-w-6xl pb-4">
                     <PageHeader
@@ -125,7 +125,7 @@ export default function CanvasPage() {
                             <SnapshotStorageStatus kind="projects" />
                         </section>
                     ) : projects.length ? (
-                        <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                        <div className="mt-4 grid grid-cols-2 gap-4 xl:grid-cols-3">
                             {projects.map((project) => (
                                 <CanvasProjectCard key={project.id} project={project} />
                             ))}

@@ -46,7 +46,7 @@ const messages = {
   'zh-CN': {
     eyebrow: '开源 AI 图片创作工作台',
     center: '文档中心',
-    description: '面向图片创作的无限画布，把画布编排、AI 生成、参考图编辑、提示词库和素材沉淀放在同一个工作流里。',
+    description: '面向图片创作的无限画布，把画布编排、AI 生成、参考图编辑和素材沉淀放在同一个工作流里。',
     quickStart: '快速开始',
     demo: '在线体验',
     gallery: '效果展示',

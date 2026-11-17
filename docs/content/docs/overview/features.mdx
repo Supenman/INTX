@@ -19,7 +19,7 @@ description: Major features available in the current project
 
 ## Nodes and workflows
 
-- Text, image, video, and generation-configuration nodes.
+- Text, image, video, audio, and group nodes. Model, size, count, and reference settings live in each node's own prompt panel, and the node type is the generation mode.
 - Connect text prompts and reference media to generation nodes.
 - Generate or rewrite text, create images, edit images from references, and create videos.
 - Preserve original image ratios by default and organize batch results as connected nodes.
@@ -43,23 +43,19 @@ description: Major features available in the current project
 
 Canvas plugins can contribute node types, rendering, inspectors, serialization, migration, toolbar actions, and optional AI generation capabilities. Built-in and local plugins are managed through the canvas UI.
 
-## Prompts and assets
+## Assets
 
-- Use seven built-in prompt sources from the [Image Prompts](https://github.com/yukkcat/image-prompts) registry, with independent enablement, manual refresh, and scheduled refresh.
-- Add, edit, and remove custom standard JSON sources while retaining the last successful cache when refresh fails.
-- Search across enabled sources, filter by tags, inspect prompt details, copy prompts, and insert them into the canvas.
-- Store reusable images, videos, audio, and prompt assets in the browser.
-
-See [Third-party Prompt Sources](/docs/overview/third-party-prompt-repositories) for the complete built-in list.
+- Store reusable text, image, video, and audio assets in the browser.
 
 ## Configuration and synchronization
 
-- Export and import channel, model, generation, prompt-source, and WebDAV settings.
+- Export and import channel, model, generation, and WebDAV settings.
 - Store application data and API credentials locally in the browser.
 - Use WebDAV for optional cross-device synchronization.
 
 ## Current limitations
 
 - The project is frontend-first and does not provide built-in cloud accounts or cloud storage.
+- The canvas is desktop-only and does not provide a mobile layout.
 - API keys remain in browser storage and requests are sent directly to configured providers.
 - Production Docker static-resource paths still require broader deployment verification.

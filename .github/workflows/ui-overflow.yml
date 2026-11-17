@@ -1,8 +1,8 @@
 name: UI Overflow Check
 
-# 三视口横向溢出回归检查。
-# 背景：连续两轮 UI 问题都出在「只测了桌面宽度」，tsc / 单测 / 构建都抓不到
-# flex 子项不收缩导致的横向溢出，只能在真实窄视口里渲染一遍。
+# 桌面视口横向溢出回归检查。
+# 背景：项目只支持桌面宽度。tsc / 单测 / 构建都抓不到 flex 子项不收缩
+# 导致的横向溢出，只能在几种常见桌面窗口宽度下各渲染一遍。
 
 on:
   push:
@@ -47,7 +47,7 @@ jobs:
       - name: Build
         run: pnpm run build
 
-      - name: Check horizontal overflow (390 / 768 / 1440)
+      - name: Check horizontal overflow (1280 / 1440 / 1920)
         run: pnpm run check:overflow
 
       - name: Upload failure screenshots

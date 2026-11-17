@@ -63,7 +63,7 @@ Canvas Agent 源码使用 TypeScript 编写，MCP 协议层使用官方 `@modelc
 - `canvas_export_snapshot`
 - `canvas_apply_ops`
 - `canvas_create_text_node`
-- `canvas_create_image_prompt_flow`
+- `canvas_create_generation_flow`
 
 `canvas_apply_ops` 示例：
 

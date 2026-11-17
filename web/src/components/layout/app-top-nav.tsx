@@ -1,21 +1,19 @@
-import { Bot, Menu } from "lucide-react";
+import { Bot } from "lucide-react";
 import { Button, Tooltip } from "antd";
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import { navigationTools, type NavigationToolSlug } from "@/constant/navigation-tools";
 import { AppConfigModal } from "@/components/layout/app-config-modal";
-import { MobileNavDrawer } from "@/components/layout/mobile-nav-drawer";
 import { UserStatusActions } from "@/components/layout/user-status-actions";
 import { isDesktopApp } from "@/lib/agent/agent-client";
 import { cn } from "@/lib/utils";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useAgentStore } from "@/stores/use-agent-store";
 
 export function AppTopNav() {
     const { t } = useTranslation();
     const { pathname } = useLocation();
-    const [mobileNavOpen, setMobileNavOpen] = useState(false);
     const autoConnectRef = useRef(false);
     const agentToken = useAgentStore((state) => state.token);
     const agentEnabled = useAgentStore((state) => state.enabled);
@@ -40,7 +38,7 @@ export function AppTopNav() {
         <>
             {!hideHeader ? (
                 <header className="sticky top-0 z-20 h-14 shrink-0 border-b border-border/70 bg-background/85 backdrop-blur-xl">
-                    <div className="mx-auto flex h-full max-w-7xl items-stretch justify-between gap-3 px-4 sm:gap-5 sm:px-6">
+                    <div className="mx-auto flex h-full max-w-7xl items-stretch justify-between gap-5 px-6">
                         <div className="flex min-w-0 items-center">
                             <Link to="/" className="flex h-full shrink-0 items-center gap-2 whitespace-nowrap text-sm font-semibold leading-none tracking-tight text-foreground transition hover:text-muted-foreground">
                                 <span
@@ -53,17 +51,7 @@ export function AppTopNav() {
                                 <span className="shrink-0 text-base font-medium">{t("meta.title")}</span>
                             </Link>
 
-                            <button
-                                type="button"
-                                className="ml-3 inline-flex size-8 shrink-0 items-center justify-center text-muted-foreground transition hover:text-foreground md:hidden"
-                                onClick={() => setMobileNavOpen(true)}
-                                aria-label={t("topNav.openMenu")}
-                                title={t("topNav.menu")}
-                            >
-                                <Menu className="size-5" />
-                            </button>
-
-                            <nav className="hide-scrollbar ml-8 hidden h-14 min-w-0 items-center gap-7 overflow-x-auto md:flex">
+                            <nav className="hide-scrollbar ml-8 flex h-14 min-w-0 items-center gap-7 overflow-x-auto">
                                 {navigationTools.map((tool) => {
                                     const Icon = tool.icon;
                                     const active = tool.slug === activeToolSlug;
@@ -96,7 +84,6 @@ export function AppTopNav() {
                 </header>
             ) : null}
 
-            <MobileNavDrawer open={mobileNavOpen} activeToolSlug={activeToolSlug} onClose={() => setMobileNavOpen(false)} />
             <AppConfigModal />
         </>
     );

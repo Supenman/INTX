@@ -1,7 +1,7 @@
 import { randomId } from "@/lib/utils";
 
 /** Canvas Agent 通信协议版本；Agent 端升级后需要重启并重新连接。 */
-export const AGENT_PROTOCOL_VERSION = 6;
+export const AGENT_PROTOCOL_VERSION = 8;
 export const DEFAULT_AGENT_URL = "http://127.0.0.1:17371";
 
 /** 当前是否跑在 Tauri 桌面壳里；只有桌面版能读本地 Agent 配置。 */

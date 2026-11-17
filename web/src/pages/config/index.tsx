@@ -7,7 +7,7 @@ export default function ConfigPage() {
     const { t } = useTranslation();
 
     return (
-        <PageShell className="px-4 py-4 sm:px-6 sm:py-5">
+        <PageShell className="px-6 py-5">
             <main className="min-h-0 flex-1 overflow-y-auto">
                 <div className="mx-auto w-full max-w-5xl pb-6">
                     <PageHeader title={t("config.title")} description={t("config.description")} />

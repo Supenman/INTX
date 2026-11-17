@@ -155,7 +155,7 @@ export function CanvasNodeSplitDialog({ dataUrl, open, onClose, onConfirm }: { d
                     <p className="mt-1 text-sm opacity-60">{t("canvas.editors.splitDescription", { count: total })}</p>
                     <p className="mt-2 text-xs leading-5 opacity-55">{t("canvas.editors.splitHint")}</p>
                 </div>
-                <div className="grid gap-6 md:grid-cols-[minmax(260px,1fr)_280px]">
+                <div className="grid grid-cols-[minmax(260px,1fr)_280px] gap-6">
                     <div className="rounded-xl border p-4">
                         <div
                             ref={viewport.viewportRef}

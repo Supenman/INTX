@@ -6,7 +6,6 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/i18n', () => ({ default: { t: (key: string) => key } }));
-vi.mock('@/services/api/prompts', () => ({ fetchPrompts: vi.fn() }));
 vi.mock('@/services/image-storage', () => ({ uploadImage: vi.fn() }));
 vi.mock('@/components/image-settings-panel', () => ({ imageAspectOptions: [], imageQualityOptions: [], imageScaleOptions: [] }));
 vi.mock('@/components/video-settings-panel', () => ({ videoResolutionOptions: [], videoSecondsRange: [1, 10], videoSizeOptions: [] }));

@@ -1,7 +1,6 @@
 import type { NavigateFunction } from "react-router-dom";
 
 import i18n from "@/i18n";
-import { fetchPrompts } from "@/services/api/prompts";
 import { uploadImage } from "@/services/image-storage";
 import { imageAspectOptions, imageQualityOptions, imageScaleOptions } from "@/components/image-settings-panel";
 import { videoResolutionOptions, videoSecondsRange, videoSizeOptions } from "@/components/video-settings-panel";
@@ -13,7 +12,7 @@ import { modelOptionLabel, modelOptionName, normalizeModelOptionValue, selectabl
 import { launchAgentImageGeneration, launchAgentVideoGeneration } from "@/lib/agent/agent-canvas-generation";
 import { useWorkbenchAgentStore } from "@/stores/use-workbench-agent-store";
 
-// Execute site-level Agent tools in the browser, including canvas lists, workbench generation, prompt search, and asset operations.
+// Execute site-level Agent tools in the browser, including canvas lists, workbench generation, and asset operations.
 // Their data lives locally in the browser through localforage and Zustand, so this module accesses the relevant stores directly.
 
 export const SITE_TOOL_NAMES = [
@@ -23,7 +22,6 @@ export const SITE_TOOL_NAMES = [
     "workbench_image_generate",
     "workbench_video_get_config",
     "workbench_video_generate",
-    "prompts_search",
     "assets_list",
     "assets_add",
 ] as const;
@@ -45,7 +43,6 @@ export const SITE_TOOL_LABELS: Record<SiteToolName, string> = {
     get workbench_image_generate() { return siteText("imageGenerate"); },
     get workbench_video_get_config() { return siteText("videoConfig"); },
     get workbench_video_generate() { return siteText("videoGenerate"); },
-    get prompts_search() { return siteText("promptSearch"); },
     get assets_list() { return siteText("assetList"); },
     get assets_add() { return siteText("assetAdd"); },
 };
@@ -69,8 +66,6 @@ export async function runSiteTool(name: SiteToolName, input: SiteToolInput, navi
             return getVideoConfig();
         case "workbench_video_generate":
             return runVideoWorkbench(input, navigate);
-        case "prompts_search":
-            return searchPrompts(input);
         case "assets_list":
             return listAssets(input);
         case "assets_add":
@@ -94,7 +89,7 @@ function getGenerationStatus(input: SiteToolInput, canvasSnapshot?: CanvasAgentS
             const status = normalizeCanvasGenerationStatus(node.metadata?.status);
             if (!status || (nodeIds.size && !nodeIds.has(node.id))) return;
             const metadata = node.metadata || {};
-            if (!nodeIds.size && node.type !== "config" && status !== "running" && status !== "failed" && !metadata.generationMode && !metadata.generationType && !metadata.model) return;
+            if (!nodeIds.size && status !== "running" && status !== "failed" && !metadata.generationMode && !metadata.generationType && !metadata.model) return;
             tasks.push({ id: node.id, source: "canvas", status, kind: metadata.generationMode || node.type, title: node.title, prompt: compactPrompt(metadata.prompt || metadata.composerContent), projectId: canvasSnapshot.projectId, error: metadata.errorDetails });
         });
     }
@@ -259,21 +254,6 @@ async function runVideoWorkbench(input: SiteToolInput, navigate: NavigateFunctio
     if (!prompt) throw new Error(siteText("promptRequired"));
     const launched = await launchAgentVideoGeneration({ prompt });
     return { ok: true, prompt, run, taskId: launched.taskId, projectId: launched.projectId, applied, note: siteText("videoGenerationStarted") };
-}
-
-async function searchPrompts(input: SiteToolInput) {
-    const page = Math.max(1, Math.floor(Number(input.page)) || 1);
-    const pageSize = Math.max(1, Math.min(50, Math.floor(Number(input.pageSize)) || 20));
-    const tags = Array.isArray(input.tags) ? input.tags.filter((tag): tag is string => typeof tag === "string") : [];
-    const result = await fetchPrompts({ keyword: String(input.keyword || ""), category: String(input.category || i18n.t("common.all")), tag: tags, page, pageSize });
-    return {
-        total: result.total,
-        page,
-        pageSize,
-        categories: result.categories,
-        tags: result.tags.slice(0, 60),
-        items: result.items.map((prompt) => ({ id: prompt.id, title: prompt.title, prompt: prompt.prompt, category: prompt.category, tags: prompt.tags, coverUrl: prompt.coverUrl, githubUrl: prompt.githubUrl })),
-    };
 }
 
 function listAssets(input: SiteToolInput) {

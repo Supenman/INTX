@@ -216,7 +216,7 @@ export default function AssetsPage() {
     if (!hydrated) return <main className="flex h-full items-center justify-center bg-background text-foreground"><SnapshotStorageStatus kind="assets" /></main>;
 
     return (
-        <PageShell className="px-4 py-4 sm:px-6 sm:py-5">
+        <PageShell className="px-6 py-5">
             <main className="min-h-0 flex-1 overflow-y-auto">
                 <div className="mx-auto w-full max-w-6xl">
                     <PageHeader
@@ -237,7 +237,7 @@ export default function AssetsPage() {
                         }
                     />
 
-                    <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="mt-5 flex items-center justify-between gap-3">
                         <div className="flex flex-wrap items-center gap-2">
                             <span className="typ-overline mr-1 text-muted-foreground">{t("assets.type")}</span>
                             {kindOptions.map((option) => (
@@ -256,12 +256,12 @@ export default function AssetsPage() {
                         </div>
 
                         <div className="flex items-center gap-3">
-                            <div className="hidden sm:block">
+                            <div className="block">
                                 <SnapshotStorageStatus kind="assets" />
                             </div>
                             <Input
                                 allowClear
-                                className="w-full sm:w-64"
+                                className="w-64"
                                 prefix={<Search className="size-3.5 text-muted-foreground" />}
                                 value={keyword}
                                 placeholder={t("assets.search")}
@@ -277,7 +277,7 @@ export default function AssetsPage() {
                         </div>
                     </div>
 
-                    <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    <div className="mt-5 grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-4">
                         {visibleAssets.map((asset) => (
                             <AssetCard key={asset.id} asset={asset} onOpen={() => setPreviewAsset(asset)} onEdit={() => openEdit(asset)} onCopy={copyAssetText} onDownload={downloadImage} onDelete={() => setDeletingAsset(asset)} />
                         ))}
@@ -337,7 +337,7 @@ export default function AssetsPage() {
                         <Form.Item name="tags" label={t("assets.fields.tags")}>
                             <Select mode="tags" tokenSeparators={[",", "，"]} placeholder={t("assets.fields.tagsPlaceholder")} />
                         </Form.Item>
-                        <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="grid grid-cols-2 gap-4">
                             <Form.Item name="source" label={t("assets.fields.source")}>
                                 <Input placeholder={t("assets.fields.sourcePlaceholder")} />
                             </Form.Item>

@@ -1,4 +1,4 @@
-import { createBrowserRouter, Outlet } from "react-router-dom";
+import { createBrowserRouter, Navigate, Outlet } from "react-router-dom";
 
 import { AnalyticsTracker } from "@/components/layout/analytics-tracker";
 import UserLayout from "@/layouts/user-layout";
@@ -6,9 +6,7 @@ import AssetsPage from "@/pages/assets";
 import CanvasPage from "@/pages/canvas";
 import CanvasProjectPage from "@/pages/canvas/project";
 import ConfigPage from "@/pages/config";
-import HomePage from "@/pages/home";
 import NotFound from "@/pages/not-found";
-import PromptsPage from "@/pages/prompts";
 import TasksPage from "@/pages/tasks";
 
 export const router = createBrowserRouter([
@@ -20,9 +18,8 @@ export const router = createBrowserRouter([
             </UserLayout>
         ),
         children: [
-            { path: "/", element: <HomePage /> },
+            { path: "/", element: <Navigate to="/canvas" replace /> },
             { path: "/assets", element: <AssetsPage /> },
-            { path: "/prompts", element: <PromptsPage /> },
             { path: "/tasks", element: <TasksPage /> },
             { path: "/canvas", element: <CanvasPage /> },
             { path: "/canvas/:id", element: <CanvasProjectPage /> },

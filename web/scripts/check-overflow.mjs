@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
- * 三视口横向溢出检查。
+ * 桌面视口横向溢出检查。
  *
- * 背景：连续两轮 UI 问题都出在「只测了桌面宽度」。tsc / 单测 / 构建一个都抓不到
- * flex 子项不收缩导致的横向溢出，只能真的用窄视口渲染一遍。
+ * 背景：项目只支持桌面宽度。tsc / 单测 / 构建一个都抓不到 flex 子项不收缩
+ * 导致的横向溢出，只能在几种常见桌面窗口宽度下各渲染一遍。
  *
  * 做法：起一个 preview 服务，逐页 × 逐视口打开，遍历 body 下所有元素的
  * getBoundingClientRect()，找出越过视口左右边界、且祖先没有任何裁剪/滚动容器的元素。
@@ -49,11 +49,9 @@ function findFreePort() {
     });
 }
 
-/** 被测页面。`/canvas/:id` 需要真实项目数据，不纳入。 */
+/** 被测页面。`/` 会跳到 `/canvas`，`/canvas/:id` 需要真实项目数据，都不纳入。 */
 const ROUTES = [
-    { path: "/", name: "首页" },
     { path: "/assets", name: "我的资产" },
-    { path: "/prompts", name: "提示词库" },
     { path: "/tasks", name: "任务中心" },
     { path: "/canvas", name: "我的画布" },
     { path: "/config", name: "配置" },
@@ -62,9 +60,9 @@ const ROUTES = [
 ];
 
 const VIEWPORTS = [
-    { width: 390, height: 844, name: "390" },
-    { width: 768, height: 1024, name: "768" },
+    { width: 1280, height: 800, name: "1280" },
     { width: 1440, height: 900, name: "1440" },
+    { width: 1920, height: 1080, name: "1920" },
 ];
 
 /** 在页面里跑的检测函数（自包含，会被序列化注入）。 */
@@ -76,7 +74,7 @@ function collectOverflow(vw) {
      *
      * 不能用 overflow-x: auto/scroll 一刀切——一个普通的 `overflow-y-auto` 容器
      * 会被 CSS 连带算成 overflow-x: auto，从而把真实溢出藏起来（真实案例：视频页
-     * 390 下溢出 89px，元素被父容器横向滚动兜住，但用户看到的就是布局坏掉）。
+     * 窗口较窄时溢出 89px，元素被父容器横向滚动兜住，但用户看到的就是布局坏掉）。
      */
     const EXPLICIT_HSCROLL = "[data-hscroll], .ant-table-body, .ant-table-content, .ant-tabs-nav, .ant-tabs-nav-list, .ant-carousel";
     const isExplicitHScroll = (el) => {
@@ -159,6 +157,7 @@ function startPreview() {
         const child = spawn("npx", ["vite", "preview", "--host", "127.0.0.1", "--port", String(PORT), "--strictPort"], {
             stdio: ["ignore", "pipe", "pipe"],
             shell: process.platform === "win32",
+            env: { ...process.env, NO_COLOR: "1" },
         });
         let ready = false;
         const timer = setTimeout(() => {
@@ -168,7 +167,7 @@ function startPreview() {
             }
         }, 15000);
         const onData = (buf) => {
-            const text = buf.toString();
+            const text = buf.toString().replace(/\x1b\[[0-9;]*m/g, "");
             if (/Local:\s+http/.test(text) && !ready) {
                 ready = true;
                 clearTimeout(timer);
@@ -275,7 +274,7 @@ async function main() {
     if (JSON_ONLY) {
         console.log(JSON.stringify({ base, results, ok: failures.length === 0 }, null, 2));
     } else {
-        console.log(`\n三视口横向溢出检查 · ${base}\n`);
+        console.log(`\n桌面视口横向溢出检查 · ${base}\n`);
         for (const viewport of VIEWPORTS) {
             const rows = results.filter((r) => r.viewport === viewport.name && r.route);
             const bad = rows.filter((r) => (r.offenderCount || 0) > 0 || (r.pageOverflow || 0) > 0 || r.error);

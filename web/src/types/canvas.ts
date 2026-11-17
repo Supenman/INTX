@@ -12,7 +12,6 @@ export type ViewportTransform = {
 export enum CanvasNodeType {
     Image = "image",
     Text = "text",
-    Config = "config",
     Video = "video",
     Audio = "audio",
     Group = "group",
@@ -55,6 +54,10 @@ export type CanvasNodeMetadata = {
     fontSize?: number;
     generationMode?: CanvasGenerationMode;
     generationType?: CanvasImageGenerationType;
+    /** 发起这次生成的节点 ID，重试时据此还原模型/尺寸与上游参考。 */
+    retrySourceId?: string;
+    /** 用户在提示词面板里输入的原始提示词（未拼接上游内容），重试时原样重新组装。 */
+    inputPrompt?: string;
     model?: string;
     reasoningEffort?: "auto" | "low" | "medium" | "high" | "xhigh";
     size?: string;

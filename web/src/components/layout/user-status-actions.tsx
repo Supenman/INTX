@@ -37,17 +37,17 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
 
     return (
         <div className="inline-flex shrink-0 items-center gap-0.5">
-            {/* 资源：插件 / 文档 / 仓库。窄屏收起，改由导航抽屉承载，避免顶栏被挤压 */}
+            {/* 资源：插件 / 文档 / 仓库 */}
             {onOpenPlugins ? (
-                <button type="button" className={cn(naturalIconClass, "hidden sm:inline-flex")} style={iconStyle} onClick={onOpenPlugins} aria-label={t("topNav.plugins")} title={t("topNav.plugins")}>
+                <button type="button" className={naturalIconClass} style={iconStyle} onClick={onOpenPlugins} aria-label={t("topNav.plugins")} title={t("topNav.plugins")}>
                     <Puzzle className="size-4" />
                 </button>
             ) : null}
-            <a href={DOCS_URL} target="_blank" rel="noopener noreferrer" className={cn(naturalIconClass, "hidden sm:inline-flex")} style={iconStyle} aria-label={t("topNav.docs")} title={t("topNav.docs")}>
+            <a href={DOCS_URL} target="_blank" rel="noopener noreferrer" className={naturalIconClass} style={iconStyle} aria-label={t("topNav.docs")} title={t("topNav.docs")}>
                 <BookOpen className="size-4" />
             </a>
-            <GitHubLink className={cn("hidden bg-transparent hover:bg-transparent sm:flex dark:hover:bg-transparent", gitHubClassName)} style={gitHubStyle} />
-            <StatusDivider className="hidden sm:block" />
+            <GitHubLink className={cn("flex bg-transparent hover:bg-transparent dark:hover:bg-transparent", gitHubClassName)} style={gitHubStyle} />
+            <StatusDivider className="block" />
             {/* 外观：语言 / 主题 */}
             <Tooltip title={languageLabel} mouseEnterDelay={0.2}>
                 <button type="button" className={`${naturalIconClass} text-[11px] font-semibold tracking-tight`} style={iconStyle} onClick={() => void changeAppLocale(nextLocale)} aria-label={languageLabel}>
@@ -62,7 +62,7 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
                     <Settings2 className="size-4" />
                 </button>
             ) : null}
-            <VersionReleaseModal style={versionStyle} className="hidden sm:flex" />
+            <VersionReleaseModal style={versionStyle} className="flex" />
             {onOpenShortcuts ? (
                 <button type="button" className={naturalIconClass} style={iconStyle} onClick={onOpenShortcuts} aria-label={t("topNav.shortcuts")} title={t("topNav.shortcuts")}>
                     <Keyboard className="size-4" />

@@ -23,7 +23,7 @@ export type ConversationState = {
     error?: string;
 };
 type McpInventoryItem = { name: string; authStatus?: string };
-export const AGENT_PROTOCOL_VERSION = 6;
+export const AGENT_PROTOCOL_VERSION = 8;
 
 const SITE_TOOLS = new Set<ToolName>([
     "site_navigate",
@@ -32,7 +32,6 @@ const SITE_TOOLS = new Set<ToolName>([
     "workbench_image_generate",
     "workbench_video_get_config",
     "workbench_video_generate",
-    "prompts_search",
     "assets_list",
     "assets_add",
     "generation_get_status",

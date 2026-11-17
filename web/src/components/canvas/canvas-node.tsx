@@ -33,7 +33,6 @@ type CanvasNodeProps = {
     pluginHost?: CanvasPluginHost;
     registryVersion?: number;
     renderPanel?: (node: CanvasNodeData) => ReactNode;
-    renderNodeContent?: (node: CanvasNodeData) => ReactNode;
     groupChildCount?: number;
     isGroupDropTarget?: boolean;
     batchExpanded?: boolean;
@@ -68,7 +67,6 @@ type NodeContentRendererProps = {
     batchCount: number;
     batchExpanded: boolean;
     scale: number;
-    renderNodeContent?: (node: CanvasNodeData) => ReactNode;
     pluginContext?: CanvasNodeContext | null;
     onContentChange: (nodeId: string, content: string) => void;
     onStopEditing: () => void;
@@ -98,7 +96,6 @@ export const CanvasNode = React.memo(function CanvasNode({
     mentionReferences = [],
     pluginHost,
     renderPanel,
-    renderNodeContent,
     groupChildCount = 0,
     isGroupDropTarget = false,
     batchExpanded = false,
@@ -359,9 +356,9 @@ export const CanvasNode = React.memo(function CanvasNode({
             )}
 
             <div
-                className={`relative h-full w-full overflow-visible rounded-3xl ${data.type === CanvasNodeType.Config ? "border" : "border-2"}`}
+                className="relative h-full w-full overflow-visible rounded-3xl border-2"
                 style={{
-                    background: isGroup ? "transparent" : hasImageContent || hasVideoContent || transparentBg ? "transparent" : data.type === CanvasNodeType.Config ? theme.node.panel : theme.node.fill,
+                    background: isGroup ? "transparent" : hasImageContent || hasVideoContent || transparentBg ? "transparent" : theme.node.fill,
                     borderColor: isGroup ? (isGroupDropTarget || isActive ? selectionBlue : theme.node.stroke) : hasImageContent ? imageBorderColor : isActive ? selectionBlue : isRelated ? theme.node.muted : transparentBg ? "transparent" : theme.node.stroke,
                     borderStyle: isGroup ? "dashed" : "solid",
                     boxShadow: isGroupDropTarget ? `0 0 0 2px ${selectionBlue}66, inset 0 0 0 999px ${selectionBlue}10` : isActive ? `0 0 0 1px ${selectionBlue}55` : isRelated ? `0 0 0 1px ${theme.node.muted}55, 0 18px 48px rgba(0,0,0,.14)` : undefined,
@@ -396,7 +393,7 @@ export const CanvasNode = React.memo(function CanvasNode({
                     className={`relative flex h-full w-full items-center justify-center rounded-[inherit] ${isBatchRoot ? "overflow-visible" : "overflow-hidden"}`}
                     style={
                         {
-                            background: isGroup ? "transparent" : hasImageContent || hasVideoContent || transparentBg ? "transparent" : data.type === CanvasNodeType.Config ? theme.node.panel : theme.node.fill,
+                            background: isGroup ? "transparent" : hasImageContent || hasVideoContent || transparentBg ? "transparent" : theme.node.fill,
                             pointerEvents: contentInteractive ? undefined : "none",
                         } as React.CSSProperties
                     }
@@ -410,7 +407,6 @@ export const CanvasNode = React.memo(function CanvasNode({
                         batchCount={batchCount}
                         batchExpanded={batchExpanded}
                         scale={scale}
-                        renderNodeContent={renderNodeContent}
                         pluginContext={pluginContext}
                         mentionReferences={mentionReferences}
                         onContentChange={onContentChange}
@@ -444,7 +440,7 @@ export const CanvasNode = React.memo(function CanvasNode({
             </div>
 
             {!referenceSelectionState && !isGroup ? <ConnectionHandleDot side="left" visible={hovered || isSelected || isConnecting} onMouseDown={(event) => onConnectStart(event, data.id, "target")} /> : null}
-            {!referenceSelectionState && (definition?.hasSourceHandle ?? true) && data.type !== CanvasNodeType.Config ? <ConnectionHandleDot side="right" visible={hovered || isSelected || isConnecting} onMouseDown={(event) => onConnectStart(event, data.id, "source")} /> : null}
+            {!referenceSelectionState && (definition?.hasSourceHandle ?? true) ? <ConnectionHandleDot side="right" visible={hovered || isSelected || isConnecting} onMouseDown={(event) => onConnectStart(event, data.id, "source")} /> : null}
 
             {/* Counter-scale the panel so its on-screen size stays constant while the canvas zooms. */}
             {showPanel && !isGroup && renderPanel ? (
@@ -457,7 +453,6 @@ export const CanvasNode = React.memo(function CanvasNode({
 });
 
 function NodeContent(props: NodeContentRendererProps) {
-    if (props.node.type === CanvasNodeType.Config && props.renderNodeContent) return props.renderNodeContent(props.node);
     if (props.isBatchRoot && props.node.type === CanvasNodeType.Image) return <ImageNodeContent {...props} />;
     if (props.node.type === CanvasNodeType.Text && props.node.metadata?.texts?.length && (props.node.metadata.status !== "error" || props.node.metadata.texts.some((text) => text.content))) return <TextContent {...props} />;
     if (props.node.metadata?.status === "loading") return <LoadingContent theme={props.theme} />;
@@ -478,7 +473,6 @@ function NodeContent(props: NodeContentRendererProps) {
 const nodeContentRenderers = {
     [CanvasNodeType.Text]: TextContent,
     [CanvasNodeType.Image]: ImageNodeContent,
-    [CanvasNodeType.Config]: EmptyImageContent,
     [CanvasNodeType.Video]: VideoNodeContent,
     [CanvasNodeType.Audio]: AudioNodeContent,
     [CanvasNodeType.Group]: GroupNodeContent,

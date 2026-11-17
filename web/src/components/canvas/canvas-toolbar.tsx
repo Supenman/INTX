@@ -1,7 +1,7 @@
 import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode, RefObject } from "react";
 import { useEffect, useRef, useState } from "react";
 import { Button, Segmented, Switch } from "antd";
-import { CircleDot, Eraser, Grid2x2, Group, Hand, Image as ImageIcon, Info, LocateFixed, Moon, MousePointer2, Music2, Palette, Puzzle, Redo2, Settings2, Square, Sun, Trash2, Type, Undo2, Upload, Video } from "lucide-react";
+import { CircleDot, Eraser, Grid2x2, Group, Hand, Image as ImageIcon, Info, LocateFixed, Moon, MousePointer2, Music2, Palette, Puzzle, Redo2, Square, Sun, Trash2, Type, Undo2, Upload, Video } from "lucide-react";
 
 import { canvasThemes, type CanvasBackgroundMode, type CanvasColorTheme, type CanvasTheme } from "@/lib/canvas-theme";
 import { getNodePluginId, listNodeDefinitions, useNodeRegistryVersion } from "@/lib/canvas/node-registry";
@@ -21,7 +21,6 @@ export function CanvasToolbar({
     onAddVideo,
     onAddAudio,
     onAddText,
-    onAddConfig,
     onAddGroup,
     onAddExtensionNode,
     onUndo,
@@ -44,7 +43,6 @@ export function CanvasToolbar({
     onAddVideo: () => void;
     onAddAudio: () => void;
     onAddText: () => void;
-    onAddConfig: () => void;
     onAddGroup: () => void;
     onAddExtensionNode: (type: string) => void;
     onUndo: () => void;
@@ -90,12 +88,10 @@ export function CanvasToolbar({
         return () => document.removeEventListener("pointerdown", handlePointerDown, true);
     }, [extensionsOpen, appearanceOpen]);
 
-    // 窄屏左侧没有固定面板：不能沿用桌面 300px 偏移，否则工具栏只剩一条缝；
-    // 窄屏改成换行两行，让图片/视频/生成配置等主操作不用横向滚动也能看见。
     return (
-        <div ref={rootRef} className="pointer-events-none absolute bottom-5 left-2 right-4 z-50 flex justify-center sm:left-[300px]" data-canvas-bottom-toolbar>
+        <div ref={rootRef} className="pointer-events-none absolute bottom-5 left-[300px] right-4 z-50 flex justify-center" data-canvas-bottom-toolbar>
             {tip ? <DockTip label={tip} x={tipX} theme={theme} /> : null}
-            <div ref={wrapRef} className="thin-scrollbar pointer-events-auto flex h-14 max-w-full items-center gap-1 overflow-x-auto rounded-xl border px-2 shadow-lg backdrop-blur [&>*]:shrink-0 max-sm:h-auto max-sm:flex-wrap max-sm:justify-center max-sm:overflow-visible max-sm:py-1.5" style={dockStyle}>
+            <div ref={wrapRef} className="thin-scrollbar pointer-events-auto flex h-14 max-w-full items-center gap-1 overflow-x-auto rounded-xl border px-2 shadow-lg backdrop-blur [&>*]:shrink-0" style={dockStyle}>
                 <ToolbarButton id={`tool-${canvasTool}`} label={t(`canvas.toolbar.${canvasTool}`)} active hovered={hovered} activeStyle={activeStyle} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={() => onCanvasToolChange(canvasTool === "select" ? "pan" : "select")}>
                     {canvasTool === "select" ? <MousePointer2 className="size-4.5" /> : <Hand className="size-4.5" />}
                 </ToolbarButton>
@@ -120,9 +116,6 @@ export function CanvasToolbar({
                 </ToolbarButton>
                 <ToolbarButton id="tool-audio" label={t("canvas.toolbar.audio")} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddAudio}>
                     <Music2 className="size-4.5" />
-                </ToolbarButton>
-                <ToolbarButton id="tool-config" label={t("canvas.toolbar.config")} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddConfig}>
-                    <Settings2 className="size-4.5" />
                 </ToolbarButton>
                 <ToolbarButton id="tool-group" label={t("canvas.toolbar.group")} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddGroup}>
                     <Group className="size-4.5" />
@@ -369,7 +362,6 @@ function toolLabel(id: string, t: (key: string) => string) {
     if (id === "tool-image") return t("canvas.toolbar.image");
     if (id === "tool-video") return t("canvas.toolbar.video");
     if (id === "tool-audio") return t("canvas.toolbar.audio");
-    if (id === "tool-config") return t("canvas.toolbar.config");
     if (id === "tool-group") return t("canvas.toolbar.group");
     if (id === "tool-extensions") return t("canvas.toolbar.extensions");
     if (id === "tool-upload") return t("canvas.toolbar.upload");

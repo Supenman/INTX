@@ -139,7 +139,7 @@ export function ModelSelectModal({ open, channel, selectedNames, onConfirm, onCl
             </div>
 
             {visibleList.length ? (
-                <div className="grid grid-cols-1 gap-x-8 gap-y-3 md:grid-cols-2">
+                <div className="grid grid-cols-2 gap-x-8 gap-y-3">
                     {visibleList.map((name) => (
                         <Checkbox key={name} checked={selected.has(name)} onChange={(event) => toggle(name, event.target.checked)}>
                             <span className="truncate" title={name}>

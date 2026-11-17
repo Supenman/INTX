@@ -62,7 +62,7 @@ export function ConfigLocalStorage({ active }: { active: boolean }) {
                     <div className="flex min-h-48 items-center justify-center"><Spin /></div>
                 ) : usage ? (
                     <>
-                        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                        <div className="mt-4 grid grid-cols-3 gap-3">
                             <StorageMetric icon={<Database className="size-4" />} label={t("config.localStorage.indexedDbUsage")} value={formatStorageBytes(indexedDbBytes)} hint={t("config.localStorage.contentEstimate")} />
                             <StorageMetric icon={<HardDrive className="size-4" />} label={t("config.localStorage.siteUsage")} value={formatStorageBytes(usage.usage)} hint={t("config.localStorage.siteUsageHint")} />
                             <StorageMetric icon={<Layers3 className="size-4" />} label={t("config.localStorage.quota")} value={formatStorageBytes(usage.quota)} hint={usage.quota ? t("config.localStorage.quotaHint") : t("config.localStorage.quotaUnavailable")} />

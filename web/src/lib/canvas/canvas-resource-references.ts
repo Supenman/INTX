@@ -51,8 +51,6 @@ export async function resolveCanvasReferenceImages(references: CanvasResourceRef
 }
 
 export function getMentionResourceNodes(nodeId: string, nodes: CanvasNodeData[], connections: CanvasConnection[]) {
-    const configInputs = expandGroupResourceNodes(getConnectedConfigInputNodes(nodeId, nodes, connections), nodes);
-    if (configInputs.length) return configInputs;
     const ownInputs = expandGroupResourceNodes(getContextInputNodes(nodeId, nodes, connections), nodes);
     if (ownInputs.length) return ownInputs;
     const node = nodes.find((item) => item.id === nodeId);
@@ -60,11 +58,7 @@ export function getMentionResourceNodes(nodeId: string, nodes: CanvasNodeData[],
 }
 
 export function getGenerationResourceNodes(nodeId: string, nodes: CanvasNodeData[], connections: CanvasConnection[]) {
-    const configInputs = getConnectedConfigInputNodes(nodeId, nodes, connections);
-    if (configInputs.length) return configInputs;
-    const ownInputs = getContextInputNodes(nodeId, nodes, connections);
-    if (ownInputs.length) return ownInputs;
-    return [];
+    return getContextInputNodes(nodeId, nodes, connections);
 }
 
 function getContextInputNodes(nodeId: string, nodes: CanvasNodeData[], connections: CanvasConnection[]) {
@@ -72,12 +66,6 @@ function getContextInputNodes(nodeId: string, nodes: CanvasNodeData[], connectio
         .filter((connection) => connection.toNodeId === nodeId)
         .map((connection) => nodes.find((node) => node.id === connection.fromNodeId))
         .filter((node): node is CanvasNodeData => Boolean(node && isCanvasReferenceNode(node, nodes)));
-}
-
-function getConnectedConfigInputNodes(nodeId: string, nodes: CanvasNodeData[], connections: CanvasConnection[]) {
-    const configConnection = connections.find((connection) => connection.fromNodeId === nodeId && nodes.find((node) => node.id === connection.toNodeId)?.type === CanvasNodeType.Config);
-    if (!configConnection) return [];
-    return getContextInputNodes(configConnection.toNodeId, nodes, connections).filter((node) => node.id !== nodeId);
 }
 
 function hasGroupResources(node: CanvasNodeData, nodes: CanvasNodeData[]) {
@@ -122,9 +110,9 @@ function labelResourceNodes(nodes: CanvasNodeData[], active: boolean) {
 
 function labelForKind(kind: CanvasResourceKind, index: number) {
     if (kind === "image") return imageReferenceLabel(index);
-    if (kind === "video") return i18n.t("canvas.configNode.videoReferences") + ` ${index + 1}`;
-    if (kind === "audio") return i18n.t("canvas.configNode.audioReferences") + ` ${index + 1}`;
-    return i18n.t("canvas.composer.resources.text", { index: index + 1 });
+    if (kind === "video") return i18n.t("canvas.referenceLabels.video") + ` ${index + 1}`;
+    if (kind === "audio") return i18n.t("canvas.referenceLabels.audio") + ` ${index + 1}`;
+    return i18n.t("canvas.referenceLabels.text", { index: index + 1 });
 }
 
 function isResourceNode(node: CanvasNodeData) {

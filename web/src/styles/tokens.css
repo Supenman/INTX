@@ -259,23 +259,10 @@
 }
 
 /* -------------------------------------------------------------------------
-   配置页标签：共 7 个标签，窄屏靠「更多」收尾是正常的。
+   配置页标签：共 6 个标签，靠「更多」收尾是正常的。
    这里只收紧间距，让可见标签尽量多，不改变 antd 的交互语义。
    ------------------------------------------------------------------------- */
 .config-tabs .ant-tabs-tab.ant-tabs-tab {
     padding-inline: 0;
     margin-inline-end: 22px;
-}
-
-@media (max-width: 480px) {
-    .config-tabs .ant-tabs-tab.ant-tabs-tab {
-        margin-inline-end: 12px;
-        font-size: 13px;
-        /* 触控目标不低于 36px：此前被压到 20px，像一条装饰线 */
-        padding-block: 8px;
-    }
-
-    .config-tabs .ant-tabs-nav-more.ant-tabs-nav-more {
-        padding: 8px 10px;
-    }
 }

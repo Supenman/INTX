@@ -8,13 +8,13 @@ import { defaultConfig, resolveModelForCapability, useConfigStore, useEffectiveC
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { CanvasImageSettingsPopover } from "./canvas-image-settings-popover";
-import { CanvasPromptLibrary } from "./canvas-prompt-library";
 import { CanvasAudioSettingsPopover, type CanvasAudioSettingKey } from "./canvas-audio-settings-popover";
 import { CanvasPromptChipInput } from "./canvas-prompt-chip-input";
 import { CanvasVideoSettingsPopover } from "./canvas-video-settings-popover";
 import { CanvasTextSettingsPopover } from "./canvas-text-settings-popover";
 import { CanvasNodeType, type CanvasGenerationMode, type CanvasNodeData } from "@/types/canvas";
 import type { CanvasResourceReference } from "@/lib/canvas/canvas-resource-references";
+import { nodeGenerationMode } from "./canvas-node-generation";
 import { CanvasNodeReferenceBar } from "./canvas-node-reference-bar";
 
 export type CanvasNodeGenerationMode = CanvasGenerationMode;
@@ -40,7 +40,7 @@ export function CanvasNodePromptPanel({ node, nodes, isRunning, onPromptChange, 
     const globalConfig = useEffectiveConfig();
     const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
-    const mode = modeOverride ?? defaultMode(node.type);
+    const mode = modeOverride ?? nodeGenerationMode(node.type);
     const config = buildNodeConfig(globalConfig, node, mode);
     const hasTextContent = node.type === CanvasNodeType.Text && Boolean(node.metadata?.content?.trim());
     const hasImageContent = node.type === CanvasNodeType.Image && Boolean(node.metadata?.content);
@@ -60,10 +60,13 @@ export function CanvasNodePromptPanel({ node, nodes, isRunning, onPromptChange, 
         else onPromptChange(node.id, value);
     };
 
+    // 有上游素材时可只凭输入生成，保留原生成配置节点「无需提示词」的能力；
+    // 文本模式与音频模式必须有提示词或上游文本，和 handleGenerateNode 的校验保持一致。
+    const hasUpstreamText = connectedNodes.some((item) => item.type === CanvasNodeType.Text && Boolean(item.metadata?.content?.trim()));
+    const canSubmit = Boolean(prompt.trim()) || (mode === "image" || mode === "video" ? connectedNodes.length > 0 : hasUpstreamText);
     const submit = () => {
-        const text = prompt.trim();
-        if (!text || isRunning) return;
-        onGenerate(node.id, mode, text);
+        if (!canSubmit || isRunning) return;
+        onGenerate(node.id, mode, prompt.trim());
     };
 
     const openExpandedEditor = () => {
@@ -95,7 +98,6 @@ export function CanvasNodePromptPanel({ node, nodes, isRunning, onPromptChange, 
                     <Tooltip title={t("canvas.promptPanel.expandEditor")}>
                         <Button type="text" className="!h-8 !w-8 !min-w-8 shrink-0 !rounded-full !bg-transparent !p-0" style={{ color: theme.node.text }} icon={<Maximize2 className="size-3.5" />} onClick={openExpandedEditor} aria-label={t("canvas.promptPanel.expandEditor")} />
                     </Tooltip>
-                    <CanvasPromptLibrary onSelect={updatePrompt} />
                     {mode === "image" ? (
                         <>
                             <ModelPicker config={config} value={config.model} onChange={(model) => onConfigChange(node.id, { model })} capability="image" onMissingConfig={() => openConfigDialog(true)} className="max-w-[190px]" />
@@ -129,7 +131,7 @@ export function CanvasNodePromptPanel({ node, nodes, isRunning, onPromptChange, 
                     type="primary"
                     className="!h-9 !min-w-16 shrink-0 !rounded-full !px-3"
                     danger={isRunning}
-                    disabled={!isRunning && !prompt.trim()}
+                    disabled={!isRunning && !canSubmit}
                     onClick={() => (isRunning ? onStop(node.id) : submit())}
                     aria-label={t(isRunning ? "canvas.promptPanel.stopGeneration" : "canvas.promptPanel.generate")}
                 >
@@ -161,10 +163,6 @@ export function CanvasNodePromptPanel({ node, nodes, isRunning, onPromptChange, 
             </Modal>
         </div>
     );
-}
-
-function defaultMode(type: CanvasNodeData["type"]): CanvasNodeGenerationMode {
-    return type === CanvasNodeType.Text ? "text" : type === CanvasNodeType.Video ? "video" : type === CanvasNodeType.Audio ? "audio" : "image";
 }
 
 function buildNodeConfig(globalConfig: AiConfig, node: CanvasNodeData, mode: CanvasNodeGenerationMode): AiConfig {

@@ -51,14 +51,13 @@ export function VideoSettingsPanel({ config, onConfigChange, theme, showTitle = 
             <div className={className} style={{ color: theme.node.text }} onMouseDown={(event) => event.stopPropagation()}>
                 {showTitle ? <div className="text-lg font-semibold">{t("settingsPanels.video.title")}</div> : null}
                 <SettingGroup title={t("settingsPanels.video.quality")} color={theme.node.muted}>
-                    <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4">
+                    <div className="grid grid-cols-4 gap-2.5">
                         {resolutionOptions.map((item) => (
                             <OptionPill key={item.value} selected={resolution === item.value} theme={theme} onClick={() => selectResolution(item.value)}>
                                 {item.label}
                             </OptionPill>
                         ))}
-                        {/* 自定义清晰度：窄屏单独占一行并限宽，避免和一个胶囊等宽时数字与 p 被挤到两端 */}
-                        <div className="col-span-3 justify-self-start max-sm:max-w-[150px] sm:col-span-1 sm:w-full">
+                        <div className="col-span-1 w-full justify-self-start">
                             <ResolutionInput value={resolution} theme={theme} onChange={selectResolution} />
                         </div>
                     </div>

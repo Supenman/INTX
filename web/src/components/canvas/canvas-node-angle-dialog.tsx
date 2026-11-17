@@ -34,7 +34,7 @@ export function CanvasNodeAngleDialog({ dataUrl, open, onClose, onConfirm }: { d
                     <h2 className="text-xl font-semibold">{t("canvas.editors.angleTitle")}</h2>
                     <p className="mt-1 text-sm opacity-60">{t("canvas.editors.angleDescription")}</p>
                 </div>
-                <div className="grid gap-6 md:grid-cols-[minmax(260px,1fr)_360px]">
+                <div className="grid grid-cols-[minmax(260px,1fr)_360px] gap-6">
                     <div className="flex min-h-[300px] flex-col justify-between rounded-xl border p-4">
                         <div className="grid flex-1 place-items-center">
                             <div className="relative">

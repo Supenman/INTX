@@ -328,14 +328,13 @@ export function toolName(name: string) {
 }
 
 const toolTranslationKeys: Record<string, string> = {
-    canvas_apply_ops: "canvasOps", canvas_get_state: "readCanvas", canvas_get_selection: "readSelection", canvas_export_snapshot: "exportSnapshot", canvas_create_node: "createNode", canvas_create_attachment_nodes: "addAttachments", canvas_create_text_node: "createText", canvas_create_text_nodes: "createTexts", canvas_create_config_node: "createConfig", canvas_create_image_prompt_flow: "createImageFlow", canvas_create_generation_flow: "createGenerationFlow", canvas_generate_text: "generateText", canvas_generate_image: "generateImage", canvas_generate_video: "generateVideo", canvas_generate_audio: "generateAudio", canvas_update_node: "updateNode", canvas_update_node_text: "updateText", canvas_move_nodes: "moveNodes", canvas_resize_node: "resizeNode", canvas_delete_nodes: "deleteNodes", canvas_connect_nodes: "connectNodes", canvas_select_nodes: "selectNodes", canvas_set_viewport: "setViewport", canvas_run_generation: "runGeneration", site_navigate: "openPage",
+    canvas_apply_ops: "canvasOps", canvas_get_state: "readCanvas", canvas_get_selection: "readSelection", canvas_export_snapshot: "exportSnapshot", canvas_create_node: "createNode", canvas_create_attachment_nodes: "addAttachments", canvas_create_text_node: "createText", canvas_create_text_nodes: "createTexts", canvas_create_generation_flow: "createGenerationFlow", canvas_generate_text: "generateText", canvas_generate_image: "generateImage", canvas_generate_video: "generateVideo", canvas_generate_audio: "generateAudio", canvas_update_node: "updateNode", canvas_update_node_text: "updateText", canvas_move_nodes: "moveNodes", canvas_resize_node: "resizeNode", canvas_delete_nodes: "deleteNodes", canvas_connect_nodes: "connectNodes", canvas_select_nodes: "selectNodes", canvas_set_viewport: "setViewport", canvas_run_generation: "runGeneration", site_navigate: "openPage",
 };
 
 function siteToolSummary(name: string, result: unknown, input: unknown) {
     const data = result && typeof result === "object" ? (result as Record<string, unknown>) : {};
     if (name === "site_navigate") return tr("openedRoute", { route: routeName(stringText(objectField(input, "path")) || "/") });
     if (name === "canvas_list_projects") return tr("canvasCount", { count: numberField(data, "total") });
-    if (name === "prompts_search") return tr("promptCount", { count: numberField(data, "total") });
     if (name === "assets_list") return tr("assetCount", { count: numberField(data, "total") });
     if (name === "assets_add") return tr("assetAdded");
     if (name === "generation_get_status") {
@@ -363,7 +362,6 @@ export function toolCallDetail(name: string, input: unknown, status: string, err
 function toolInputRows(name: string, input: unknown) {
     input = parseToolArguments(input);
     if (name === "site_navigate") return [detailRow(tr("targetPage"), routeName(stringText(objectField(input, "path")) || "/"))].flatMap((row) => (row ? [row] : []));
-    if (name === "prompts_search") return [detailRow(tr("searchContent"), objectField(input, "query"))].flatMap((row) => (row ? [row] : []));
     if (name === "canvas_create_text_node") return [detailRow(tr("textContent"), objectField(input, "text"))].flatMap((row) => (row ? [row] : []));
     if (name === "canvas_apply_ops") return [detailRow(tr("operationContent"), summarizeCanvasAgentOps((objectField(input, "ops") as CanvasAgentOp[] | undefined) || []))].flatMap((row) => (row ? [row] : []));
     if (name === "canvas_create_attachment_nodes") return [detailRow(tr("imageCount"), Array.isArray(objectField(input, "attachmentIds")) ? (objectField(input, "attachmentIds") as unknown[]).length : 0)].flatMap((row) => (row ? [row] : []));
@@ -389,12 +387,11 @@ function canvasContentSummary(nodes: unknown[], connections: number) {
         result[type] = (result[type] || 0) + 1;
         return result;
     }, {});
-    const known = new Set(["text", "image", "config", "video", "audio", "group"]);
+    const known = new Set(["text", "image", "video", "audio", "group"]);
     const other = Object.entries(counts).reduce((total, [type, count]) => total + (known.has(type) ? 0 : count), 0);
     const parts = [
         counts.text ? tr("textNodes", { count: counts.text }) : "",
         counts.image ? tr("imageNodes", { count: counts.image }) : "",
-        counts.config ? tr("configNodes", { count: counts.config }) : "",
         counts.video ? tr("videoNodes", { count: counts.video }) : "",
         counts.audio ? tr("audioNodes", { count: counts.audio }) : "",
         counts.group ? tr("groupNodes", { count: counts.group }) : "",
@@ -410,12 +407,8 @@ export function toolAction(name: string) {
 }
 
 export function routeName(path: string) {
-    if (path === "/") return tr("routes.home");
-    if (path === "/canvas") return tr("routes.canvas");
+    if (path === "/" || path === "/canvas") return tr("routes.canvas");
     if (path.startsWith("/canvas/")) return tr("routes.canvasProject");
-    if (path.startsWith("/image")) return tr("routes.image");
-    if (path.startsWith("/video")) return tr("routes.video");
-    if (path.startsWith("/prompts")) return tr("routes.prompts");
     if (path.startsWith("/assets")) return tr("routes.assets");
     if (path.startsWith("/config")) return tr("routes.config");
     return path;

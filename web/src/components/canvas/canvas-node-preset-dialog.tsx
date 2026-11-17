@@ -32,11 +32,11 @@ export function CanvasNodePresetDialog({ open, dataUrl, onClose, onConfirm }: { 
                         <p className="typ-caption mt-1 text-muted-foreground">{t("canvas.imagePresets.description")}</p>
                     </div>
                 </div>
-                <div className="grid gap-2 sm:grid-cols-2">
+                <div className="grid grid-cols-2 gap-2">
                     {options.map((option, index) => {
                         const Icon = PRESET_ICONS[option.id];
                         // 五项是奇数，最后一项横跨两列，避免右边空出一大块。
-                        const span = options.length % 2 === 1 && index === options.length - 1 ? "sm:col-span-2" : "";
+                        const span = options.length % 2 === 1 && index === options.length - 1 ? "col-span-2" : "";
                         return (
                             <button
                                 key={option.id}

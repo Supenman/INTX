@@ -19,7 +19,7 @@ const status = oneOf('idle', 'success', 'loading', 'error');
 const nodeText = shape({ id, status, content: string }, { errorDetails: string });
 const nodeImage = shape({ id, status, content: string, naturalWidth: number, naturalHeight: number, bytes: number, mimeType: string }, { errorDetails: string, storageKey: string });
 const metadata = shape({}, {
-  ...Object.fromEntries(['content', 'composerContent', 'prompt', 'errorDetails', 'model', 'size', 'quality', 'background', 'primaryTextId', 'seconds', 'vquality', 'generateAudio', 'watermark', 'videoMode', 'audioVoice', 'audioFormat', 'audioSpeed', 'audioInstructions', 'primaryImageId', 'storageKey', 'mimeType', 'videoTaskId', 'groupId'].map((k) => [k, string])),
+  ...Object.fromEntries(['content', 'composerContent', 'prompt', 'inputPrompt', 'retrySourceId', 'errorDetails', 'model', 'size', 'quality', 'background', 'primaryTextId', 'seconds', 'vquality', 'generateAudio', 'watermark', 'videoMode', 'audioVoice', 'audioFormat', 'audioSpeed', 'audioInstructions', 'primaryImageId', 'storageKey', 'mimeType', 'videoTaskId', 'groupId'].map((k) => [k, string])),
   ...Object.fromEntries(['fontSize', 'count', 'textCount', 'naturalWidth', 'naturalHeight', 'bytes', 'durationMs'].map((k) => [k, number])),
   status, generationMode: oneOf('text', 'image', 'video', 'audio'), generationType: oneOf('generation', 'edit'),
   reasoningEffort: oneOf('auto', 'low', 'medium', 'high', 'xhigh'), videoTaskProvider: oneOf('openai', 'gemini'),

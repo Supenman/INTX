@@ -75,7 +75,7 @@ export function ChannelEditorDrawer({ open, channel, onSave, onClose }: { open: 
                 </Space>
             }
         >
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-2 gap-4">
                 <label className="block">
                     <span className="mb-1 block text-sm font-medium">{t("config.channelEditor.name")}</span>
                     <Input value={draft.name} onChange={(event) => patch({ name: event.target.value })} />
@@ -84,15 +84,15 @@ export function ChannelEditorDrawer({ open, channel, onSave, onClose }: { open: 
                     <span className="mb-1 block text-sm font-medium">{t("config.channelEditor.protocol")}</span>
                     <Select className="w-full" value={draft.apiFormat} options={apiFormatOptions} onChange={changeApiFormat} />
                 </label>
-                <label className="block md:col-span-2">
+                <label className="col-span-2 block">
                     <span className="mb-1 block text-sm font-medium">{t("config.channelEditor.baseUrl")}</span>
                     <Input value={draft.baseUrl} onChange={(event) => patch({ baseUrl: event.target.value })} placeholder="https://api.example.com" />
                 </label>
-                <label className="block md:col-span-2">
+                <label className="col-span-2 block">
                     <span className="mb-1 block text-sm font-medium">API Key</span>
                     <Input.Password value={draft.apiKey} onChange={(event) => patch({ apiKey: event.target.value })} placeholder="sk-..." />
                 </label>
-                <label className="block md:col-span-2">
+                <label className="col-span-2 block">
                     <span className="mb-1 block text-sm font-medium">{t("config.channelEditor.proxyMode")}</span>
                     <Segmented
                         block
