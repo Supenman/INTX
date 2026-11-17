@@ -8,6 +8,8 @@ description: Roadmap to a mature product, updated against the BeefTV 2.2.5, Open
 > Revised 2026-11-16. The previous plan targeted the old React Flow line; the mainline is now `intx-next` (infinite-canvas v0.20.0 base + grafted INTX domain). This version is rewritten against the new base and the three source references.
 >
 > Updated 2026-11-17: the desktop build is the only shipped product and the only acceptance target; the browser is a development and automated-check channel. M2.5 (architecture groundwork) now sits before M3.
+>
+> Updated 2026-11-18: absorbed the *AI Video Creation Canvas master plan (based on INTX-dev)*. Added M2.6 (video vertical slice) ahead of M3.3; mapped its WP0–WP7 work packages onto the milestones; added three constraints it left open (domain layer fate, audio source, timeline effort estimate). **The milestones remain the single roadmap — there is no second plan.**
 
 ## 0. Reference libraries and license boundaries
 
@@ -63,6 +65,9 @@ Boundary rules:
 - Per-channel "direct" mode only reaches ModelScope: none of `buildApiUrl`'s 5 callers passes the channel `proxyMode`. Fixed in M2.5.
 - `exportAppConfig()` writes `channels[].apiKey` and the WebDAV password in plaintext into the exported file. Fixed in M2.5.
 - CI's `checks.yml` runs only 45 files / 666 cases; `image.test.ts`, `channel-proxy-mode.test.ts` and `agent-permissions.test.ts` are outside the gate. M2.5 makes it the full suite.
+- **The domain node layer is not wired into the app.** Of ~5,200 non-test domain lines only `task`, `provider`, `cost` and `shared` (~1,000 lines) are actually imported; `node` (port types, connection validation, shot nodes, grid, layout), `tool`, `asset`, `schema`, `repro`, `upscale` and `audit` (~3,900 lines) are referenced only by tests. The canvas still runs the upstream five-node model, with no port types or connection validation.
+  **Decision (2026-11-18):** keep the upstream canvas model and pull pure functions from domain on demand; do not migrate the canvas onto the domain node model — that would touch the canvas store, agent ops, the plugin SDK and the 3,537-line `project.tsx` at once, while workflows, whole-chain runs and storyboards are achievable with the existing nodes and edges. **No domain module is deleted before M3.4 (whole-chain run) is done**: a chain that needs role-distinguished inputs (first frame + reference + narration) needs `domain/node/port`. Modules are judged individually when M3.4 closes.
+- `web/src/pages/canvas/project.tsx` is already 3,537 lines. New logic always goes in its own file.
 
 ## 3. Milestones
 
@@ -99,28 +104,73 @@ Goal: settle how the two targets converge, once, so every later network feature 
 
 **Ordering:** no M3 feature work starts before M2.5 is done; the web deployment chain may only be removed after item 3 passes on a real machine.
 
+### M2.6 Video vertical slice (ahead of M3.3, added 2026-11-18)
+
+Why: the video path has never been verified on a real machine (the only real-machine generation so far is one ModelScope image). Workflows, whole-chain runs and storyboards all sit on video generation; stacking them on an unverified base makes failures impossible to localise.
+
+Maps to work package **WP0**: one real video chain end to end — submit, close the page, reopen and resume the task, output lands back in the asset library. Reuses the existing `videoTasks`, task ledger and evidence mechanism.
+
+**Pass condition:** real machine, real key (requires user consent); no duplicate submission after closing the page; ledger status correct; the output is visible and playable in the asset library.
+**Ordering:** nothing after M3.3 starts until this passes.
+
 ### M3 Reuse and assistant (first OpenDirector ports)
 
-1. **Image presets (pilot)**: character/face/product three-view sheets, storyboard, multi-camera — per README behavior and `src/canvas/providerPresets.ts`; integrate into the image workbench.
-2. **Canvas assistant UX**: reference `AssistantPanel.tsx`, `AssistantConversations.tsx`, `AssistantPickers.tsx`, `AssistantLinkInfo.tsx`; permission and paid-generation confirmation follow BeefTV behavior (tiered permissions, proposal → price → confirm).
-3. **Selection → workflow**: save a selected subgraph as a reusable workflow (BeefTV behavior reference).
-4. **One-click whole-chain run** (hero idea): pick a target node, topologically order upstream, execute, log every step.
+1. ✅ **Image presets (pilot, Apache port)**: character/face/product three-view sheets, storyboard, multi-camera. Done (`image-presets.ts`).
+2. ✅ **Canvas assistant UX**: conversations (create/resume/delete/switch/search/rename), references (@-mention canvas nodes, carried into the send request), traces (Streamdown rendering + external-link confirmation via `AgentLinkModal` + tool cards + event log), permissions (three tiers + `planAgentOps` + paid confirmation card).
+   **Verified 2026-11-18: all four are already wired and usable. The OpenDirector Assistant components were NOT ported** (they depend on a backend/chat service, multi-model routing and a citation protocol this project does not have). Search and rename landed in `639eb29`. End-to-end steps live in the "M3.2" section of `pending-test`.
+3. **Selection → workflow** (work package **WP2**): save a selected subgraph as a template; remap node ids when inserting into another canvas, preserving edges and parameters. BeefTV is behavior reference only; reuse the base's copy/paste and edge reference logic.
+   **Pass condition:** save → close → insert into another canvas with edges and parameters intact.
+4. **One-click whole-chain run** (work package **WP3**, hero8152 idea reference only): pick a target node → topologically order upstream → run serially or in parallel → log every step; **show a total cost estimate before confirming**.
+   - Every step must go through `readTaskOutcome()` tri-state, the single resend gate.
+   - The new "run whole chain" operation must pass `planAgentOps()` classification first, otherwise one sentence can place N orders.
+   - **Pass condition:** three-shot chain fault injection — stops at the first failure, keeps finished outputs, never resends an already-accepted step.
 
 **Pass condition:** presets generate; the assistant never bypasses tri-state or paid confirmation; a failed chain stops at the first failure and keeps finished outputs.
 
 ### M4 Product ceiling (major OpenDirector ports)
 
-1. **Timeline editing + MP4 export** (largest product-level gap): reference `TimelineEditor.tsx`, `timeline.ts`, `timelineRender.ts`, `timelineExport.ts`, `timeline-editor.css`; use mediabunny as an unmodified npm dependency. Optional JSON/FCPXML export.
-2. **Media pipeline**: first/last/current frame capture, audio/video split, grid split, upscale, color grade, merge (BeefTV behavior reference; partially present).
-3. **Storyboard pipeline**: script rows → shot nodes → batch generation with cost → final cut (BeefTV behavior reference).
-4. **Project library operations**: folders, trash, import/export, batch linking.
-5. **Signing and updates**: code signing (Authenticode) and an update feed. The installer itself ships in M2.5; this adds distribution quality.
+1. **Timeline editing + MP4 export** (largest product-level gap, work package **WP6**)
+   - **Effort estimate (corrected 2026-11-18):** this is a rewrite on the canvas store, not a port. OpenDirector's `TimelineEditor.tsx` / `timeline.ts` / `timelineRender.ts` / `timelineExport.ts` are built on its own backend and data structures and can only inform structure; estimate as new code. It is the largest of the eight work packages.
+   - Encoding uses mediabunny (MPL-2.0, unmodified npm dependency).
+   - **Prerequisite prototype (not skippable):** before starting, encode two 2-second clips into a playable MP4 inside the target WebView. If the WebView lacks WebCodecs or encodes too slowly, switch to a Rust-side ffmpeg sidecar and re-estimate the package.
+   - **Pass condition:** three shots plus narration exported as a playable MP4 with audio/video in sync.
+2. **Media pipeline** (work package **WP5**): first/last/current frame capture (present), audio/video split, merge, colour grade, AI upscale via a vendor API (note: the existing "client upscale" is interpolation, not AI upscaling). OpenDirector (Apache, reusable with attribution); BeefTV behavior reference only.
+3. **Storyboard pipeline** (work package **WP4**): script rows → shot nodes → batch estimate → per-shot generation → cost roll-up. Reuse the domain storyboard/grid pure functions and existing image presets.
+   **Pass condition:** an 8-shot script produces 8 shot nodes, shows a total estimate first, then generates shot by shot after confirmation.
+4. **Project library operations** (work package **WP7**): folders, trash, import/export, batch linking. Reuse the existing project list.
+   **Pass condition:** deleting moves to trash and can be restored; export/import round-trips identically.
+5. **Signing and updates**: code signing (Authenticode) and an update feed. Not needed for personal use; starts only before external distribution.
 
 **Pass condition:** timeline exports a playable MP4; installer installs, opens, works and upgrades on a clean Windows machine.
+
+### Work package index (WP0–WP7 mapped onto this plan)
+
+The eight work packages from the *AI Video Creation Canvas master plan* are folded into the milestones above; there is no separate roadmap:
+
+| Work package | Scope | Milestone |
+| --- | --- | --- |
+| WP0 | Video vertical slice | M2.6 |
+| WP1 | Settle the domain layer's fate | Known issues (judged when M3.4 closes; nothing is deleted before then) |
+| WP2 | Workflow reuse | M3.3 |
+| WP3 | One-click whole-chain run | M3.4 |
+| WP4 | Storyboard pipeline | M4.3 |
+| WP5 | Media pipeline completion | M4.2 |
+| WP6 | Timeline + MP4 export | M4.1 |
+| WP7 | Project library | M4.4 |
 
 ### M5 Deferred (on demand)
 
 Skills, plugin marketplace, templates, LOD and large-canvas performance — only when real demand or a measured bottleneck appears.
+
+### Open decisions (2026-11-18)
+
+| Decision | Impact | Status / recommendation |
+| --- | --- | --- |
+| **Where does narration come from?** | The M4.1 acceptance criterion says "three shots plus narration, audio/video in sync", but no plan states whether narration is TTS-generated, user-imported, or omitted | **Must be decided before M4.1 starts.** Recommend the simplest path first — import an audio file — to prove sync; treat TTS as a separate item |
+| Fate of the domain node layer | Decides whether ~3,900 lines can eventually be deleted | Keep the upstream canvas model (decided); judge modules individually when M3.4 closes |
+| Target platform | Affects packaging and acceptance | Windows first; macOS when a machine is available |
+| Which video vendor for the vertical slice, and budget | Blocks M2.6 from starting | Use a vendor whose key already exists; a 5-second shot costs tens of yuan to verify |
+| Free opencode model or a self-hosted model for the agent | Affects whether M3.4 and M4.3 can hit their targets | Start with the free model using the 8-shot script as the acceptance test; switch only if it cannot cope |
 
 ## 4. Porting obligations (Apache-2.0)
 
