@@ -1,5 +1,5 @@
 {
-    "total": 189,
+    "total": 187,
     "files": {
         "src/components/agent/agent-chat-composer.tsx": {
             "total": 1,
@@ -43,10 +43,6 @@
             "total": 3,
             "fontsize": 1,
             "blackwhite": 2
-        },
-        "src/components/canvas/canvas-config-node-panel.tsx": {
-            "total": 2,
-            "fontsize": 2
         },
         "src/components/canvas/canvas-create-menus.tsx": {
             "total": 1,

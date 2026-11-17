@@ -1,4 +1,3 @@
-import type { CSSProperties } from "react";
 import { Image as ImageIcon, LoaderCircle, MessageSquare, Music2, Play, Settings2, Square, Video } from "lucide-react";
 import { Button, Segmented } from "antd";
 import { useTranslation } from "react-i18next";
@@ -30,15 +29,14 @@ export function CanvasConfigNodePanel({ node, isRunning, inputSummary, onConfigC
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const mode = node.metadata?.generationMode || "image";
     const config = buildNodeConfig(globalConfig, node, mode);
-    const chipStyle = { background: theme.node.fill, borderColor: theme.node.stroke, color: theme.node.text };
     const hasAnyInput = Boolean(inputSummary.textCount || inputSummary.imageCount || inputSummary.videoCount || inputSummary.audioCount);
     const hasComposerContent = Boolean((node.metadata?.composerContent ?? node.metadata?.prompt ?? "").trim());
     const canGenerate = hasComposerContent || (mode === "audio" ? inputSummary.textCount > 0 : hasAnyInput);
 
     return (
         <div className="flex h-full w-full cursor-move flex-col px-3 pb-3 pt-7 text-sm" style={{ color: theme.node.text }} onWheel={(event) => event.stopPropagation()}>
-            <div className="mb-2 flex items-center justify-between gap-3">
-                <div className="shrink-0 text-sm font-semibold">{t("canvas.configNode.title")}</div>
+            <div className="mb-1.5 flex items-center justify-between gap-3">
+                <div className="shrink-0 text-xs font-medium" style={{ color: theme.node.muted }}>{t("canvas.configNode.title")}</div>
                 <div className="cursor-default" onMouseDown={(event) => event.stopPropagation()}>
                     <Segmented
                         size="small"
@@ -87,12 +85,18 @@ export function CanvasConfigNodePanel({ node, isRunning, inputSummary, onConfigC
                 </div>
             </div>
 
-            <div className="mb-2 flex flex-wrap gap-1.5">
-                <InputChip label={t("canvas.configNode.prompt")} value={t("canvas.configNode.items", { count: inputSummary.textCount })} style={chipStyle} />
-                <InputChip label={t("canvas.configNode.references")} value={t("canvas.configNode.images", { count: inputSummary.imageCount })} style={chipStyle} />
-                <InputChip label={t("canvas.configNode.videoReferences")} value={t("canvas.configNode.items", { count: inputSummary.videoCount })} style={chipStyle} />
-                <InputChip label={t("canvas.configNode.audioReferences")} value={t("canvas.configNode.items", { count: inputSummary.audioCount })} style={chipStyle} />
-                <button type="button" className="inline-flex h-7 cursor-pointer items-center gap-1 rounded-md border px-2 text-[11px]" style={chipStyle} onMouseDown={(event) => event.stopPropagation()} onClick={onComposerToggle}>
+            <div className="mb-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+                {inputSummary.textCount > 0 ? <InputChip label={t("canvas.configNode.prompt")} value={t("canvas.configNode.items", { count: inputSummary.textCount })} /> : null}
+                {inputSummary.imageCount > 0 ? <InputChip label={t("canvas.configNode.references")} value={t("canvas.configNode.images", { count: inputSummary.imageCount })} /> : null}
+                {inputSummary.videoCount > 0 ? <InputChip label={t("canvas.configNode.videoReferences")} value={t("canvas.configNode.items", { count: inputSummary.videoCount })} /> : null}
+                {inputSummary.audioCount > 0 ? <InputChip label={t("canvas.configNode.audioReferences")} value={t("canvas.configNode.items", { count: inputSummary.audioCount })} /> : null}
+                <button
+                    type="button"
+                    className="inline-flex h-6 cursor-pointer items-center gap-1 typ-label opacity-70 transition hover:opacity-100"
+                    style={{ color: theme.node.text }}
+                    onMouseDown={(event) => event.stopPropagation()}
+                    onClick={onComposerToggle}
+                >
                     <Settings2 className="size-3.5" />
                     {t("canvas.configNode.compose")}
                 </button>
@@ -138,12 +142,12 @@ export function CanvasConfigNodePanel({ node, isRunning, inputSummary, onConfigC
     );
 }
 
-function InputChip({ label, value, style }: { label: string; value: string; style: CSSProperties }) {
+function InputChip({ label, value }: { label: string; value: string }) {
     return (
-        <div className="inline-flex h-7 items-center gap-1 rounded-md border px-2 text-[11px]" style={style}>
+        <span className="inline-flex h-6 items-center gap-1 typ-label opacity-70">
             <span>{label}</span>
             <span className="font-medium">{value}</span>
-        </div>
+        </span>
     );
 }
 

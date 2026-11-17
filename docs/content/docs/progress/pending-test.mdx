@@ -7,6 +7,25 @@ description: Implemented changes that still need manual verification
 
 The current release needs manual verification in these areas:
 
+## 画布「生成配置」节点减重（待用户验收）
+
+- 生成配置节点不再用灰色底卡：底色改为与画布同族的浅表面（暗色为深一档的表面），边框由 2px 收到 1px，视觉上更像画布上的一张轻卡片。
+- 标题「生成配置」降为次要文字；参考内容为 0 的项不再显示占位，「组装提示词」改为无底色扁平按钮，只有计数大于 0 时才出现对应参考项。
+- 功能与尺寸未变：模型下拉、设置弹层、参考素材连线、开始生成仍在原位置，节点默认尺寸和交互热区不变。
+- 自动化：类型检查通过，token 门禁通过（基线同步降到 187）。
+- **已在浏览器确认**：亮/暗两种主题下节点均为轻卡片，空参考时只显示「组装提示词」，模型/设置/开始生成正常。
+- **未验证**：真机上拖拽、连线与 36px 控件手感；参考素材不为 0 时的排布。
+
+## 生成统一收口到画布：下线生图工作台 / 视频创作台（待用户验收）
+
+- 删除 `/image`、`/video` 两个独立页面及其路由，顶部导航精简为「我的画布 / 提示词库 / 我的资产 / 任务中心 / 配置」五个入口；旧地址直接返回 404「页面不存在」，不做重定向。
+- Agent 的「生成图片 / 生成视频」工具保留原有工具名和参数设置行为：传 `run: false` 只更新参数、不触发生成，返回「已更新生图参数，未触发生成」。
+- 传 `run: true` 时不再跳转页面，直接在当前最近更新的画布项目（没有项目就新建一个）里建节点：图片按张数逐张独立生成，每张成功后落成图片节点并写入素材库；视频先落一张 loading 节点，产物回来后写回同一节点，失败时节点标记错误并带上原因，都不跳页。
+- 生成仍走任务台账：任务中心能看到对应记录，图片失败/需确认时沿用三态语义，失败卡不引导重发；自动生成不额外发真实厂商请求，成本提示照旧。
+- 自动化：`web` 类型检查通过，45 文件 / 666 用例通过，生产构建通过。
+- **本地已验证**：导航只剩五项、`/image` 与 `/video` 404、`run: false` 只改参数、`run: true` 缺 prompt 时报「生成需要提供 prompt 提示词」、带 prompt 时在画布项目建节点并返回 projectId / taskId。用无效 Key 触发的失败路径在任务中心落了两条「需先确认」记录，没有产生费用。
+- **未验证**：用真实 Key 走 Agent 路径成功出图并落到画布、视频路径端到端（loading 节点 → 产物写回）、Tauri 桌面端。本次未发真实厂商请求、未使用任何 API Key。
+
 ## Visual consistency pass (pending look-and-feel confirmation)
 
 Hardcoded neutral colours and bare sizes were folded into the existing design tokens so light and dark share one semantic palette. What needs human eyes here is **whether it looks right**; no business flow changed.

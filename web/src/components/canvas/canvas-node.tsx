@@ -359,9 +359,9 @@ export const CanvasNode = React.memo(function CanvasNode({
             )}
 
             <div
-                className="relative h-full w-full overflow-visible rounded-3xl border-2"
+                className={`relative h-full w-full overflow-visible rounded-3xl ${data.type === CanvasNodeType.Config ? "border" : "border-2"}`}
                 style={{
-                    background: isGroup ? "transparent" : hasImageContent || hasVideoContent || transparentBg ? "transparent" : theme.node.fill,
+                    background: isGroup ? "transparent" : hasImageContent || hasVideoContent || transparentBg ? "transparent" : data.type === CanvasNodeType.Config ? theme.node.panel : theme.node.fill,
                     borderColor: isGroup ? (isGroupDropTarget || isActive ? selectionBlue : theme.node.stroke) : hasImageContent ? imageBorderColor : isActive ? selectionBlue : isRelated ? theme.node.muted : transparentBg ? "transparent" : theme.node.stroke,
                     borderStyle: isGroup ? "dashed" : "solid",
                     boxShadow: isGroupDropTarget ? `0 0 0 2px ${selectionBlue}66, inset 0 0 0 999px ${selectionBlue}10` : isActive ? `0 0 0 1px ${selectionBlue}55` : isRelated ? `0 0 0 1px ${theme.node.muted}55, 0 18px 48px rgba(0,0,0,.14)` : undefined,
@@ -396,7 +396,7 @@ export const CanvasNode = React.memo(function CanvasNode({
                     className={`relative flex h-full w-full items-center justify-center rounded-[inherit] ${isBatchRoot ? "overflow-visible" : "overflow-hidden"}`}
                     style={
                         {
-                            background: isGroup ? "transparent" : hasImageContent || hasVideoContent || transparentBg ? "transparent" : theme.node.fill,
+                            background: isGroup ? "transparent" : hasImageContent || hasVideoContent || transparentBg ? "transparent" : data.type === CanvasNodeType.Config ? theme.node.panel : theme.node.fill,
                             pointerEvents: contentInteractive ? undefined : "none",
                         } as React.CSSProperties
                     }
