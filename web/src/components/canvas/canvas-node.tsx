@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactNode } from "react";
 import { ChevronRight, Copy, Download, Group, Image as ImageIcon, Music2, Puzzle, RefreshCw, Star, Trash2, Video } from "lucide-react";
 
@@ -445,7 +445,7 @@ export const CanvasNode = React.memo(function CanvasNode({
             {/* Counter-scale the panel so its on-screen size stays constant while the canvas zooms. */}
             {showPanel && !isGroup && renderPanel ? (
                 <div className="absolute left-1/2 top-full z-[70] w-[600px] pt-4" style={{ transform: `translateX(-50%) scale(${1 / scale})`, transformOrigin: "top center" }} data-node-panel={data.id}>
-                    {renderPanel(data)}
+                    <PanelViewportShift scale={scale} top={data.position.y}>{renderPanel(data)}</PanelViewportShift>
                 </div>
             ) : null}
         </div>
@@ -992,6 +992,69 @@ function ConnectionHandleDot({ side, visible, onMouseDown }: { side: "left" | "r
             onMouseDown={onMouseDown}
         >
             <div className="size-3 rounded-full border-2 transition-all hover:scale-125" style={{ background: theme.node.panel, borderColor: theme.node.muted }} />
+        </div>
+    );
+}
+
+/** 底部浮动工具条（缩放条与工具栏）占用的高度；提示词面板不许压在这个区间里。 */
+const PANEL_BOTTOM_CLEARANCE = 88;
+const PANEL_VIEWPORT_MARGIN = 12;
+/** 输入框默认高度（对应 h-40 / 10rem）与最小高度（3 行文字 + 上下内边距）。 */
+const PANEL_COMPOSER_NATURAL = 160;
+const PANEL_COMPOSER_MIN = 76;
+
+/**
+ * 提示词面板默认挂在节点下方。窗口矮或节点靠下时，底部操作行会落到视口外，
+ * 或被底部工具条盖住导致「生成」点不动。优先压输入框高度把面板收进可用区域，
+ * 压到最小仍放不下才整块上移；顶到视口上沿就停住，不继续往外出。
+ *
+ * 高度用 CSS 变量传给输入框，位移量用 margin 加在外层缩放之内：外层已经把 `1 / scale` 抵消掉，
+ * 这里 1px 就是屏幕上的 1px。
+ */
+function PanelViewportShift({ scale, top, children }: { scale: number; top: number; children: ReactNode }) {
+    const ref = useRef<HTMLDivElement>(null);
+    const offsetRef = useRef(0);
+    const [offset, setOffset] = useState(0);
+    const [composerHeight, setComposerHeight] = useState(PANEL_COMPOSER_NATURAL);
+
+    useLayoutEffect(() => {
+        const element = ref.current;
+        if (!element) return;
+        const update = () => {
+            const panel = element.querySelector("[data-canvas-prompt-panel]");
+            const editor = panel?.querySelector('[role="textbox"]');
+            if (!panel || !editor) {
+                offsetRef.current = 0;
+                setOffset(0);
+                setComposerHeight(PANEL_COMPOSER_NATURAL);
+                return;
+            }
+            const panelRect = panel.getBoundingClientRect();
+            // 量到的是已经位移后的位置，减掉当前 margin 才是自然位置。
+            const naturalTop = panelRect.top - offsetRef.current;
+            const fixed = panelRect.height - editor.getBoundingClientRect().height;
+            const room = window.innerHeight - PANEL_BOTTOM_CLEARANCE - naturalTop;
+            const composer = Math.round(Math.max(PANEL_COMPOSER_MIN, Math.min(PANEL_COMPOSER_NATURAL, room - fixed)));
+            const overflow = fixed + composer - room;
+            const shift = overflow > 0 ? -overflow : 0;
+            const next = Math.round(naturalTop + shift < PANEL_VIEWPORT_MARGIN ? PANEL_VIEWPORT_MARGIN - naturalTop : shift);
+            offsetRef.current = next;
+            setOffset(next);
+            setComposerHeight(composer);
+        };
+        update();
+        const observer = new ResizeObserver(update);
+        observer.observe(element);
+        window.addEventListener("resize", update);
+        return () => {
+            observer.disconnect();
+            window.removeEventListener("resize", update);
+        };
+    }, [scale, top]);
+
+    return (
+        <div ref={ref} style={{ "--intx-panel-composer": `${composerHeight}px`, marginTop: offset } as React.CSSProperties}>
+            {children}
         </div>
     );
 }
