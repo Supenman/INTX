@@ -49,9 +49,9 @@ export function CanvasGenerationHistoryModal({ open, onClose, onInsert }: { open
 
     return (
         <Modal title={t("canvas.generationHistory.title")} open={open} onCancel={onClose} footer={null} width={780} destroyOnHidden>
-            <p className="mb-3 text-xs text-stone-500">{t("canvas.generationHistory.description")}</p>
+            <p className="mb-3 text-xs text-muted-foreground">{t("canvas.generationHistory.description")}</p>
             {groups.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-stone-300 px-4 py-14 text-center text-sm text-stone-500 dark:border-stone-700">
+                <div className="rounded-lg border border-dashed border-border px-4 py-14 text-center text-sm text-muted-foreground">
                     <History className="mx-auto mb-2 size-5" />
                     <div>{t("canvas.generationHistory.empty")}</div>
                     <div className="mt-1 text-xs">{t("canvas.generationHistory.emptyHint")}</div>
@@ -59,8 +59,8 @@ export function CanvasGenerationHistoryModal({ open, onClose, onInsert }: { open
             ) : (
                 <div className="thin-scrollbar max-h-[60vh] space-y-4 overflow-y-auto pr-1">
                     {groups.map(({ task, items }) => (
-                        <section key={task.id} className="rounded-lg border border-stone-200 p-3 dark:border-stone-800">
-                            <div className="flex flex-wrap items-center gap-2 text-xs text-stone-500">
+                        <section key={task.id} className="rounded-lg border border-border p-3">
+                            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                                 <Tag className="m-0">{t(`tasks.kind.${task.kind}`, { defaultValue: task.kind })}</Tag>
                                 <span className="truncate">{task.params.model || "—"}</span>
                                 <span>·</span>
@@ -68,7 +68,7 @@ export function CanvasGenerationHistoryModal({ open, onClose, onInsert }: { open
                                 <span>·</span>
                                 <span>{t("tasks.detail.results")} {items.length}</span>
                             </div>
-                            <div className="mt-1 truncate text-sm text-stone-800 dark:text-stone-200">{task.params.prompt || "—"}</div>
+                            <div className="mt-1 truncate text-sm text-foreground">{task.params.prompt || "—"}</div>
                             <div className="mt-2 flex flex-wrap gap-2">
                                 {items.map((asset) => {
                                     const cover = asset.kind === "image" ? assetCoverUrl(asset) : assetCoverUrl(asset);
@@ -77,13 +77,13 @@ export function CanvasGenerationHistoryModal({ open, onClose, onInsert }: { open
                                             key={asset.id}
                                             type="button"
                                             title={t("canvas.generationHistory.insert")}
-                                            className="group relative size-20 overflow-hidden rounded-md border border-stone-200 bg-stone-100 transition hover:border-stone-400 dark:border-stone-700 dark:bg-stone-800 dark:hover:border-stone-500"
+                                            className="group relative size-20 overflow-hidden rounded-md border border-border bg-muted transition hover:bg-[var(--surface-card-hover)]"
                                             onClick={() => {
                                                 onInsert(payloadOf(task.params.prompt, asset));
                                                 onClose();
                                             }}
                                         >
-                                            {cover ? <img src={cover} alt={asset.title} className="size-full object-cover" /> : <ImageOff className="absolute inset-0 m-auto size-5 text-stone-400" />}
+                                            {cover ? <img src={cover} alt={asset.title} className="size-full object-cover" /> : <ImageOff className="absolute inset-0 m-auto size-5 text-muted-foreground" />}
                                         </button>
                                     );
                                 })}
