@@ -69,14 +69,19 @@ export async function deleteOpencodeThread(cwd: string, threadId: string) {
     if (!response.ok) throw new Error(`删除 opencode 会话失败：${response.status}`);
 }
 
+/** opencode 的重命名请求：单独拆出来，便于在不启动真实服务时验证 URL、方法与载荷。 */
+export function renameOpencodeRequest(base: string, threadId: string, title: string) {
+    return {
+        url: `${base}/session/${encodeURIComponent(threadId)}`,
+        init: { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ title }) } as RequestInit,
+    };
+}
+
 /** 重命名 opencode 会话（opencode 的 PATCH /session/{id} 接受 title）。 */
 export async function renameOpencodeThread(cwd: string, threadId: string, title: string) {
     const { base } = await ensureServer(cwd);
-    const response = await fetch(`${base}/session/${encodeURIComponent(threadId)}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ title }),
-    });
+    const { url, init } = renameOpencodeRequest(base, threadId, title);
+    const response = await fetch(url, init);
     if (!response.ok) throw new Error(`重命名 opencode 会话失败：${response.status}`);
 }
 
