@@ -86,6 +86,7 @@ export function ModelSelectModal({ open, channel, selectedNames, onConfirm, onCl
 
     return (
         <Modal
+            destroyOnHidden
             open={open}
             width={880}
             centered

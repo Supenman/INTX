@@ -251,7 +251,7 @@ function CanvasNodesTab({ nodes, selectedNodeIds, onFocusNode, onPreviewNode, on
                 </button>
             </div>
             <div className="px-3 pb-2.5">
-                <Input size="small" allowClear prefix={<Search className="size-3.5 text-stone-400" />} placeholder={t("canvas.sidePanel.searchNodes")} value={keyword} onChange={(e) => setKeyword(e.target.value)} />
+                <Input size="small" allowClear prefix={<Search className="size-3.5 text-muted-foreground" />} placeholder={t("canvas.sidePanel.searchNodes")} value={keyword} onChange={(e) => setKeyword(e.target.value)} />
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
                 {nodeViewMode === "grid" ? (
@@ -292,7 +292,7 @@ function CanvasNodesTab({ nodes, selectedNodeIds, onFocusNode, onPreviewNode, on
                             })}
                         </div>
                     ) : (
-                        <div className="pt-16 text-center text-sm opacity-40">{t("canvas.sidePanel.noNodes")}</div>
+                        <div className="pt-16 text-center text-sm text-muted-foreground">{t("canvas.sidePanel.noNodes")}</div>
                     )
                 ) : treeRows.length ? (
                     <div className="space-y-1.5">
@@ -342,7 +342,7 @@ function CanvasNodesTab({ nodes, selectedNodeIds, onFocusNode, onPreviewNode, on
                         })}
                     </div>
                 ) : (
-                    <div className="pt-16 text-center text-sm opacity-40">{t("canvas.sidePanel.noNodes")}</div>
+                    <div className="pt-16 text-center text-sm text-muted-foreground">{t("canvas.sidePanel.noNodes")}</div>
                 )}
             </div>
             {selectMode ? (
@@ -370,7 +370,7 @@ function CanvasNodesTab({ nodes, selectedNodeIds, onFocusNode, onPreviewNode, on
 function CheckMark({ checked, theme }: { checked: boolean; theme: CanvasTheme }) {
     return (
         <span className="grid size-4 shrink-0 place-items-center rounded border transition" style={{ borderColor: checked ? theme.toolbar.activeText : theme.node.stroke, background: checked ? theme.toolbar.activeText : "transparent" }}>
-            {checked ? <Check className="size-3 text-white" /> : null}
+            {checked ? <Check className="size-3 text-[var(--btn-solid-fg)]" /> : null}
         </span>
     );
 }
@@ -461,7 +461,7 @@ const CanvasAssetsTab = memo(function CanvasAssetsTab({ onInsert, theme }: { onI
         <div className="flex h-full flex-col">
             <div className="px-3 pb-2"><SnapshotStorageStatus kind="assets" /></div>
             <div className="flex items-center gap-2 px-3 pb-2 pt-1">
-                <Input size="small" allowClear prefix={<Search className="size-3.5 text-stone-400" />} placeholder={t("canvas.sidePanel.searchAssets")} value={keyword} onChange={(e) => setKeyword(e.target.value)} />
+                <Input size="small" allowClear prefix={<Search className="size-3.5 text-muted-foreground" />} placeholder={t("canvas.sidePanel.searchAssets")} value={keyword} onChange={(e) => setKeyword(e.target.value)} />
                 <button
                     type="button"
                     disabled={uploading}
@@ -531,7 +531,7 @@ function AssetCard({ asset, theme, onInsert, onRemove }: { asset: Asset; theme: 
                 <button
                     type="button"
                     onClick={onInsert}
-                    className="grid size-8 place-items-center rounded-full bg-white/90 text-stone-700 shadow-sm backdrop-blur transition hover:bg-white hover:text-stone-900 dark:bg-black/60 dark:text-stone-100 dark:hover:bg-black/80"
+                    className="grid size-8 place-items-center rounded-full bg-popover/90 text-foreground shadow-[var(--shadow-sm)] backdrop-blur transition hover:bg-popover hover:text-foreground"
                     aria-label={t("canvas.sidePanel.inserted")}
                 >
                     <Plus className="size-4" />
@@ -539,7 +539,7 @@ function AssetCard({ asset, theme, onInsert, onRemove }: { asset: Asset; theme: 
                 <Popconfirm title={t("canvas.sidePanel.removeAssetTitle")} okText={t("canvas.sidePanel.remove")} cancelText={t("common.cancel")} okButtonProps={{ danger: true }} onConfirm={onRemove}>
                     <button
                         type="button"
-                        className="grid size-8 place-items-center rounded-full bg-white/90 text-stone-700 shadow-sm backdrop-blur transition hover:bg-white hover:text-red-500 dark:bg-black/60 dark:text-stone-100 dark:hover:bg-black/80 dark:hover:text-red-400"
+                        className="grid size-8 place-items-center rounded-full bg-popover/90 text-foreground shadow-[var(--shadow-sm)] backdrop-blur transition hover:bg-popover hover:text-red-500"
                         aria-label={t("canvas.sidePanel.removeAsset")}
                     >
                         <Trash2 className="size-4" />
@@ -551,7 +551,7 @@ function AssetCard({ asset, theme, onInsert, onRemove }: { asset: Asset; theme: 
 }
 
 function AssetCover({ asset }: { asset: Asset }) {
-    if (asset.kind === "text") return <div className="size-full overflow-hidden whitespace-pre-wrap break-words p-2.5 text-[11px] leading-snug opacity-80">{asset.data.content}</div>;
+    if (asset.kind === "text") return <div className="size-full overflow-hidden whitespace-pre-wrap break-words p-2.5 typ-label leading-snug opacity-80">{asset.data.content}</div>;
     if (asset.kind === "video") {
         if (asset.coverUrl) return <img src={asset.coverUrl} alt="" className="size-full object-cover transition duration-300 group-hover:scale-[1.04]" />;
         return <video src={`${asset.data.url}#t=0.1`} muted playsInline preload="metadata" className="size-full object-cover transition duration-300 group-hover:scale-[1.04]" />;
@@ -584,7 +584,7 @@ const CanvasPromptsTab = memo(function CanvasPromptsTab({ onInsert, theme }: { o
     return (
         <div className="flex h-full flex-col">
             <div className="px-3 pb-2.5 pt-1">
-                <Input size="small" allowClear prefix={<Search className="size-3.5 text-stone-400" />} placeholder={t("canvas.sidePanel.searchPrompts")} value={keyword} onChange={(e) => setKeyword(e.target.value)} />
+                <Input size="small" allowClear prefix={<Search className="size-3.5 text-muted-foreground" />} placeholder={t("canvas.sidePanel.searchPrompts")} value={keyword} onChange={(e) => setKeyword(e.target.value)} />
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
                 <div className="space-y-1">

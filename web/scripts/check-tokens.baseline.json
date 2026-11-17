@@ -1,0 +1,216 @@
+{
+    "total": 286,
+    "files": {
+        "src/components/agent/agent-chat-composer.tsx": {
+            "total": 1,
+            "radius": 1
+        },
+        "src/components/agent/agent-chat-message.tsx": {
+            "total": 16,
+            "blackwhite": 4,
+            "fontsize": 12
+        },
+        "src/components/agent/agent-chat.tsx": {
+            "total": 1,
+            "fontsize": 1
+        },
+        "src/components/agent/agent-connect-view.tsx": {
+            "total": 2,
+            "fontsize": 2
+        },
+        "src/components/agent/agent-history-view.tsx": {
+            "total": 3,
+            "fontsize": 3
+        },
+        "src/components/agent/agent-log-view.tsx": {
+            "total": 6,
+            "fontsize": 6
+        },
+        "src/components/agent/agent-panel-tabs.tsx": {
+            "total": 1,
+            "fontsize": 1
+        },
+        "src/components/agent/opencode-agent-panel.tsx": {
+            "total": 1,
+            "fontsize": 1
+        },
+        "src/components/canvas/asset-picker-modal.tsx": {
+            "total": 17,
+            "neutral": 14,
+            "blackwhite": 2,
+            "fontsize": 1
+        },
+        "src/components/canvas/canvas-config-composer.tsx": {
+            "total": 3,
+            "fontsize": 1,
+            "blackwhite": 2
+        },
+        "src/components/canvas/canvas-config-node-panel.tsx": {
+            "total": 2,
+            "fontsize": 2
+        },
+        "src/components/canvas/canvas-create-menus.tsx": {
+            "total": 1,
+            "blackwhite": 1
+        },
+        "src/components/canvas/canvas-delete-projects-dialog.tsx": {
+            "total": 1,
+            "neutral": 1
+        },
+        "src/components/canvas/canvas-generation-history-modal.tsx": {
+            "total": 16,
+            "neutral": 16
+        },
+        "src/components/canvas/canvas-image-toolbar-settings-modal.tsx": {
+            "total": 2,
+            "fontsize": 1,
+            "radius": 1
+        },
+        "src/components/canvas/canvas-mini-map.tsx": {
+            "total": 1,
+            "radius": 1
+        },
+        "src/components/canvas/canvas-node-angle-dialog.tsx": {
+            "total": 1,
+            "blackwhite": 1
+        },
+        "src/components/canvas/canvas-node-hover-toolbar.tsx": {
+            "total": 4,
+            "blackwhite": 2,
+            "fontsize": 1,
+            "radius": 1
+        },
+        "src/components/canvas/canvas-node-prompt-panel.tsx": {
+            "total": 1,
+            "fontsize": 1
+        },
+        "src/components/canvas/canvas-node-reference-bar.tsx": {
+            "total": 1,
+            "fontsize": 1
+        },
+        "src/components/canvas/canvas-node-split-dialog.tsx": {
+            "total": 4,
+            "blackwhite": 4
+        },
+        "src/components/canvas/canvas-node-upscale-dialog.tsx": {
+            "total": 1,
+            "blackwhite": 1
+        },
+        "src/components/canvas/canvas-node.tsx": {
+            "total": 16,
+            "fontsize": 12,
+            "blackwhite": 3,
+            "radius": 1
+        },
+        "src/components/canvas/canvas-plugin-manager-modal.tsx": {
+            "total": 1,
+            "fontsize": 1
+        },
+        "src/components/canvas/canvas-prompt-chip-input.tsx": {
+            "total": 2,
+            "blackwhite": 2
+        },
+        "src/components/canvas/canvas-resource-mention-textarea.tsx": {
+            "total": 2,
+            "blackwhite": 2
+        },
+        "src/components/canvas/canvas-selection-toolbar.tsx": {
+            "total": 4,
+            "blackwhite": 2,
+            "fontsize": 1,
+            "radius": 1
+        },
+        "src/components/canvas/canvas-toolbar.tsx": {
+            "total": 4,
+            "fontsize": 4
+        },
+        "src/components/image-generation-pending.tsx": {
+            "total": 11,
+            "neutral": 8,
+            "blackwhite": 2,
+            "fontsize": 1
+        },
+        "src/components/layout/app-top-nav.tsx": {
+            "total": 16,
+            "neutral": 15,
+            "blackwhite": 1
+        },
+        "src/components/layout/channel-editor-drawer.tsx": {
+            "total": 7,
+            "neutral": 7
+        },
+        "src/components/layout/config-local-proxy.tsx": {
+            "total": 7,
+            "neutral": 7
+        },
+        "src/components/layout/config-local-storage.tsx": {
+            "total": 20,
+            "neutral": 17,
+            "fontsize": 3
+        },
+        "src/components/layout/config-prompt-sources.tsx": {
+            "total": 14,
+            "neutral": 10,
+            "fontsize": 4
+        },
+        "src/components/layout/config-tasks.tsx": {
+            "total": 13,
+            "neutral": 13
+        },
+        "src/components/layout/github-link.tsx": {
+            "total": 6,
+            "neutral": 5,
+            "blackwhite": 1
+        },
+        "src/components/layout/model-select-modal.tsx": {
+            "total": 5,
+            "neutral": 5
+        },
+        "src/components/layout/prompt-source-content-modal.tsx": {
+            "total": 4,
+            "neutral": 4
+        },
+        "src/components/layout/prompt-source-editor-drawer.tsx": {
+            "total": 6,
+            "neutral": 6
+        },
+        "src/components/layout/user-status-actions.tsx": {
+            "total": 5,
+            "neutral": 3,
+            "blackwhite": 1,
+            "fontsize": 1
+        },
+        "src/components/prompts/prompt-card.tsx": {
+            "total": 15,
+            "neutral": 14,
+            "fontsize": 1
+        },
+        "src/components/prompts/prompt-select-dialog.tsx": {
+            "total": 7,
+            "neutral": 7
+        },
+        "src/components/video-settings-panel.tsx": {
+            "total": 1,
+            "radius": 1
+        },
+        "src/pages/assets/index.tsx": {
+            "total": 4,
+            "fontsize": 3,
+            "blackwhite": 1
+        },
+        "src/pages/home/index.tsx": {
+            "total": 8,
+            "fontsize": 1,
+            "radius": 1,
+            "blackwhite": 6
+        },
+        "src/pages/prompts/components/prompt-detail-dialog.tsx": {
+            "total": 16,
+            "neutral": 16
+        },
+        "src/pages/tasks/index.tsx": {
+            "total": 6,
+            "neutral": 6
+        }
+    }
+}

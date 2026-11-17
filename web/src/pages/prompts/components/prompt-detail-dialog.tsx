@@ -8,7 +8,7 @@ export function PromptDetailDialog({ prompt, onClose, onCopy, onSaveAsset }: { p
     const { i18n, t } = useTranslation();
 
     return (
-        <Modal title={prompt?.title} open={Boolean(prompt)} onCancel={onClose} footer={null} width={720} centered styles={{ body: { height: "calc(85vh - 55px)", overflow: "hidden" } }}>
+        <Modal destroyOnHidden title={prompt?.title} open={Boolean(prompt)} onCancel={onClose} footer={null} width={720} centered styles={{ body: { height: "calc(85vh - 55px)", overflow: "hidden" } }}>
             {prompt ? (
                 <div className="flex h-full min-h-0 flex-col">
                     <div className="shrink-0 space-y-3 pb-4">

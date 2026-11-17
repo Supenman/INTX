@@ -142,31 +142,32 @@
 }
 
 @layer utilities {
+    /* 极光标题：用前景色与其中间调做渐变，明暗共用一套，不再各写一遍。 */
     .ai-title-aurora {
-        background: linear-gradient(90deg, #111827 0%, #111827 36%, #6b7280 54%, #111827 72%, #111827 100%);
+        background: linear-gradient(
+            90deg,
+            var(--foreground) 0%,
+            var(--foreground) 36%,
+            color-mix(in oklch, var(--foreground) 55%, var(--background)) 54%,
+            var(--foreground) 72%,
+            var(--foreground) 100%
+        );
         background-size: 220% 100%;
         -webkit-background-clip: text;
         background-clip: text;
         color: transparent;
-        animation: ai-title-aurora 7s ease-in-out infinite;
-    }
-
-    .dark .ai-title-aurora {
-        background: linear-gradient(90deg, #fafaf9 0%, #fafaf9 36%, #a8a29e 54%, #fafaf9 72%, #fafaf9 100%);
-        background-size: 220% 100%;
-        -webkit-background-clip: text;
-        background-clip: text;
+        animation: ai-title-aurora 7s var(--motion-ease) infinite;
     }
 
     @keyframes ai-title-aurora {
         0%,
         100% {
             background-position: 0% 50%;
-            filter: drop-shadow(0 0 0 rgba(0, 0, 0, 0));
+            filter: drop-shadow(0 0 0 transparent);
         }
         50% {
             background-position: 100% 50%;
-            filter: drop-shadow(0 12px 28px rgba(28, 25, 23, 0.08));
+            filter: drop-shadow(0 12px 28px color-mix(in oklch, var(--foreground) 8%, transparent));
         }
     }
 
@@ -179,56 +180,49 @@
         display: none;
     }
 
+    /* 标签筛选：颜色全部走 token，明暗共用一套，不再写死十六进制。
+       长标签（用户自建的中英文混排）必须能折行，否则会把 390 宽的布局撑破。 */
     .prompt-filter-tag.ant-tag-checkable {
         margin: 0;
         border: 1px solid transparent;
-        border-radius: 6px;
+        border-radius: var(--r-sm);
         padding: 5px 10px;
-        color: #57534e;
-        font-size: 14px;
-        line-height: 1;
+        max-width: 100%;
+        color: var(--muted-foreground);
+        font-size: var(--fs-body-lg);
+        line-height: 1.35;
+        white-space: normal;
+        overflow-wrap: anywhere;
         transition:
-            background 0.15s ease,
-            border-color 0.15s ease,
-            box-shadow 0.15s ease,
-            color 0.15s ease;
+            background var(--motion-duration) var(--motion-ease),
+            border-color var(--motion-duration) var(--motion-ease),
+            color var(--motion-duration) var(--motion-ease);
+    }
+
+    /* antd 会在 tag 内再套一层 span，长标签要让它也折行，否则只有外层被约束。 */
+    .prompt-filter-tag.ant-tag-checkable > span,
+    .prompt-filter-tag.ant-tag-checkable > * {
+        max-width: 100%;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        word-break: break-word;
     }
 
     .prompt-filter-tag.ant-tag-checkable:hover {
-        background: rgba(28, 25, 23, 0.06);
-        color: #1c1917;
+        background: var(--control-selected-bg);
+        color: var(--foreground);
     }
 
     .prompt-filter-tag.ant-tag-checkable.is-active,
     .prompt-filter-tag.ant-tag-checkable-checked {
-        background: #111111;
-        border-color: #111111;
-        color: #ffffff;
+        background: var(--btn-solid-bg);
+        border-color: var(--btn-solid-bg);
+        color: var(--btn-solid-fg);
         font-weight: 600;
     }
 
-    .dark .prompt-filter-tag.ant-tag-checkable {
-        color: #e7e5e4;
-    }
-
-    .dark .prompt-filter-tag.ant-tag-checkable:hover {
-        background: rgba(255, 255, 255, 0.1);
-        color: #ffffff;
-    }
-
-    .dark .prompt-filter-tag.ant-tag-checkable.is-active,
-    .dark .prompt-filter-tag.ant-tag-checkable-checked {
-        background: rgba(250, 250, 249, 0.96);
-        border-color: rgba(255, 255, 255, 0.88);
-        box-shadow:
-            0 0 0 1px rgba(255, 255, 255, 0.18),
-            0 6px 18px rgba(0, 0, 0, 0.22);
-        color: #0c0a09 !important;
-        font-weight: 700;
-    }
-
     .thin-scrollbar {
-        scrollbar-color: rgba(120, 113, 108, 0.45) transparent;
+        scrollbar-color: color-mix(in oklch, var(--foreground) 45%, transparent) transparent;
         scrollbar-width: thin;
     }
 
@@ -238,7 +232,7 @@
     }
 
     .thin-scrollbar::-webkit-scrollbar-thumb {
-        background: rgba(120, 113, 108, 0.45);
+        background: color-mix(in oklch, var(--foreground) 45%, transparent);
         border-radius: 999px;
     }
 
@@ -248,7 +242,7 @@
     }
 
     .hover-scrollbar:hover {
-        scrollbar-color: rgba(120, 113, 108, 0.5) transparent;
+        scrollbar-color: color-mix(in oklch, var(--foreground) 50%, transparent) transparent;
     }
 
     .hover-scrollbar::-webkit-scrollbar {
@@ -262,12 +256,12 @@
     }
 
     .hover-scrollbar:hover::-webkit-scrollbar-track {
-        background: rgba(120, 113, 108, 0.12);
+        background: color-mix(in oklch, var(--foreground) 12%, transparent);
         border-radius: 999px;
     }
 
     .hover-scrollbar:hover::-webkit-scrollbar-thumb {
-        background: rgba(120, 113, 108, 0.5);
+        background: color-mix(in oklch, var(--foreground) 50%, transparent);
     }
 
     .hover-scrollbar-hint {
@@ -275,7 +269,7 @@
     }
 
     .hover-scrollbar-hint::after {
-        background: rgba(120, 113, 108, 0.42);
+        background: color-mix(in oklch, var(--foreground) 42%, transparent);
         border-radius: 999px;
         bottom: 4px;
         content: "";
@@ -294,7 +288,7 @@
 
     .canvas-control-select.ant-select .ant-select-selector,
     .canvas-control-number.ant-input-number {
-        border-color: rgba(120, 113, 108, 0.32) !important;
+        border-color: color-mix(in oklch, var(--foreground) 32%, transparent) !important;
         box-shadow: none !important;
     }
 
@@ -386,24 +380,20 @@
         }
     }
 
+    /* 画布控件焦点：统一用 --ring，不再明暗各写一套十六进制。 */
+    .canvas-control-select.ant-select .ant-select-selector,
+    .canvas-control-number.ant-input-number {
+        border-color: var(--border) !important;
+    }
+
     .canvas-control-select.ant-select-focused .ant-select-selector,
     .canvas-control-number.ant-input-number-focused {
-        border-color: #a8a29e !important;
-    }
-
-    .dark .canvas-control-select.ant-select .ant-select-selector,
-    .dark .canvas-control-number.ant-input-number {
-        border-color: rgba(214, 211, 209, 0.2) !important;
-    }
-
-    .dark .canvas-control-select.ant-select-focused .ant-select-selector,
-    .dark .canvas-control-number.ant-input-number-focused {
-        border-color: #78716c !important;
+        border-color: var(--ring) !important;
     }
 
     .canvas-image-settings-popover .ant-popover-inner {
-        border-radius: 18px;
-        box-shadow: 0 18px 54px rgba(28, 25, 23, 0.16);
+        border-radius: var(--r-xl);
+        box-shadow: var(--shadow-lg), var(--hairline);
         padding: 18px;
     }
 
@@ -419,10 +409,6 @@
 
     .canvas-image-settings-popover .ant-segmented-item {
         border-radius: 999px;
-    }
-
-    .dark .canvas-image-settings-popover .ant-popover-inner {
-        box-shadow: 0 18px 54px rgba(0, 0, 0, 0.45);
     }
 
     .canvas-node-info-modal .ant-modal-header {
@@ -559,7 +545,7 @@
 
 [data-streamdown="link-safety-modal"] {
     padding: 1rem;
-    background: rgb(28 25 23 / 24%);
+    background: color-mix(in oklch, var(--foreground) 24%, transparent);
     backdrop-filter: blur(8px);
 }
 
@@ -569,7 +555,7 @@
     padding: 1.25rem;
     border-color: color-mix(in srgb, currentColor 12%, transparent);
     border-radius: 1rem;
-    box-shadow: 0 20px 60px rgb(28 25 23 / 18%);
+    box-shadow: var(--shadow-lg);
 }
 
 [data-streamdown="link-safety-modal"] > div > button {

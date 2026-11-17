@@ -67,8 +67,8 @@ export default function PromptsPage() {
                     }
                 />
 
-                <div className="mt-5 grid items-start gap-6 lg:grid-cols-[208px_minmax(0,1fr)]">
-                    <aside className="thin-scrollbar border-b border-border/60 pb-5 lg:sticky lg:top-0 lg:max-h-[calc(100dvh-8rem)] lg:overflow-y-auto lg:border-b-0 lg:pb-2 dark:border-border/60">
+                <div className="mt-5 grid grid-cols-1 items-start gap-6 lg:grid-cols-[208px_minmax(0,1fr)]">
+                    <aside className="thin-scrollbar min-w-0 border-b border-border/60 pb-5 lg:sticky lg:top-0 lg:max-h-[calc(100dvh-8rem)] lg:overflow-y-auto lg:border-b-0 lg:pb-2">
                         <PromptFilter label={t("prompts.category")} options={promptCategoryOptions} selected={selectedCategory} onChange={setSelectedCategory} />
                         <div className="mt-6">
                             <div className="typ-overline mb-2.5 text-muted-foreground">{t("prompts.tags")}</div>
@@ -148,9 +148,11 @@ function PromptGrid({
 }) {
     if (!items.length) return <PromptEmpty title={emptyTitle} hint={emptyHint} />;
     return (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+        <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
             {items.map((item) => (
-                <PromptCard key={`${item.sourceId}:${item.id}`} item={item} onOpen={() => onOpen(item)} onCopy={() => onCopy(item)} extraAction={renderActions(item)} />
+                <div key={`${item.sourceId}:${item.id}`} className="min-w-0">
+                    <PromptCard item={item} onOpen={() => onOpen(item)} onCopy={() => onCopy(item)} extraAction={renderActions(item)} />
+                </div>
             ))}
         </div>
     );

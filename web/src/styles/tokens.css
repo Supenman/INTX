@@ -75,6 +75,17 @@
     --shadow-md: 0 6px 18px rgb(0 0 0 / 8%);
     --shadow-lg: 0 18px 48px rgb(0 0 0 / 12%);
     --hairline: inset 0 0 0 1px color-mix(in oklch, var(--foreground) 10%, transparent);
+
+    /* --- 密度：控件高度只允许三档，不要新增第四档 ---
+       画布面板用 28 / 32，设置页用 32 / 36。与 app-theme.ts 的
+       controlHeightSM / controlHeight / controlHeightLG 必须一致。 */
+    --control-h-sm: 28px;
+    --control-h: 32px;
+    --control-h-lg: 36px;
+
+    /* --- 动效：统一 150ms ease，无弹跳（不要 cubic-bezier 过冲）--- */
+    --motion-duration: 150ms;
+    --motion-ease: ease;
 }
 
 /* -------------------------------------------------------------------------
@@ -223,6 +234,14 @@
     background: var(--popover);
     border-radius: var(--r-lg);
     box-shadow: var(--shadow-lg), var(--hairline);
+}
+
+/* 层次：表面靠 surface + hairline 交代，不要「border 和 shadow 混搭」。
+   浮层（弹窗、下拉、浮起卡片）统一用这个；列表内卡片用 surface-card。 */
+@utility surface-hairline {
+    background: var(--surface-card);
+    border-radius: var(--r-lg);
+    box-shadow: var(--hairline);
 }
 
 /* 统一焦点可见性：键盘可达 */

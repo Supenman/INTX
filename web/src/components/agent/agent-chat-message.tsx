@@ -44,7 +44,7 @@ function AgentLinkModal({ isOpen, onClose, onConfirm, url }: LinkSafetyModalProp
         }
     };
     return (
-        <Modal open={isOpen} onCancel={onClose} footer={null} centered width={420} title={t(localPath ? "agent.message.openLocal" : "agent.message.openExternal")}>
+        <Modal destroyOnHidden open={isOpen} onCancel={onClose} footer={null} centered width={420} title={t(localPath ? "agent.message.openLocal" : "agent.message.openExternal")}>
             <div className="text-sm text-black/55 dark:text-white/55">
                 {t(localPath ? "agent.message.localDescription" : "agent.message.externalDescription")}
             </div>

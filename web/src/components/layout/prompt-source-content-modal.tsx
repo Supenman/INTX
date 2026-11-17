@@ -51,6 +51,7 @@ export function PromptSourceContentModal({ source, onClose }: { source: PromptSo
     return (
         <>
             <Modal
+                destroyOnHidden
                 open={Boolean(source)}
                 onCancel={onClose}
                 width={980}

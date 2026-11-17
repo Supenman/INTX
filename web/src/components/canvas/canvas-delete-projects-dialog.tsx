@@ -33,6 +33,7 @@ export function CanvasDeleteProjectsDialog() {
 
     return (
         <Modal
+            destroyOnHidden
             title={t("canvas.project.deleteTitle")}
             open={ids.length > 0}
             centered

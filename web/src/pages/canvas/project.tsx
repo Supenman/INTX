@@ -3300,7 +3300,7 @@ function InfiniteCanvasPage() {
         <main className="flex h-full min-h-0 overflow-hidden" style={{ background: theme.canvas.background, color: theme.node.text }}>
             <CanvasSidePanel nodes={nodes} selectedNodeIds={selectedNodeIds} onFocusNode={focusNode} onPreviewNode={setPreviewNodeId} onHoverNode={setHoverPreviewNodeId} onInsertAsset={handleAssetInsert} />
             <section className="relative min-w-0 flex-1 overflow-hidden">
-                <Modal open={Boolean(saveBarrier.error)} title={t("storage.leaveFailed")} onCancel={saveBarrier.stay} footer={<><Button onClick={saveBarrier.stay}>{t("storage.stay")}</Button><Button onClick={() => void saveBarrier.retry()}>{t("storage.retrySave")}</Button></>}>
+                <Modal destroyOnHidden open={Boolean(saveBarrier.error)} title={t("storage.leaveFailed")} onCancel={saveBarrier.stay} footer={<><Button onClick={saveBarrier.stay}>{t("storage.stay")}</Button><Button onClick={() => void saveBarrier.retry()}>{t("storage.retrySave")}</Button></>}>
                     <p>{saveBarrier.error}</p>
                 </Modal>
                 <CanvasTopBar
@@ -3582,7 +3582,7 @@ function InfiniteCanvasPage() {
                     <CanvasNodeUpscaleDialog dataUrl={upscaleNode.metadata.content} open={Boolean(upscaleNode)} onClose={() => setUpscaleNodeId(null)} onConfirm={(params) => void upscaleImageNode(upscaleNode!, params)} />
                 ) : null}
 
-                <Modal title={t("canvas.projectPage.superResolve")} open={Boolean(superResolveNode?.metadata?.content)} centered footer={null} onCancel={() => setSuperResolveNodeId(null)}>
+                <Modal destroyOnHidden title={t("canvas.projectPage.superResolve")} open={Boolean(superResolveNode?.metadata?.content)} centered footer={null} onCancel={() => setSuperResolveNodeId(null)}>
                     <div className="py-8 text-center text-base font-medium">{t("canvas.projectPage.notImplemented")}</div>
                 </Modal>
 
@@ -3601,6 +3601,7 @@ function InfiniteCanvasPage() {
                 {presetNode?.metadata?.content ? <CanvasNodePresetDialog dataUrl={presetNode.metadata.content} open={Boolean(presetNode)} onClose={() => setPresetNodeId(null)} onConfirm={(id) => void generatePresetNode(presetNode!, id)} /> : null}
 
                 <Modal
+                    destroyOnHidden
                     title={t("canvas.projectPage.imageDetails")}
                     open={Boolean(previewContent)}
                     centered
@@ -3613,6 +3614,7 @@ function InfiniteCanvasPage() {
                 </Modal>
 
                 <Modal
+                    destroyOnHidden
                     title={t("canvas.projectPage.clearTitle")}
                     open={clearConfirmOpen}
                     centered

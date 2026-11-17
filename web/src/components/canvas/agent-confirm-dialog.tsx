@@ -26,7 +26,7 @@ export function AgentConfirmDialog({ plan, open, costText, onCancel, onConfirm }
     const others = plan.pending.filter((verdict) => verdict.reason !== "costs_money" && verdict.reason !== "destructive");
 
     return (
-        <Modal title={null} open={open} onCancel={onCancel} centered width={460} okText={t("canvas.agentPermission.confirmRun")} cancelText={t("canvas.agentPermission.cancel")} onOk={onConfirm} okButtonProps={{ danger: true }}>
+        <Modal destroyOnHidden title={null} open={open} onCancel={onCancel} centered width={460} okText={t("canvas.agentPermission.confirmRun")} cancelText={t("canvas.agentPermission.cancel")} onOk={onConfirm} okButtonProps={{ danger: true }}>
             <div className="space-y-4">
                 <div>
                     <h2 className="typ-heading text-foreground">{t("canvas.agentPermission.title")}</h2>

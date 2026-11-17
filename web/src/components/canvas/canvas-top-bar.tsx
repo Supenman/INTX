@@ -148,7 +148,7 @@ export function CanvasTopBar({
                     <span className="h-6 w-px" style={{ background: theme.toolbar.border }} />
                     <Button
                         type="text"
-                        className="!h-10 !rounded-xl !px-3 !font-medium"
+                        className="!h-9 !rounded-xl !px-3 !font-medium"
                         style={{ background: agentOpen ? theme.toolbar.activeBg : theme.toolbar.panel, color: theme.node.text, boxShadow: "0 10px 30px rgba(28,25,23,.10)" }}
                         icon={<Bot className="size-4" />}
                         onClick={onToggleAgent}
@@ -157,7 +157,7 @@ export function CanvasTopBar({
                     </Button>
                 </div>
             </div>
-            <Modal title={t("canvas.shortcuts")} open={shortcutsOpen} onCancel={() => setShortcutsOpen(false)} footer={null} centered>
+            <Modal destroyOnHidden title={t("canvas.shortcuts")} open={shortcutsOpen} onCancel={() => setShortcutsOpen(false)} footer={null} centered>
                 <div className="space-y-2 border-t pt-4 text-sm" style={{ borderColor: theme.node.stroke }}>
                     <Shortcut keys={["Ctrl / Space", t("canvas.shortcut.drag")]} value={t("canvas.shortcut.toggleTool")} />
                     <Shortcut keys={[t("canvas.shortcut.wheel")]} value={t("canvas.shortcut.zoom")} />

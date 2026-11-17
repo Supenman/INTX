@@ -7,6 +7,21 @@ description: Implemented changes that still need manual verification
 
 The current release needs manual verification in these areas:
 
+## Visual consistency pass (pending look-and-feel confirmation)
+
+Hardcoded neutral colours and bare sizes were folded into the existing design tokens so light and dark share one semantic palette. What needs human eyes here is **whether it looks right**; no business flow changed.
+
+- Open the settings modal (each tab) and the canvas side panel in both themes: are card layers still readable, is text contrast sufficient, does anything look like a white or black patch slapped on top?
+- Model script editor (channel "custom script"): is the left step column, the variable cards and the code area coherent in dark mode?
+- Version release modal (version number in the top bar): do the cards and timeline match across themes?
+- The canvas side panel empty state ("no nodes") was almost unreadable before; it now uses the standard secondary text colour — confirm it reads.
+- The prompt library at phone width (390): long prompt cards and very long tags no longer break the layout. This was a real defect fixed this round, previously overflowing horizontally by 62px.
+- **Look over the canvas after the control-height pass**: the node config panel's model picker and four settings-popover triggers, the prompt bar's settings and generate buttons, the top-bar primary action, and the Agent composer's upload and send round buttons all dropped from 40px to 36px (the same tier as large controls on the settings page). Check that rows inside one panel still line up, that the send button is still a perfect circle, and that the targets still feel easy to hit. **This was only verified in source and via a whole-site DOM probe — the canvas interior was never rendered with a real project.**
+- **The black and white in crop and mask editors is deliberate**: crop rectangle, rule-of-thirds lines, drag handles, the dimming outside the crop box, the brush preview ring and its size label all use true black and white instead of theme colours. They sit on top of the user's image; with theme colours, the white handle would turn light grey in dark mode and vanish on a light photo. Check by cropping one near-white and one near-black image — handles and lines must stay visible on both.
+- **How to verify**: build-level checks are green, but "does it look good" is a human call. What automation protects is regression: `npm run check:tokens` blocks new hardcoded values against a baseline that may only decrease, and `.github/workflows/ui-tokens.yml` runs it in CI.
+
+**Not verified**: look and feel on real devices (especially narrow screens and long reading in dark mode), whether the Tauri desktop build renders the same as the browser, and how the shortened canvas panels and Agent composer actually feel. Only headless Chromium screenshots were compared (1440×900, one light and one dark pair, plus the config page at 1440 and 390).
+
 ## M2 real-machine closure checklist (for the user to run)
 
 Corresponds to the M2 gate in `mature-product-plan.mdx`; run each item and fill the result in here.

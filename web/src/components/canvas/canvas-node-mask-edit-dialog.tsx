@@ -219,7 +219,7 @@ export function CanvasNodeMaskEditDialog({ dataUrl, open, onClose, onConfirm }: 
                 <div
                     ref={viewport.viewportRef}
                     {...viewport.panHandlers}
-                    className={`relative h-[min(68vh,720px)] min-h-[360px] rounded-xl border border-black/10 bg-transparent dark:border-white/10 ${viewport.scrollClassName} ${viewport.isPanning ? "cursor-grabbing" : viewport.spacePressed ? "cursor-grab" : ""}`}
+                    className={`relative h-[min(68vh,720px)] min-h-[360px] rounded-xl border border-border bg-transparent ${viewport.scrollClassName} ${viewport.isPanning ? "cursor-grabbing" : viewport.spacePressed ? "cursor-grab" : ""}`}
                 >
                     <div className="relative" style={viewport.contentStyle}>
                         <div ref={viewport.stageRef} className="absolute isolate overflow-hidden rounded-lg bg-transparent select-none [backface-visibility:hidden] [contain:layout_paint] [transform:translateZ(0)]" style={viewport.stageStyle}>
@@ -278,7 +278,7 @@ export function CanvasNodeMaskEditDialog({ dataUrl, open, onClose, onConfirm }: 
                         </Button>
                     </div>
 
-                    <div className="flex items-center justify-between rounded-lg border border-black/10 px-2 py-1 dark:border-white/10">
+                    <div className="flex items-center justify-between rounded-[var(--r-lg)] border border-border px-2 py-1">
                         <Tooltip title={t("canvas.editors.undoMaskTitle")}>
                             <Button type="text" icon={<Undo2 className="size-4" />} disabled={!historySize} aria-label={t("canvas.editors.undoMask")} onClick={undoMask} />
                         </Tooltip>

@@ -49,14 +49,22 @@ export function getAntThemeConfig(dark: boolean): ThemeConfig {
             borderRadius: 8,
             borderRadiusSM: 6,
             borderRadiusLG: 12,
+            // 密度：控件高度只允许 28 / 32 / 36 三档（HANDOFF T2）。
+            // SM 是画布面板里的紧凑控件，MD 是设置页常规控件，LG 是主操作。
             controlHeight: 32,
-            controlHeightSM: 26,
-            controlHeightLG: 40,
+            controlHeightSM: 28,
+            controlHeightLG: 36,
             fontSize: 14,
             fontSizeSM: 12,
             fontSizeLG: 16,
             lineHeight: 1.5715,
+            // 动效：150ms ease，无弹跳（antd 默认 ease-in-out + 0.2s）。
+            motionDurationFast: "0.1s",
             motionDurationMid: "0.15s",
+            motionDurationSlow: "0.15s",
+            motionEaseInOut: "ease",
+            motionEaseOut: "ease",
+            motionEaseInOutCirc: "ease",
         },
         components: {
             Button: {

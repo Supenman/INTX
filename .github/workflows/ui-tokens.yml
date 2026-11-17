@@ -1,0 +1,37 @@
+name: Design Token Check
+
+# 设计令牌收口门禁。
+# 背景：stone / slate / gray 与裸 text-[Npx] 混着写，明暗主题下表现不一致；
+# tsc / 单测 / 构建都抓不到。基线见 web/scripts/check-tokens.baseline.json，
+# 只允许降低，不允许增加。
+# 纯静态扫描，不需要装依赖和浏览器。
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - "web/src/**"
+      - "web/scripts/check-tokens.mjs"
+      - "web/scripts/check-tokens.baseline.json"
+      - ".github/workflows/ui-tokens.yml"
+  pull_request:
+    paths:
+      - "web/src/**"
+      - "web/scripts/check-tokens.mjs"
+      - "web/scripts/check-tokens.baseline.json"
+
+jobs:
+  tokens:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check hardcoded neutral colors / bare sizes
+        run: node scripts/check-tokens.mjs
