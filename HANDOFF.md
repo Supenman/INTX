@@ -48,3 +48,30 @@
 - 门禁：tsc 0 错；`vitest run src` 758/758（新增 `save-file.test.ts` 6 例）；boundaries / tokens 119 / overflow 三档 / `vite build` 全过；`cargo check` 通过。
 - **注意**：本地同步副本没有 `web/src-tauri/icons`（二进制没同步过来），`generate_context!` 会因此编译失败。验证时临时生成了占位图标，跑通后已删除；仓库里请用原有图标，别把占位图提交。
 - **未验证**：真实 Windows 保存对话框、只读目录报错文案、安装包内落盘（安装包尚未构建）。
+
+## M3.2 核查结论（**未动任何代码**，供接手方直接采用）
+
+方案的 M3.2 写的是「参考 OpenDirector 的 AssistantPanel / AssistantConversations / AssistantPickers / AssistantLinkInfo，实现会话 / 引用 / 痕迹」。**核查结论：这三块在当前 opencode 单车道面板里都已经接线可用，不是「半个」。**旧版交接文档写的「M3.2 半个、无会话/引用面板」是过时的，别照它判断。
+
+逐项对照（均在 `web/src/`，已核实是真接线、不是死代码）：
+
+| 方案要求 | 当前实现 | 位置 |
+|---|---|---|
+| 会话（新建/恢复/删除/切换） | `AgentHistoryView` 真实渲染在 `history` tab，接 opencode thread API | `components/agent/agent-history-view.tsx`、`opencode-agent-panel.tsx:552` |
+| 引用（@提及画布节点） | `canvasReferences` 进入 composer 可提交判定与发送请求，输入框有内联 token 解析、引用预览卡 | `agent-chat-composer.tsx:59`、`agent-chat-prompt-input.tsx`、`agent-canvas-reference-preview.tsx` |
+| 痕迹（来源/链接/工具） | `Streamdown` 渲染 + `linkSafety` 外链确认弹窗 `AgentLinkModal`；工具调用卡、事件日志 tab | `agent-chat-message.tsx:18/26`、`agent-log-view.tsx` |
+| 权限/费用确认 | 三档 `auto`/`confirm` + `planAgentOps` + 费用/破坏性判定 + 确认卡 | `lib/canvas/agent-permissions.ts`、`components/canvas/agent-confirm-dialog.tsx` |
+
+**真正缺的只有两件**（OpenDirector 的 `AssistantConversations` 有、当前 history 列表没有）：
+1. 会话**搜索**（按标题过滤）
+2. 会话**重命名**
+
+### 重要警告
+
+**不要机械移植 OpenDirector 那四个组件。** 它们依赖本项目根本没有的 backend/chat 服务、多模型路由和 citation 协议；照搬会造出一套与现有 opencode 面板并行、无法运行的死代码，违反 AGENTS.md「不做重复建设、最少行数」。
+
+正确做法：在 `agent-history-view.tsx` 上增量补「搜索 + 重命名」，然后逐项端到端验证上表四块，把验证步骤写进 `pending-test`。
+
+### 参考源码位置
+
+OpenDirector 源码此前被我解压在沙箱 `/root/.codebuddy/artifact/<session>/opendirector/OpenDirector-main/`（`src/canvas/Assistant*.tsx`）。**该目录是沙箱临时目录，不保证持久**；接手方若需要，请让用户重新提供，不要去找旧路径。
