@@ -1,14 +1,30 @@
 import type { ReactNode } from "react";
-import { Group, Ungroup } from "lucide-react";
+import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceAround, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceAround, Group, Ungroup } from "lucide-react";
 import { Tooltip } from "antd";
 import { useTranslation } from "react-i18next";
 
 import { canvasThemes } from "@/lib/canvas-theme";
 import { nodeBounds } from "@/lib/canvas/canvas-node-geometry";
+import type { AlignAxis, DistributeAxis } from "@/lib/canvas/canvas-align";
 import { useThemeStore } from "@/stores/use-theme-store";
 import type { CanvasNodeData, ViewportTransform } from "@/types/canvas";
 
 const SELECTION_PAD = 14;
+
+/** 图标选型说明：左右的「线」在图标的哪一侧决定读法，和 CSS 里 left/right 一致。 */
+const ALIGN_ITEMS: ReadonlyArray<{ axis: AlignAxis; icon: ReactNode; labelKey: string }> = [
+    { axis: "left", icon: <AlignStartVertical className="size-4" />, labelKey: "canvas.nodeToolbar.alignLeft" },
+    { axis: "center-x", icon: <AlignCenterVertical className="size-4" />, labelKey: "canvas.nodeToolbar.alignCenterX" },
+    { axis: "right", icon: <AlignEndVertical className="size-4" />, labelKey: "canvas.nodeToolbar.alignRight" },
+    { axis: "top", icon: <AlignStartHorizontal className="size-4" />, labelKey: "canvas.nodeToolbar.alignTop" },
+    { axis: "center-y", icon: <AlignCenterHorizontal className="size-4" />, labelKey: "canvas.nodeToolbar.alignCenterY" },
+    { axis: "bottom", icon: <AlignEndHorizontal className="size-4" />, labelKey: "canvas.nodeToolbar.alignBottom" },
+];
+
+const DISTRIBUTE_ITEMS: ReadonlyArray<{ axis: DistributeAxis; icon: ReactNode; labelKey: string }> = [
+    { axis: "horizontal", icon: <AlignHorizontalSpaceAround className="size-4" />, labelKey: "canvas.nodeToolbar.distributeHorizontal" },
+    { axis: "vertical", icon: <AlignVerticalSpaceAround className="size-4" />, labelKey: "canvas.nodeToolbar.distributeVertical" },
+];
 
 export function CanvasSelectionToolbar({
     nodes,
@@ -18,6 +34,8 @@ export function CanvasSelectionToolbar({
     canUngroup,
     onGroup,
     onUngroup,
+    onAlign,
+    onDistribute,
 }: {
     nodes: CanvasNodeData[];
     viewport: ViewportTransform;
@@ -26,6 +44,8 @@ export function CanvasSelectionToolbar({
     canUngroup: boolean;
     onGroup: () => void;
     onUngroup: () => void;
+    onAlign: (axis: AlignAxis) => void;
+    onDistribute: (axis: DistributeAxis) => void;
 }) {
     const { t } = useTranslation();
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
@@ -36,7 +56,10 @@ export function CanvasSelectionToolbar({
     const top = viewport.y + bounds.top * viewport.k - SELECTION_PAD;
     const width = (bounds.right - bounds.left) * viewport.k + SELECTION_PAD * 2;
     const height = (bounds.bottom - bounds.top) * viewport.k + SELECTION_PAD * 2;
-    const showActions = showToolbar && (canGroup || canUngroup);
+    // 对齐/分布不再依赖「能不能打组」：之前只有 canGroup 时才出浮栏，于是选中两个
+    // 已经同组的节点、或全是分组时，浮栏整个消失。对齐需要的是「至少两个节点」。
+    const showActions = showToolbar;
+    const canDistribute = nodes.length >= 3;
 
     return (
         <>
@@ -63,11 +86,45 @@ export function CanvasSelectionToolbar({
                     onMouseDown={(event) => event.stopPropagation()}
                     onPointerDown={(event) => event.stopPropagation()}
                 >
+                    {ALIGN_ITEMS.map((item) => (
+                        <SelectionIconAction key={item.axis} title={t(item.labelKey)} icon={item.icon} onClick={() => onAlign(item.axis)} />
+                    ))}
+                    <Divider />
+                    {DISTRIBUTE_ITEMS.map((item) => (
+                        <SelectionIconAction
+                            key={item.axis}
+                            title={t(item.labelKey)}
+                            icon={item.icon}
+                            disabled={!canDistribute}
+                            onClick={() => onDistribute(item.axis)}
+                        />
+                    ))}
+                    {canGroup || canUngroup ? <Divider /> : null}
                     {canGroup ? <SelectionAction title={t("canvas.nodeToolbar.groupTitle")} label={t("canvas.nodeToolbar.group")} icon={<Group className="size-4" />} onClick={onGroup} /> : null}
                     {canUngroup ? <SelectionAction title={t("canvas.nodeToolbar.ungroupTitle")} label={t("canvas.nodeToolbar.ungroup")} icon={<Ungroup className="size-4" />} onClick={onUngroup} /> : null}
                 </div>
             ) : null}
         </>
+    );
+}
+
+function Divider() {
+    return <span className="mx-1 h-5 w-px shrink-0 bg-black/10" />;
+}
+
+function SelectionIconAction({ title, icon, onClick, disabled = false }: { title: string; icon: ReactNode; onClick: () => void; disabled?: boolean }) {
+    return (
+        <Tooltip title={title} placement="top" mouseEnterDelay={0.2} color="#ffffff" styles={{ root: { color: "#242529", boxShadow: "0 8px 24px rgba(15,23,42,.16)", fontSize: 13, fontWeight: 500 } }}>
+            <button
+                type="button"
+                className="group relative flex h-12 items-center px-0.5 disabled:cursor-not-allowed disabled:opacity-35"
+                onClick={onClick}
+                disabled={disabled}
+                aria-label={title}
+            >
+                <span className="flex size-9 items-center justify-center rounded-lg transition group-hover:bg-[#f0f0f1] group-disabled:group-hover:bg-transparent">{icon}</span>
+            </button>
+        </Tooltip>
     );
 }
 

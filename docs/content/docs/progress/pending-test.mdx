@@ -47,6 +47,28 @@ Root cause: the front end called `invoke("read_agent_config")` while the Rust si
 **Not verified**: the release embedded build (a bare `cargo build --release` panics without `custom-protocol`; use `pnpm tauri:build`); Windows/macOS.
 
 
+## Selection toolbar: align and distribute (needs one real-device pass)
+
+The pure functions are covered by 19 cases in `src/lib/canvas/canvas-align.test.ts`, plus three deliberate breakages. In the Linux sandbox only the rendering and geometry were confirmed.
+
+| Item | Sandbox result |
+|---|---|
+| Six align icons appear in the multi-select toolbar | Confirmed on screenshot |
+| Distribute buttons disabled below three nodes | Not verified |
+| Node positions after clicking align | Not verified (see below) |
+
+Why it could not be clicked here: in this sandbox's WebKitGTK the canvas pointerdown works (double-click opens the create menu, toolbar buttons show hover), but button clicks, create-menu items and `Ctrl+A` do not. Rendering and pointer coordinates are correct, so the composed event sequence appears to be rejected as a non-user gesture. **Not a defect in this change**, but it also cannot be called verified.
+
+On a real device, with three nodes of different widths:
+
+1. Marquee-select or Ctrl+A to select all three.
+2. The floating bar shows "six align | two distribute | group".
+3. Click left / center-x / right / top / center-y / bottom in turn. Alignment uses the selection bounding box, not the average of node centers: with one wide and two narrow nodes, the narrow ones align to the wide node's center.
+4. With only two nodes the distribute buttons are greyed out; with three or more they keep the outer nodes fixed and equalise the gaps.
+5. Select a group as a whole and align: the group box and the nodes inside must move together.
+6. Align twice: the second click changes nothing and adds no undo entry.
+
+
 ## Native save-as (M2.5 item 3, awaiting real-device verification)
 
 - On desktop, exporting canvas projects / selected projects / side-panel nodes, exporting all assets, downloading a single asset, downloading node images or a batch, exporting task diagnostics, and exporting settings should all open the system Save dialog with the correct default name and extension — not silently drop the file into the download folder as before.

@@ -58,6 +58,7 @@ import { buildNodeMentionReferences, getGroupResourceNodes, isCanvasReferenceNod
 import { exportCanvasProjects } from "@/lib/canvas/canvas-export";
 import { applyNodeConfigPatch, audioMetadata, buildAudioGenerationMetadata, buildImageGenerationMetadata, createCanvasNode, imageMetadata, videoMetadata } from "@/lib/canvas/canvas-node-factory";
 import { applyGroupSelection, applyUngroupSelection, canGroupSelectedNodes, canUngroupSelectedNodes, collectGroupMemberNodes, findContainingGroupId, findGroupDropTarget, focusViewportForNode, getConnectionTargetAnchor, getGroupWrapRect, normalizeConnection, snapNodesIntoGroup } from "@/lib/canvas/canvas-node-geometry";
+import { alignNodes, distributeNodes, type AlignAxis, type DistributeAxis } from "@/lib/canvas/canvas-align";
 import {
     audioExtension,
     buildAngleLabel,
@@ -930,6 +931,21 @@ function InfiniteCanvasPage() {
         setToolbarNodeId(result.selectedIds.length === 1 ? result.selectedIds[0] : null);
         setDialogNodeId(null);
         setContextMenu(null);
+    }, []);
+
+    // 对齐与等距分布：纯计算在 lib/canvas/canvas-align.ts，这里只负责写回。
+    // 已经对齐时 alignNodes 返回原数组引用，此时不 setNodes——否则会白白产生一次
+    // 全量替换，把「点了一下但什么也没变」也记进 undo 历史。
+    const alignSelection = useCallback((axis: AlignAxis) => {
+        const next = alignNodes(nodesRef.current, selectedNodeIdsRef.current, axis);
+        if (next === nodesRef.current) return;
+        setNodes(next);
+    }, []);
+
+    const distributeSelection = useCallback((axis: DistributeAxis) => {
+        const next = distributeNodes(nodesRef.current, selectedNodeIdsRef.current, axis);
+        if (next === nodesRef.current) return;
+        setNodes(next);
     }, []);
 
     const deleteConnection = useCallback((connectionId: string) => {
@@ -3400,6 +3416,8 @@ function InfiniteCanvasPage() {
                         canUngroup={canUngroupSelection}
                         onGroup={groupSelection}
                         onUngroup={ungroupSelection}
+                        onAlign={alignSelection}
+                        onDistribute={distributeSelection}
                     />
                 ) : null}
 
