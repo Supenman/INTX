@@ -49,6 +49,16 @@ const validProjects: Validator = (v) => shape({ projects: array(project), delete
 const validAssets: Validator = (v) => shape({ assets: array(asset) })(v) && unique((v as AssetSnapshot).assets);
 
 export const snapshotCorruptData = (): StorageError => ({ code: 'corrupt_data', message: '快照存储数据损坏或字段非法，已拒绝覆盖' });
+
+/**
+ * 待写入的草稿不合 schema，与「库里已有的数据坏了」是两回事。
+ *
+ * 错误码沿用 `corrupt_data`：它是写队列和契约测试的稳定契约，拆码要动一批消费者。
+ * 但文案必须把责任说清楚——被拒绝的是这一次写入，已保存的数据没有任何改动。
+ * 共用一个「数据损坏」文案会把用户吓到以为画布已经丢了（实际上只是草稿里某个
+ * 字段非法，改回去就能继续保存）。
+ */
+export const snapshotInvalidData = (): StorageError => ({ code: 'corrupt_data', message: '本次要保存的快照数据字段非法，已拒绝写入；已保存的数据未受影响' });
 export const validRevision = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0;
 
 /** Reject JSON's silent conversions before stringify. Optional object undefined means absent,
@@ -94,8 +104,8 @@ function codec<T>(empty: () => T, valid: Validator): SnapshotCodec<T> {
     try {
       // Copy first so accessors are rejected without invoking them; schema rejects missing essentials.
       const copied = jsonCopy(value);
-      return valid(value) && valid(copied) ? ok(copied as T) : err(snapshotCorruptData());
-    } catch { return err(snapshotCorruptData()); }
+      return valid(value) && valid(copied) ? ok(copied as T) : err(snapshotInvalidData());
+    } catch { return err(snapshotInvalidData()); }
   };
   return {
     empty, copy,

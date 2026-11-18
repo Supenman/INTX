@@ -171,3 +171,23 @@ Linux 沙箱里**只验到「浮栏渲染 + 位置计算生效」**：截图确�
 Windows / macOS 安装包；Linux deb / AppImage 打包；release 下 `read_agent_config` 的完整连接链路（本机未启 canvas-agent，顶栏显示未连接）。另注：release 首次启动显示「还没有画布」，与 debug 实例的数据是否互通未查。
 
 **没有代码改动，也没有 commit / push。** 本轮只改了文档：`pending-test` 中英文 + 本文件。
+
+---
+
+## 第六轮：存储错误文案分家（2026-11-19 凌晨，B 项）
+
+### 问题
+
+上一轮用临时种子节点跑桌面端时，顶栏出现过「快门 存储数据损坏或字段非法，已拒绝覆盖」。定位后确认触发的是**写入前校验**：`codec.copy()` 发现草稿不合 schema，返回 `snapshotCorruptData()` —— 和读取时发现已存数据损坏用的是同一句话。用户看到「数据损坏」会以为画布已经丢了，实际只是本次草稿某个字段非法，**已保存的数据从未被覆盖**。
+
+### 改法（刻意只拆文案，不拆错误码）
+
+- `snapshot-storage.ts`：新增 `snapshotInvalidData()`，`copy()` 的两条失败分支改用它；`decode()` 仍用 `snapshotCorruptData()`。
+- `task-storage.ts`：新增 `invalidTaskData()`，`copyTask()` 用它；`decodeTasks()` 仍用 `corruptData()`。
+- 错误码**保持 `corrupt_data`**：它是写队列和一堆契约测试的分支契约，拆码要动十余处断言和消费者，收益却只是内部区分。文案分家已经解决用户可见的问题。真将来 UI 要按两类错误给不同操作（损坏→重新加载 / 草稿非法→修正字段），那时候再拆码不迟。
+
+### 门禁
+
+新增 `storage-error-message.test.ts` 4 例，钉住两条路径的文案不同。破坏性自检：把 `copy()` 改回 `snapshotCorruptData()`，2 例立刻变红，恢复后复绿。全量 `tsc` 0 错、`vitest run src` **781/781**、`vite build` 通过。
+
+**未提交 / 未推送**：本轮改了 `CHANGELOG.md`、`HANDOFF.md`、`snapshot-storage.ts`、`task-storage.ts` 和新增测试文件，等用户明确授权再推。

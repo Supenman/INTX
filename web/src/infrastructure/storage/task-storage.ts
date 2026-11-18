@@ -20,6 +20,9 @@ const revision = (v: unknown): v is number => typeof v === 'number' && Number.is
 
 export const corruptData = (): StorageError => ({ code: 'corrupt_data', message: '任务存储数据损坏或字段非法，已拒绝覆盖' });
 
+/** 与 snapshotInvalidData 同理：草稿不合 schema 不等于库里的数据坏了。 */
+export const invalidTaskData = (): StorageError => ({ code: 'corrupt_data', message: '本次要保存的任务数据字段非法，已拒绝写入；已保存的任务未受影响' });
+
 function isTask(v: unknown): v is Task {
   if (!record(v) || !keys(v, [
     'id', 'nodeId', 'kind', 'params', 'status', 'phase', 'upstreamProgress',
@@ -52,10 +55,10 @@ function isTask(v: unknown): v is Task {
 /** 验证完整任务，复制入参与返回值；不执行任何业务迁移。 */
 export function copyTask(task: Task): Result<Task, StorageError> {
   try {
-    if (!isTask(task)) return err(corruptData());
+    if (!isTask(task)) return err(invalidTaskData());
     return ok(JSON.parse(JSON.stringify(task)) as Task);
   } catch {
-    return err(corruptData());
+    return err(invalidTaskData());
   }
 }
 
