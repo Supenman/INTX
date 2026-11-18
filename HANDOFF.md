@@ -75,3 +75,40 @@
 ### 参考源码位置
 
 OpenDirector 源码此前被我解压在沙箱 `/root/.codebuddy/artifact/<session>/opendirector/OpenDirector-main/`（`src/canvas/Assistant*.tsx`）。**该目录是沙箱临时目录，不保证持久**；接手方若需要，请让用户重新提供，不要去找旧路径。
+
+## 第三轮：Linux 沙箱真跑桌面端（2026-11-18）
+
+这一轮没有继续推进里程碑，而是把桌面应用真正跑起来验证——因为项目最大的教训是「单测全绿 ≠ 真机正确」。
+
+### 做法
+
+`cargo build`（debug）→ 在 Xvfb `:77`（1600×1000，openbox）里启动 `target/debug/intx`。debug 构建连 `devUrl`（3000），所以同时起了 `vite dev`。
+
+**关键坑（已踩）**：`xdotool getwindowgeometry` 的 Position 是含窗口装饰的框架位置，客户区真实原点要用 `xwininfo` 的 `Absolute upper-left`。两者差 22px，足以让点击全部落空并误判成「功能不工作」。项目纪律要求「坐标必须实测」，这次是活例子。
+
+### 发现并修复的真缺陷
+
+**桌面版根本连不上本地 Agent。** 前端 `readLocalAgentConfig()` 调 `invoke("read_agent_config")`，Rust 侧从未定义这个命令（远端 `dev` 也没有）；异常被 `catch` 吞成 `null`，界面只提示「没有发现本地 Agent」——把「没实现」伪装成「没启动」。桌面界面又没有手填地址/token 的入口，所以这条路彻底断了。
+
+修复：`src-tauri/src/lib.rs` 新增 `read_agent_config`（读 `~/.infinite-canvas/canvas-agent.json`，文件缺失 / JSON 坏 / 字段为空一律返回 `None`），注册到 `invoke_handler`；`Cargo.toml` 加 `serde` + `serde_json`。
+
+**对照实测**：修复前顶栏「OpenCode 未连接」；修复后「● OpenCode 已连接」，历史标签能拉到会话。
+
+### 顺带验掉的
+
+- **M2.5-③ 三态**（Linux）：Cancel 静默无提示；保存到 `/tmp` 提示「已保存到 <路径>」且文件 1934 字节真实落盘；保存到 `/proc` 提示「保存失败，请重试或换个位置」，应用不崩。
+- **导出不含 Key**：`config.apiKey` / `channels[].apiKey` / `webdav.password` 均为 `""`，全文无 `sk-`。
+- **M3.2 搜索 + 重命名**：3 条会话 → 搜「雨夜」筛到 1 条；铅笔改名后 UI 即时更新且 opencode 侧持久化（PATCH 200）。
+- **时间戳**：显示 `2026/11/18 20:31:44`，毫秒 bug 没复发。
+- **持久化**：新建画布后重启应用仍在。
+
+### 仍未验
+
+- **release 内嵌产物**：裸 `cargo build --release` 会因缺 `custom-protocol` panic（`lib.rs` 启动检查），必须 `pnpm tauri:build`。本轮只验了 debug 连 dev server。
+- Windows / macOS 的对话框与路径行为。
+- 真实厂商请求（视频竖切 M2.6 仍需要你本人真机 + 真实 Key）。
+
+### 环境备注
+
+- 本地同步副本没有 `web/src-tauri/icons`（二进制未同步），构建前需临时生成占位图标，**跑通后已删除，不要提交占位图**。
+- `pkill -f "target/debug/intx"` 会匹配到自己的命令行并把当前 shell 一起杀掉；杀进程用 PID 或更精确的模式。

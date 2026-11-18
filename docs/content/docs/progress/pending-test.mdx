@@ -5,6 +5,48 @@ description: Implemented changes that still need manual verification
 
 # Pending Tests
 
+## Desktop measured in a Linux sandbox (2026-11-18, by WorkBuddy)
+
+Environment: Ubuntu 22.04 + Xvfb `:77` 1600×1000 + openbox; GTK 3.24.41, WebKitGTK 2.52.6; `cargo build` (debug against `vite dev` on 3000, not the embedded bundle); local `canvas-agent 0.6.0` on `127.0.0.1:17371`, with the opencode it spawns on `127.0.0.1:4096`. **No vendor requests were sent and no real key was entered.**
+
+### 1. Desktop shell and rendering
+
+- First launch gives a 1440×900 window; the settings page, canvas list, canvas editor and Agent panel all open with the dark theme, no white blocks, no misalignment, no blank screen.
+- After creating a canvas and restarting the app, "无限画布 1" is still listed (IndexedDB persistence works across processes).
+
+### 2. Native save-as, M2.5 item 3 (three states + no keys)
+
+Clicking "配置 → 导出配置" opens the GTK "Save File" dialog with the default name `infinite-canvas-config.json` and a `JSON` filter.
+
+| Action | Measured result |
+| --- | --- |
+| Cancel | Dialog closes with **no "saved" toast** (the old file-saver path wrongly reported success) |
+| Save to `/tmp/intx-config-test2.json` | Toast "已保存到 /tmp/intx-config-test2.json"; a real 1934-byte file appears |
+| Save to `/proc/intx-should-fail.json` | Toast "保存失败，请重试或换个位置"; no crash, no file created |
+
+Exported content: `config.apiKey` and `channels[].apiKey` are `""`, `webdav.password` is `""`, and no `sk-` prefix appears anywhere. This matches the explicit blanking in `config-file.ts:16-17` (not just "was never filled in").
+
+**Not verified**: the Windows save dialog and read-only error wording; paths from an installed (non-dev) build.
+
+### 3. M3.2 conversation search and rename (`639eb29`)
+
+Created three sessions through the local opencode API and renamed two (no model calls).
+
+- After refresh the list shows "3 条历史" with timestamps like `2026/11/18 20:31:44` (the millisecond-parsing fix holds; no more "58849 year").
+- Typing "雨夜" in the search box reduces the count to "1 条历史", leaving only "雨夜街头 · 第一镜".
+- Clicking the pencil opens an inline input prefilled with the current title; renaming to "雨夜街头 · 改名校验" updates the UI immediately, and `GET /session` confirms persistence (`PATCH /session/{id}` returned 200).
+- Clicking the row body resumes the conversation and switches to the chat tab, without interfering with rename.
+
+### 4. Desktop auto-discovery of the local agent (fixed this round)
+
+Before: clicking "连接" gave "连接失败 · 没有发现本地 Agent" although the agent was listening on 17371.
+After: restarting the app shows "● OpenCode 已连接" in the top bar and the history tab loads.
+
+Root cause: the front end called `invoke("read_agent_config")` while the Rust side never defined that command, so the error was swallowed into null.
+
+**Not verified**: the release embedded build (a bare `cargo build --release` panics without `custom-protocol`; use `pnpm tauri:build`); Windows/macOS.
+
+
 ## Native save-as (M2.5 item 3, awaiting real-device verification)
 
 - On desktop, exporting canvas projects / selected projects / side-panel nodes, exporting all assets, downloading a single asset, downloading node images or a batch, exporting task diagnostics, and exporting settings should all open the system Save dialog with the correct default name and extension — not silently drop the file into the download folder as before.

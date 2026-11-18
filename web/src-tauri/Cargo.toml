@@ -25,6 +25,9 @@ tauri-plugin-http = "2.5.0"
 # 里只给命令权限、不静态放开整个磁盘。
 tauri-plugin-dialog = "2.6.0"
 tauri-plugin-fs = "2.4.0"
+# read_agent_config 要把 Agent 写下的 { url, token } 序列化给前端。
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 # 打包走 `pnpm tauri:build`：CLI 会传 `--features tauri/custom-protocol`，
 # 等价于打开这个 feature。裸 `cargo build --release` 不会，运行时 is_dev()
