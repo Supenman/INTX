@@ -44,8 +44,23 @@ After: restarting the app shows "● OpenCode 已连接" in the top bar and the 
 
 Root cause: the front end called `invoke("read_agent_config")` while the Rust side never defined that command, so the error was swallowed into null.
 
-**Not verified**: the release embedded build (a bare `cargo build --release` panics without `custom-protocol`; use `pnpm tauri:build`); Windows/macOS.
+**Not verified**: Windows/macOS installers (see remaining items in the release check below).
 
+### 5. Release embedded assets (verified in the Linux sandbox)
+
+A bare `cargo build --release` panics without `custom-protocol` (the startup guard at `lib.rs:49`); the correct path is `pnpm tauri:build`. `--no-bundle` skips Linux packaging and its linuxdeploy dependency.
+
+| Check | Result |
+|---|---|
+| `pnpm tauri:build --no-bundle` | Exit 0; vite build ~13s + release compile ~41s |
+| Port 3000 before/after build | No listener at any point |
+| Run `target/release/intx` directly | Shows the "无限画布" project list with v0.20.0 in the top bar, not a connection-error page |
+| Startup guard | `!debug_assertions && is_dev()` did not panic; runtime log empty |
+| Embedded assets | Binary contains `index-W_ZgPg6h.js`, `index-DUD4ZT50.js`, `config.js`, matching `dist/assets` |
+
+The workspace has no `src-tauri/icons`, so five placeholder icons were generated before compiling (32x32.png / 128x128.png / 128x128@2x.png / icon.ico / icon.icns) and deleted afterwards; none were committed.
+
+**Still not verified**: Windows/macOS installers; Linux deb / AppImage packaging; the full `read_agent_config` connection chain in release mode (no canvas-agent was running, so the top bar showed disconnected).
 
 ## Selection toolbar: align and distribute (needs one real-device pass)
 

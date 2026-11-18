@@ -149,3 +149,25 @@ Linux 沙箱里**只验到「浮栏渲染 + 位置计算生效」**：截图确�
 ### 顺带发现（未修，留待判断）
 
 桌面端跑起来后顶栏出现过一条 `快门 存储数据损坏或字段非法，已拒绝覆盖 重试本地保存`。它出现时是**临时种子节点**写进画布的那次运行，疑似与「非持久化结构的节点直接 `setNodes` 进画布」有关；清掉临时代码后常规路径没再复现。**未定位、未修**——下次真机能复现的话，从 `createProjectWriteQueue` 的校验分支往上查。
+
+---
+
+## 第五轮：release 内嵌产物验收（2026-11-19 凌晨）
+
+用户选了待办清单里的 A 项。目标是把「发版能不能成」的最后一块自测门过掉。
+
+### 结论
+
+`pnpm tauri:build --no-bundle` 退出码 0，产出的 `src-tauri/target/release/intx` 在**没有 vite dev server** 的情况下直接启动，渲染出完整的「无限画布」首页（顶栏 v0.20.0），不是连接失败页。3000 端口全程无监听；运行日志为空，`lib.rs:49` 的 `!debug_assertions && is_dev()` panic 未触发；二进制里能查到 `dist/assets` 的实际文件名（`index-W_ZgPg6h.js` 等）。内嵌产物成立。
+
+### 做法与坑
+
+- 工作区（解包副本，非 git checkout）不含 `src-tauri/icons`，而 `tauri.conf.json` 引用了它，`generate_context!` 编译必需。用 PIL 临时生成 5 个占位图标编译，验证后已删除、不提交。
+- Xvfb `:77` 在上轮结束后已停，只留下陈旧的 `/tmp/.X11-unix/X77` socket；重启 Xvfb + openbox 后正常。
+- `--no-bundle` 是刻意的：Linux 的 deb / AppImage 打包依赖 linuxdeploy 工具链，本沙箱没装，跳过不影响「内嵌资源是否生效」这个判断。
+
+### 仍未验证（已写进 pending-test）
+
+Windows / macOS 安装包；Linux deb / AppImage 打包；release 下 `read_agent_config` 的完整连接链路（本机未启 canvas-agent，顶栏显示未连接）。另注：release 首次启动显示「还没有画布」，与 debug 实例的数据是否互通未查。
+
+**没有代码改动，也没有 commit / push。** 本轮只改了文档：`pending-test` 中英文 + 本文件。

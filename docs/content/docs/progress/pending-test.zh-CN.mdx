@@ -44,8 +44,23 @@ description: 当前版本已实现但仍需人工验证的变更项
 
 根因：前端 `invoke("read_agent_config")` 在 Rust 侧没有对应命令，异常被吞成 null。
 
-**未验证**：release 内嵌产物（裸 `cargo build --release` 会因缺 `custom-protocol` panic，需 `pnpm tauri:build`）；Windows/macOS。
+**未验证**：Windows/macOS 安装包（见下一节 release 验收的剩余项）。
 
+### 5. release 内嵌产物（Linux 沙箱已验）
+
+裸 `cargo build --release` 缺 `custom-protocol` 会 panic（`lib.rs:49` 的启动检查），正确路径是 `pnpm tauri:build`。用 `--no-bundle` 跳过 Linux 打包，避开 linuxdeploy 工具链依赖。
+
+| 检查 | 结果 |
+|---|---|
+| `pnpm tauri:build --no-bundle` | 退出码 0；vite build 约 13s + release 编译约 41s ✅ |
+| 构建前后 3000 端口 | 全程无监听 ✅ |
+| 直接运行 `target/release/intx` | 显示「无限画布」项目列表 + 顶栏 v0.20.0，不是连接失败页 ✅ |
+| `lib.rs` 启动检查 | `!debug_assertions && is_dev()` 的 panic 未触发，运行日志为空 ✅ |
+| 内嵌资产 | 二进制里查到 `index-W_ZgPg6h.js`、`index-DUD4ZT50.js`、`config.js`，与 `dist/assets` 一致 ✅ |
+
+工作区不含 `src-tauri/icons`，编译前临时生成了 5 个占位图标（32x32.png / 128x128.png / 128x128@2x.png / icon.ico / icon.icns），验证后已删除、不提交。
+
+**仍未验证**：Windows/macOS 安装包；Linux deb / AppImage 打包；release 下 `read_agent_config` 的完整连接链路（本机未启动 canvas-agent，顶栏显示未连接）。
 
 ## 选区浮栏对齐与等距分布（待用户真机点一遍）
 
