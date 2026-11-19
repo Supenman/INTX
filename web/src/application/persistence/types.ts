@@ -5,6 +5,7 @@ import type { CanvasAssistantSession, CanvasConnection, CanvasNodeData, Viewport
 export type CanvasProject = {
   id: string;
   title: string;
+  folder?: string;
   createdAt: string;
   updatedAt: string;
   nodes: CanvasNodeData[];
@@ -15,7 +16,7 @@ export type CanvasProject = {
   showImageInfo: boolean;
   viewport: ViewportTransform;
 };
-export type CanvasDeletedProject = { id: string; deletedAt: string };
+export type CanvasDeletedProject = { id: string; deletedAt: string; project?: CanvasProject; purged?: boolean };
 
 export type AssetKind = 'text' | 'image' | 'video';
 export type TextAsset = AssetBase<'text'> & { data: { content: string } };

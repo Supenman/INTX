@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { BookOpen, Bot, Download, Film, History, Home, Images, Menu, PanelLeftClose, PanelLeftOpen, Plus, Redo2, Trash2, Undo2, Upload } from "lucide-react";
+import { BookOpen, Bot, Clapperboard, Download, Film, History, Home, Images, Menu, PanelLeftClose, PanelLeftOpen, Plus, Redo2, Trash2, Undo2, Upload } from "lucide-react";
 import { Button, Dropdown, Modal, Tooltip } from "antd";
 import { useTranslation } from "react-i18next";
 
@@ -32,6 +32,7 @@ export function CanvasTopBar({
     canPreviewChain,
     onPreviewChain,
     onOpenGenerationHistory,
+    onOpenStoryboard,
     onOpenTimeline,
     onOpenPlugins,
     onUndo,
@@ -61,6 +62,7 @@ export function CanvasTopBar({
     canPreviewChain: boolean;
     onPreviewChain: () => void;
     onOpenGenerationHistory: () => void;
+    onOpenStoryboard: () => void;
     onOpenTimeline: () => void;
     onOpenPlugins: () => void;
     onUndo: () => void;
@@ -118,6 +120,7 @@ export function CanvasTopBar({
                                 { key: "insert-workflow", icon: <Upload className="size-4" />, label: t("canvas.workflow.insert"), onClick: onInsertWorkflow },
                                 { key: "preview-chain", label: t("canvas.chain.preview"), disabled: !canPreviewChain, onClick: onPreviewChain },
                                 { key: "generation-history", icon: <History className="size-4" />, label: t("canvas.generationHistory.entry"), onClick: onOpenGenerationHistory },
+                                { key: "storyboard", icon: <Clapperboard className="size-4" />, label: t("canvas.storyboard.entry"), onClick: onOpenStoryboard },
                                 { key: "timeline", icon: <Film className="size-4" />, label: t("canvas.timeline.entry"), onClick: onOpenTimeline },
                                 { type: "divider" },
                                 { key: "undo", disabled: !canUndo, icon: <Undo2 className="size-4" />, label: <MenuLabel text={t("canvas.undo")} shortcut="⌘ Z" />, onClick: onUndo },

@@ -24,7 +24,7 @@ import { cropDataUrl, splitDataUrl, upscaleDataUrl } from "@/lib/canvas/canvas-i
 import { fitNodeSize, nodeSizeFromRatio } from "@/lib/canvas/canvas-node-size";
 import { resolveImagePreset, type ImagePresetId } from "@/lib/canvas/image-presets";
 import { estimateGenerationCost } from "@/domain/cost";
-import { chainStepDisposition, orderUpstreamChain } from "@/domain/node/chain";
+import { chainStepDisposition, orderUpstreamChains } from "@/domain/node/chain";
 import { type AgentPlanVerdict } from "@/lib/canvas/agent-permissions";
 import { captureVideoFrame, type VideoFramePosition } from "@/lib/canvas/canvas-video-frame";
 import { extractVideoAudio } from "@/lib/canvas/extract-video-audio";
@@ -50,6 +50,7 @@ import { CanvasToolbar } from "@/components/canvas/canvas-toolbar";
 import { AssetPickerModal, type InsertAssetPayload } from "@/components/canvas/asset-picker-modal";
 import { CanvasGenerationHistoryModal } from "@/components/canvas/canvas-generation-history-modal";
 import { CanvasTimelineDialog } from "@/components/canvas/canvas-timeline-dialog";
+import { CanvasStoryboardDialog } from "@/components/canvas/canvas-storyboard-dialog";
 import { CanvasSidePanel } from "@/components/canvas/canvas-side-panel";
 import { CanvasZoomControls } from "@/components/canvas/canvas-zoom-controls";
 import { useAgentStore } from "@/stores/use-agent-store";
@@ -62,6 +63,7 @@ import { usePluginHost } from "@/pages/canvas/hooks/use-plugin-host";
 import { buildNodeMentionReferences, getGroupResourceNodes, isCanvasReferenceNode, type CanvasResourceReference } from "@/lib/canvas/canvas-resource-references";
 import { exportCanvasProjects } from "@/lib/canvas/canvas-export";
 import { placeCanvasSubgraph, readCanvasWorkflow, selectWorkflow, type CanvasSubgraph } from "@/lib/canvas/canvas-workflow";
+import { createStoryboardShotGraph } from "@/lib/canvas/storyboard";
 import { applyNodeConfigPatch, audioMetadata, buildAudioGenerationMetadata, buildImageGenerationMetadata, createCanvasNode, imageMetadata, videoMetadata } from "@/lib/canvas/canvas-node-factory";
 import { applyGroupSelection, applyUngroupSelection, canGroupSelectedNodes, canUngroupSelectedNodes, collectGroupMemberNodes, findContainingGroupId, findGroupDropTarget, focusViewportForNode, getConnectionTargetAnchor, getGroupWrapRect, normalizeConnection, snapNodesIntoGroup } from "@/lib/canvas/canvas-node-geometry";
 import { alignNodes, distributeNodes, type AlignAxis, type DistributeAxis } from "@/lib/canvas/canvas-align";
@@ -259,6 +261,7 @@ function InfiniteCanvasPage() {
     const [runningNodeId, setRunningNodeId] = useState<string | null>(null);
     const [isMiniMapOpen, setIsMiniMapOpen] = useState(false);
     const [timelineOpen, setTimelineOpen] = useState(false);
+    const [storyboardOpen, setStoryboardOpen] = useState(false);
     const [backgroundMode, setBackgroundMode] = useState<CanvasBackgroundMode>("lines");
     const [showImageInfo, setShowImageInfo] = useState(false);
     const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
@@ -775,6 +778,8 @@ function InfiniteCanvasPage() {
     const previewContent = previewImageId ? previewNode?.metadata?.images?.find((image) => image.id === previewImageId)?.content : previewNode?.metadata?.content;
     const hasMultipleSelectedNodes = selectedNodeIds.size > 1;
     const selectedNodes = useMemo(() => nodes.filter((node) => selectedNodeIds.has(node.id)), [nodes, selectedNodeIds]);
+    const selectedStoryboardReferences = useMemo(() => selectedNodes.filter((node) => node.type === CanvasNodeType.Image && node.metadata?.status === NODE_STATUS_SUCCESS && node.metadata.content), [selectedNodes]);
+    const storyboardInitialScript = useMemo(() => selectedNodes.filter((node) => node.type === CanvasNodeType.Text).map((node) => node.metadata?.content || node.metadata?.prompt || "").filter(Boolean).join("\n"), [selectedNodes]);
     const canGroupSelection = canGroupSelectedNodes(selectedNodeIds, nodes);
     const canUngroupSelection = canUngroupSelectedNodes(selectedNodeIds, nodes);
     const activeNodeId = hasMultipleSelectedNodes ? null : hoveredNodeId || (selectedNodeIds.size === 1 ? Array.from(selectedNodeIds)[0] : null);
@@ -1115,11 +1120,11 @@ function InfiniteCanvasPage() {
     const previewChain = async () => {
         if (chainRunRef.current) return;
         const ids = selectedNodeIdsRef.current;
-        const endId = ids.values().next().value;
-        if (ids.size !== 1 || !endId) return;
+        const endIds = nodesRef.current.filter((node) => ids.has(node.id)).map((node) => node.id);
+        if (!endIds.length) return;
         const path = window.location.pathname;
         await loadTaskLog();
-        if (window.location.pathname !== path || !selectedNodeIdsRef.current.has(endId)) return;
+        if (window.location.pathname !== path || endIds.some((id) => !selectedNodeIdsRef.current.has(id))) return;
         const log = useTaskLogStore.getState();
         if (log.loadError || !log.hydrated) {
             message.error(t("canvas.chain.ledgerUnavailable"));
@@ -1133,7 +1138,7 @@ function InfiniteCanvasPage() {
             ...currentNodes.flatMap((node) => node.metadata?.groupId && groups.has(node.metadata.groupId)
                 ? [{ fromNodeId: node.id, toNodeId: node.metadata.groupId }] : []),
         ];
-        const chain = orderUpstreamChain(currentNodes, edges, endId);
+        const chain = orderUpstreamChains(currentNodes, edges, endIds);
         if (!chain.ok) {
             message.warning(t(`canvas.chain.${chain.issue}`));
             return;
@@ -1314,6 +1319,19 @@ function InfiniteCanvasPage() {
                 }
             },
         });
+    };
+
+    const createStoryboard = (script: string) => {
+        const references = nodesRef.current.filter((node) => selectedNodeIdsRef.current.has(node.id) && node.type === CanvasNodeType.Image && node.metadata?.status === NODE_STATUS_SUCCESS && node.metadata.content);
+        const graph = createStoryboardShotGraph(script, references, nodesRef.current, getCanvasCenter(), size);
+        if (!graph.nodes.length) return;
+        setNodes((previous) => [...previous, ...graph.nodes]);
+        setConnections((previous) => [...previous, ...graph.connections]);
+        setSelectedNodeIds(new Set(graph.nodes.map((node) => node.id)));
+        setSelectedConnectionId(null);
+        setViewport(graph.viewport);
+        setStoryboardOpen(false);
+        message.success(t("canvas.storyboard.created", { count: graph.nodes.length }));
     };
 
     const resetViewport = useCallback(() => {
@@ -3499,9 +3517,10 @@ function InfiniteCanvasPage() {
                     canSaveWorkflow={selectedNodeIds.size > 0}
                     onSaveWorkflow={() => void saveWorkflow()}
                     onInsertWorkflow={() => workflowInputRef.current?.click()}
-                    canPreviewChain={selectedNodeIds.size === 1}
+                    canPreviewChain={selectedNodeIds.size > 0}
                     onPreviewChain={() => void previewChain()}
                     onOpenGenerationHistory={() => setGenerationHistoryOpen(true)}
+                    onOpenStoryboard={() => setStoryboardOpen(true)}
                     onOpenTimeline={() => setTimelineOpen(true)}
                     onOpenPlugins={() => setPluginManagerOpen(true)}
                     onUndo={undoCanvas}
@@ -3509,6 +3528,14 @@ function InfiniteCanvasPage() {
                     agentOpen={agentPanelOpen}
                     compactAgentStatus={{ connected: localAgentConnected, enabled: localAgentEnabled, activity: localAgentActivity }}
                     onToggleAgent={toggleAgentPanel}
+                />
+
+                <CanvasStoryboardDialog
+                    open={storyboardOpen}
+                    initialScript={storyboardInitialScript}
+                    referenceCount={selectedStoryboardReferences.length}
+                    onClose={() => setStoryboardOpen(false)}
+                    onCreate={createStoryboard}
                 />
 
                 <CanvasTimelineDialog

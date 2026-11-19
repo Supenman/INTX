@@ -23,8 +23,11 @@ type CanvasStore = ProjectSnapshot & {
     openProject: (id: string) => CanvasProject | null;
     renameProject: (id: string, title: string) => void;
     deleteProjects: (ids: string[]) => void;
+    restoreDeletedProjects: (ids: string[]) => void;
+    permanentlyDeleteProjects: (ids: string[]) => void;
+    moveProjectsToFolder: (ids: string[], folder?: string) => void;
     replaceProjects: (projects: CanvasProject[], deletedProjects?: CanvasDeletedProject[]) => void;
-    updateProject: (id: string, patch: Partial<Pick<CanvasProject, "nodes" | "connections" | "chatSessions" | "activeChatId" | "backgroundMode" | "showImageInfo" | "viewport">>) => void;
+    updateProject: (id: string, patch: Partial<Pick<CanvasProject, "folder" | "nodes" | "connections" | "chatSessions" | "activeChatId" | "backgroundMode" | "showImageInfo" | "viewport">>) => void;
 };
 
 /** 同步动作只更新编辑草稿；flush/retrySave 成功才代表事务提交。 */
@@ -73,7 +76,7 @@ export function createCanvasStore(repository: ProjectRepository) {
             ensureReady();
             const now = new Date().toISOString();
             const project: CanvasProject = {
-                id: nanoid(), title: source.title || i18n.t("canvas.project.imported"), createdAt: source.createdAt || now, updatedAt: now,
+                id: nanoid(), title: source.title || i18n.t("canvas.project.imported"), folder: source.folder?.trim() || undefined, createdAt: source.createdAt || now, updatedAt: now,
                 nodes: source.nodes || [], connections: source.connections || [], chatSessions: source.chatSessions || [], activeChatId: source.activeChatId || null,
                 backgroundMode: source.backgroundMode || "lines", showImageInfo: source.showImageInfo || false, viewport: source.viewport || { x: 0, y: 0, k: 1 },
             };
@@ -90,11 +93,38 @@ export function createCanvasStore(repository: ProjectRepository) {
             set((state) => {
                 const now = new Date().toISOString();
                 const removing = new Set(ids);
+                const removed = state.projects.filter((project) => removing.has(project.id));
                 return {
                     projects: state.projects.filter((project) => !removing.has(project.id)),
-                    deletedProjects: [...state.deletedProjects.filter((item) => !removing.has(item.id)), ...ids.map((id) => ({ id, deletedAt: now }))],
+                    deletedProjects: [...state.deletedProjects.filter((item) => !removing.has(item.id)), ...removed.map((project) => ({ id: project.id, deletedAt: now, project }))],
                 };
             });
+        },
+        restoreDeletedProjects: (ids) => {
+            ensureReady();
+            const restoring = new Set(ids);
+            set((state) => {
+                const existing = new Set(state.projects.map((project) => project.id));
+                const restored = state.deletedProjects.flatMap((item) => item.project && restoring.has(item.id) && !existing.has(item.id)
+                    ? [{ ...item.project, updatedAt: new Date().toISOString() }]
+                    : []);
+                return {
+                    projects: [...restored, ...state.projects],
+                    deletedProjects: state.deletedProjects.filter((item) => !restoring.has(item.id)),
+                };
+            });
+        },
+        permanentlyDeleteProjects: (ids) => {
+            ensureReady();
+            const removing = new Set(ids);
+            const now = new Date().toISOString();
+            set((state) => ({ deletedProjects: state.deletedProjects.map((item) => removing.has(item.id) ? { id: item.id, deletedAt: now, purged: true } : item) }));
+        },
+        moveProjectsToFolder: (ids, folder) => {
+            ensureReady();
+            const selected = new Set(ids);
+            const normalized = folder?.trim() || undefined;
+            set((state) => ({ projects: state.projects.map((project) => selected.has(project.id) ? { ...project, folder: normalized, updatedAt: new Date().toISOString() } : project) }));
         },
         replaceProjects: (projects, deletedProjects = []) => { ensureReady(); set({ projects, deletedProjects }); },
         updateProject: (id, patch) => {

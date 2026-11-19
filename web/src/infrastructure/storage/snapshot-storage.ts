@@ -37,8 +37,8 @@ const project = shape({
   id, title: string, createdAt: string, updatedAt: string, nodes: array(node), connections: array(connection),
   chatSessions: array(session), activeChatId: (v) => v === null || string(v),
   backgroundMode: oneOf('dots', 'lines', 'blank'), showImageInfo: boolean, viewport: shape({ x: number, y: number, k: number }),
-});
-const tombstone = shape({ id, deletedAt: string });
+}, { folder: string });
+const tombstone = shape({ id, deletedAt: string }, { project, purged: boolean });
 const mediaData = (url: string) => shape({ [url]: string, width: number, height: number, bytes: number, mimeType: string }, { storageKey: string });
 const asset: Validator = (v) => record(v) && shape({
   id, kind: oneOf('text', 'image', 'video'), title: string, coverUrl: string, tags: strings, createdAt: string, updatedAt: string,

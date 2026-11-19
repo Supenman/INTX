@@ -215,7 +215,8 @@ export default {
         emptyTitle: "Results will show up here",
     },
     canvas: {
-        timeline: { entry: "Timeline", colorGrade: "Color grade", grades: { original: "Original", warm: "Warm", cool: "Cool", monochrome: "Monochrome", vivid: "Vivid", faded: "Faded" } },
+        timeline: { entry: "Timeline", colorGrade: "Color grade", playhead: "Playhead", dragShot: "Drag shot: {{name}}", dragShotHint: "Drop onto another shot to reorder", grades: { original: "Original", warm: "Warm", cool: "Cool", monochrome: "Monochrome", vivid: "Vivid", faded: "Faded" } },
+        storyboard: { entry: "Storyboard pipeline", description: "Paste or edit a shot list. Create the shots, review the total estimate, then confirm sequential generation.", placeholder: "Write one shot per line, for example:\nAt dawn, she opens the cafe door\nClose-up: a letter is waiting on the table\nRain grows heavier outside the window", lineRule: "Each non-empty line becomes one image shot. Creating shots does not call a model.", shotCount: "{{count}} shots", createShots: "Create {{count}} shot nodes", referenceCount: "The {{count}} selected successful images will be attached as references to every shot.", created: "Created {{count}} shots. Preview the generation chain to review the total cost and confirm sequential generation.", shotTitle: "Shot {{index}}" },
         generationHistory: {
             entry: "Generation history",
             title: "Generation history",
@@ -236,6 +237,10 @@ export default {
         exportSelected: "Export selected",
         deleteSelected: "Delete selected",
         deleteAll: "Delete all",
+        folderFilter: "Filter by folder",
+        allFolders: "All folders",
+        emptyFolder: "This folder has no canvases yet.",
+        moveToFolder: "Move selected to folder",
         import: "Import canvas",
         create: "New canvas",
         empty: "No canvases yet",
@@ -270,8 +275,10 @@ export default {
         project: {
             untitled: "Untitled canvas", imported: "Imported canvas",
             select: "Select {{name}}", stats: "{{nodes}} nodes · {{connections}} connections", updated: "Updated {{date}}", saveName: "Save name", cancelRename: "Cancel rename", export: "Export", rename: "Rename", delete: "Delete",
-            deleteTitle: "Delete canvases?", deleteDescription: "This will delete {{count}} canvases along with their nodes and connections.", deleteSaveFailed: "The deletion was not written locally. Retry saving.",
+            folder: "Canvas folder", addFolder: "Organize into folder", folderSaveFailed: "Folder assignment was not saved locally. Please retry saving.",
+            deleteTitle: "Move canvases to Trash?", deleteDescription: "Move {{count}} canvases to Trash. You can restore or permanently delete them there.", deleteSaveFailed: "The deletion was not written locally. Retry saving.",
         },
+        trash: { entry: "Trash ({{count}})", backToLibrary: "Back to canvases", empty: "There are no restorable canvases in Trash.", unavailable: "{{count}} older deletion records have no canvas snapshot and cannot be restored.", deletedAt: "Deleted {{date}}", restore: "Restore", restored: "Canvas restored.", permanentTitle: "Permanently delete this canvas?", permanentDescription: "“{{name}}” and its canvas snapshot will be deleted permanently and cannot be restored.", permanentDelete: "Delete permanently", permanentlyDeleted: "Canvas permanently deleted." },
         chain: { preview: "Preview generation chain", ordered: "Steps are listed upstream first. Confirm to submit them one at a time. Provider billing determines the final cost.", run: "Confirm and run", progress: "Completed {{completed}} of {{total}} steps", finished: "Completed {{count}} generation steps", stopped: "Stopped at {{title}}: {{detail}}", changed: "The canvas or its generation state changed. Preview the chain again.", busy: "Another window is running a chain on this canvas.", missingInput: "This step has no prompt or usable upstream input.", reuse: "Reuse existing content", generate: "Generation needed", blocked: "Existing task needs attention", configuration: "Missing model or channel configuration", unsupported: "Generation unavailable for this node", cycle: "The chain contains a cycle. Check the connections.", missing: "The chain references a missing node. Check the connections.", ledgerUnavailable: "The task ledger is unavailable. The chain cannot be previewed.", estimate: "Estimated subtotal {{price}}", unknown: "{{count}} steps could not be priced" },
         workflow: { save: "Save selection as workflow", insert: "Insert workflow", importFailed: "Could not insert the workflow. Check the ZIP file." },
         export: { defaultProjectName: "Infinite Canvas", defaultNodesName: "Canvas elements", item: "Element" },

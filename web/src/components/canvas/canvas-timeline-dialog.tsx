@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowDown, ArrowUp, Film, Music2, Plus, Scissors } from "lucide-react";
+import { ArrowDown, ArrowUp, Film, GripVertical, Music2, Plus, Scissors } from "lucide-react";
 import { App, Button, Modal, Select } from "antd";
 import type { CanvasNodeData } from "@/types/canvas";
 import { canvasThemes } from "@/lib/canvas-theme";
@@ -34,11 +34,29 @@ export function CanvasTimelineDialog({ open, onClose, nodes, onUpdateNode, onImp
     const [fps, setFps] = useState(24);
     const [exporting, setExporting] = useState(false);
     const [progress, setProgress] = useState(0);
+    const [playhead, setPlayhead] = useState(0);
+    const [scrubbing, setScrubbing] = useState(false);
+    const [draggedShotId, setDraggedShotId] = useState<string | null>(null);
+    const [dropTargetId, setDropTargetId] = useState<string | null>(null);
     const shots = useMemo(() => nodes.filter((node) => (node.type === "video" || node.type === "image") && node.metadata?.content && node.metadata.status === "success")
         .sort((a, b) => (a.metadata?.timelineOrder ?? a.position.x) - (b.metadata?.timelineOrder ?? b.position.x)), [nodes]);
     const audios = nodes.filter((node) => node.type === "audio" && node.metadata?.content && node.metadata.status === "success");
     const totalSeconds = shots.reduce((sum, node) => sum + clipDuration(node), 0);
+    const shotStarts = useMemo(() => {
+        let elapsed = 0;
+        return shots.map((node) => {
+            const start = elapsed;
+            elapsed += clipDuration(node);
+            return start;
+        });
+    }, [shots]);
+    const visiblePlayhead = Math.min(playhead, totalSeconds);
+    const playheadShotIndex = Math.max(0, shots.findIndex((node, index) => visiblePlayhead < shotStarts[index]! + clipDuration(node) || index === shots.length - 1));
     const update = (node: CanvasNodeData, patch: Partial<NonNullable<CanvasNodeData["metadata"]>>) => onUpdateNode(node.id, patch);
+
+    useEffect(() => {
+        if (open) setPlayhead(0);
+    }, [open]);
 
     const moveShot = (index: number, offset: number) => {
         const next = [...shots];
@@ -46,6 +64,24 @@ export function CanvasTimelineDialog({ open, onClose, nodes, onUpdateNode, onImp
         if (target < 0 || target >= next.length) return;
         [next[index], next[target]] = [next[target]!, next[index]!];
         next.forEach((node, order) => update(node, { timelineOrder: order }));
+    };
+
+    const dropShot = (targetId: string) => {
+        if (!draggedShotId || draggedShotId === targetId) return;
+        const from = shots.findIndex((node) => node.id === draggedShotId);
+        const to = shots.findIndex((node) => node.id === targetId);
+        if (from < 0 || to < 0) return;
+        const next = [...shots];
+        const [moved] = next.splice(from, 1);
+        next.splice(to, 0, moved!);
+        next.forEach((node, order) => update(node, { timelineOrder: order }));
+    };
+
+    const seekAt = (clientX: number, track: HTMLDivElement) => {
+        if (!totalSeconds) return;
+        const bounds = track.getBoundingClientRect();
+        const ratio = Math.min(1, Math.max(0, (clientX - bounds.left) / bounds.width));
+        setPlayhead(ratio * totalSeconds);
     };
 
     const exportMp4 = async () => {
@@ -77,8 +113,26 @@ export function CanvasTimelineDialog({ open, onClose, nodes, onUpdateNode, onImp
             <section className="min-h-0 flex-1 overflow-auto rounded-xl border p-3" style={{ borderColor: theme.node.stroke }}>
                 <div className="mb-2 flex items-center gap-2 text-xs font-medium opacity-60"><Film className="size-3.5" />视频 / 图片轨 · {totalSeconds.toFixed(2)} 秒</div>
                 <div className="space-y-2">
-                    {shots.map((node, index) => <div key={node.id} className="flex flex-wrap items-center gap-3 rounded-lg px-2 py-2 hover:bg-black/5 dark:hover:bg-white/5">
-                        <div className="flex min-w-[180px] flex-1 items-center gap-2"><span className="w-6 shrink-0 text-xs opacity-45">{index + 1}</span><span className="truncate text-sm">{node.title || (node.type === "video" ? "视频镜头" : "图片镜头")}</span><span className="text-[11px] opacity-45">{node.type === "video" ? "视频" : "图片"}</span></div>
+                    {shots.map((node, index) => <div
+                        key={node.id}
+                        onDragOver={(event) => { event.preventDefault(); setDropTargetId(node.id); }}
+                        onDragLeave={() => setDropTargetId((current) => current === node.id ? null : current)}
+                        onDrop={(event) => { event.preventDefault(); dropShot(node.id); setDraggedShotId(null); setDropTargetId(null); }}
+                        className="flex flex-wrap items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+                        style={dropTargetId === node.id && draggedShotId !== node.id ? { background: theme.toolbar.activeBg } : undefined}
+                    >
+                        <div className="flex min-w-[180px] flex-1 items-center gap-1.5">
+                            <button
+                                type="button"
+                                draggable={!exporting}
+                                aria-label={t("canvas.timeline.dragShot", { name: node.title || index + 1 })}
+                                title={t("canvas.timeline.dragShotHint")}
+                                className="cursor-grab touch-none rounded p-1 opacity-50 hover:opacity-100 active:cursor-grabbing"
+                                onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", node.id); setDraggedShotId(node.id); }}
+                                onDragEnd={() => { setDraggedShotId(null); setDropTargetId(null); }}
+                            ><GripVertical className="size-4" /></button>
+                            <span className="w-6 shrink-0 text-xs opacity-45">{index + 1}</span><span className="truncate text-sm">{node.title || (node.type === "video" ? "视频镜头" : "图片镜头")}</span><span className="text-[11px] opacity-45">{node.type === "video" ? "视频" : "图片"}</span>
+                        </div>
                         <label className="flex items-center gap-1 text-xs opacity-60">入 <input aria-label={`${node.title} 入点`} type="number" min="0" step="0.1" value={time(node.metadata?.timelineTrimStartSeconds)} onChange={(event) => update(node, { timelineTrimStartSeconds: Number(event.target.value) })} className="w-16 rounded border bg-transparent px-1.5 py-1 text-right" style={{ borderColor: theme.node.stroke, color: theme.node.text }} /></label>
                         <label className="flex items-center gap-1 text-xs opacity-60">出 <input aria-label={`${node.title} 出点`} type="number" min="0.1" step="0.1" value={time(node.metadata?.timelineTrimEndSeconds, node.metadata?.durationMs ? node.metadata.durationMs / 1000 : 4)} onChange={(event) => update(node, { timelineTrimEndSeconds: Number(event.target.value) })} className="w-16 rounded border bg-transparent px-1.5 py-1 text-right" style={{ borderColor: theme.node.stroke, color: theme.node.text }} /></label>
                         <label className="flex items-center gap-1.5 text-xs"><span className="opacity-65">{t("canvas.timeline.colorGrade")}</span><Select size="small" aria-label={t("canvas.timeline.colorGrade")} className="w-28" value={node.metadata?.colorGrade || "original"} onChange={(colorGrade) => update(node, { colorGrade })} options={COLOR_GRADES.map((grade) => ({ value: grade, label: t(`canvas.timeline.grades.${grade}`) }))} /></label>
@@ -86,7 +140,35 @@ export function CanvasTimelineDialog({ open, onClose, nodes, onUpdateNode, onImp
                     </div>)}
                     {!shots.length && <div className="px-2 py-8 text-center text-sm opacity-50">画布中没有可用的图片或视频节点</div>}
                 </div>
-                {shots.length > 0 && <div className="mt-3 flex h-8 gap-1 overflow-hidden rounded-md" aria-label="镜头顺序预览">{shots.map((node, index) => <div key={node.id} className="flex min-w-4 items-center justify-center overflow-hidden rounded text-[10px] text-white" style={{ flex: Math.max(clipDuration(node), 0.1), background: index % 2 ? "#665c8f" : "#4e7d72" }} title={`${index + 1}. ${node.title}`}>{index + 1}</div>)}</div>}
+                {shots.length > 0 && <div className="mt-3">
+                    <div className="mb-1 flex justify-between text-[11px] opacity-55"><span>{t("canvas.timeline.playhead")}: {visiblePlayhead.toFixed(2)}s / {totalSeconds.toFixed(2)}s</span><span>{shots[playheadShotIndex]?.title}</span></div>
+                    <div
+                        role="slider"
+                        tabIndex={totalSeconds > 0 ? 0 : -1}
+                        aria-disabled={totalSeconds <= 0}
+                        aria-label={t("canvas.timeline.playhead")}
+                        aria-valuemin={0}
+                        aria-valuemax={totalSeconds}
+                        aria-valuenow={visiblePlayhead}
+                        aria-valuetext={`${visiblePlayhead.toFixed(2)} 秒`}
+                        className="relative h-10 touch-none select-none overflow-hidden rounded-md outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                        style={{ touchAction: "none" }}
+                        onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); setScrubbing(true); seekAt(event.clientX, event.currentTarget); }}
+                        onPointerMove={(event) => { if (scrubbing) seekAt(event.clientX, event.currentTarget); }}
+                        onPointerUp={() => setScrubbing(false)}
+                        onPointerCancel={() => setScrubbing(false)}
+                        onKeyDown={(event) => {
+                            const frame = 1 / fps;
+                            if (event.key === "ArrowLeft") { event.preventDefault(); setPlayhead((value) => Math.max(0, value - frame)); }
+                            if (event.key === "ArrowRight") { event.preventDefault(); setPlayhead((value) => Math.min(totalSeconds, value + frame)); }
+                            if (event.key === "Home") { event.preventDefault(); setPlayhead(0); }
+                            if (event.key === "End") { event.preventDefault(); setPlayhead(totalSeconds); }
+                        }}
+                    >
+                        {shots.map((node, index) => <div key={node.id} className="absolute inset-y-0 flex items-center justify-center overflow-hidden border-r border-black/20 text-[10px] text-white" style={{ left: `${totalSeconds ? shotStarts[index]! / totalSeconds * 100 : 0}%`, width: `${totalSeconds ? clipDuration(node) / totalSeconds * 100 : 0}%`, background: index % 2 ? "#665c8f" : "#4e7d72" }} title={`${index + 1}. ${node.title}`}>{index + 1}</div>)}
+                        <div className="pointer-events-none absolute inset-y-0 z-10 w-0.5" style={{ left: `${totalSeconds ? visiblePlayhead / totalSeconds * 100 : 0}%`, background: theme.node.text }}><div className="absolute -left-1.5 top-0 size-3 rounded-sm" style={{ background: theme.node.text }} /></div>
+                    </div>
+                </div>}
             </section>
 
             <section className="rounded-xl border p-3" style={{ borderColor: theme.node.stroke }}>

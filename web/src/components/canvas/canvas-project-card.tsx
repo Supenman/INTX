@@ -1,6 +1,6 @@
 import { Check, Download, Pencil, Trash2, X } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Button, Input } from "antd";
+import { App, Button, Input, Select } from "antd";
 import { useTranslation } from "react-i18next";
 
 import { useSaveNotice } from "@/hooks/use-save-file";
@@ -10,12 +10,14 @@ import { exportCanvasProjects } from "@/lib/canvas/canvas-export";
 import { hasAgentUrlBootstrap } from "@/lib/agent/agent-url-bootstrap";
 import { cn } from "@/lib/utils";
 
-export function CanvasProjectCard({ project }: { project: CanvasProject }) {
+export function CanvasProjectCard({ project, folderNames }: { project: CanvasProject; folderNames: string[] }) {
+    const { message } = App.useApp();
     const { i18n, t } = useTranslation();
     const saveNotice = useSaveNotice();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const renameProject = useCanvasStore((state) => state.renameProject);
+    const moveProjectsToFolder = useCanvasStore((state) => state.moveProjectsToFolder);
     const selectedIds = useCanvasUiStore((state) => state.selectedProjectIds);
     const editingId = useCanvasUiStore((state) => state.editingProjectId);
     const editingTitle = useCanvasUiStore((state) => state.editingProjectTitle);
@@ -33,6 +35,14 @@ export function CanvasProjectCard({ project }: { project: CanvasProject }) {
     const saveTitle = () => {
         renameProject(project.id, editingTitle);
         stopEditing();
+    };
+    const saveFolder = async (folders: string[]) => {
+        moveProjectsToFolder([project.id], folders.at(-1));
+        try {
+            await useCanvasStore.getState().confirmSave();
+        } catch {
+            message.error(t("canvas.project.folderSaveFailed"));
+        }
     };
 
     return (
@@ -69,7 +79,22 @@ export function CanvasProjectCard({ project }: { project: CanvasProject }) {
                 )}
             </div>
             <div className="mt-6 flex items-end justify-between gap-3">
-                <p className="typ-caption text-muted-foreground">{t("canvas.project.updated", { date: new Date(project.updatedAt).toLocaleString(i18n.resolvedLanguage, { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) })}</p>
+                <div className="min-w-0 space-y-2">
+                    <p className="typ-caption text-muted-foreground">{t("canvas.project.updated", { date: new Date(project.updatedAt).toLocaleString(i18n.resolvedLanguage, { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) })}</p>
+                    <Select
+                        aria-label={t("canvas.project.folder")}
+                        mode="tags"
+                        size="small"
+                        className="w-36"
+                        maxTagCount={1}
+                        allowClear
+                        placeholder={t("canvas.project.addFolder")}
+                        value={project.folder ? [project.folder] : []}
+                        onClick={(event) => event.stopPropagation()}
+                        onChange={(folders) => void saveFolder(folders)}
+                        options={folderNames.map((folder) => ({ value: folder, label: folder }))}
+                    />
+                </div>
                 <div className="flex items-center gap-1" onClick={(event) => event.stopPropagation()}>
                     {editing ? (
                         <>

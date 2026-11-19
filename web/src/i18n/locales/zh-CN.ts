@@ -215,7 +215,8 @@ export default {
         emptyTitle: "生成结果会出现在这里",
     },
     canvas: {
-        timeline: { entry: "时间线", colorGrade: "调色", grades: { original: "原始", warm: "暖调", cool: "冷调", monochrome: "黑白", vivid: "鲜艳", faded: "褪色" } },
+        timeline: { entry: "时间线", colorGrade: "调色", playhead: "播放头", dragShot: "拖动镜头：{{name}}", dragShotHint: "拖动到另一镜头上可调整顺序", grades: { original: "原始", warm: "暖调", cool: "冷调", monochrome: "黑白", vivid: "鲜艳", faded: "褪色" } },
+        storyboard: { entry: "分镜流水线", description: "粘贴或编辑分镜脚本。创建后可预览全部镜头的总估价，再确认逐镜生成。", placeholder: "每行写一个镜头，例如：\n清晨，女主推开咖啡馆的门\n近景，她发现桌上留着一封信\n窗外雨势渐大", lineRule: "每个非空行创建一个图片镜头；创建节点不会调用模型。", shotCount: "{{count}} 个镜头", createShots: "创建 {{count}} 个镜头节点", referenceCount: "当前选中的 {{count}} 张成功图片会作为每个镜头的参考图。", created: "已创建 {{count}} 个镜头。使用「预览生成链路」查看总费用并确认逐镜生成。", shotTitle: "镜头 {{index}}" },
         generationHistory: {
             entry: "生成历史",
             title: "生成历史",
@@ -236,6 +237,10 @@ export default {
         exportSelected: "导出选中",
         deleteSelected: "删除选中",
         deleteAll: "删除全部",
+        folderFilter: "按文件夹筛选",
+        allFolders: "全部文件夹",
+        emptyFolder: "这个文件夹里还没有画布",
+        moveToFolder: "批量归类到文件夹",
         import: "导入画布",
         create: "新建画布",
         empty: "还没有画布",
@@ -270,8 +275,10 @@ export default {
         project: {
             untitled: "未命名画布", imported: "导入画布",
             select: "选择 {{name}}", stats: "{{nodes}} 个节点 · {{connections}} 条连线", updated: "更新于 {{date}}", saveName: "保存名称", cancelRename: "取消重命名", export: "导出", rename: "重命名", delete: "删除",
-            deleteTitle: "删除画布？", deleteDescription: "将删除 {{count}} 个画布，里面的节点和连线也会一起移除。", deleteSaveFailed: "删除尚未写入本地，请重试保存",
+            folder: "画布文件夹", addFolder: "归类到文件夹", folderSaveFailed: "文件夹归类尚未写入本地，请重试保存",
+            deleteTitle: "移入回收站？", deleteDescription: "将把 {{count}} 个画布移入回收站，可在回收站恢复或永久删除。", deleteSaveFailed: "删除尚未写入本地，请重试保存",
         },
+        trash: { entry: "回收站（{{count}}）", backToLibrary: "返回画布库", empty: "回收站里没有可恢复的画布", unavailable: "另有 {{count}} 条旧删除记录没有画布快照，因此无法恢复。", deletedAt: "删除于 {{date}}", restore: "恢复", restored: "画布已恢复", permanentTitle: "永久删除画布？", permanentDescription: "“{{name}}”及其画布快照将被永久删除，无法恢复。", permanentDelete: "永久删除", permanentlyDeleted: "画布已永久删除" },
         chain: { preview: "预览生成链路", ordered: "按上游到终点排列。确认后逐步提交生成，费用以厂商账单为准。", run: "确认运行", progress: "已完成 {{completed}} / {{total}} 步", finished: "已完成 {{count}} 个生成步骤", stopped: "在「{{title}}」停止：{{detail}}", changed: "画布或生成状态已变化，请重新预览链路", busy: "另一窗口正在运行这张画布的链路", missingInput: "当前步骤没有提示词或可用的上游输入", reuse: "复用已有内容", generate: "需要生成", blocked: "已有任务待处理", configuration: "缺少模型或渠道配置", unsupported: "当前节点无法生成", cycle: "链路存在循环，请检查连线", missing: "链路引用了缺失节点，请检查连线", ledgerUnavailable: "任务台账未就绪，无法预览链路", estimate: "可估部分合计 {{price}}", unknown: "还有 {{count}} 步无法估价" },
         workflow: { save: "将选区保存为工作流", insert: "插入工作流", importFailed: "无法插入工作流，请检查 ZIP 文件" },
         export: { defaultProjectName: "无限画布", defaultNodesName: "画布元素", item: "元素" },

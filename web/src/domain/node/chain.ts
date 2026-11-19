@@ -34,6 +34,21 @@ export function orderUpstreamChain<T extends ChainNode>(nodes: readonly T[], edg
     return issue ? { ok: false as const, issue } : { ok: true as const, nodes: ordered };
 }
 
+export function orderUpstreamChains<T extends ChainNode>(nodes: readonly T[], edges: readonly ChainEdge[], endIds: readonly string[]) {
+    const ordered: T[] = [];
+    const included = new Set<string>();
+    for (const endId of endIds) {
+        const chain = orderUpstreamChain(nodes, edges, endId);
+        if (!chain.ok) return chain;
+        for (const node of chain.nodes) {
+            if (included.has(node.id)) continue;
+            included.add(node.id);
+            ordered.push(node);
+        }
+    }
+    return { ok: true as const, nodes: ordered };
+}
+
 export function chainStepDisposition(hasResult: boolean, task?: OutcomeSource) {
     const outcome = readTaskOutcome(task);
     if (task && (!outcome || outcome.regenerate !== "allowed")) return "blocked";

@@ -5,6 +5,38 @@ description: Implemented changes that still need manual verification
 
 # Pending Tests
 
+## Timeline playhead and drag reorder (pending Windows desktop acceptance)
+
+- Click different positions on the shot track. The playhead should move proportionally across the whole timeline and show the shot under it. Dragging should update its position continuously.
+- Focus the playhead and use the arrow keys to move by one frame at the current frame rate. Home and End should seek to the start and end.
+- Drag a shot by its handle onto another row. Order and numbering should update immediately, and MP4 export should use the new order. The existing move-up/down buttons should remain usable.
+- Reopening the timeline resets the playhead to the start; shot order remains saved in the canvas.
+- This change adds timeline positioning and reorder interactions only. It does not broaden media-format support or call a provider.
+
+## M4.4 Canvas library folders (pending Windows desktop acceptance)
+
+- Type a new folder name in a canvas card's folder field and press Enter; the canvas should move into that folder. Choose another name to move it, or clear the tag to make it unfiled.
+- Filter by a folder at the top of the library. Selecting All folders restores the full list; an empty folder filter result should show the empty state.
+- Select several canvases and type a new folder name or choose an existing one in the bulk folder control. Only selected canvases visible under the current filter should move. Clearing the selected folder tag should unfile them.
+- Folder assignment and filtering should survive reload/restart. Exporting then importing a canvas should preserve its folder assignment.
+- No provider API was called in this work. Windows desktop acceptance is pending.
+
+### Trash restore and cleanup
+
+- Delete a canvas containing image or video media. It should leave the library and appear in Trash with its title, node count, and deletion time.
+- Restore it. The canvas, nodes, links, folder assignment, and media should return. They should remain after restarting the app.
+- Permanently delete should require confirmation. Cancel must preserve the entry; confirming removes it from Trash and allows its media to be reclaimed by local cleanup.
+- With WebDAV enabled, sync a deletion and restore it; the other device should receive the restored canvas. A permanently deleted canvas must not return from an older remote snapshot.
+- Existing tombstones without a project snapshot are not shown as restorable items; confirm that this limitation is clear and causes no misleading trash count.
+
+## M4.3 Storyboard pipeline (pending desktop acceptance)
+
+- Open Storyboard Pipeline from the canvas menu and paste an eight-line script. Confirm each non-empty line creates one image shot node with its prompt and title. If image reference nodes are selected before opening, confirm every shot connects to those references.
+- Preview the selected shots together through Preview generation chain. Confirm the ordered list includes each shot and current model, sums locally configured prices across all shots, and clearly marks steps without pricing.
+- No provider request should occur before preview confirmation. After confirmation, shots run sequentially and successful images are saved to their nodes. On failure, later requests must stop while completed nodes and task ledger entries remain.
+- No real provider call has been made. During desktop acceptance, check model capability and pricing before selecting Confirm and run; provider charges may apply.
+- Automated checks: TypeScript typecheck, production build, desktop overflow checks, and Windows release build.
+
 ## M4.2 Color grading + AI image enhancement (pending user acceptance)
 
 - In Timeline, choose Original / Warm / Cool / Monochrome / Vivid / Faded for a video or image shot. The source node preview should reflect the choice; changing it back to Original should restore the source. Close and reopen the canvas to confirm the grade persists.

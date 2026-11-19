@@ -304,18 +304,20 @@ async function replaceStoredLogs(store: LogStore, logs: StoredLog[]) {
 function mergeCanvasData(local: CanvasDomainData, remote: CanvasDomainData): CanvasDomainData {
     const localDeleted = local.deleted || [];
     const remoteDeleted = remote.deleted || [];
-    const deletedAtById = new Map<string, string>();
+    const tombstoneById = new Map<string, CanvasDeletedProject>();
     for (const item of [...remoteDeleted, ...localDeleted]) {
         if (!item.id || !item.deletedAt) continue;
-        const current = deletedAtById.get(item.id);
-        if (!current || item.deletedAt >= current) deletedAtById.set(item.id, item.deletedAt);
+        const current = tombstoneById.get(item.id);
+        if (!current || item.deletedAt > current.deletedAt) tombstoneById.set(item.id, item.purged ? item : { ...item, project: item.project || current?.project });
+        else if (item.deletedAt === current.deletedAt && item.purged && !current.purged) tombstoneById.set(item.id, item);
+        else if (item.deletedAt === current.deletedAt && !current.project && item.project && !current.purged) tombstoneById.set(item.id, item);
     }
 
     const projects = mergeById(local.projects || [], remote.projects || [], "updatedAt").filter((project) => {
-        const deletedAt = deletedAtById.get(project.id);
-        if (!deletedAt) return true;
-        if (getTime(project as Record<string, unknown>, "updatedAt") > Date.parse(deletedAt)) {
-            deletedAtById.delete(project.id);
+        const tombstone = tombstoneById.get(project.id);
+        if (!tombstone) return true;
+        if (getTime(project as Record<string, unknown>, "updatedAt") > Date.parse(tombstone.deletedAt)) {
+            tombstoneById.delete(project.id);
             return true;
         }
         return false;
@@ -323,7 +325,7 @@ function mergeCanvasData(local: CanvasDomainData, remote: CanvasDomainData): Can
 
     return {
         projects,
-        deleted: [...deletedAtById.entries()].map(([id, deletedAt]) => ({ id, deletedAt })),
+        deleted: [...tombstoneById.values()],
     };
 }
 

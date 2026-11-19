@@ -145,7 +145,10 @@ const browserMedia: AssetMedia = {
         // 沿用 0ms 媒体清理调度；延迟到此处之前已经确认项目/素材写入。
         await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
         const state = useCanvasStore.getState();
-        const references = { used, assets: useAssetStore.getState().assets, projects: state.projects, committedProjects: state.persistence.committedValue?.projects };
+        const references = {
+            used, assets: useAssetStore.getState().assets, projects: state.projects, deletedProjects: state.deletedProjects,
+            committedProjects: state.persistence.committedValue?.projects, committedDeletedProjects: state.persistence.committedValue?.deletedProjects,
+        };
         await cleanupUnusedImages(references);
         await cleanupUnusedMedia(references);
     },
