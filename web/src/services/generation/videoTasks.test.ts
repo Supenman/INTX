@@ -52,6 +52,16 @@ describe('视频提交即落 upstreamRef，重启可恢复', () => {
     ]);
   });
 
+  it('RunningHub 从台账恢复完整的字符串任务号', async () => {
+    const log = createMemoryTaskLog();
+    const upstream: VideoTaskHandle = {
+      id: '2013508786110730241', provider: 'runninghub', model: 'vidu/image-to-video-q2-pro-fast',
+    };
+    const { task } = await submitVideoTask({ config, prompt: '镜头缓慢推进', log, transport: { submit: async () => upstream } });
+    expect(await log.get(task.id)).toMatchObject({ upstreamRef: upstream.id, params: { providerId: 'runninghub' } });
+    expect(await resumableVideoTasks(log)).toEqual([expect.objectContaining({ handle: upstream })]);
+  });
+
   it('台账里不写 config（apiKey / baseUrl）', async () => {
     const log = createMemoryTaskLog();
     const { task } = await submitVideoTask({

@@ -15,3 +15,10 @@ export function isModelScopeEndpoint(baseUrl: string): boolean {
   }
   return /^api-inference\.modelscope\.(cn|ai)$/.test(host);
 }
+
+export const RUNNINGHUB_ORIGIN = 'https://www.runninghub.cn';
+export const RUNNINGHUB_VIDU_MODEL = 'vidu/image-to-video-q2-pro-fast';
+
+export function isRunningHubEndpoint(baseUrl: string): boolean {
+  return /^https:\/\/(?:www\.)?runninghub\.cn(?:\/openapi\/v2)?\/*$/i.test(baseUrl.trim());
+}

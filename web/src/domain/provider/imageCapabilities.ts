@@ -33,7 +33,7 @@ export interface ImageCapabilities {
 }
 
 export interface ImageCapabilityInput {
-  apiFormat: 'openai' | 'gemini';
+  apiFormat: 'openai' | 'gemini' | 'runninghub';
   baseUrl: string;
   /** 渠道模型配置了自定义脚本：参数原样交给脚本，由脚本决定。 */
   hasScript: boolean;

@@ -30,8 +30,13 @@
   - 预设从 Python 元组改成「静态尺寸 + i18n 语言键」两段式，中英双语；指令文本按原意翻译，不逐字照搬。
   - 尺寸沿用 INTX 的 `size` 像素串，不调用上游 `reframe`；生成链路改走 `requestSingleImage`（含任务三态与台账）。
   - 五个预设的产出张数与原实现一致（三视图各 1 张，分镜与多机位各 4 张）。
-- 未移植：`src/canvas/TimelineEditor.tsx`、`timeline*.ts`（M4 计划项）；`AssistantPanel` 系列（M3 计划项）。这些尚未开始，落地时按同一规则登记。
-- 上游对 mediabunny 的依赖为 MPL-2.0，本项目尚未引入；引入时按「不改源码、从 npm 原样消费」处理。
+- 未移植：`src/canvas/TimelineEditor.tsx`、`timeline*.ts` 与 `AssistantPanel` 系列。本项目时间线是独立实现，没有复制 OpenDirector 时间线代码。
+
+## Mediabunny 1.66.1
+
+- 来源：npm 包 `mediabunny@1.66.1`，作者 Vanilagy
+- 许可：MPL-2.0（许可文本随 npm 包提供）
+- 用途：在桌面 WebView2 中解码本地媒体并编码 H.264/AAC MP4；原样依赖，不修改其源码。
 
 ## 维护规则
 

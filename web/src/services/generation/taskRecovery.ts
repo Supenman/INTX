@@ -26,7 +26,7 @@ export function pickModelScopeChannel<T extends RecoveryChannelView>(channels: r
 export type RecoveryAction = 'modelscope' | 'video' | 'manual';
 
 /**
- * - `video`：视频单按视频协议查（openai / gemini / 插件）；
+ * - `video`：视频单按视频协议查；
  * - `modelscope`：ModelScope 异步出图单，且当前配了可用的 ModelScope 渠道；
  * - `manual`：没有任务号，或查不了——只能复制任务号去厂商后台核对。
  */
@@ -34,7 +34,7 @@ export function recoveryAction(task: Task, modelscopeChannel: RecoveryChannelVie
   if (!task.upstreamRef) return 'manual';
   if (task.kind === 'video') {
     const provider = task.params.providerId;
-    return provider === 'openai' || provider === 'gemini' || provider === 'plugin' ? 'video' : 'manual';
+    return provider === 'openai' || provider === 'gemini' || provider === 'plugin' || provider === 'runninghub' ? 'video' : 'manual';
   }
   if (task.kind === 'image' && task.params.extras?.endpoint === 'modelscope' && modelscopeChannel) return 'modelscope';
   return 'manual';

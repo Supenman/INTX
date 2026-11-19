@@ -6,6 +6,7 @@ import { dataUrlToFile, readFileAsDataUrl } from "@/lib/image-utils";
 import { clampVideoSeconds, computeVideoSize, inferVideoRatio } from "@/lib/media-size";
 import { getMediaBlob, resolveMediaUrl, uploadMediaFile, type UploadedFile } from "@/services/file-storage";
 import { imageToDataUrl } from "@/services/image-storage";
+import { isRunningHubEndpoint, RUNNINGHUB_ORIGIN, RUNNINGHUB_VIDU_MODEL } from "@/domain/provider/endpoints";
 import { boolConfig, buildApiUrl, modelOptionName, resolveModelRequestConfig, resolveModelScript, type AiConfig } from "@/stores/use-config-store";
 import { runModelPlugin } from "./model-plugin";
 import { readApiErrorMessage } from "./provider-errors";
@@ -17,6 +18,7 @@ import {
     noteVideoPoll,
     resumableVideoTasks,
     submitVideoTask,
+    type VideoTaskHandle,
     type VideoPollState,
 } from "@/services/generation";
 
@@ -28,7 +30,8 @@ type VideoMediaOptions = RequestOptions & { videos?: ReferenceVideo[]; audios?: 
 const apiText = (key: string, options?: Record<string, unknown>) => i18n.t(`apiErrors.${key}`, options);
 
 export type VideoGenerationResult = { blob?: Blob; url?: string; mimeType?: string };
-export type VideoGenerationTask = { id: string; provider: "openai" | "gemini" | "plugin"; model: string };
+export type VideoGenerationTask = VideoTaskHandle;
+type RunningHubVideo = { taskId?: string; status?: string; errorCode?: string; errorMessage?: string; failedReason?: string; results?: { url?: string; outputType?: string }[] | null };
 type GeminiInlineData = { bytesBase64Encoded: string; mimeType: string };
 type GeminiVideoOperation = {
     name?: string;
@@ -108,12 +111,20 @@ function videoTaskFailed(message: string) {
  * 不再像原来那样只靠内存里的 120×2.5s 循环、重启即丢（上游还在跑、钱已付）。
  */
 export async function createVideoGenerationTask(config: AiConfig, prompt: string, references: ReferenceImage[] = [], options?: VideoMediaOptions): Promise<VideoGenerationTask> {
+    const model = (config.model || config.videoModel).trim();
+    const requestConfig = resolveModelRequestConfig(config, model);
+    const runningHub = requestConfig.apiFormat === "runninghub"
+        || (modelOptionName(model) === RUNNINGHUB_VIDU_MODEL && isRunningHubEndpoint(requestConfig.baseUrl));
+    if (runningHub && modelOptionName(model) !== RUNNINGHUB_VIDU_MODEL) throw new Error(apiText("runningHubVideoModel"));
+    const imageUrl = runningHub ? await prepareRunningHubImage(requestConfig, references, options) : undefined;
     const { handle } = await submitVideoTask({
         config,
         prompt,
         signal: options?.signal,
         transport: {
-            submit: () => createVideoGenerationTaskRaw(config, prompt, references, options),
+            submit: () => imageUrl
+                ? createRunningHubVideoTask(requestConfig, model, prompt, imageUrl, options)
+                : createVideoGenerationTaskRaw(config, prompt, references, options),
         },
     });
     return handle;
@@ -136,8 +147,75 @@ export async function pollVideoGenerationTask(config: AiConfig, task: VideoGener
     }
     const requestConfig = resolveModelRequestConfig(config, task.model);
     assertVideoConfig(requestConfig, requestConfig.model);
+    if (task.provider === "runninghub") return pollRunningHubVideoTask(requestConfig, task.id, options);
     if (task.provider === "gemini") return pollGeminiVideoTask(requestConfig, task, options);
     return pollOpenAIVideoTask(requestConfig, task, options);
+}
+
+async function prepareRunningHubImage(config: AiConfig, references: ReferenceImage[], options?: VideoMediaOptions): Promise<string> {
+    assertVideoConfig(config, config.model);
+    if (!isRunningHubEndpoint(config.baseUrl)) throw new Error(apiText("runningHubChannel"));
+    if (references.length !== 1 || options?.videos?.length || options?.audios?.length) {
+        throw new Error(apiText("runningHubSingleImage"));
+    }
+    const image = references[0];
+    const file = dataUrlToFile({ ...image, dataUrl: await imageToDataUrl(image, options) });
+    const body = new FormData();
+    body.append("file", file);
+    const response = await createProviderTransport(config.proxyMode).request({
+        method: "POST",
+        url: `${RUNNINGHUB_ORIGIN}/openapi/v2/media/upload/binary`,
+        headers: aiHeaders(config),
+        body,
+        signal: options?.signal,
+    });
+    const upload = await readPayload<{ code?: number | string; data?: { download_url?: string }; message?: string; msg?: string }>(response, apiText("runningHubUpload"));
+    const url = upload.data?.download_url;
+    if ((upload.code != null && String(upload.code) !== "0") || !url || !/^https?:\/\//i.test(url)) {
+        throw new Error(`${apiText("runningHubUpload")}: ${readApiErrorMessage(upload) || apiText("referenceImageReadFailed")}`);
+    }
+    return url;
+}
+
+async function runningHubVideoRequest(config: AiConfig, endpoint: string, body: object, fallback: string, options?: RequestOptions) {
+    if (!isRunningHubEndpoint(config.baseUrl)) throw new Error(apiText("runningHubChannel"));
+    const response = await createProviderTransport(config.proxyMode).request({
+        method: "POST",
+        url: `${RUNNINGHUB_ORIGIN}/openapi/v2/${endpoint}`,
+        headers: aiHeaders(config, "application/json"),
+        body: JSON.stringify(body),
+        signal: options?.signal,
+    });
+    return readPayload<RunningHubVideo>(response, fallback);
+}
+
+async function createRunningHubVideoTask(config: AiConfig, model: string, prompt: string, imageUrl: string, options?: RequestOptions): Promise<VideoGenerationTask> {
+    const result = await runningHubVideoRequest(config, RUNNINGHUB_VIDU_MODEL, {
+        prompt,
+        imageUrl,
+        duration: normalizeVideoSeconds(config.videoSeconds),
+        resolution: normalizeVideoResolution(config.vquality),
+        movementAmplitude: "auto",
+        bgm: false,
+    }, apiText("videoTaskCreateFailed"), options);
+    if (typeof result.taskId !== "string" || !result.taskId.trim()) throw new Error(runningHubError(result, apiText("noVideoTaskId")));
+    return { id: result.taskId, provider: "runninghub", model };
+}
+
+async function pollRunningHubVideoTask(config: AiConfig, taskId: string, options?: RequestOptions): Promise<VideoGenerationTaskState> {
+    const result = await runningHubVideoRequest(config, "query", { taskId }, apiText("videoTaskQueryFailed"), options);
+    if (result.status === "FAILED") return { status: "failed", error: runningHubError(result, apiText("videoGenerationFailed")) };
+    if (result.status === "RUNNING" || result.status === "QUEUED") return { status: "pending" };
+    if (result.status !== "SUCCESS") throw new Error(runningHubError(result, apiText("videoTaskQueryFailed")));
+    const url = result.results?.find((item) => (!item.outputType || /^(?:mp4|mov|webm|video(?:\/.*)?)$/i.test(item.outputType))
+        && /^https?:\/\//i.test(item.url ?? ""))?.url;
+    if (!url) throw new Error(apiText("noPlayableVideo"));
+    return { status: "completed", result: await videoResultFromUrl(url, config, options) };
+}
+
+function runningHubError(result: RunningHubVideo, fallback: string) {
+    const message = result.errorMessage || result.failedReason || fallback;
+    return result.errorCode ? `RunningHub ${result.errorCode}: ${message}` : message;
 }
 
 async function createPluginVideoTask(config: AiConfig, model: string, script: string, prompt: string, references: ReferenceImage[], options?: VideoMediaOptions): Promise<VideoGenerationTask> {

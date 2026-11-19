@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { BookOpen, Bot, Download, History, Home, Images, Menu, PanelLeftClose, PanelLeftOpen, Plus, Redo2, Trash2, Undo2, Upload } from "lucide-react";
+import { BookOpen, Bot, Download, Film, History, Home, Images, Menu, PanelLeftClose, PanelLeftOpen, Plus, Redo2, Trash2, Undo2, Upload } from "lucide-react";
 import { Button, Dropdown, Modal, Tooltip } from "antd";
 import { useTranslation } from "react-i18next";
 
@@ -26,7 +26,13 @@ export function CanvasTopBar({
     onDeleteProject,
     onExportProject,
     onImportImage,
+    canSaveWorkflow,
+    onSaveWorkflow,
+    onInsertWorkflow,
+    canPreviewChain,
+    onPreviewChain,
     onOpenGenerationHistory,
+    onOpenTimeline,
     onOpenPlugins,
     onUndo,
     onRedo,
@@ -49,7 +55,13 @@ export function CanvasTopBar({
     onDeleteProject: () => void;
     onExportProject: () => void;
     onImportImage: () => void;
+    canSaveWorkflow: boolean;
+    onSaveWorkflow: () => void;
+    onInsertWorkflow: () => void;
+    canPreviewChain: boolean;
+    onPreviewChain: () => void;
     onOpenGenerationHistory: () => void;
+    onOpenTimeline: () => void;
     onOpenPlugins: () => void;
     onUndo: () => void;
     onRedo: () => void;
@@ -102,7 +114,11 @@ export function CanvasTopBar({
                                 { type: "divider" },
                                 { key: "import", icon: <Upload className="size-4" />, label: t("canvas.importAsset"), onClick: onImportImage },
                                 { key: "export", icon: <Download className="size-4" />, label: t("canvas.exportCurrent"), onClick: onExportProject },
+                                { key: "save-workflow", icon: <Download className="size-4" />, label: t("canvas.workflow.save"), disabled: !canSaveWorkflow, onClick: onSaveWorkflow },
+                                { key: "insert-workflow", icon: <Upload className="size-4" />, label: t("canvas.workflow.insert"), onClick: onInsertWorkflow },
+                                { key: "preview-chain", label: t("canvas.chain.preview"), disabled: !canPreviewChain, onClick: onPreviewChain },
                                 { key: "generation-history", icon: <History className="size-4" />, label: t("canvas.generationHistory.entry"), onClick: onOpenGenerationHistory },
+                                { key: "timeline", icon: <Film className="size-4" />, label: t("canvas.timeline.entry"), onClick: onOpenTimeline },
                                 { type: "divider" },
                                 { key: "undo", disabled: !canUndo, icon: <Undo2 className="size-4" />, label: <MenuLabel text={t("canvas.undo")} shortcut="⌘ Z" />, onClick: onUndo },
                                 { key: "redo", disabled: !canRedo, icon: <Redo2 className="size-4" />, label: <MenuLabel text={t("canvas.redo")} shortcut="⌘ ⇧ Z / ⌘ Y" />, onClick: onRedo },

@@ -433,6 +433,7 @@ function normalizeImageCount(value: string) {
 }
 
 function apiFormatLabel(apiFormat: ApiCallFormat) {
+    if (apiFormat === "runninghub") return "RunningHub";
     if (apiFormat === "gemini") return "Gemini";
     return "OpenAI";
 }

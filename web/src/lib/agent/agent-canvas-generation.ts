@@ -193,7 +193,7 @@ export async function launchAgentVideoGeneration(input: { prompt: string }): Pro
     void (async () => {
         try {
             const task = await createVideoGenerationTask(config, input.prompt, []);
-            patchNode(project.id, nodeId, (item) => ({ ...item, metadata: { ...item.metadata, videoTaskId: task.id, videoTaskProvider: task.provider === "gemini" ? "gemini" : "openai" } }));
+            patchNode(project.id, nodeId, (item) => ({ ...item, metadata: { ...item.metadata, videoTaskId: task.id, videoTaskProvider: task.provider === "plugin" ? "openai" : task.provider } }));
             const video = await storeGeneratedVideo(await waitForVideoGenerationTask(config, task));
             const assetState = useAssetStore.getState();
             assetState.addAsset({

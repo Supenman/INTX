@@ -32,11 +32,14 @@ vi.mock('@/services/generation', async () => {
     };
 });
 
-import { defaultConfig, type AiConfig } from '@/stores/use-config-store';
+import { createModelChannel, defaultConfig, type AiConfig } from '@/stores/use-config-store';
 import { requestAudioGeneration } from './audio';
 import { createVideoGenerationTask, pollVideoGenerationTask } from './video';
 
 const BASE = 'https://api.example.com';
+const RH_BASE = 'https://www.runninghub.cn';
+const RH_MODEL = 'vidu/image-to-video-q2-pro-fast';
+const reference = { id: 'ref', name: 'ref.png', type: 'image/png', dataUrl: 'data:image/png;base64,AA==' };
 
 function config(overrides: Partial<AiConfig> = {}): AiConfig {
     const models = [
@@ -61,6 +64,16 @@ function json(status: number, body: unknown) {
     return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 }
 
+function runningHubConfig() {
+    return config({
+        model: RH_MODEL,
+        videoModel: RH_MODEL,
+        videoSeconds: '5',
+        vquality: '720',
+        channels: [createModelChannel({ apiFormat: 'runninghub', apiKey: 'mock-key' })],
+    });
+}
+
 let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
@@ -74,6 +87,51 @@ afterEach(() => {
 });
 
 describe('视频提交/查单接线', () => {
+    it('RunningHub 上传首帧、保留原任务号，并通过 V2 查单下载视频', async () => {
+        const baseUrl = RH_BASE;
+        const model = RH_MODEL;
+        const taskId = '2013508786110730241';
+        const imageUrl = 'https://cdn.example.com/input.png';
+        const videoUrl = 'https://cdn.example.com/video.mp4';
+        const runningHub = runningHubConfig();
+        fetchMock
+            .mockResolvedValueOnce(json(200, { data: { download_url: imageUrl } }))
+            .mockResolvedValueOnce(json(200, { taskId, status: 'RUNNING' }))
+            .mockResolvedValueOnce(json(200, { taskId, status: 'RUNNING' }))
+            .mockResolvedValueOnce(json(200, { taskId, status: 'SUCCESS', results: [{ url: 'https://cdn.example.com/preview.jpg', outputType: 'jpg' }, { url: videoUrl, outputType: 'mp4' }] }))
+            .mockResolvedValueOnce(new Response(new Blob(['mp4'], { type: 'video/mp4' })));
+
+        const task = await createVideoGenerationTask(runningHub, '镜头缓慢推进', [reference]);
+        expect(task).toEqual({ id: taskId, model, provider: 'runninghub' });
+        expect((fetchMock.mock.calls[0][1].body as FormData).get('file')).toBeInstanceOf(File);
+        expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({
+            prompt: '镜头缓慢推进', imageUrl, duration: '5', resolution: '720p', movementAmplitude: 'auto', bgm: false,
+        });
+        expect(await pollVideoGenerationTask(runningHub, task)).toEqual({ status: 'pending' });
+        expect(await pollVideoGenerationTask(runningHub, task)).toMatchObject({ status: 'completed', result: { blob: { type: 'video/mp4' } } });
+        expect(JSON.parse(fetchMock.mock.calls[2][1].body)).toEqual({ taskId });
+        expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+            `${baseUrl}/openapi/v2/media/upload/binary`, `${baseUrl}/openapi/v2/${model}`,
+            `${baseUrl}/openapi/v2/query`, `${baseUrl}/openapi/v2/query`, videoUrl,
+        ]);
+    });
+
+    it('RunningHub 上传被拒绝时保留厂商错误，不提交生成', async () => {
+        fetchMock.mockResolvedValueOnce(json(200, { code: 811, msg: 'CORPAPIKEY_INVALID' }));
+        await expect(createVideoGenerationTask(runningHubConfig(), '镜头缓慢推进', [reference])).rejects.toThrow('CORPAPIKEY_INVALID');
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('此前按 OpenAI 配置的 RunningHub 渠道仍能识别，保留模型 API 的错误码', async () => {
+        const runningHub = runningHubConfig();
+        runningHub.channels[0] = { ...runningHub.channels[0], apiFormat: 'openai', baseUrl: 'https://runninghub.cn/openapi/v2/' };
+        fetchMock
+            .mockResolvedValueOnce(json(200, { data: { download_url: 'https://cdn.example.com/input.png' } }))
+            .mockResolvedValueOnce(json(200, { errorCode: '1014', errorMessage: 'Access Denied' }));
+        await expect(createVideoGenerationTask(runningHub, '镜头缓慢推进', [reference])).rejects.toThrow('RunningHub 1014: Access Denied');
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
     it('OpenAI 视频提交走 POST /v1/videos，FormData 不自己写 Content-Type', async () => {
         fetchMock.mockResolvedValue(json(200, { id: 'v-1' }));
         const task = await createVideoGenerationTask(config(), '海边日落');

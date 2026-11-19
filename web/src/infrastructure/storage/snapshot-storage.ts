@@ -20,9 +20,10 @@ const nodeText = shape({ id, status, content: string }, { errorDetails: string }
 const nodeImage = shape({ id, status, content: string, naturalWidth: number, naturalHeight: number, bytes: number, mimeType: string }, { errorDetails: string, storageKey: string });
 const metadata = shape({}, {
   ...Object.fromEntries(['content', 'composerContent', 'prompt', 'inputPrompt', 'retrySourceId', 'errorDetails', 'model', 'size', 'quality', 'background', 'primaryTextId', 'seconds', 'vquality', 'generateAudio', 'watermark', 'videoMode', 'audioVoice', 'audioFormat', 'audioSpeed', 'audioInstructions', 'primaryImageId', 'storageKey', 'mimeType', 'videoTaskId', 'groupId'].map((k) => [k, string])),
-  ...Object.fromEntries(['fontSize', 'count', 'textCount', 'naturalWidth', 'naturalHeight', 'bytes', 'durationMs'].map((k) => [k, number])),
+  ...Object.fromEntries(['fontSize', 'count', 'textCount', 'naturalWidth', 'naturalHeight', 'bytes', 'durationMs', 'timelineOrder', 'timelineStartSeconds', 'timelineTrimStartSeconds', 'timelineTrimEndSeconds'].map((k) => [k, number])),
   status, generationMode: oneOf('text', 'image', 'video', 'audio'), generationType: oneOf('generation', 'edit'),
-  reasoningEffort: oneOf('auto', 'low', 'medium', 'high', 'xhigh'), videoTaskProvider: oneOf('openai', 'gemini'),
+  colorGrade: oneOf('original', 'warm', 'cool', 'monochrome', 'vivid', 'faded'),
+  reasoningEffort: oneOf('auto', 'low', 'medium', 'high', 'xhigh'), videoTaskProvider: oneOf('openai', 'gemini', 'runninghub'),
   references: strings, freeResize: boolean, interactive: boolean, texts: array(nodeText), images: array(nodeImage),
 }, true); // Plugin metadata remains an open JSON dictionary; known fields still have their real types.
 const node = shape({ id, type: id, title: string, position: shape({ x: number, y: number }), width: number, height: number }, { metadata });

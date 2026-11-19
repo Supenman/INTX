@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceAround, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceAround, Group, Ungroup } from "lucide-react";
+import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceAround, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceAround, Download, Group, Ungroup } from "lucide-react";
 import { Tooltip } from "antd";
 import { useTranslation } from "react-i18next";
 
@@ -36,6 +36,7 @@ export function CanvasSelectionToolbar({
     onUngroup,
     onAlign,
     onDistribute,
+    onSaveWorkflow,
 }: {
     nodes: CanvasNodeData[];
     viewport: ViewportTransform;
@@ -46,6 +47,7 @@ export function CanvasSelectionToolbar({
     onUngroup: () => void;
     onAlign: (axis: AlignAxis) => void;
     onDistribute: (axis: DistributeAxis) => void;
+    onSaveWorkflow: () => void;
 }) {
     const { t } = useTranslation();
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
@@ -102,6 +104,8 @@ export function CanvasSelectionToolbar({
                     {canGroup || canUngroup ? <Divider /> : null}
                     {canGroup ? <SelectionAction title={t("canvas.nodeToolbar.groupTitle")} label={t("canvas.nodeToolbar.group")} icon={<Group className="size-4" />} onClick={onGroup} /> : null}
                     {canUngroup ? <SelectionAction title={t("canvas.nodeToolbar.ungroupTitle")} label={t("canvas.nodeToolbar.ungroup")} icon={<Ungroup className="size-4" />} onClick={onUngroup} /> : null}
+                    <Divider />
+                    <SelectionIconAction title={t("canvas.workflow.save")} icon={<Download className="size-4" />} onClick={onSaveWorkflow} />
                 </div>
             ) : null}
         </>

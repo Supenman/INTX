@@ -5,6 +5,40 @@ description: Implemented changes that still need manual verification
 
 # Pending Tests
 
+## M4.2 Color grading + AI image enhancement (pending user acceptance)
+
+- In Timeline, choose Original / Warm / Cool / Monochrome / Vivid / Faded for a video or image shot. The source node preview should reflect the choice; changing it back to Original should restore the source. Close and reopen the canvas to confirm the grade persists.
+- Export the timeline and confirm each shot's grade appears in the MP4 and matches its canvas preview.
+- On an image node, open AI Super Resolution. The confirmation should identify the configured image model and show its local estimated price, or explicitly say no price is configured. Nothing should be sent before confirming.
+- After confirmation, expect exactly one image-edit request; the result should be a connected child image and the source should remain unchanged. Confirm the task ledger, error handling, and returned dimensions. The selected model must support image edits; the provider may charge for this user-triggered request.
+- The already tested local video-audio extraction remains accepted; this section covers the new grading and AI-enhancement slices. No real provider request was sent during implementation.
+- Automated checks: TypeScript typecheck, production build, desktop overflow check (1280 / 1440 / 1920), and Windows release build.
+
+## RunningHub Vidu Q2 Pro Fast image-to-video
+
+1. Select the RunningHub protocol in the channel editor and enter a local Enterprise-Shared API key. The Chinese site URL and Vidu Q2 Pro Fast video model are prefilled.
+2. Select the model in a video node, connect a single image, and use the documented 5-second, 720p example. Confirm pricing and submit once.
+3. After the task ID appears, restart the app. Reopen the canvas to check node recovery, or use Query Task in the task center to recover the output into the asset library. Verify that RunningHub has a single order and that the video plays.
+
+The user confirmed M2.6 on Windows, including live generation, recovery of the original order after restart, no duplicate submission, and asset library playback. The screenshot shows a 4-second, 720p, square video returned to the canvas from one reference image.
+
+## Save selection as workflow (M3.3, accepted)
+
+Save selected nodes to a workflow ZIP from the canvas menu or selection toolbar. Close the source canvas and use Insert Workflow in a different canvas. Check that node parameters, internal links, group membership, and embedded media are preserved. Each insertion should create fresh node and link IDs and omit the source canvas's video task handles. The Windows release passed native save, restart, and cross-canvas insertion. Browser automation verified embedded images, internal links, parameters, fresh IDs on repeated insertion, and recovery after reload. The user confirmed group membership and movement after insertion.
+
+## Serial generation chains (M3.4)
+
+Select a single endpoint and choose Preview Generation Chain from the canvas menu. Single-output text, image, and video nodes can run in order, reusing existing results. Unpriced steps and separate currency subtotals are shown. Cycles, missing nodes, and unresolved prior submissions prevent execution. Confirm and Run starts submission, and each result and ledger entry must be saved before the next step.
+
+Browser tests verified a successful three-step chain and reuse after reload. An injected failure in the second step preserved the first output after reload, skipped the third submission, and blocked the failed step in preview. The user confirmed live Windows acceptance: the chain reused an existing reference image, placed one playable 4-second, 720p RunningHub Vidu video in the target node, and created one provider order. The user also confirmed cancellation during a run.
+
+## Windows x64 release checks
+
+- The release opened the canvas home with no listener on port 3000. A project with three nodes survived a restart using a separate WebView2 data directory.
+- Project export opened the native save dialog. Cancel closed it without a success notice. Saving created a ZIP containing parseable `projects.json`. Attempting to overwrite a locked temporary ZIP left the file unchanged. The application error notice was not observed, so that part remains unverified.
+- Ctrl+A showed the selection toolbar. Invoking Align Top through Windows UI Automation produced matching vertical coordinates for all three exported nodes. Horizontal distribution was verified with three separated nodes of widths 200, 260 and 320. Exported positions were 0, 495 and 1050, yielding equal 295-unit gaps with both endpoints unchanged.
+- The MSI was built and extracted through Windows Installer administrative mode. The extracted executable opened an INTX window. A normal installation on a clean Windows system remains unverified. NSIS bundling timed out twice while downloading dependencies.
+
 ## Desktop measured in a Linux sandbox (2026-11-18, by WorkBuddy)
 
 Environment: Ubuntu 22.04 + Xvfb `:77` 1600×1000 + openbox; GTK 3.24.41, WebKitGTK 2.52.6; `cargo build` (debug against `vite dev` on 3000, not the embedded bundle); local `canvas-agent 0.6.0` on `127.0.0.1:17371`, with the opencode it spawns on `127.0.0.1:4096`. **No vendor requests were sent and no real key was entered.**

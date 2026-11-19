@@ -109,7 +109,7 @@ export const imageToolDefinitions: ImageToolDefinition[] = [
     },
     {
         id: "superResolve",
-        defaultVisible: false,
+        defaultVisible: true,
         label: () => i18n.t("canvas.imageTools.superResolve"),
         title: () => i18n.t("canvas.imageTools.superResolveTitle"),
         icon: () => <Sparkles className="size-4" />,

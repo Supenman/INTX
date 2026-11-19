@@ -5,8 +5,9 @@ import { nanoid } from "nanoid";
 
 import i18n from "@/i18n";
 import type { ModelPricing } from "@/domain";
+import { RUNNINGHUB_ORIGIN, RUNNINGHUB_VIDU_MODEL } from "@/domain/provider/endpoints";
 
-export type ApiCallFormat = "openai" | "gemini";
+export type ApiCallFormat = "openai" | "gemini" | "runninghub";
 export type ModelCapability = "image" | "video" | "text" | "audio";
 export type ReasoningEffort = "auto" | "low" | "medium" | "high" | "xhigh";
 
@@ -344,11 +345,13 @@ export function createModelChannel(channel?: Partial<ModelChannel>): ModelChanne
     return {
         id: channel?.id?.trim() || nanoid(),
         name: channel?.name?.trim() || i18n.t("config.channels.newName"),
-        baseUrl: channel?.baseUrl?.trim() || defaultBaseUrlForApiFormat(apiFormat),
+        baseUrl: apiFormat === "runninghub" ? RUNNINGHUB_ORIGIN : channel?.baseUrl?.trim() || defaultBaseUrlForApiFormat(apiFormat),
         apiKey: channel?.apiKey || "",
         apiFormat,
         proxyMode: normalizeProxyMode(channel?.proxyMode),
-        models: normalizeChannelModels(channel?.models),
+        models: apiFormat === "runninghub"
+            ? [{ name: RUNNINGHUB_VIDU_MODEL, capability: "video", pricing: channel?.models?.find((model) => model.name === RUNNINGHUB_VIDU_MODEL)?.pricing }]
+            : normalizeChannelModels(channel?.models),
     };
 }
 
@@ -502,12 +505,13 @@ function normalizeChannels(config: AiConfig) {
 }
 
 export function defaultBaseUrlForApiFormat(apiFormat: ApiCallFormat) {
+    if (apiFormat === "runninghub") return RUNNINGHUB_ORIGIN;
     if (apiFormat === "gemini") return GEMINI_BASE_URL;
     return OPENAI_BASE_URL;
 }
 
 function normalizeApiFormat(apiFormat: unknown): ApiCallFormat {
-    return apiFormat === "gemini" ? apiFormat : "openai";
+    return apiFormat === "gemini" || apiFormat === "runninghub" ? apiFormat : "openai";
 }
 
 function uniqueModelOptions(models: string[]) {

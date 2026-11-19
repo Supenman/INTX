@@ -52,7 +52,7 @@ describe('待核实任务按协议选查单方式', () => {
   });
 
   it('视频单按视频协议查，未知协议交回人工', () => {
-    for (const provider of ['openai', 'gemini', 'plugin']) {
+    for (const provider of ['openai', 'gemini', 'plugin', 'runninghub']) {
       expect(recoveryAction(taskWith({ kind: 'video', upstreamRef: 'v-1', params: { kind: 'video', prompt: 'p', model: 'm', providerId: provider, inputAssetIds: [] } }), null)).toBe('video');
     }
     expect(recoveryAction(taskWith({ kind: 'video', upstreamRef: 'v-2', params: { kind: 'video', prompt: 'p', model: 'm', providerId: 'unknown', inputAssetIds: [] } }), null)).toBe('manual');

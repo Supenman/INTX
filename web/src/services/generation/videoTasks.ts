@@ -4,7 +4,7 @@ import { readTaskOutcome } from '@/domain/task/outcome';
 import { evidenceStore } from './taskEvidence';
 import { browserTaskLog, commit, resumableTasks, retainTaskWriteFailure, TaskPersistenceError, type LoggedTask, type TaskLog } from './taskLog';
 
-export type VideoProvider = 'openai' | 'gemini' | 'plugin';
+export type VideoProvider = 'openai' | 'gemini' | 'plugin' | 'runninghub';
 export interface VideoTaskHandle { id: string; provider: VideoProvider; model: string }
 export interface VideoConfigView { model?: string; videoModel?: string; apiFormat?: string; size?: string; videoSeconds?: string; count?: string }
 export interface VideoTransport { submit(config: VideoConfigView, prompt: string, signal?: AbortSignal): Promise<VideoTaskHandle> }
@@ -77,7 +77,8 @@ export async function noteVideoPoll(state: VideoPollState, task: LoggedTask, log
 export function videoHandleFromTask(task: Task): VideoTaskHandle | null {
   if (task.kind !== 'video' || !task.upstreamRef) return null;
   const provider = task.params.providerId;
-  return provider === 'openai' || provider === 'gemini' || provider === 'plugin' ? { id: task.upstreamRef, provider, model: task.params.model } : null;
+  return provider === 'openai' || provider === 'gemini' || provider === 'plugin' || provider === 'runninghub'
+    ? { id: task.upstreamRef, provider, model: task.params.model } : null;
 }
 export async function resumableVideoTasks(log: TaskLog = browserTaskLog) {
   return resumableTasks(await log.list()).filter((task) => task.kind === 'video').map((task) => ({ task, handle: videoHandleFromTask(task), outcome: readTaskOutcome(task) })).filter((entry) => entry.handle !== null);
