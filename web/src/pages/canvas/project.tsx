@@ -3494,7 +3494,7 @@ function InfiniteCanvasPage() {
     return (
         <main className="flex h-full min-h-0 overflow-hidden" style={{ background: theme.canvas.background, color: theme.node.text }}>
             <CanvasSidePanel nodes={nodes} selectedNodeIds={selectedNodeIds} onFocusNode={focusNode} onPreviewNode={setPreviewNodeId} onHoverNode={setHoverPreviewNodeId} onInsertAsset={handleAssetInsert} />
-            <section className="relative min-w-0 flex-1 overflow-hidden">
+            <section className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
                 <Modal destroyOnHidden open={Boolean(saveBarrier.error)} title={t("storage.leaveFailed")} onCancel={saveBarrier.stay} footer={<><Button onClick={saveBarrier.stay}>{t("storage.stay")}</Button><Button onClick={() => void saveBarrier.retry()}>{t("storage.retrySave")}</Button></>}>
                     <p>{saveBarrier.error}</p>
                 </Modal>
@@ -3538,26 +3538,7 @@ function InfiniteCanvasPage() {
                     onCreate={createStoryboard}
                 />
 
-                <CanvasTimelineDialog
-                    open={timelineOpen}
-                    onClose={() => setTimelineOpen(false)}
-                    nodes={nodes}
-                    title={currentProject?.title || "INTX 时间线"}
-                    onUpdateNode={(nodeId, patch) => setNodes((previous) => previous.map((node) => node.id === nodeId ? { ...node, metadata: { ...node.metadata, ...patch } } : node))}
-                    onImportAudio={async (file) => {
-                        try {
-                            const uploaded = await uploadMediaFile(file, "audio");
-                            const position = { x: (nodes.length * 48), y: (nodes.length * 36) };
-                            const node = createCanvasNode(CanvasNodeType.Audio, position, audioMetadata(uploaded));
-                            node.title = file.name.replace(/\.[^.]+$/, "") || node.title;
-                            setNodes((previous) => [...previous, node]);
-                            message.success(`已导入音频：${file.name}`);
-                        } catch (error) {
-                            message.error(error instanceof Error ? error.message : "导入音频失败");
-                        }
-                    }}
-                />
-
+                <div className="relative min-h-0 flex-1">
                 <InfiniteCanvas
                     containerRef={containerRef}
                     viewport={viewport}
@@ -3672,6 +3653,7 @@ function InfiniteCanvasPage() {
                     ) : null}
                 </InfiniteCanvas>
 
+
                 {referencePickerNodeId ? <button type="button" className="absolute left-1/2 top-4 z-[90] -translate-x-1/2 rounded-full border px-4 py-2 text-sm font-medium shadow-lg backdrop-blur" style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border }} onClick={exitNodeReferenceSelection}>{t("canvas.references.selectingHint")}</button> : null}
 
                 <div
@@ -3765,7 +3747,7 @@ function InfiniteCanvasPage() {
 
                 {isMiniMapOpen ? <Minimap nodes={nodes} viewport={viewport} viewportSize={size} onViewportChange={setViewport} /> : null}
 
-                <CanvasZoomControls scale={viewport.k} onScaleChange={setZoomScale} onReset={resetViewport} isMiniMapOpen={isMiniMapOpen} onToggleMiniMap={() => setIsMiniMapOpen((value) => !value)} />
+                {!timelineOpen ? <CanvasZoomControls scale={viewport.k} onScaleChange={setZoomScale} onReset={resetViewport} isMiniMapOpen={isMiniMapOpen} onToggleMiniMap={() => setIsMiniMapOpen((value) => !value)} /> : null}
 
                 {contextMenu ? (
                     <CanvasNodeContextMenu
@@ -3884,6 +3866,27 @@ function InfiniteCanvasPage() {
                 {generationHistoryOpen ? (
                     <CanvasGenerationHistoryModal open onInsert={handleAssetInsert} onClose={() => setGenerationHistoryOpen(false)} />
                 ) : null}
+                </div>
+                {timelineOpen ? <div className="h-[48%] min-h-[280px] shrink-0"><CanvasTimelineDialog
+                    open
+                    onClose={() => setTimelineOpen(false)}
+                    nodes={nodes}
+                    selectedNodeIds={selectedNodeIds}
+                    title={currentProject?.title || "INTX 时间线"}
+                    onUpdateNode={(nodeId, patch) => setNodes((previous) => previous.map((node) => node.id === nodeId ? { ...node, metadata: { ...node.metadata, ...patch } } : node))}
+                    onImportAudio={async (file) => {
+                        try {
+                            const uploaded = await uploadMediaFile(file, "audio");
+                            const position = { x: (nodes.length * 48), y: (nodes.length * 36) };
+                            const node = createCanvasNode(CanvasNodeType.Audio, position, audioMetadata(uploaded));
+                            node.title = file.name.replace(/\.[^.]+$/, "") || node.title;
+                            setNodes((previous) => [...previous, node]);
+                            message.success(`已导入音频：${file.name}`);
+                        } catch (error) {
+                            message.error(error instanceof Error ? error.message : "导入音频失败");
+                        }
+                    }}
+                /></div> : null}
             </section>
         </main>
     );

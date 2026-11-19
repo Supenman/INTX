@@ -11,7 +11,9 @@ description: Implemented changes that still need manual verification
 - Focus the playhead and use the arrow keys to move by one frame at the current frame rate. Home and End should seek to the start and end.
 - Drag a shot by its handle onto another row. Order and numbering should update immediately, and MP4 export should use the new order. The existing move-up/down buttons should remain usable.
 - Reopening the timeline resets the playhead to the start; shot order remains saved in the canvas.
-- This change adds timeline positioning and reorder interactions only. It does not broaden media-format support or call a provider.
+- Play preview. Image and video shots should follow the playhead in order, stop at the end, and show their selected color grade. Seeking while playing should pause and move to the chosen time.
+- Add a short audio clip with a nonzero start. Play the timeline, seek across the audio start and end, and confirm the audio follows the timeline position and pauses when outside its trimmed range.
+- Preview playback does not export a file or call a provider. Longer media and additional source formats remain to be checked.
 
 ## M4.4 Canvas library folders (pending Windows desktop acceptance)
 
