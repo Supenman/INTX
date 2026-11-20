@@ -10,7 +10,9 @@ permissions:
   packages: write
 
 env:
-  IMAGE_NAME: ghcr.io/basketikun/infinite-canvas
+  # 原来指向 ghcr.io/basketikun/infinite-canvas（上游命名空间）。我们是别的账号，
+  # 推别人的 registry 没有写权限，这个 job 只要真跑起来就会失败。
+  IMAGE_NAME: ghcr.io/supenman/intx
 
 jobs:
   meta:

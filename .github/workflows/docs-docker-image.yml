@@ -10,7 +10,8 @@ permissions:
   packages: write
 
 env:
-  IMAGE_NAME: ghcr.io/basketikun/infinite-canvas-docs
+  # 同 docker-image.yml：原指向上游命名空间，推不上去。
+  IMAGE_NAME: ghcr.io/supenman/intx-docs
 
 jobs:
   meta:
