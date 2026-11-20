@@ -1,7 +1,7 @@
 {
   "name": "@supenman/canvas-agent",
   "description": "Local bridge between the Infinite Canvas web app and opencode running on your machine.",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
