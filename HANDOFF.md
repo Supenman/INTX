@@ -1068,3 +1068,75 @@ Verify 跑在 `6aa3cbe` 上——那个提交含 verify 的修复，success。
 **本地全绿不等于 CI 绿。** 这轮之前我一直用「`pnpm verify` 全绿」作为完成判据，
 但 CI 跑的是另一套安装流程，它坏了两周也没人知道。以后推完先看 `gh run list`，
 而不是只看本地。
+
+## 第二十五轮：OIDC 真通了，卡在两处不是 OIDC 的坑（2026-11-21）
+
+用户勾上 `Allow npm publish` 后，第一次重跑仍 403：
+
+```
+npm error 403 - OIDC permission denied for this action
+```
+
+这行和「没勾」时的报错一字不差，但此时勾已经生效了。**这行错误不能单独
+拿来判断勾没勾**——本轮两次都报它，只有第一次是勾的问题。
+
+### 重跑不需要 Actions 权限
+
+`gh run rerun --failed` 和 `gh workflow run` 都要 Actions: write，当前 PAT
+没有、也不想再加一个权限。改用**草稿翻转**重新触发 `release: published`：
+
+```bash
+gh release edit <tag> --draft=true
+gh release edit <tag> --draft=false
+```
+
+只要 contents: write 就够。tag 不动、release 不删、notes 不丢，等价于
+「重新发布一次」。之后 `gh run list` 会冒出新的 run。
+
+### canvas-agent 的两处坑（都与 OIDC 无关）
+
+第一处，`npm ci` 报 EUSAGE：
+
+```
+Missing: @openai/codex@0.146.0 from lock file
+Missing: @esbuild/win32-x64@0.28.1 from lock file   ← 全是 optional 平台包
+```
+
+lock 里缺了 optional deps 那批平台包。本地 `npm install --package-lock-only`
+补齐（+552 行）。
+
+第二处更隐蔽，补完 lock 才暴露：
+
+```
+npm error code EALLOWREMOTE
+npm error Refusing to fetch "@openai/codex@http://mirrors.tencent.com/npm/..."
+```
+
+**沙箱默认走腾讯镜像，`npm install` 会把镜像地址写进 `resolved`。** 32 条
+`http://mirrors.tencent.com/npm/` 直接提交上去，CI 拒绝非加密源，报的却是
+"packages of type remote disabled"，看着完全不像镜像问题。
+
+改回官方源后先在干净目录验一遍再推：
+
+```bash
+mkdir /tmp/agent-ci && cp package.json package-lock.json /tmp/agent-ci/
+cd /tmp/agent-ci && npm ci --ignore-scripts --registry=https://registry.npmjs.org
+```
+
+6 秒装完 148 包，说明 `resolved` 与 `integrity` 对得上，不是硬改字符串骗过检查。
+
+### 结果
+
+```
+@supenman/canvas-proxy  0.1.0 → 0.1.1   provenance: slsa.dev/provenance/v1
+@supenman/canvas-agent  0.6.0 → 0.6.1   provenance: slsa.dev/provenance/v1
+```
+
+两个包 `dist-tags.latest` 都指到新版本，`npx` 实跑通过（proxy 打印用法，
+agent 起在 17371 并打出 connect token）。全程没有任何 npm token 参与。
+
+### 教训
+
+**发布链路的失败要分层看**：OIDC 403、lock 不同步、镜像地址污染，三者都
+表现为「publish 这一步红了」。先 `gh run view --log-failed` 看第一行真错，
+不要拿最后那行 `npm error` 当结论。
