@@ -12,6 +12,7 @@ import { canvasThemes } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { saveFile } from "@/lib/runtime/save-file";
 import { encodeTimeline } from "@/lib/canvas/timeline-export";
+import { activeTextOverlays, textOf } from "@/lib/canvas/timeline-text";
 import { COLOR_GRADES, colorGradeFilter } from "@/lib/canvas/color-grade";
 
 function label(node: CanvasNodeData | undefined, fallback: string) {
@@ -61,6 +62,11 @@ export function CanvasTimelineDialog({ open, onClose, nodes, timeline, onTimelin
     const visiblePlayhead = Math.min(playhead, totalSeconds);
     const current = clipAtSeconds(videoClips, visiblePlayhead);
     const currentNode = current?.node;
+    // 预览与导出共用 activeTextOverlays：同一时刻命中的字幕内容永远一致。
+    const previewTexts = useMemo(
+        () => activeTextOverlays(textClips.filter((item) => item.node?.type === "text" && Boolean(textOf(item.node!))), visiblePlayhead),
+        [textClips, visiblePlayhead],
+    );
 
     // 拖动期间 timeline 每次 move 都会更新；用 ref 读最新值，避免 effect 因依赖变化反复摘挂监听器。
     const timelineRef = useRef(timeline);
@@ -238,7 +244,7 @@ export function CanvasTimelineDialog({ open, onClose, nodes, timeline, onTimelin
         </div>
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto px-4 pb-3">
             <section className="flex shrink-0 items-center gap-4 rounded-xl border px-3 py-2" style={{ borderColor: theme.node.stroke }}>
-                <div className="flex aspect-video h-20 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-black">
+                <div className="relative flex aspect-video h-20 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-black">
                     {currentNode?.type === "video" ? <video
                         key={currentNode.id} ref={videoRef} src={currentNode.metadata?.content} muted playsInline preload="auto"
                         onError={() => setPreviewError(t("canvas.timeline.previewVideoError"))}
@@ -247,6 +253,14 @@ export function CanvasTimelineDialog({ open, onClose, nodes, timeline, onTimelin
                         src={currentNode.metadata?.content} alt={currentNode.title}
                         className="h-full w-full object-contain" style={{ filter: colorGradeFilter(currentNode.metadata?.colorGrade) }}
                     /> : <span className="text-sm text-white/60">{t("canvas.timeline.previewEmpty")}</span>}
+                    {/* 字幕与导出同源：底部居中白字黑描边，多条纵向错开；无命中字幕时不渲染。 */}
+                    {previewTexts.length > 0 && <div aria-label="preview-subtitles" className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-0.5 px-2 pb-1">
+                        {previewTexts.map((overlay, i) => <span
+                            key={i}
+                            className="max-w-full truncate text-center font-semibold text-white"
+                            style={{ fontSize: 11, WebkitTextStroke: "1px rgba(0,0,0,0.9)", textShadow: "0 1px 2px #000" }}
+                        >{overlay.text}</span>)}
+                    </div>}
                 </div>
                 <div className="flex shrink-0 flex-col items-center gap-2">
                     <div className="flex items-center gap-2">

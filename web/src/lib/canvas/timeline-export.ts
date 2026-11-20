@@ -2,12 +2,13 @@ import type { CanvasNodeData } from "@/types/canvas";
 import type { Timeline } from "@/domain/timeline/model";
 import { timelineDuration } from "@/domain/timeline/model";
 import { ticksToSeconds } from "@/domain/timeline/time";
-import { clipAtSeconds, clipsAtSeconds, resolveClips, trackOf, type ResolvedClip } from "@/domain/timeline/view";
+import { clipAtSeconds, resolveClips, trackOf, type ResolvedClip } from "@/domain/timeline/view";
 import { nodesById } from "@/domain/timeline/resolve";
 import { getMediaBlob } from "@/services/file-storage";
 import { getImageBlob } from "@/services/image-storage";
 import { colorGradeFilter } from "@/lib/canvas/color-grade";
 import { pickEncoder, type TimelineContainer } from "@/lib/canvas/encoder-selection";
+import { activeTextOverlays, textOf } from "@/lib/canvas/timeline-text";
 
 export type TimelineExportOptions = { width: number; height: number; fps: number; onProgress?: (value: number) => void };
 export type TimelineExportResult = { blob: Blob; container: TimelineContainer };
@@ -44,13 +45,6 @@ function drawContain(context: CanvasRenderingContext2D, source: CanvasImageSourc
     context.filter = filter;
     context.drawImage(source, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight);
     context.filter = "none";
-}
-
-/** 文字节点主文本：优先整体 content，其次第一个文本块。空字符串不烧进画面。 */
-function textOf(node: CanvasNodeData): string {
-    const content = node.metadata?.content?.trim();
-    if (content) return content;
-    return node.metadata?.texts?.map((item) => item.content?.trim()).find(Boolean) ?? "";
 }
 
 /** 把当前时刻命中的字幕烧到底图上：底部居中、白字黑描边，任意底色都可读。多条纵向错开。 */
@@ -185,9 +179,7 @@ export async function encodeTimeline(nodes: CanvasNodeData[], timeline: Timeline
                 }
             }
             if (textShots.length) {
-                const overlays = clipsAtSeconds(textShots, time)
-                    .map((item) => ({ text: textOf(item.node!) }));
-                drawTextOverlay(context, overlays, options.width, options.height);
+                drawTextOverlay(context, activeTextOverlays(textShots, time), options.width, options.height);
             }
             // 每 2 秒插一个关键帧：只给首帧打关键帧会让播放器拖动时几乎无法跳转。
             await videoSource.add(time, 1 / options.fps, { keyFrame: frame % (options.fps * 2) === 0 });

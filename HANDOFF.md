@@ -246,3 +246,23 @@ Windows / macOS 安装包；Linux deb / AppImage 打包；release 下 `read_agen
 | canvas-agent `pnpm build` | 0 | tsc -p tsconfig.json 无错 |
 
 **边界**：构建级全绿不等于真机通过；厂商请求、Tauri 桌面端、真实扣费场景仍未真机验证。本轮**未提交、未推送**，等用户决定。
+
+---
+
+## 第九轮：预览字幕与导出同源（2026-11-20，#112）
+
+### 问题
+时间线预览小窗此前只画视频/图片帧，文字轨字幕只在导出时烧进画面——用户「预览看不到字幕、导出却有」，预览与成品不一致。
+
+### 做法（同源，不是两套逻辑）
+- 新增 `src/lib/canvas/timeline-text.ts`：`textOf()`（文字节点取文本，优先 content 其次 texts）+ `activeTextOverlays()`（当前时刻命中的字幕列表）。**导出与预览共用这两个纯函数**，同一时刻命中的字幕内容永远一致。
+- `timeline-export.ts`：删掉本地 `textOf`，烧字循环改调 `activeTextOverlays()`——导出语义不变，只把文本判定收敛到单一入口。
+- `canvas-timeline-dialog.tsx`：预览窗加 `relative`，叠字幕层（底部居中、白字黑描边 `text-white` + 内联 text-stroke/shadow、多条纵向错开）；`text-white` 已在 check-tokens 的 OVERLAY_CLASS_ALLOW 白名单，未触发裸值回退。
+
+### 验收（导出与预览在相同四时刻对照，结论一致）
+- 同源单测 `timeline-text.test.ts` 3 例：文本提取、空档命中、多字幕顺序。
+- 预览 E2E `web/preview_subtitle_ui.mjs`：0.5s 无 / 2s HELLO / 3.5s 无 / 5s WORLD，console 零错误。
+- 导出实证 `p4_text_verify.mjs` 重跑 + ffprobe + 抽帧白像素：MP4/h264/6s；0.5s=0、2s=241、3.5s=0、5s=305，与预览完全对应。
+- `pnpm verify` 全绿：71 文件 / 853 用例，结构/令牌门禁守住。
+
+边界：预览字幕是缩略窗内的近似布局（字号 11px），非 720p 像素级等同导出；内容同源已由共用纯函数 + 单测钉住。
