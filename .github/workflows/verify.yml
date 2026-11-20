@@ -36,6 +36,12 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
 
+      # 之前这里没有安装 pnpm，CI 直接 `pnpm: command not found`。
+      # 版本不写死，交给 web/package.json 的 packageManager 字段（corepack）。
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: web/package.json
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 

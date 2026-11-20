@@ -35,8 +35,12 @@ jobs:
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
 
-      - name: Enable corepack
-        run: corepack enable
+      # 原来这里是 `corepack enable`，但整个 job 的 working-directory 是 web，
+      # corepack 读不到 web/package.json 里的 packageManager，shim 没生成，
+      # 下一步就报 `Unable to locate executable file: pnpm`。
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: web/package.json
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
