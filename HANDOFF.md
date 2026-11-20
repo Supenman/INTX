@@ -998,3 +998,73 @@ Granular，而其中带 bypass 2FA 的直接发布权限 **2027-01 起移除**�
 
 两个包页面上各绑一次 Trusted Publisher（GitHub Actions / Supenman / INTX / `publish-npm.yml`）。
 步骤写在 `docs/品牌去上游-发布清单.md` 附四。绑完就能用 Release 发版。
+
+## 第二十四轮：CI 一直是红的，两条都是 pnpm（2026-11-21）
+
+### 起因
+
+推完 npm 相关改动后习惯性看了一眼 `gh run list`，发现：
+
+```
+failure | Verify            | 79b658c
+failure | UI Overflow Check | 79b658c
+```
+
+两个 job 都报同一句：
+
+```
+x.sh: line 1: pnpm: command not found
+```
+
+**在此之前一直是红的，只是没人看。** 这也解释了为什么「本地 `pnpm verify` 全绿」
+和「CI 绿」对我一直是两件事。
+
+### 两个不同的根因
+
+| 工作流 | 原本怎么装 pnpm | 为什么失败 |
+|---|---|---|
+| `verify.yml` | **完全没装**（有 setup-bun，但 bun ≠ pnpm） | 直接 command not found |
+| `ui-overflow.yml` | `corepack enable` | job 的 `working-directory` 是 web，corepack 读不到 `web/package.json` 的 `packageManager`，shim 没生成 |
+
+### 修法用了同一个模式
+
+```yaml
+- uses: pnpm/action-setup@v4
+  with:
+    package_json_file: web/package.json
+```
+
+**特意不写 `version: 10.28.2`**，让它读 `web/package.json` 的 `packageManager` 字段
+（值 `pnpm@10.28.2+sha512...`）。写死一处就多一处要同步的地方，升级 pnpm 时必忘。
+`checks.yml` 里本来就是写死的，这次没动它——不在本轮范围内。
+
+### 第二个坑：步骤顺序
+
+修完 verify 后 ui-overflow 仍报 `Unable to locate executable file: pnpm`，
+但这次是 **setup-node 自己报的**：
+
+```yaml
+- uses: actions/setup-node@v4
+  with:
+    cache: pnpm        # ← 这一行让 setup-node 去找 pnpm
+```
+
+`cache: pnpm` 需要 pnpm 已在 PATH 上才能算缓存目录。所以顺序必须是
+**pnpm/action-setup → setup-node(cache: pnpm)**，不能反。已加注释说明。
+
+### 结果
+
+```
+success | Checks            | cb45405
+success | UI Overflow Check | cb45405
+success | Verify            | 6aa3cbe
+```
+
+`cb45405` 只改了 `ui-overflow.yml`，不触发 verify 的 paths 过滤，所以最新
+Verify 跑在 `6aa3cbe` 上——那个提交含 verify 的修复，success。
+
+### 教训
+
+**本地全绿不等于 CI 绿。** 这轮之前我一直用「`pnpm verify` 全绿」作为完成判据，
+但 CI 跑的是另一套安装流程，它坏了两周也没人知道。以后推完先看 `gh run list`，
+而不是只看本地。
