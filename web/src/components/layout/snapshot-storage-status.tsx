@@ -26,8 +26,13 @@ export function SnapshotStorageStatus({ kind }: { kind: "projects" | "assets" })
             await (status.hydrated ? state.retrySave() : state.load());
         } catch (failure) { message.error(failure instanceof Error ? failure.message : t("storage.failed")); }
     };
+    // 状态点由组件自己带：同一个组件在画布顶栏、项目列表、资产页共 6 处复用，
+    // 之前各地各写各的外壳，列表页那处就成了「一行裸文字」。颜色语义固定为
+    // 绿=已落盘 / 黄=进行中或有未保存改动 / 红=失败。
+    const tone = error ? "bg-red-500" : !status.hydrated || status.saving || status.dirty || editorDirty || status.loadState === "loading" ? "bg-amber-500" : "bg-emerald-500";
     return (
         <div role="status" className="flex min-w-0 items-center gap-2 text-xs" title={error || undefined}>
+            <span aria-hidden className={`size-1.5 shrink-0 rounded-full ${tone}`} />
             <span className="truncate">{error || t(!status.hydrated ? "storage.loading" : status.saving ? "storage.saving" : status.dirty || editorDirty ? "storage.unsaved" : "storage.saved")}</span>
             {error ? <Button type="text" size="small" disabled={status.saving || status.loadState === "loading"} onClick={() => void retry()}>{t(status.hydrated ? "storage.retrySave" : "storage.reload")}</Button> : null}
         </div>

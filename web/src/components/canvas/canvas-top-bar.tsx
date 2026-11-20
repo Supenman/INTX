@@ -180,6 +180,9 @@ export function CanvasTopBar({
                             </button>
                         )}
                     </div>
+                    {/* 标题与状态之间加一道竖线：之前标题、保存状态、Agent 状态三者在同一行同一灰度，
+                        读起来是一串连续文字，分不出谁是主信息。 */}
+                    <span aria-hidden className="mx-0.5 h-4 w-px shrink-0" style={{ background: theme.toolbar.border }} />
                     <SnapshotStorageStatus kind="projects" />
                     <CompactAgentStatus status={compactAgentStatus} onClick={onToggleAgent} />
                 </div>
@@ -190,7 +193,7 @@ export function CanvasTopBar({
                     <Button
                         type="text"
                         className="!h-9 !rounded-xl !px-3 !font-medium"
-                        style={{ background: agentOpen ? theme.toolbar.activeBg : theme.toolbar.panel, color: theme.node.text, boxShadow: "0 10px 30px rgba(28,25,23,.10)" }}
+                        style={{ background: agentOpen ? theme.toolbar.activeBg : theme.toolbar.panel, color: theme.node.text, boxShadow: "0 10px 30px rgba(15,23,42,.10)" }}
                         icon={<Bot className="size-4" />}
                         onClick={onToggleAgent}
                     >

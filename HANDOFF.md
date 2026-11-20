@@ -598,3 +598,64 @@ HOVER_REGISTRY_PASS
 ### 剩下的债，说清楚不做
 
 底部工具栏（约 18 个按钮，注册表 `main` 只有 6 条）与选区工具栏（11 条定义）仍未接。它们要么需要先补定义，要么依赖 `Divider` 分段 / `activeStyle` 高亮 / `getTipX` 跟随提示这些 `ToolEntry` 表达不了的交互。真要做，得先给这些交互设计表达方式，不是照搬悬浮栏的做法。
+
+---
+
+## 第十七轮：视觉基线对齐 BeefTV（2026-11-21）
+
+### 找到了「审美不行」的具体原因
+
+不是没有设计系统，是**用了两套**：
+
+| 层 | 色相 |
+|---|---|
+| 应用外壳（shadcn 变量） | `oklch(x 0 0)` — 纯中性灰 |
+| 画布色板 `canvas-theme.ts` | stone 暖灰 `#f4f2ed` / `#292524` / `#1c1917` |
+
+从项目列表点进画布，整屏从冷灰变米黄。**这就是色调断层的来源**，跟组件写法无关。
+
+上游 BeefTV 的画布是 `#f0f0f0` / `#141414` 中性灰，所以直接对齐它的值。
+
+### 改动
+
+| 文件 | 变化 |
+|---|---|
+| `src/lib/canvas-theme.ts` | canvas / node / toolbar 三组全部换中性灰；`placeholder` 有意高于上游（上游 #737373 在深色卡上仅 3.2:1） |
+| `src/lib/app-theme.ts` | `dark.elevatedBg` 暖黑 → `#1c1c1c`；新增 `colorTextPlaceholder`（浅 `rgba(17,24,39,.55)` / 深 `rgba(255,255,255,.55)`） |
+| `canvas-node.tsx` / `canvas-toolbar.tsx` / `canvas-top-bar.tsx` / `canvas-zoom-controls.tsx` | 暖调阴影 `rgba(28,25,23,α)` → 中性 `rgba(15,23,42,α)`，共 7 处 |
+| `canvas-node.tsx` | 空节点占位三处统一：`text-[10px]`+`tracking-[0.18em]`+`opacity-50` → `text-xs`，图标 30/35% → 60% |
+| `snapshot-storage-status.tsx` | 状态点由组件自带（绿/黄/红），6 处复用不再各写外壳 |
+| `pages/canvas/index.tsx` | 「删除全部」加 `danger` + 两侧分隔线 |
+| `canvas-top-bar.tsx` | 标题与状态之间加竖线 |
+| `canvas-timeline-dialog.tsx` | 滚动容器加 `thin-scrollbar` |
+
+### 纠正上一轮三条判断中的两条
+
+**P0-1「时间线弹窗的添加字幕是白底下拉，深色主题漏改」——判断错了。**
+
+实测（Playwright 读计算样式 + 局部截图）：下拉是深色底，从来不是白底。真正的问题是占位文字 `rgba(255,255,255,.25)`，等效对比度约 2.4:1，几乎读不出来。修法因此不是「补主题算法」，而是提占位色——已在 `app-theme` 全局 token 修掉，所有 antd 输入框一起受益。
+
+**P1-2「底部两条浮动栏不是一套视觉」——不成立。**
+
+实测两者已经是同一套：`h-14 rounded-xl border px-2 shadow-lg backdrop-blur` + 同一 `dockStyle` 对象。只有图标 `size-3.5` 与 `size-4` 的微差，不值得为此改结构。
+
+**P0-2 / P0-3 / P1-1 / P1-3 属实**，已改。
+
+### 验证
+
+- `pnpm verify` 全绿：68 文件 / 808 用例；令牌、结构预算、边界均无回退
+- 十二组 E2E 全 PASS
+- 截图：浅色/深色各 7 张，存 `artifact/visual/`，改动前版本在 `artifact/visual-before/`
+- 像素级复核：深色占位文字实渲染峰值 `#858585`（目标 `#8f8f8f` 的抗锯齿值），对比度 4.7:1
+
+### 沉淀
+
+新增 `docs/视觉基线-BeefTV.md`：色板、阴影、字号梯、圆角梯、对比度底线、已对齐/未对齐清单、复核命令。
+
+后续视觉改动以它为准，不再每轮重新讨论「参考谁」。
+
+### 仍然不做
+
+- 上游 `frame` / `spatial` / `timeline` / `accent` 四组令牌：本项目无消费方，引入即死代码
+- 上游三层令牌文件拆分：已有 `tokens.css`，拆开是无收益的结构改动
+- 上游 1179 个前端文件整体移植：与本项目仅 79 个同名，早期同源后期各自演化，结构已不可直接搬

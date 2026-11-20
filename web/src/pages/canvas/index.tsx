@@ -158,9 +158,14 @@ export default function CanvasPage() {
                                     </>
                                 ) : null}
                                 {!showTrash && projects.length ? (
-                                    <Button disabled={!hydrated} type="text" onClick={() => setDeleteIds(projects.map((project) => project.id))}>
-                                        {t("canvas.deleteAll")}
-                                    </Button>
+                                    <>
+                                        <span aria-hidden className="mx-1 h-5 w-px bg-border" />
+                                        {/* 危险操作与常规次操作之间加分隔，并给危险色：之前它和其它 text 按钮同权重，看着像普通入口。 */}
+                                        <Button disabled={!hydrated} danger type="text" onClick={() => setDeleteIds(projects.map((project) => project.id))}>
+                                            {t("canvas.deleteAll")}
+                                        </Button>
+                                        <span aria-hidden className="mx-1 h-5 w-px bg-border" />
+                                    </>
                                 ) : null}
                                 <Button type="text" disabled={!hydrated} icon={<Trash2 className="size-4" />} onClick={() => setShowTrash((value) => !value)}>
                                     {showTrash ? t("canvas.trash.backToLibrary") : t("canvas.trash.entry", { count: trashProjects.length })}
