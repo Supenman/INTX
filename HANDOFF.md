@@ -473,3 +473,72 @@ onTimelineChange={(next) => { if (currentProject) updateProject(currentProject.i
 - **`VERSION` 远端仍是 `v0.20.0`，本地是 `v0.1.0`**——本轮改动尚未推送，转公开前必须一致
 - 视觉统一未动（62/88 用 antd、322 处 inline style、83 处 hex、53 处任意字号）
 - 其余入口收敛（删除 4 处、导入 3 处）未做，本轮只动了顶栏菜单
+
+---
+
+## 第十五轮：入口收敛（2026-11-21）
+
+### 先修正上一轮的一个错判
+
+上一轮我说「删除 4 处、导入 3 处，收敛成 4→1、3→1」。**这个提法本身是错的**，执行前核对才发现：
+
+| 入口 | 作用范围 |
+|---|---|
+| 右键菜单 `ctx-delete` | 单个节点，位置精确 |
+| 节点悬浮栏 `delete` | 单个节点，鼠标划过即出现 |
+| 底部工具栏 `tool-delete` | **全部选中**（`deleteNodes(new Set(selectedNodeIds))`），且仅选中时出现 |
+| Delete 键 | **全部选中**，支持批量 |
+
+真正冗余的是「单节点删除有两个入口」。如果按原话说砍到 1 个，批量删 10 个节点就得点 10 次右键——这是功能倒退回退，不是收敛。
+
+导入同理：3 处里有一处是**节点级替换素材**（`onUpload(node)`），不是全局导入。真正的全局导入只有 2 处（顶栏菜单 + 底部工具栏），是「手边高频 + 菜单兜底」的合理分工，删任一都留缺口。
+
+### 实际改动：删除 4 → 3
+
+**删掉节点悬浮栏的删除按钮。**
+
+依据不是「数得少」，是这三条：
+1. 悬浮栏是**鼠标划过就出现**的浮层，删除是危险操作，误触代价最高
+2. 图片节点的悬浮栏会堆到 14 个按钮（`baseToolbarTools` 3 + `nodeToolbarTools` 最多 11 + 图片工具箱），删除夹在中间
+3. 同位置右键菜单就能删，且右键是**主动动作**，不会误触
+
+连带清理（不留死代码）：
+- `CanvasNodeHoverToolbarProps.onDelete` 整个 prop 移除（组件 + 类型 + 调用方传参）
+- `Trash2` import 移除
+- `canvas.nodeToolbar.removeTitle` 中英文案移除（唯一消费点已删）
+
+### 验证：删了要证明没损功能
+
+新增 `delete_entries_check.mjs`，四条路径逐条走完：
+
+```
+NODES_START: 4
+HOVER_VISIBLE: true          ← 悬浮栏仍然出现
+HOVER_HAS_DELETE: false      ← 删除按钮没了
+HOVER_HAS_INFO: true         ← 其它按钮完好
+CTX_DELETE_VISIBLE: true
+NODES_AFTER_CTX_DELETE: 3    (4→3)  右键删单个 ✓
+SELECTED_BEFORE_KEY_DELETE: true
+NODES_AFTER_KEY_DELETE: 2    (3→2)  Delete 键 ✓
+TOOLBAR_DELETE_VISIBLE_WHEN_SELECTED: true
+NODES_AFTER_TOOLBAR_DELETE: 1 (2→1) 底部工具栏 ✓
+ERRORS: []
+DELETE_ENTRIES_PASS
+```
+
+- `pnpm verify` 全绿：67 文件 / 802 用例
+- 十一组 E2E 全 PASS（含新增的 `delete_entries_check`）
+
+### 导入：不删，但要说清为什么不删
+
+顶栏菜单「导入资产」与底部工具栏上传按钮是同一动作。保留两处的理由：
+- 底部工具栏的显隐受偏好控制（`intx-toolbar-prefs-main`），用户可隐藏，只留菜单项会留黑洞
+- 只留工具栏则违背菜单「完整能力清单」的语义，用户按功能名找会找不到
+
+### 已知债务（下一轮候选，本轮未动）
+
+`src/domain/tool/definitions.ts` 里已定义 20 条工具（`main` / `selection` / `node-hover` / `add-node-menu` / `node-context-menu`），但实际渲染**全部硬编码在三个组件里**，注册表只有 `toolView()` 参与了可见/禁用判定。
+
+具体说：`node-hover` 的 4 条定义（`node-duplicate` / `node-generate` / `node-cancel` / `node-delete`）没有任何 UI 消费，只有单测在断言它们。`delete-selection` 也没有被底部工具栏读取。
+
+这才是「重复造轮子」最深的一层：注册表写好了一整套抽象，UI 没用上，等于两套真相源。真要治，得把三个组件的硬编码逐个换成注册表渲染——影响面覆盖画布所有交互，必须单独立项，不能混在本轮。

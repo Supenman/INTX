@@ -1,6 +1,6 @@
 import { chromium } from "playwright";
 
-const BASE = process.env.BASE || "http://localhost:5199";
+const BASE = process.env.BASE || "http://127.0.0.1:3010";
 
 const browser = await chromium.launch({ headless: true, executablePath: "/usr/bin/chromium", args: ["--no-sandbox", "--disable-gpu"] });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
