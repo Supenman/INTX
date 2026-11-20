@@ -67,7 +67,7 @@ import { exportCanvasProjects } from "@/lib/canvas/canvas-export";
 import { placeCanvasSubgraph, readCanvasWorkflow, selectWorkflow, type CanvasSubgraph } from "@/lib/canvas/canvas-workflow";
 import { createStoryboardShotGraph } from "@/lib/canvas/storyboard";
 import { applyNodeConfigPatch, audioMetadata, buildAudioGenerationMetadata, buildImageGenerationMetadata, createCanvasNode, imageMetadata, videoMetadata } from "@/lib/canvas/canvas-node-factory";
-import { applyGroupSelection, applyUngroupSelection, canGroupSelectedNodes, canUngroupSelectedNodes, collectGroupMemberNodes, findContainingGroupId, findGroupDropTarget, focusViewportForNode, getConnectionTargetAnchor, getGroupWrapRect, normalizeConnection, snapNodesIntoGroup } from "@/lib/canvas/canvas-node-geometry";
+import { applyGroupSelection, applyUngroupSelection, canGroupSelectedNodes, canUngroupSelectedNodes, collectGroupMemberNodes, findContainingGroupId, findGroupDropTarget, focusViewportForNode, getConnectionTargetAnchor, getGroupWrapRect, normalizeConnection, snapNodesIntoGroup, warnConnectionRejected } from "@/lib/canvas/canvas-node-geometry";
 import { alignNodes, distributeNodes, type AlignAxis, type DistributeAxis } from "@/lib/canvas/canvas-align";
 import {
     audioExtension,
@@ -659,7 +659,7 @@ function InfiniteCanvasPage() {
             if (current.nodeId === targetNodeId) return;
 
             const connection = normalizeConnection(current.nodeId, targetNodeId, nodesRef.current);
-            if (!connection) return;
+            if (!connection) return warnConnectionRejected(targetNodeId, nodesRef.current, message.warning);
             const { fromNodeId, toNodeId } = connection;
             const exists = connectionsRef.current.some((conn) => conn.fromNodeId === fromNodeId && conn.toNodeId === toNodeId);
             if (!exists) {
@@ -3569,6 +3569,7 @@ function InfiniteCanvasPage() {
                     }}
                     onContextMenu={preventCanvasContextMenu}
                     onDrop={handleDrop}
+                    emptyNodeCount={nodes.length}
                 >
                     <svg className="absolute left-0 top-0 h-[10000px] w-[10000px] overflow-visible" style={{ pointerEvents: "none", transform: "translateZ(0)", zIndex: 0 }}>
                         {visibleConnections.map(({ connection, from, to }) => (
@@ -3664,7 +3665,6 @@ function InfiniteCanvasPage() {
                         />
                     ) : null}
                 </InfiniteCanvas>
-
 
                 {referencePickerNodeId ? <button type="button" className="absolute left-1/2 top-4 z-[90] -translate-x-1/2 rounded-full border px-4 py-2 text-sm font-medium shadow-lg backdrop-blur" style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border }} onClick={exitNodeReferenceSelection}>{t("canvas.references.selectingHint")}</button> : null}
 

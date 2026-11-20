@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { canvasThemes, type CanvasBackgroundMode } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
 import type { ViewportTransform } from "@/types/canvas";
+import { CanvasEmptyState } from "./canvas-empty-state";
 
 type InfiniteCanvasProps = {
     containerRef: React.RefObject<HTMLDivElement | null>;
@@ -15,10 +16,12 @@ type InfiniteCanvasProps = {
     onCanvasDoubleClick?: (event: React.MouseEvent<HTMLDivElement>) => void;
     onContextMenu?: (event: React.MouseEvent) => void;
     onDrop?: (event: React.DragEvent<HTMLDivElement>) => void;
+    /** 传入时，空画布会显示由 domain 纯函数决定的起始态提示。 */
+    emptyNodeCount?: number;
     children: React.ReactNode;
 };
 
-export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = "lines", onViewportChange, onCanvasMouseDown, onCanvasDeselect, onCanvasDoubleClick, onContextMenu, onDrop, children }: InfiniteCanvasProps) {
+export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = "lines", emptyNodeCount, onViewportChange, onCanvasMouseDown, onCanvasDeselect, onCanvasDoubleClick, onContextMenu, onDrop, children }: InfiniteCanvasProps) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const panState = useRef({
         isPanning: false,
@@ -220,6 +223,7 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
             onDrop={onDrop}
         >
             <CanvasGrid viewport={viewport} mode={backgroundMode} />
+            {emptyNodeCount !== undefined ? <CanvasEmptyState nodeCount={emptyNodeCount} demoMode={false} starterMode="freeform" /> : null}
             <div
                 className="absolute origin-top-left"
                 style={{

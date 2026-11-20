@@ -1,0 +1,25 @@
+{
+    "total": 3861,
+    "files": {
+        "src/components/canvas/canvas-node.tsx": {
+            "overLines": 281,
+            "vendorUrls": 0,
+            "total": 281
+        },
+        "src/pages/canvas/project.tsx": {
+            "overLines": 3110,
+            "vendorUrls": 0,
+            "total": 3110
+        },
+        "src/services/api/image.ts": {
+            "overLines": 220,
+            "vendorUrls": 0,
+            "total": 220
+        },
+        "src/services/api/model-plugin.ts": {
+            "overLines": 250,
+            "vendorUrls": 0,
+            "total": 250
+        }
+    }
+}

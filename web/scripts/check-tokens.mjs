@@ -42,6 +42,24 @@ const CSS_TOKEN_DEFS = /^\s*--[\w-]+:/;
 const ALLOWED = [/dark:hover:bg-white\/10/g, /hover:bg-black\/5/g, /dark:hover:bg-white\/5/g, /hover:bg-black\/10/g];
 
 /**
+ * 叠在彩色片段 / 视频画面 / 固定浅色浮层上的真黑白：换成 --foreground 会随明暗反转看不清，
+ * 与 IMAGE_OVERLAY_ALLOW 同理，只是这里叠的是媒体块与浮层，不是用户上传的图片。
+ * 按「文件 + 精确 class」放行，不用行号——代码增删行不会让豁免悄悄失效。
+ * 边界断言保证 bg-white 不会误伤 bg-white/30 这类带透明度的类。
+ */
+const OVERLAY_CLASS_ALLOW = new Map([
+    [
+        "src/components/canvas/canvas-timeline-dialog.tsx",
+        new Set(["bg-black", "text-white/60", "bg-black/5", "bg-white/5", "text-white", "bg-white/30", "bg-white/20"]),
+    ],
+    ["src/components/canvas/canvas-node.tsx", new Set(["text-white"])],
+    ["src/components/canvas/canvas-selection-toolbar.tsx", new Set(["bg-white", "border-black/10", "bg-black/10"])],
+]);
+function escapeClass(cls) {
+    return cls.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
  * 叠在用户图片上的选区 / 蒙层 / 手柄：必须用真黑真白。
  *
  * 这些元素与界面主题无关——要保证在任意一张图片（亮片、暗片、透明片）上都看得见。
@@ -114,11 +132,17 @@ function scan() {
         const rel = relative(ROOT, file).replace(/\\/g, "/");
         const lines = readFileSync(file, "utf8").split("\n");
         const allowLines = IMAGE_OVERLAY_ALLOW.get(rel);
+        const allowClasses = OVERLAY_CLASS_ALLOW.get(rel);
         const counts = {};
         let total = 0;
         for (const [index, raw] of lines.entries()) {
             let line = raw;
             for (const allow of ALLOWED) line = line.replace(allow, "");
+            if (allowClasses) {
+                for (const cls of allowClasses) {
+                    line = line.replace(new RegExp(`(?<![\\w/-])${escapeClass(cls)}(?![\\w/-])`, "g"), "");
+                }
+            }
             for (const rule of RULES) {
                 if (CSS_ONLY_RULES.has(rule.id)) continue;
                 // 图片叠层豁免只针对裸黑裸白，其他规则照常检查。

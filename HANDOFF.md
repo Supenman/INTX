@@ -191,3 +191,33 @@ Windows / macOS 安装包；Linux deb / AppImage 打包；release 下 `read_agen
 新增 `storage-error-message.test.ts` 4 例，钉住两条路径的文案不同。破坏性自检：把 `copy()` 改回 `snapshotCorruptData()`，2 例立刻变红，恢复后复绿。全量 `tsc` 0 错、`vitest run src` **781/781**、`vite build` 通过。
 
 **未提交 / 未推送**：本轮改了 `CHANGELOG.md`、`HANDOFF.md`、`snapshot-storage.ts`、`task-storage.ts` 和新增测试文件，等用户明确授权再推。
+
+---
+
+## 第七轮：工具注册表 UI 接线 + 结构预算（2026-11-20，#50–#53）
+
+### 背景纠偏
+
+配景文档（INTX-重构方案.md §6.8）写的「v2.2 已落地四工具栏由解析结果长出 / useToolbarPrefs / 第七组 E2E」是**已删除 v2 分支的历史**，不是当前 dev 的事实。远端 dev 最新为时间线重做 `3075654`，`main.tsx` 根本没有安装注册表；本地 grep 也证实 `resolveToolbar*` / `resolveAddNodeMenuCommands` 只在单测里出现过。**结论：注册表的 UI 接线是真欠账，不能照旧文档当作已完成。**
+
+### 本轮做的（严格不破坏既有按钮 DOM / class / E2E selector）
+
+- `main.tsx` 同步 `installBuiltinTools()`——异步会让首帧工具栏为空。
+- 新增 `src/lib/canvas/tool-wiring.ts`：`buildToolContext()` 把 UI 状态映射成 `ToolContext`，`toolView()` 按 id 查单工具的可见/禁用/激活。**定义缺失返回中性值**，注册表没装时 UI 不退化。
+- 主工具栏的撤销/重做、多选悬浮栏的等距按钮，禁用/显隐改由注册表判定；按钮图标、i18n、class、顺序全留原处。
+- 新增 `src/hooks/use-toolbar-prefs.ts`：localStorage `intx-toolbar-prefs-<toolbar>-v1`，读盘用 `migrateToolbarPrefs()`，损坏/隐私模式回落默认；偏好不进 `.intx`、不进撤销。
+- 空起始态收进 `canvas-empty-state.tsx`，渲染下沉到 `InfiniteCanvas`（节点数 prop），判态与文案全来自 domain `canvasStarter` 纯函数；面板不挡右键/双击创建。
+- 连线被拒给「请连组里的节点 / 换一个目标节点」人话，函数并入 `canvas-node-geometry.ts`（避免 project.tsx 再膨胀）。
+- `check-tokens.mjs` 增加 `OVERLAY_CLASS_ALLOW`（按精确 class 而非行号豁免叠彩片段/视频的真黑白），抽屉 4 处 `text-[10px]` 收成 `text-xs`；token 裸值 145→116。
+
+### 门禁与验收
+
+- `pnpm verify` 全绿：70 文件 / **850 用例**；typecheck / boundaries / tokens 116 / structure（project.tsx 守在基线内）全过。
+- 第七组 E2E `web/registry_ui.mjs`：多选出对齐栏 → 等距按钮禁用态随节点数 → 左对齐后两点 x 收敛到整数 → console 零错误。
+- 六组旧 E2E 全绿：时间线拖动持久化、split、吸附、文字轨、播放联动高亮、MP4/WebM 导出实证；console 均零错误。
+
+### 未做 / 边界
+
+- 添加菜单、节点悬浮栏、右键菜单**未**接注册表——它们与生产 UI 的按钮集差异大，硬接会破坏既有 DOM 与 E2E；注册表定义先行、UI 渐进接线是当前策略。
+- 结构基线仍卡 project.tsx 只许降；新增逻辑一律独立文件，没往里塞。
+- **本轮未 commit / 未 push**，等用户明确授权再推。

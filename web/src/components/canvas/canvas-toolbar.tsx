@@ -1,9 +1,11 @@
 import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode, RefObject } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, Segmented, Switch } from "antd";
 import { CircleDot, Eraser, Grid2x2, Group, Hand, Image as ImageIcon, Info, LocateFixed, Moon, MousePointer2, Music2, Palette, Puzzle, Redo2, Square, Sun, Trash2, Type, Undo2, Upload, Video } from "lucide-react";
 
 import { canvasThemes, type CanvasBackgroundMode, type CanvasColorTheme, type CanvasTheme } from "@/lib/canvas-theme";
+import { buildToolContext, toolView } from "@/lib/canvas/tool-wiring";
+import { useToolbarPrefs } from "@/hooks/use-toolbar-prefs";
 import { getNodePluginId, listNodeDefinitions, useNodeRegistryVersion } from "@/lib/canvas/node-registry";
 import { getNodeSpec } from "@/constant/canvas";
 import { useThemeStore } from "@/stores/use-theme-store";
@@ -67,6 +69,14 @@ export function CanvasToolbar({
     const [panelX, setPanelX] = useState(0);
     const [extensionsOpen, setExtensionsOpen] = useState(false);
     const [extPanelX, setExtPanelX] = useState(0);
+    // 撤销/重做的可用性由注册表判定；两个值仍来自 store，这里只做映射。
+    const { prefs } = useToolbarPrefs("main");
+    const toolCtx = useMemo(
+        () => buildToolContext({ toolMode: canvasTool, selectedCount, nodeCount: selectedCount, clipboardCount: 0, canUndo, canRedo, demoMode: false }),
+        [canvasTool, selectedCount, canUndo, canRedo],
+    );
+    const undoView = toolView("main", "undo", toolCtx, prefs);
+    const redoView = toolView("main", "redo", toolCtx, prefs);
     // Keep extension plugin nodes synchronized with registry changes.
     useNodeRegistryVersion();
     const extensionDefs = listNodeDefinitions().filter((def) => def.showInCreateMenu !== false && getNodePluginId(def.type) !== "builtin");
@@ -95,12 +105,12 @@ export function CanvasToolbar({
                 <ToolbarButton id={`tool-${canvasTool}`} label={t(`canvas.toolbar.${canvasTool}`)} active hovered={hovered} activeStyle={activeStyle} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={() => onCanvasToolChange(canvasTool === "select" ? "pan" : "select")}>
                     {canvasTool === "select" ? <MousePointer2 className="size-4.5" /> : <Hand className="size-4.5" />}
                 </ToolbarButton>
-                <ToolbarButton id="tool-undo" label={t("canvas.undo")} disabled={!canUndo} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onUndo}>
+                {undoView.visible ? <ToolbarButton id="tool-undo" label={t("canvas.undo")} disabled={!canUndo || undoView.disabled} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onUndo}>
                     <Undo2 className="size-4.5" />
-                </ToolbarButton>
-                <ToolbarButton id="tool-redo" label={t("canvas.redo")} disabled={!canRedo} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onRedo}>
+                </ToolbarButton> : null}
+                {redoView.visible ? <ToolbarButton id="tool-redo" label={t("canvas.redo")} disabled={!canRedo || redoView.disabled} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onRedo}>
                     <Redo2 className="size-4.5" />
-                </ToolbarButton>
+                </ToolbarButton> : null}
                 <ToolbarButton id="tool-focus" label={t("canvas.toolbar.focus")} disabled={!selectedCount} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onFocusSelected}>
                     <LocateFixed className="size-4.5" />
                 </ToolbarButton>

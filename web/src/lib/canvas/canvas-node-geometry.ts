@@ -1,5 +1,11 @@
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type ConnectionHandle, type ViewportTransform } from "@/types/canvas";
 
+/** 连线被拒时的人话提示：画布走几何语义，失败原因有限，集中翻译。 */
+export function warnConnectionRejected(targetNodeId: string, nodes: readonly CanvasNodeData[], warn: (message: string) => void): void {
+  const target = nodes.find((node) => node.id === targetNodeId);
+  warn(target?.type === CanvasNodeType.Group ? "不能直接连到组，请连组里的节点" : "这条连线不成立，请换一个目标节点");
+}
+
 export function nodeBounds(nodes: CanvasNodeData[]) {
     return nodes.reduce(
         (acc, node) => ({

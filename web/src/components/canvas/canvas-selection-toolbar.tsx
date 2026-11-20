@@ -1,10 +1,12 @@
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceAround, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceAround, Download, Group, Ungroup } from "lucide-react";
 import { Tooltip } from "antd";
 import { useTranslation } from "react-i18next";
 
 import { canvasThemes } from "@/lib/canvas-theme";
 import { nodeBounds } from "@/lib/canvas/canvas-node-geometry";
+import { buildToolContext, toolView } from "@/lib/canvas/tool-wiring";
+import { useToolbarPrefs } from "@/hooks/use-toolbar-prefs";
 import type { AlignAxis, DistributeAxis } from "@/lib/canvas/canvas-align";
 import { useThemeStore } from "@/stores/use-theme-store";
 import type { CanvasNodeData, ViewportTransform } from "@/types/canvas";
@@ -51,6 +53,13 @@ export function CanvasSelectionToolbar({
 }) {
     const { t } = useTranslation();
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
+    // 分布按钮的「至少 3 个节点」判定改由注册表给出；节点数仍是唯一真源。
+    const toolCtx = useMemo(
+        () => buildToolContext({ toolMode: "select", selectedCount: nodes.length, nodeCount: nodes.length, clipboardCount: 0, canUndo: false, canRedo: false, demoMode: false }),
+        [nodes.length],
+    );
+    const { prefs } = useToolbarPrefs("selection");
+    const distributeView = toolView("selection", "distribute-horizontal", toolCtx, prefs);
     if (nodes.length < 2) return null;
 
     const bounds = nodeBounds(nodes);
@@ -61,7 +70,7 @@ export function CanvasSelectionToolbar({
     // 对齐/分布不再依赖「能不能打组」：之前只有 canGroup 时才出浮栏，于是选中两个
     // 已经同组的节点、或全是分组时，浮栏整个消失。对齐需要的是「至少两个节点」。
     const showActions = showToolbar;
-    const canDistribute = nodes.length >= 3;
+    const canDistribute = nodes.length >= 3 && distributeView.visible && !distributeView.disabled;
 
     return (
         <>
