@@ -29,18 +29,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # 顺序不能反：setup-node 的 cache: pnpm 需要 pnpm 已在 PATH 上，
+      # 否则 setup-node 自己就报 `Unable to locate executable file: pnpm`。
+      # 所以先装 pnpm，再让 setup-node 带缓存。
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: web/package.json
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
-
-      # 原来这里是 `corepack enable`，但整个 job 的 working-directory 是 web，
-      # corepack 读不到 web/package.json 里的 packageManager，shim 没生成，
-      # 下一步就报 `Unable to locate executable file: pnpm`。
-      - uses: pnpm/action-setup@v4
-        with:
-          package_json_file: web/package.json
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
