@@ -316,3 +316,37 @@ onTimelineChange={(next) => { if (currentProject) updateProject(currentProject.i
 门禁：`pnpm verify` 71 文件 / 858 用例全绿；九组 E2E 全 exit=0；结构预算 3860（`project.tsx` 基线从 3110 降到 3108，净减 2 行）。
 
 **未推送**，等授权。
+
+---
+
+## 第十二轮：清理死代码 + 品牌去上游（2026-11-20）
+
+用户授权「不好的功能也可以删掉」，但选择「先不砍功能，只清死代码」。
+
+### 死代码：1056 行，用编译器验证而非 grep 猜
+
+移出 `domain/node/{layout,connection,prompt,validate}.ts` 与对应 4 个测试文件。
+
+验证方式：**先 `mv` 走再跑 `tsc --noEmit`**，编译器只报 `domain/index.ts` 里 4 处门面导出；再确认 8 个 `from "@/domain"` 的消费者都没用到这些符号，才删掉门面导出。这比逐个 grep 可靠——grep 会漏掉 re-export 与类型引用。
+
+**修正了初判**：最初把 `grid.ts`（107 行 + 测试 103 行）也算进死代码，但实测发现它被 `storyboard.ts` 的 `parseGrid` 引用（分镜宫格在用），**保留**。所以实际删除 1056 行，不是 1498 行。
+
+这 4 个模块是早期 domain 层的「理想架构」，后来画布实际走 `lib/canvas/canvas-node-geometry.ts`，形成两套几何算法只有一套在用——这正是「重复造轮子」的字面证据。
+
+### 品牌去上游：只改无功能依赖的两处
+
+- `hooks/use-version-check.ts`：版本与更新日志 URL 从 `basketikun/infinite-canvas` 改为 `Supenman/INTX/dev`。**此前是功能性 bug**：用户看到的「发现新版本」是上游版本号，点更新跳别人仓库，自己产品的更新永远提示不到。
+- `constant/env.ts`：`REPO_URL` 改为 `https://github.com/Supenman/INTX`。
+
+### 未改（有真实功能依赖，改了会坏）
+
+| 位置 | 现状 | 为什么不改 |
+|---|---|---|
+| `agent-connect-view.tsx` | `npx -y @basketikun/canvas-agent@latest` | 改包名要先把 agent 发布到自己的 npm scope，否则用户跑不起 |
+| `use-config-store.ts` | `LOCAL_PROXY_PACKAGE = "@basketikun/canvas-proxy"` | 同上 |
+| `constant/env.ts` | `PLUGIN_REGISTRY_URL` 指向上游 CDN 的 `plugins-dist` | 改了我们没有插件清单，插件市场会空 |
+| `constant/env.ts` | `DOCS_URL = https://docs.canvas.best` | 我们没部署文档站 |
+
+### 门禁
+
+`pnpm verify` 全绿：67 文件 / 802 用例（原 71 / 858，减少 4 个测试文件、56 个用例）；typecheck / boundaries / tokens / structure 全过。

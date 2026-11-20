@@ -156,24 +156,6 @@ export {
 } from './node/registry';
 export { assetNode, builtinNodes, generateNode, storyboardNode, textInputNode } from './node/builtins';
 export {
-  PROMPT_LONG_THRESHOLD,
-  isLongPrompt,
-  promptEditorState,
-  promptLength,
-  type PromptEditorState,
-} from './node/prompt';
-export {
-  checkPrompt,
-  checkRequiredInputs,
-  localTextFor,
-  resolvePrompt,
-  textInputPortId,
-  type ConnectionLookup,
-  type MissingInput,
-  type MissingInputCode,
-  type ParamIssue,
-} from './node/validate';
-export {
   MAX_GRID_CELLS,
   containRect,
   gridLayout,
@@ -230,28 +212,6 @@ export {
 
 // 节点默认尺寸（新建节点与旧数据导入共用）
 export { defaultNodeSize } from './node/size';
-
-// 画布布局（对齐 / 等距 / 自动整理，UI 与导入共用一份算法）
-export {
-  LAYOUT_STEP_X,
-  LAYOUT_STEP_Y,
-  alignNodes,
-  autoLayout,
-  distributeNodes,
-  freeBatchOffset,
-  type AlignMode,
-  type AutoLayoutOptions,
-  type DistributeAxis,
-  type PositionMap,
-} from './node/layout';
-
-// 连线语义（单路输入换源 + 错误人话化）
-export {
-  describePortIssue,
-  describePortIssues,
-  effectiveExistingEdges,
-  portTypeLabel,
-} from './node/connection';
 
 // 声明式工具注册表（P1：按钮行为数据化，UI 只做解析与渲染）
 export type {
