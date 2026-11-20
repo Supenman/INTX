@@ -282,3 +282,37 @@ Windows / macOS 安装包；Linux deb / AppImage 打包；release 下 `read_agen
 ### 门禁与验收
 - `pnpm verify` 全绿：71 文件 / **858 用例**（新增 5 例右键菜单 + 之前同源 3 例）。
 - 七组 E2E 回归全 exit=0、零错误：多选对齐、时间线拖动持久化、文字轨、播放联动高亮、预览字幕、右键菜单、添加菜单。
+
+---
+
+## 第十一轮：时间线编辑纳入撤销栈（2026-11-20，#114）
+
+### 问题（真 bug，用户必然撞到）
+
+`CanvasHistoryEntry` 快照只装 `nodes / connections / chatSessions / activeChatId / backgroundMode / showImageInfo`，**没有 `timeline`**；而时间线的所有编辑走的是另一条路：
+
+```ts
+onTimelineChange={(next) => { if (currentProject) updateProject(currentProject.id, { timeline: next }); }}
+```
+
+它只改 `project.timeline`，不碰 `nodes`，撤销栈的 diff 判定完全看不见变化。后果：切分切错、trim 拉错、删错字幕、拖错 clip，**按 Ctrl+Z 毫无反应**。
+
+### 做法
+
+- `CanvasHistoryEntry` 增加 `timeline: ReturnType<typeof resolveTimeline> | undefined`（用 `ReturnType` 而非新 import `Timeline`，因为结构预算只剩 1 行余量）。
+- `createHistoryEntry()` 带 `timeline: currentProject?.timeline`，依赖数组同步。
+- `applyHistory()` 回写 `updateProject(projectId, { timeline: entry.timeline })`——撤销 timeline 必须落到 store，否则抽屉拿到的是旧值。
+- 历史 diff 判定加 `previous.timeline === next.timeline`（领域函数都返回新对象，引用比较足够）。
+- 加载项目时的 `lastHistoryRef` 初始快照也补上 `timeline`，避免首帧误记一步假历史。
+- **合并策略复用既有 180ms debounce**：拖动时每帧 `updateProject` 都在跑，但每次依赖变化都会重置计时器，停手 180ms 后才入栈一次。
+
+### 验收
+
+`web/undo_timeline_ui.mjs`（第八组 E2E）：
+- 移除片段：3 → 2 → 撤销 3 → 重做 2 → 再撤销并刷新仍是 3（持久化正确）
+- 拖动片段：`left` 从 0px 拖到 144px，撤销**一次**即回到 0px → `DRAG_UNDO_IS_SINGLE_STEP: true`，证明几十帧移动被合并成一步，不会「只退一帧」
+- console 零错误
+
+门禁：`pnpm verify` 71 文件 / 858 用例全绿；九组 E2E 全 exit=0；结构预算 3860（`project.tsx` 基线从 3110 降到 3108，净减 2 行）。
+
+**未推送**，等授权。

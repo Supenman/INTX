@@ -126,6 +126,7 @@ type CanvasHistoryEntry = CanvasSubgraph & {
     activeChatId: string | null;
     backgroundMode: CanvasBackgroundMode;
     showImageInfo: boolean;
+    timeline: ReturnType<typeof resolveTimeline> | undefined;
 };
 
 type CanvasGenerationRequest = {
@@ -320,14 +321,11 @@ function InfiniteCanvasPage() {
 
     const createHistoryEntry = useCallback(
         (): CanvasHistoryEntry => ({
-            nodes: nodesRef.current,
-            connections: connectionsRef.current,
-            chatSessions,
-            activeChatId,
-            backgroundMode,
-            showImageInfo,
+            nodes: nodesRef.current, connections: connectionsRef.current,
+            chatSessions, activeChatId, backgroundMode, showImageInfo,
+            timeline: currentProject?.timeline,
         }),
-        [activeChatId, backgroundMode, chatSessions, showImageInfo],
+        [activeChatId, backgroundMode, chatSessions, showImageInfo, currentProject?.timeline],
     );
 
     const cleanupCanvasFiles = useCallback(
@@ -501,10 +499,9 @@ function InfiniteCanvasPage() {
             lastHistoryRef.current = {
                 nodes: restoredNodes,
                 connections: project.connections,
-                chatSessions: restoredSessions,
-                activeChatId: project.activeChatId || null,
-                backgroundMode: project.backgroundMode,
-                showImageInfo: project.showImageInfo || false,
+                chatSessions: restoredSessions, activeChatId: project.activeChatId || null,
+                backgroundMode: project.backgroundMode, showImageInfo: project.showImageInfo || false,
+                timeline: project.timeline,
             };
             setHistoryState({ canUndo: false, canRedo: false });
             setLoadedProjectId(projectId);
@@ -535,7 +532,8 @@ function InfiniteCanvasPage() {
             previous.chatSessions === next.chatSessions &&
             previous.activeChatId === next.activeChatId &&
             previous.backgroundMode === next.backgroundMode &&
-            previous.showImageInfo === next.showImageInfo
+            previous.showImageInfo === next.showImageInfo &&
+            previous.timeline === next.timeline
         )
             return;
 
@@ -557,7 +555,7 @@ function InfiniteCanvasPage() {
                 historyCommitTimerRef.current = null;
             }
         };
-    }, [activeChatId, backgroundMode, chatSessions, connections, createHistoryEntry, nodes, projectLoaded, showImageInfo]);
+    }, [activeChatId, backgroundMode, chatSessions, connections, createHistoryEntry, nodes, projectLoaded, showImageInfo, currentProject?.timeline]);
 
     useEffect(() => {
         if (!projectLoaded || historyPausedRef.current) return;
@@ -1413,6 +1411,7 @@ function InfiniteCanvasPage() {
         setActiveChatId(entry.activeChatId);
         setBackgroundMode(entry.backgroundMode);
         setShowImageInfo(entry.showImageInfo);
+        updateProject(projectId, { timeline: entry.timeline });
         setSelectedNodeIds(new Set());
         setSelectedConnectionId(null);
         setContextMenu(null);
@@ -1421,7 +1420,7 @@ function InfiniteCanvasPage() {
             applyingHistoryRef.current = false;
             setHistoryState({ canUndo: historyRef.current.past.length > 0, canRedo: historyRef.current.future.length > 0 });
         });
-    }, []);
+    }, [projectId, updateProject]);
 
     const undoCanvas = useCallback(() => {
         const previous = historyRef.current.past.pop();
