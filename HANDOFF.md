@@ -221,3 +221,28 @@ Windows / macOS 安装包；Linux deb / AppImage 打包；release 下 `read_agen
 - 添加菜单、节点悬浮栏、右键菜单**未**接注册表——它们与生产 UI 的按钮集差异大，硬接会破坏既有 DOM 与 E2E；注册表定义先行、UI 渐进接线是当前策略。
 - 结构基线仍卡 project.tsx 只许降；新增逻辑一律独立文件，没往里塞。
 - **本轮未 commit / 未 push**，等用户明确授权再推。
+
+---
+
+## 第八轮：收尾 #82/#83（2026-11-20）
+
+### #82 i18n 与文档收口——核查后确认已完成，未重复劳动
+
+四项要求在当前代码中**全部已满足**（早期任务被后续工作顺带完成）：
+- zh-CN/en-US 的 `modelSelect` 段落与 `composer.selectModel` 文案齐全；
+- CHANGELOG Unreleased 第 56 行已有「OpenCode 车道支持选择模型」条目；
+- pending-test.mdx 中文第 241 行、英文第 330–333 行已有模型选择待验收条目；
+- todo.mdx 中英两版已把「模型选择」移出，只剩 Timeline + Skill 两项。
+
+### #83 构建级检查——六项真实退出码（构建级 ≠ 真机通过）
+
+| 检查 | 退出码 | 结果摘要 |
+|---|---|---|
+| web `pnpm typecheck` | 0 | tsc --noEmit 无错 |
+| web `pnpm exec vitest run src` | 0 | 70 文件 / 850 用例全过 |
+| web `pnpm check:boundaries` | 0 | domain 无 IO、厂商请求单一出口 |
+| web `pnpm build` | 0 | vite build 17.37s；仅既存大 chunk 提示 |
+| canvas-agent `pnpm test` | 0 | 81 用例全过、0 失败 |
+| canvas-agent `pnpm build` | 0 | tsc -p tsconfig.json 无错 |
+
+**边界**：构建级全绿不等于真机通过；厂商请求、Tauri 桌面端、真实扣费场景仍未真机验证。本轮**未提交、未推送**，等用户决定。
