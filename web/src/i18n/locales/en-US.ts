@@ -261,7 +261,10 @@ export default {
         docs: "Documentation",
         projects: "My Canvases",
         deleteCurrent: "Delete current canvas",
-        importAsset: "Import asset",
+        // This menu item actually picks image/video/audio and creates canvas nodes;
+        // it has nothing to do with the asset library. It used to share the label
+        // "Import asset" with the assets page (which imports a zip into the library).
+        importMedia: "Place media files",
         exportCurrent: "Export current canvas",
         undo: "Undo",
         redo: "Redo",

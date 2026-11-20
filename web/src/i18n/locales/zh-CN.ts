@@ -261,7 +261,9 @@ export default {
         docs: "文档",
         projects: "我的画布",
         deleteCurrent: "删除当前画布",
-        importAsset: "导入资产",
+        // 顶栏这条实际是「选图片/视频/音频并在画布上建节点」，和资产库无关。
+        // 原来叫「导入资产」，与资产页那条（导入 zip 进资产库）同名不同义。
+        importMedia: "放入媒体文件",
         exportCurrent: "导出当前画布",
         undo: "撤销",
         redo: "重做",

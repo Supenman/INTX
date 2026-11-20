@@ -52,6 +52,13 @@ console.log("ITEM_COUNT:", items.length);
 console.log("ITEMS:", JSON.stringify(items.map(clean)));
 await page.screenshot({ path: "/tmp/menu.png" });
 
+// 顶栏这条曾叫「导入资产」，但实际是选图片/视频/音频并在画布上建节点，
+// 与资产页的「导入资产」（导入 zip 进资产库）同名不同义。防止改回去。
+const flat = items.map(clean);
+const mediaLabel = flat.some((s) => s.includes("放入媒体文件"));
+const misleading = flat.some((s) => s === "导入资产");
+console.log("IMPORT_LABEL_OK:", mediaLabel && !misleading);
+
 const timelineItem = page.locator(".ant-dropdown-menu-item", { hasText: "时间线" }).first();
 if (await timelineItem.count()) {
     await timelineItem.click();

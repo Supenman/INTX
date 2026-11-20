@@ -121,7 +121,7 @@ export function CanvasTopBar({
                                     type: "group",
                                     label: t("canvas.menuGroup.file"),
                                     children: [
-                                        { key: "import", icon: <Upload className="size-4" />, label: t("canvas.importAsset"), onClick: onImportImage },
+                                        { key: "import", icon: <Upload className="size-4" />, label: t("canvas.importMedia"), onClick: onImportImage },
                                         { key: "export", icon: <Download className="size-4" />, label: t("canvas.exportCurrent"), onClick: onExportProject },
                                         { key: "save-workflow", icon: <Download className="size-4" />, label: t("canvas.workflow.save"), disabled: !canSaveWorkflow, onClick: onSaveWorkflow },
                                         // 预览链路依赖当前选择态，属于工作流的预览步骤，收进同一组。
