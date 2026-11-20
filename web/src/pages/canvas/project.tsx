@@ -50,6 +50,8 @@ import { CanvasToolbar } from "@/components/canvas/canvas-toolbar";
 import { AssetPickerModal, type InsertAssetPayload } from "@/components/canvas/asset-picker-modal";
 import { CanvasGenerationHistoryModal } from "@/components/canvas/canvas-generation-history-modal";
 import { CanvasTimelineDialog } from "@/components/canvas/canvas-timeline-dialog";
+import { resolveTimeline } from "@/domain/timeline/resolve";
+import { resolveClips, trackOf } from "@/domain/timeline/view";
 import { CanvasStoryboardDialog } from "@/components/canvas/canvas-storyboard-dialog";
 import { CanvasSidePanel } from "@/components/canvas/canvas-side-panel";
 import { CanvasZoomControls } from "@/components/canvas/canvas-zoom-controls";
@@ -261,6 +263,8 @@ function InfiniteCanvasPage() {
     const [runningNodeId, setRunningNodeId] = useState<string | null>(null);
     const [isMiniMapOpen, setIsMiniMapOpen] = useState(false);
     const [timelineOpen, setTimelineOpen] = useState(false);
+    // 时间线播放联动：当前播放头命中的镜头节点 id，驱动画布高亮。
+    const [timelineActiveNodeId, setTimelineActiveNodeId] = useState<string | null>(null);
     const [storyboardOpen, setStoryboardOpen] = useState(false);
     const [backgroundMode, setBackgroundMode] = useState<CanvasBackgroundMode>("lines");
     const [showImageInfo, setShowImageInfo] = useState(false);
@@ -740,6 +744,12 @@ function InfiniteCanvasPage() {
     );
 
     const nodeById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
+    // 画布序号徽标：时间线视频轨里的镜头按起点编 1/2/3，让画布能看出「这是一条片子」。
+    const timelineSequenceById = useMemo(() => {
+        const timeline = resolveTimeline(nodes, currentProject?.timeline);
+        const clips = resolveClips(trackOf(timeline, "video"), nodeById);
+        return new Map(clips.map((clip, index) => [clip.clip.nodeId, index + 1]));
+    }, [nodes, currentProject?.timeline, nodeById]);
 
     // Connections are culled like nodes; a cubic curve stays inside its control-point hull, so endpoint bounds widened by the curvature is a safe test.
     const visibleConnections = useMemo(
@@ -3598,6 +3608,8 @@ function InfiniteCanvasPage() {
                             groupChildCount={groupChildCountById.get(node.id) || 0}
                             isGroupDropTarget={dropTargetGroupId === node.id}
                             batchExpanded={expandedBatchNodeIds.has(node.id)}
+                            sequenceIndex={timelineSequenceById.get(node.id)}
+                            isTimelineActive={timelineActiveNodeId === node.id}
                             showImageInfo={showImageInfo}
                             mentionReferences={mentionReferencesByNodeId.get(node.id) || EMPTY_REFERENCES}
                             pluginHost={pluginHost}
@@ -3870,8 +3882,10 @@ function InfiniteCanvasPage() {
                 {timelineOpen ? <div className="h-[48%] min-h-[280px] shrink-0"><CanvasTimelineDialog
                     open
                     onClose={() => setTimelineOpen(false)}
+                    onActiveNodeChange={setTimelineActiveNodeId}
                     nodes={nodes}
-                    selectedNodeIds={selectedNodeIds}
+                    timeline={resolveTimeline(nodes, currentProject?.timeline)}
+                    onTimelineChange={(next) => { if (currentProject) updateProject(currentProject.id, { timeline: next }); }}
                     title={currentProject?.title || "INTX 时间线"}
                     onUpdateNode={(nodeId, patch) => setNodes((previous) => previous.map((node) => node.id === nodeId ? { ...node, metadata: { ...node.metadata, ...patch } } : node))}
                     onImportAudio={async (file) => {
@@ -3882,8 +3896,10 @@ function InfiniteCanvasPage() {
                             node.title = file.name.replace(/\.[^.]+$/, "") || node.title;
                             setNodes((previous) => [...previous, node]);
                             message.success(`已导入音频：${file.name}`);
+                            return node.id;
                         } catch (error) {
                             message.error(error instanceof Error ? error.message : "导入音频失败");
+                            return null;
                         }
                     }}
                 /></div> : null}

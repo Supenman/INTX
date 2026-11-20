@@ -27,7 +27,7 @@ type CanvasStore = ProjectSnapshot & {
     permanentlyDeleteProjects: (ids: string[]) => void;
     moveProjectsToFolder: (ids: string[], folder?: string) => void;
     replaceProjects: (projects: CanvasProject[], deletedProjects?: CanvasDeletedProject[]) => void;
-    updateProject: (id: string, patch: Partial<Pick<CanvasProject, "folder" | "nodes" | "connections" | "chatSessions" | "activeChatId" | "backgroundMode" | "showImageInfo" | "viewport">>) => void;
+    updateProject: (id: string, patch: Partial<Pick<CanvasProject, "folder" | "nodes" | "connections" | "chatSessions" | "activeChatId" | "backgroundMode" | "showImageInfo" | "viewport" | "timeline">>) => void;
 };
 
 /** 同步动作只更新编辑草稿；flush/retrySave 成功才代表事务提交。 */

@@ -215,7 +215,7 @@ export default {
         emptyTitle: "生成结果会出现在这里",
     },
     canvas: {
-        timeline: { entry: "时间线", close: "关闭时间线", colorGrade: "调色", playhead: "播放头", play: "播放预览", pause: "暂停预览", addSelection: "添加选中镜头（{{count}}）", previewEmpty: "选择可预览的镜头", previewVideoError: "视频预览失败，请检查源视频格式。", previewAudioError: "旁白播放失败，请检查音频格式。", dragShot: "拖动镜头：{{name}}", dragShotHint: "拖动到另一镜头上可调整顺序", grades: { original: "原始", warm: "暖调", cool: "冷调", monochrome: "黑白", vivid: "鲜艳", faded: "褪色" } },
+        timeline: { entry: "时间线", close: "关闭时间线", sequence: "镜头 {{index}}", colorGrade: "调色", playhead: "播放头", play: "播放预览", pause: "暂停预览", previewEmpty: "选择可预览的镜头", previewVideoError: "视频预览失败，请检查源视频格式。", previewAudioError: "旁白播放失败，请检查音频格式。", dragShot: "拖动镜头：{{name}}", dragShotHint: "拖动到另一镜头上可调整顺序", splitAtPlayhead: "在播放头处切分", splitHint: "把播放头所在的镜头切成两段", splitNoShot: "播放头不在镜头上，无法切分", trimStart: "{{name}} 入点", trimEnd: "{{name}} 出点", textTrack: "字幕", addText: "添加字幕", addTextEmpty: "画布上还没有文字节点", removeFromTimeline: "从时间线移除", grades: { original: "原始", warm: "暖调", cool: "冷调", monochrome: "黑白", vivid: "鲜艳", faded: "褪色" } },
         storyboard: { entry: "分镜流水线", description: "粘贴或编辑分镜脚本。创建后可预览全部镜头的总估价，再确认逐镜生成。", placeholder: "每行写一个镜头，例如：\n清晨，女主推开咖啡馆的门\n近景，她发现桌上留着一封信\n窗外雨势渐大", lineRule: "每个非空行创建一个图片镜头；创建节点不会调用模型。", shotCount: "{{count}} 个镜头", createShots: "创建 {{count}} 个镜头节点", referenceCount: "当前选中的 {{count}} 张成功图片会作为每个镜头的参考图。", created: "已创建 {{count}} 个镜头。使用「预览生成链路」查看总费用并确认逐镜生成。", shotTitle: "镜头 {{index}}" },
         generationHistory: {
             entry: "生成历史",

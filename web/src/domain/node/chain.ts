@@ -51,8 +51,10 @@ export function orderUpstreamChains<T extends ChainNode>(nodes: readonly T[], ed
 
 export function chainStepDisposition(hasResult: boolean, task?: OutcomeSource) {
     const outcome = readTaskOutcome(task);
-    if (task && (!outcome || outcome.regenerate !== "allowed")) return "blocked";
+    // 先判结果，再判任务态。顺序反了会把「已经有可用产出、只是上次重发需确认」的节点
+    // 标成 blocked，用户会以为这个镜头坏了；复用已有结果不涉及任何重发，不会放松 confirm。
     if (hasResult) return "reuse";
+    if (task && (!outcome || outcome.regenerate !== "allowed")) return "blocked";
     // A committed success without an available result calls for recovery of that result.
     return outcome?.phase === "ready" ? "blocked" : "generate";
 }

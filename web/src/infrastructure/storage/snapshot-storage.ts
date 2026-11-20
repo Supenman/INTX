@@ -7,6 +7,7 @@ const record = (v: unknown): v is Record<string, unknown> => v !== null && typeo
 const string: Validator = (v) => typeof v === 'string';
 const id: Validator = (v) => string(v) && (v as string).length > 0;
 const number: Validator = (v) => typeof v === 'number' && Number.isFinite(v);
+const tick: Validator = (v) => number(v) && (v as number) >= 0;
 const boolean: Validator = (v) => typeof v === 'boolean';
 const oneOf = (...values: unknown[]): Validator => (v) => values.includes(v);
 const array = (valid: Validator): Validator => (v) => Array.isArray(v) && Array.from(v).every(valid);
@@ -33,11 +34,14 @@ const message = shape({ id, role: oneOf('user', 'assistant', 'system', 'tool', '
   title: string, meta: string, detail: () => true, references: array(reference),
 });
 const session = shape({ id, title: string, messages: array(message), createdAt: string, updatedAt: string });
+const timelineClip = shape({ id, nodeId: id, startTick: tick, durationTick: tick, sourceStartTick: tick }, { volume: number });
+const timelineTrack = shape({ id, kind: oneOf('video', 'audio', 'text'), clips: array(timelineClip) });
+const timeline = shape({ fps: number, tracks: array(timelineTrack) });
 const project = shape({
   id, title: string, createdAt: string, updatedAt: string, nodes: array(node), connections: array(connection),
   chatSessions: array(session), activeChatId: (v) => v === null || string(v),
   backgroundMode: oneOf('dots', 'lines', 'blank'), showImageInfo: boolean, viewport: shape({ x: number, y: number, k: number }),
-}, { folder: string });
+}, { folder: string, timeline });
 const tombstone = shape({ id, deletedAt: string }, { project, purged: boolean });
 const mediaData = (url: string) => shape({ [url]: string, width: number, height: number, bytes: number, mimeType: string }, { storageKey: string });
 const asset: Validator = (v) => record(v) && shape({

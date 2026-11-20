@@ -37,6 +37,10 @@ type CanvasNodeProps = {
     groupChildCount?: number;
     isGroupDropTarget?: boolean;
     batchExpanded?: boolean;
+    /** 在时间线视频轨中的镜头序号（从 1 开始）；不在时间线上时为 undefined。 */
+    sequenceIndex?: number;
+    /** 时间线播放头正命中该镜头时，画布上高亮显示。 */
+    isTimelineActive?: boolean;
     onMouseDown: (event: React.MouseEvent, nodeId: string) => void;
     onSelectCapture?: (event: React.MouseEvent, nodeId: string) => void;
     onHoverStart: (nodeId: string) => void;
@@ -100,6 +104,8 @@ export const CanvasNode = React.memo(function CanvasNode({
     groupChildCount = 0,
     isGroupDropTarget = false,
     batchExpanded = false,
+    sequenceIndex,
+    isTimelineActive = false,
     onMouseDown,
     onSelectCapture,
     onHoverStart,
@@ -296,6 +302,7 @@ export const CanvasNode = React.memo(function CanvasNode({
     return (
         <div
             data-node-id={data.id}
+            data-timeline-active={isTimelineActive ? "true" : undefined}
             className={`node-element group/node absolute flex select-none flex-col transition-shadow duration-200 ${isGroup ? "z-[5]" : isSelected ? "z-50" : "z-10"} ${referenceSelectionState === "available" ? "cursor-pointer" : referenceSelectionState ? "cursor-not-allowed" : ""}`}
             style={{
                 transform: `translate(${data.position.x}px, ${data.position.y}px)`,
@@ -320,6 +327,17 @@ export const CanvasNode = React.memo(function CanvasNode({
                 else onContextMenu(event, data.id);
             }}
         >
+            {sequenceIndex !== undefined ? <span
+                data-sequence-index={sequenceIndex}
+                title={t("canvas.timeline.sequence", { index: sequenceIndex })}
+                className="pointer-events-none absolute -left-2 -top-2 z-[80] flex size-6 items-center justify-center rounded-full text-xs font-bold text-white shadow-md"
+                style={{ background: isTimelineActive ? "#22c55e" : theme.node.activeStroke }}
+            >{sequenceIndex}</span> : null}
+            {isTimelineActive ? <div
+                data-timeline-active
+                className="pointer-events-none absolute -inset-1 z-[70] rounded-3xl"
+                style={{ border: "2px solid #22c55e", boxShadow: "0 0 0 3px rgba(34,197,94,.25), 0 0 24px rgba(34,197,94,.45)" }}
+            /> : null}
             {!referenceSelectionState && (isSelected || hovered || isEditingTitle) && (
                 <div className="absolute left-3 top-[-28px] z-[65] max-w-[calc(100%-24px)]" onMouseDown={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
                     {isEditingTitle ? (

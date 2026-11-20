@@ -1,5 +1,6 @@
 import type { CanvasBackgroundMode } from '../../lib/canvas-theme';
 import type { CanvasAssistantSession, CanvasConnection, CanvasNodeData, ViewportTransform } from '../../types/canvas';
+import type { Timeline } from '../../domain/timeline/model';
 
 // Business data only. Stores re-export these types; persistence never imports a store.
 export type CanvasProject = {
@@ -15,6 +16,8 @@ export type CanvasProject = {
   backgroundMode: CanvasBackgroundMode;
   showImageInfo: boolean;
   viewport: ViewportTransform;
+  /** 项目级时间线。旧项目没有此字段，加载时按节点的 timeline* 字段迁移生成。 */
+  timeline?: Timeline;
 };
 export type CanvasDeletedProject = { id: string; deletedAt: string; project?: CanvasProject; purged?: boolean };
 

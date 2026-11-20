@@ -19,6 +19,9 @@ export async function extractVideoAudio(node: CanvasNodeData) {
         output.addAudioTrack(audioSource);
         await output.start();
         const sink = new AudioBufferSink(tracks[0]!);
+        // AudioBufferSource 只能顺序拼接，不接受逐段 timestamp（只有首段的 startTimestamp）。
+        // 因此音轨中间的静音间隙会被压平、后续内容整体前移。常见手机/相机素材音轨从 0 秒连续开始，
+        // 不受影响；若将来要支持带间隙的素材，需按 chunk.timestamp 手动补静音段。
         for await (const chunk of sink.buffers()) await audioSource.add(chunk.buffer);
         await output.finalize();
         if (!target.buffer) throw new Error("empty-output");

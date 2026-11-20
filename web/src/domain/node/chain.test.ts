@@ -23,4 +23,13 @@ describe("upstream chain", () => {
         expect(chainStepDisposition(false, { status: "failed", error: { code: "submission_uncertain" } })).toBe("blocked");
         expect(chainStepDisposition(false, { status: "succeeded" })).toBe("blocked");
     });
+
+    it("keeps reusing a saved output even when the last attempt would need confirmation", () => {
+        // 有产出就该复用：blocked 会让预览面板把好镜头标成「已拦截」。
+        expect(chainStepDisposition(true, { status: "running" })).toBe("reuse");
+        expect(chainStepDisposition(true, { status: "failed", error: { code: "submission_uncertain" } })).toBe("reuse");
+        expect(chainStepDisposition(true, { status: "succeeded" })).toBe("reuse");
+        // 复用不等于放宽重发：没有产出时，confirm 仍然必须拦住。
+        expect(chainStepDisposition(false, { status: "failed", error: { code: "submission_uncertain" } })).toBe("blocked");
+    });
 });
