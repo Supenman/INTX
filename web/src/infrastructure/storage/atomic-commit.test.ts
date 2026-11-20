@@ -44,6 +44,31 @@ describe('任务与素材合并提交', () => {
     expect(valueOf(await assets.load())).toEqual({ value: target, revision: asset.revision + 1 });
   });
 
+  it('同一任务被两路并发消费：只有一边核销，产物不重复挂', async () => {
+    const { dbName, tasks, assets, task, asset } = await seeded();
+    const planned = planRecoveredTask({ ...task.value, revision: task.revision }, ['recovered-1']);
+    expect(planned.ok).toBe(true);
+    if (!planned.ok) return;
+    const added = { ...asset.value.assets[0], id: 'recovered-asset' };
+    const withResult = { ...asset.value, assets: [...asset.value.assets, added] };
+    const input = {
+      task: planned.value, taskRevision: task.revision,
+      assets: withResult, assetsRevision: asset.revision,
+    };
+    const [first, second] = await Promise.all([
+      commitRecoveryAtomically(input, { dbName }),
+      commitRecoveryAtomically(input, { dbName }),
+    ]);
+    expect([first.ok, second.ok].filter(Boolean)).toHaveLength(1);
+    expect(valueOf(await tasks.get('task-a'))).toEqual({
+      value: expect.objectContaining({ status: 'succeeded', resultAssetIds: ['recovered-1'] }),
+      revision: task.revision + 1,
+    });
+    const final = valueOf(await assets.load());
+    expect(final.value.assets.filter((item) => item.id === 'recovered-asset')).toHaveLength(1);
+    expect(final.revision).toBe(asset.revision + 1);
+  });
+
   it('素材 revision 过期时整体回滚，任务保持原样', async () => {
     const { dbName, tasks, asset, task } = await seeded();
     const before = valueOf(await tasks.get('task-a'));

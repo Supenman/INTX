@@ -1174,3 +1174,33 @@ HANDOFF「接下来」里挂的 M2 剩两条是 `M2-真机验收清单-2026-11-1
 - **扫的是本地注入场景的台账**，不是用户机器上的真实台账。用户若要核对自己的，
   在任务中心导出诊断 JSON 后搜 Key 前缀与 BaseURL 即可。
 - 场景 A/B（真实出图、三类失败路径）本就不在这两条里，维持原有记录。
+
+## 第二十七轮：生成结果去重——复核后确认不需要加层（2026-11-21）
+
+BeefTV 精读清单 §1 留的一条 ⬜ 是 `applyGenerationConsumerEffect` /
+`generationEffectApplied`：它用一次性标记防止同一结果被重复消费（轮询与
+重试并发时重复挂产物）。本轮决定**不加**，理由是现有架构三条已经挡住：
+
+1. **命令式 await，没有 effect 驱动的自动 attach**。`requestSingleImage`
+   的结果由调用方直接挂节点，不存在 React effect 响应 task 状态变化而重跑
+   的路径。BeefTV 那个坑的前提在我们这里不成立。
+2. **UI 全局锁**：`config-tasks.tsx` 的 `busyId` 让同一标签页的取回串行；
+   `inFlight` Set 再按任务号挡一层。
+3. **跨进程幂等**：`commitRecoveryAtomically` 在事务内做 revision 条件更新，
+   `planDraftRecovery` 按素材 id / storageKey 复用已落盘产物。两路同时取回
+   时只有一路能核销，另一路整体回滚，不会留下「素材已挂、任务没核销」。
+
+新增回归测试 `src/infrastructure/storage/atomic-commit.test.ts`：
+「同一任务被两路并发消费：只有一边核销，产物不重复挂」。成功标准写死为
+——`Promise.all` 两路相同输入，恰好一路 `ok`；任务 revision 只 +1；素材
+快照里新产物恰好一份。实测通过。
+
+`pnpm verify` 全绿：72 文件 / **865 用例**（比上轮多 1），门禁不变。
+
+### 边界
+
+- 跨标签页同时取回时，两边都会先 `uploadImage` 写媒体文件，失败那边的
+  媒体文件会成为孤立文件（素材快照回滚了，文件没回滚）。这不影响产物重复
+  挂载，也不影响台账正确性；要消除得引入跨标签页协调，成本大于收益，**不做**。
+- 若将来把挂产物改成 effect 驱动（监听 task 状态自动 attach），届时必须补
+  一次性消费标记——本轮的结论只对当前命令式架构有效。
