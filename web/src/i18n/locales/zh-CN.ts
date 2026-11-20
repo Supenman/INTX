@@ -1,4 +1,14 @@
 export default {
+    toolbarPrefs: {
+        title: "自定义工具栏",
+        description: "取消勾选即隐藏该按钮。只影响本机，不进项目文件，也不参与撤销。",
+        reset: "恢复默认",
+        danger: "危险",
+        groupMain: "画布底部工具栏",
+        groupSelection: "多选浮动栏",
+        groupNodeHover: "节点浮动栏",
+        groupContextMenu: "节点右键菜单",
+    },
     meta: {
         title: "无限画布",
         description: "一个无限画布创作工具",

@@ -1,4 +1,14 @@
 export default {
+    toolbarPrefs: {
+        title: "Customize toolbars",
+        description: "Uncheck to hide a button. Stored on this device only — not part of the project file, not undoable.",
+        reset: "Reset",
+        danger: "Danger",
+        groupMain: "Canvas dock",
+        groupSelection: "Selection bar",
+        groupNodeHover: "Node bar",
+        groupContextMenu: "Node context menu",
+    },
     meta: {
         title: "Infinite Canvas",
         description: "An infinite canvas creation tool",

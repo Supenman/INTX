@@ -7,11 +7,11 @@ export default function ConfigPage() {
     const { t } = useTranslation();
 
     return (
-        <PageShell className="px-6 py-5">
+        <PageShell>
             <main className="min-h-0 flex-1 overflow-y-auto">
-                <div className="mx-auto w-full max-w-5xl pb-6">
+                <div className="pb-6">
                     <PageHeader title={t("config.title")} description={t("config.description")} />
-                    <div className="surface-card mt-5 min-h-[calc(100dvh-13rem)] p-5">
+                    <div className="surface-card mt-5 p-5">
                         <AppConfigPanel />
                     </div>
                 </div>

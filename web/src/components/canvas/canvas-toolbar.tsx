@@ -1,11 +1,13 @@
 import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode, RefObject } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, Segmented, Switch } from "antd";
-import { CircleDot, Eraser, Grid2x2, Group, Hand, Image as ImageIcon, Info, LocateFixed, Moon, MousePointer2, Music2, Palette, Puzzle, Redo2, Square, Sun, Trash2, Type, Undo2, Upload, Video } from "lucide-react";
+import { CircleDot, Eraser, Grid2x2, Group, Hand, Image as ImageIcon, Info, SlidersHorizontal, LocateFixed, Moon, MousePointer2, Music2, Palette, Puzzle, Redo2, Square, Sun, Trash2, Type, Undo2, Upload, Video } from "lucide-react";
 
 import { canvasThemes, type CanvasBackgroundMode, type CanvasColorTheme, type CanvasTheme } from "@/lib/canvas-theme";
 import { buildToolContext, toolView } from "@/lib/canvas/tool-wiring";
 import { useToolbarPrefs } from "@/hooks/use-toolbar-prefs";
+import { ToolbarPrefsModal } from "@/components/canvas/toolbar-prefs-modal";
+import { resolveToolbarTools } from "@/domain";
 import { getNodePluginId, listNodeDefinitions, useNodeRegistryVersion } from "@/lib/canvas/node-registry";
 import { getNodeSpec } from "@/constant/canvas";
 import { useThemeStore } from "@/stores/use-theme-store";
@@ -66,6 +68,7 @@ export function CanvasToolbar({
     const [hovered, setHovered] = useState<string | null>(null);
     const [tipX, setTipX] = useState(0);
     const [appearanceOpen, setAppearanceOpen] = useState(false);
+    const [prefsOpen, setPrefsOpen] = useState(false);
     const [panelX, setPanelX] = useState(0);
     const [extensionsOpen, setExtensionsOpen] = useState(false);
     const [extPanelX, setExtPanelX] = useState(0);
@@ -75,6 +78,9 @@ export function CanvasToolbar({
         () => buildToolContext({ toolMode: canvasTool, selectedCount, nodeCount: selectedCount, clipboardCount: 0, canUndo, canRedo, demoMode: false }),
         [canvasTool, selectedCount, canUndo, canRedo],
     );
+    // 底部工具栏的按钮是逐个手写的（各有 Divider / 高亮 / 跟随提示），不整体改成遍历注册表。
+    // 但「用户隐藏了哪个」必须生效，否则自定义工具栏就是个摆设——这里只取一份 id 集合做门禁。
+    const visibleIds = new Set(resolveToolbarTools("main", toolCtx, prefs).map((tool) => tool.id));
     const undoView = toolView("main", "undo", toolCtx, prefs);
     const redoView = toolView("main", "redo", toolCtx, prefs);
     // Keep extension plugin nodes synchronized with registry changes.
@@ -111,26 +117,26 @@ export function CanvasToolbar({
                 {redoView.visible ? <ToolbarButton id="tool-redo" label={t("canvas.redo")} disabled={!canRedo || redoView.disabled} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onRedo}>
                     <Redo2 className="size-4.5" />
                 </ToolbarButton> : null}
-                <ToolbarButton id="tool-focus" label={t("canvas.toolbar.focus")} disabled={!selectedCount} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onFocusSelected}>
+                {visibleIds.has("tool-focus") ? <ToolbarButton id="tool-focus" label={t("canvas.toolbar.focus")} disabled={!selectedCount} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onFocusSelected}>
                     <LocateFixed className="size-4.5" />
-                </ToolbarButton>
+                </ToolbarButton> : null}
                 <Divider theme={theme} />
-                <ToolbarButton id="tool-text" label={t("canvas.toolbar.text")} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddText}>
+                {visibleIds.has("tool-text") ? <ToolbarButton id="tool-text" label={t("canvas.toolbar.text")} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddText}>
                     <Type className="size-4.5" />
-                </ToolbarButton>
-                <ToolbarButton id="tool-image" label={t("canvas.toolbar.image")} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddImage}>
+                </ToolbarButton> : null}
+                {visibleIds.has("tool-image") ? <ToolbarButton id="tool-image" label={t("canvas.toolbar.image")} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddImage}>
                     <ImageIcon className="size-4.5" />
-                </ToolbarButton>
-                <ToolbarButton id="tool-video" label={t("canvas.toolbar.video")} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddVideo}>
+                </ToolbarButton> : null}
+                {visibleIds.has("tool-video") ? <ToolbarButton id="tool-video" label={t("canvas.toolbar.video")} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddVideo}>
                     <Video className="size-4.5" />
-                </ToolbarButton>
-                <ToolbarButton id="tool-audio" label={t("canvas.toolbar.audio")} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddAudio}>
+                </ToolbarButton> : null}
+                {visibleIds.has("tool-audio") ? <ToolbarButton id="tool-audio" label={t("canvas.toolbar.audio")} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddAudio}>
                     <Music2 className="size-4.5" />
-                </ToolbarButton>
-                <ToolbarButton id="tool-group" label={t("canvas.toolbar.group")} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddGroup}>
+                </ToolbarButton> : null}
+                {visibleIds.has("tool-group") ? <ToolbarButton id="tool-group" label={t("canvas.toolbar.group")} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddGroup}>
                     <Group className="size-4.5" />
-                </ToolbarButton>
-                {extensionDefs.length ? (
+                </ToolbarButton> : null}
+                {extensionDefs.length && visibleIds.has("tool-extensions") ? (
                     <ToolbarButton
                         id="tool-extensions"
                         label={t("canvas.toolbar.extensions")}
@@ -150,9 +156,9 @@ export function CanvasToolbar({
                         <Puzzle className="size-4.5" />
                     </ToolbarButton>
                 ) : null}
-                <ToolbarButton id="tool-upload" label={t("canvas.toolbar.upload")} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onUpload}>
+                {visibleIds.has("tool-upload") ? <ToolbarButton id="tool-upload" label={t("canvas.toolbar.upload")} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onUpload}>
                     <Upload className="size-4.5" />
-                </ToolbarButton>
+                </ToolbarButton> : null}
                 <Divider theme={theme} />
                 <ToolbarButton
                     id="tool-style"
@@ -181,9 +187,9 @@ export function CanvasToolbar({
                     </>
                 ) : null}
                 <Divider theme={theme} />
-                <ToolbarButton id="tool-clear" label={t("canvas.toolbar.clear")} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onClear} danger>
+                {visibleIds.has("tool-clear") ? <ToolbarButton id="tool-clear" label={t("canvas.toolbar.clear")} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onClear} danger>
                     <Eraser className="size-4.5" />
-                </ToolbarButton>
+                </ToolbarButton> : null}
             </div>
 
             {extensionsOpen && extensionDefs.length ? (
@@ -273,8 +279,26 @@ export function CanvasToolbar({
                         </span>
                         <Switch size="small" checked={showImageInfo} onChange={onShowImageInfoChange} />
                     </div>
+                    {/* 入口放在外观面板底部：这块是「调整我怎么看画布」的自然归属，
+                        不占顶部栏那 7 个图标的位置。 */}
+                    <button
+                        type="button"
+                        className="mt-2 flex w-full items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-left text-xs transition"
+                        style={{ color: theme.toolbar.item }}
+                        onMouseEnter={(event) => Object.assign(event.currentTarget.style, { background: theme.toolbar.itemHover })}
+                        onMouseLeave={(event) => Object.assign(event.currentTarget.style, { background: "transparent" })}
+                        onClick={() => {
+                            setAppearanceOpen(false);
+                            setPrefsOpen(true);
+                        }}
+                    >
+                        <SlidersHorizontal className="size-3.5" />
+                        {t("toolbarPrefs.title")}
+                    </button>
                 </div>
             ) : null}
+
+            <ToolbarPrefsModal open={prefsOpen} onClose={() => setPrefsOpen(false)} />
         </div>
     );
 }
@@ -314,6 +338,7 @@ function ToolbarButton({
         <Button
             type="text"
             aria-label={label}
+            data-toolbar-id={id}
             className="!h-8 !w-8 !min-w-8 !p-0"
             disabled={disabled}
             style={active ? activeStyle : hovered === id && !disabled ? hoverStyle : { color: danger ? "#f87171" : theme.toolbar.item, opacity: disabled ? 0.35 : 1 }}

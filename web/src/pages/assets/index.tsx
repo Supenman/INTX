@@ -223,9 +223,9 @@ export default function AssetsPage() {
     if (!hydrated) return <main className="flex h-full items-center justify-center bg-background text-foreground"><SnapshotStorageStatus kind="assets" /></main>;
 
     return (
-        <PageShell className="px-6 py-5">
+        <PageShell>
             <main className="min-h-0 flex-1 overflow-y-auto">
-                <div className="mx-auto w-full max-w-6xl">
+                <div>
                     <PageHeader
                         title={t("assets.title")}
                         description={t("assets.description")}

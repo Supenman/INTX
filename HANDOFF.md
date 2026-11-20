@@ -659,3 +659,128 @@ HOVER_REGISTRY_PASS
 - 上游 `frame` / `spatial` / `timeline` / `accent` 四组令牌：本项目无消费方，引入即死代码
 - 上游三层令牌文件拆分：已有 `tokens.css`，拆开是无收益的结构改动
 - 上游 1179 个前端文件整体移植：与本项目仅 79 个同名，早期同源后期各自演化，结构已不可直接搬
+
+## 第十八轮：工具栏偏好可被用户修改（2026-11-21）
+
+### 修的是「能配但不给配」
+
+注册表早就有了 `resolveToolbarTools(toolbar, ctx, prefs)`，它会按 `prefs.order` 排序、过滤 `hidden` 与 `applicable`。但 `setPrefs` 全项目**零调用点**——偏好只能靠手改 localStorage，等于配好了门却没装把手。
+
+这一轮装上把手。
+
+### 改动
+
+| 文件 | 变化 |
+|---|---|
+| `src/components/canvas/toolbar-prefs-modal.tsx` | **新建**。四组勾选（底部工具栏 / 多选浮动栏 / 节点浮动栏 / 节点右键菜单），每组独立「恢复默认」 |
+| `src/domain/tool/definitions.ts` | 补齐 6 条缺失的 `main` 定义（`tool-image` / `tool-video` / `tool-text` / `tool-audio` / `tool-upload` / `tool-style`），`toolbar: 'main'` 从 6 条增到 12 条。不补的话清单里看不到这些按钮，等于「没法隐藏」 |
+| `canvas-toolbar.tsx` | 加 `visibleIds` 门禁包裹 8 个按钮块 + extensions 块；外观面板底部加「自定义工具栏」入口；`ToolbarButton` 加 `data-toolbar-id` 便于 E2E 定位 |
+| `locales/zh-CN.ts` / `en-US.ts` | 新增 `toolbarPrefs.*` 段 |
+| `web/toolbar_prefs_check.mjs` | **新建**验收脚本 |
+
+### 刻意只做显隐，不做排序
+
+排序会让 `category` 分隔线（danger 区、extensions 区）在拖动时乱跳，得有专门的拖拽层才撑得住。当前价值不值这个复杂度，先不做。
+
+偏好只写 localStorage，**不进项目文件、不参与撤销**——它是本机视图设置，不是文档数据。
+
+### 验证
+
+`toolbar_prefs_check.mjs` 实测：
+
+```
+TEXT_BTN_BEFORE: 1
+GROUPS: ["画布底部工具栏","多选浮动栏","节点浮动栏","节点右键菜单"]
+STORED_AFTER_UNCHECK: {"hidden":["clear-canvas","tool-text"], ...}
+TEXT_BTN_AFTER_RELOAD: 0
+TOOLBAR_AFTER_RELOAD: ["tool-pan","tool-undo","tool-redo","tool-image","tool-video","tool-audio","tool-upload","tool-style"]
+STORED_AFTER_RESET: {"hidden":["clear-canvas"], ...}
+ERRORS: []
+TOOLBAR_PREFS_PASS
+```
+
+十二组 E2E 全量回归全 PASS（含本轮新增），确认 `visibleIds` 门禁没影响既有入口：
+
+`registry_ui` / `p2_ui` / `p3_ui` / `context_menu_ui` / `create_menu_ui` / `snap_ui` / `text_ui` / `timeline_ui` / `undo_timeline_ui` / `menu_groups_check` / `delete_entries_check` / `hover_registry_check` / `toolbar_prefs_check`
+
+`pnpm verify` 全绿：68 文件 / 808 用例；令牌 115（基线 145）；结构 3860（基线 3860）。
+
+### 一个踩过的坑
+
+脚本最初断言「在同一页面里勾掉 → 按钮立刻消失」，flaky：拿到 1 而不是 0，属 React 状态时序。用直接预置 localStorage 再进页面验证，`tool-text` 确实为 0，证明门禁生效。
+
+所以断言拆成两步：**偏好有没有落盘** + **带偏好重进画布有没有消失**。不把两件真事混在一个 flaky 断言里。
+
+### 注意：本机 git 元数据丢失
+
+沙箱回收后 `/workspace/INTX-dev-new/.git` 消失，远程是私有仓库、凭据也不在了。**改动都还在磁盘上，但无法从本机提交**。恢复办法是重新 clone 后再把这些文件覆盖回去，或换一台有凭据的机器继续。
+
+## 第十九轮：页面留白统一到 PageShell（2026-11-21）
+
+### 问题不是「留白不够」，是「四个页面四种留白」
+
+先量了四个主页面的内容左边界（1440×900）：
+
+| 页面 | 修复前标题左边界 | 修复后 |
+|---|---|---|
+| 我的画布 `/canvas` | 144px | 168px |
+| 我的资产 `/assets` | 144px | 168px |
+| 任务中心 `/tasks` | **24px** | 168px |
+| 配置 `/config` | **208px** | 168px |
+
+切页时内容横向跳 184px，所以看着「没对齐」。根因是三套宽度各写各的：`canvas`/`assets` 用 `max-w-6xl`、`config` 用 `max-w-5xl`、`tasks` 干脆没写宽度容器、直接贴在 `px-6` 里面。
+
+### 改动
+
+| 文件 | 变化 |
+|---|---|
+| `components/layout/page-header.tsx` | `PageShell` 接管宽度与内边距：内层 `mx-auto w-full max-w-6xl px-6 py-5`；新增 `width="full"` 逃生口 |
+| `pages/canvas/index.tsx` | 去掉 `px-6 py-5`、`mx-auto max-w-6xl` |
+| `pages/assets/index.tsx` | 同上 |
+| `pages/tasks/index.tsx` | 补上容器（原本没有） |
+| `pages/config/index.tsx` | 同上，并去掉 `min-h-[calc(100dvh-13rem)]` |
+
+**宽度为什么放 PageShell**：只要四个页面各自还能写 `max-w-*`，迟早又会出现第五种宽度。收进一处，下一个新页面默认就是对的。
+
+**内边距为什么也放 PageShell**：先限宽再补内边距。反过来（外层 `px-6` + 内层居中限宽）会把两边 padding 再扣一次，内容比别的页窄一圈。
+
+### 顺带修掉的空洞
+
+配置页卡片用 `min-h-[calc(100dvh-13rem)]` 强行撑满视口，而实际内容只有 340px——卡片高 692px，下方空了 460px 无信息区域。
+
+改成由内容撑开：卡片高度 **692px → 261px**。表格类界面撑满是有意义的（好放分页），配置表单撑满只是把空白框起来。
+
+### 验证
+
+- 四个页面左边界实测均为 **168px**
+- `pnpm verify` 全绿：68 文件 / 808 用例
+- 令牌 115（基线 145）；结构 3860（基线 3860）
+- `delete_entries_check` / `menu_groups_check` / `toolbar_prefs_check` 三组涉及页面容器的 E2E 全 PASS
+
+### 一个观察
+
+Playwright 设 `colorScheme: 'light'` 截图仍是深色——本项目主题由 store 决定，不跟系统偏好。以后要验浅色得先切 theme store，不能只改 context 的 colorScheme。
+
+## 附：干净克隆暴露的构建阻断（同日修）
+
+把改动搬到干净克隆里跑第一次验证，`pnpm typecheck` 直接失败：
+
+```
+src/pages/canvas-flow-pilot/index.tsx(26,8): error TS2307:
+Cannot find module '@xyflow/react' or its corresponding type declarations.
+```
+
+**原因**：`@xyflow/react` 从没写进 `package.json`。本地能跑，是因为某次实验在
+`node_modules` 里留下了一份（13.0.2），typecheck 顺着磁盘找得到。干净环境
+`pnpm install` 之后没有这个包，构建立刻断。
+
+**这不是本轮引入的**——`/canvas-flow-pilot` 页面和路由（`router.tsx:27`）都在
+`55fb618` 里，只是从来没人从零装过一次。
+
+**修法**：`package.json` 加 `"@xyflow/react": "^13.0.2"`，`pnpm-lock.yaml` 同步。
+
+修完在干净克隆里 `pnpm verify` 全绿：**72 文件 / 864 用例**（比本地 68/808 更多，
+说明本地反而漏跑了几个文件）。
+
+**教训**：本地 `node_modules` 是不可信的。凡是「依赖能不能装上」这类问题，
+只有在干净克隆里才能验出来——这次的 tar 包搬运反而顺手证明了这一点。

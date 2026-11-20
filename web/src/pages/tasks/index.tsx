@@ -84,7 +84,7 @@ export default function TasksPage() {
     const reasonText = (reason: OutcomeReason) => t(`tasks.reason.${reason}`, { defaultValue: reason });
 
     return (
-        <PageShell className="px-6 py-5">
+        <PageShell>
             <main className="min-h-0 flex-1 overflow-y-auto">
                 <PageHeader
                     title={t("tasks.title")}
