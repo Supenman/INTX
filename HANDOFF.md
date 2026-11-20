@@ -1140,3 +1140,37 @@ agent 起在 17371 并打出 connect token）。全程没有任何 npm token 参
 **发布链路的失败要分层看**：OIDC 403、lock 不同步、镜像地址污染，三者都
 表现为「publish 这一步红了」。先 `gh run view --log-failed` 看第一行真错，
 不要拿最后那行 `npm error` 当结论。
+
+## 第二十六轮：M2 收尾两条，用拦截式浏览器实测闭环（2026-11-21）
+
+HANDOFF「接下来」里挂的 M2 剩两条是 `M2-真机验收清单-2026-11-16.md` 的
+场景 C（C1–C4 出网方式）和「台账不含 Key」。清单把它们列成真机项，但其中
+**「请求到底发往哪个 URL」和「本机台账写了什么」可以在浏览器里实测**，
+不必用真 Key、不必发真实厂商请求。
+
+新增独立脚本 `web/m2_egress_check.mjs`：Playwright 拦截所有发往
+`api-inference.modelscope.cn` 或本地代理的请求，直接回 401；只记录请求 URL，
+再从 IndexedDB 扫台账。假 Key 字符串写死在脚本里（`TEST-KEY-DO-NOT-USE`），
+不是任何真凭据。
+
+| 用例 | 设置 | 期望 | 实测 URL 前缀 | 判定 |
+|---|---|---|---|---|
+| C1 | system + 代理开 | 走代理 | `http://127.0.0.1:23210/https://api-inference...` | ✅ |
+| C2 | direct + 代理开 | 直连 | `https://api-inference.modelscope.cn/...` | ✅ |
+| C3 | system + 代理关 | 直连 | `https://api-inference.modelscope.cn/...` | ✅ |
+| C4 | 老配置无 `proxyMode` + 代理开 | 走代理 | `http://127.0.0.1:23210/https://api-inference...` | ✅ |
+
+四例都拿到 `GenerationTaskError` / `auth_failed`，文案是「鉴权失败，请检查 API Key
+配置」，无上游任务号。这与单测里的三态判定一致。
+
+台账扫描：四条任务都真实写入（`intx_task_log` 字节数 603 → 1128 → 1653 → 2178），
+对 `TEST-KEY-DO-NOT-USE`、BaseURL 明文、`data:image` 三个特征串扫出 **0 命中**。
+页面错误 0。
+
+### 边界（不要写成已验证）
+
+- **没发真实厂商请求**：上游是 401 mock，所以「真实网络下 C2 会因 CORS 预检失败」
+  这条现象没验，那是真机 / 桌面版才能看的网络表现。
+- **扫的是本地注入场景的台账**，不是用户机器上的真实台账。用户若要核对自己的，
+  在任务中心导出诊断 JSON 后搜 Key 前缀与 BaseURL 即可。
+- 场景 A/B（真实出图、三类失败路径）本就不在这两条里，维持原有记录。
