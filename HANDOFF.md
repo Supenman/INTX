@@ -888,3 +888,77 @@ TLS 连接在这台机器上不稳，`push` / `curl` 时不时报
 - `plugin_registry_check.mjs` 全部断言 PASS
 - `pnpm verify`：72 文件 / 864 用例全绿
 - 5 个插件 js 全部 200，字节数与构建产物一致
+
+## 第二十二轮：两个 npm 包发布到自己的 scope（2026-11-21）
+
+### 从「卡在账号」到「实测能装」
+
+品牌清单里最后 2 项一直标着「缺 npm 账号」。账号拿到之后，实际做的事比预想少：
+
+| 动作 | 结果 |
+|---|---|
+| `@basketikun/canvas-proxy` → `@supenman/canvas-proxy` | `npm publish` 成功，0.1.0 |
+| `@basketikun/canvas-agent` → `@supenman/canvas-agent` | `npm publish` 成功，0.6.0（43 文件，48KB） |
+
+改名的文件 8 个：两个 `package.json`、两个 `README.md`、前端两处引导文案、
+`canvas-agent/src/version-check.ts` 的版本检查地址、以及注释里提到上游的那一行。
+
+### 端到端实测（只看 publish 成功不算数）
+
+```
+$ npx --yes @supenman/canvas-proxy@0.1.0
+@supenman/canvas-proxy v0.1.0 listening on http://127.0.0.1:23210
+Fill this address into Infinite Canvas → 配置 → 本地代理: http://127.0.0.1:23210
+
+$ npx --yes @supenman/canvas-agent@latest
+Infinite Canvas Agent
+INFO Canvas Agent version version='0.6.0'
+Local URL: http://127.0.0.1:17371
+INFO Canvas Agent started
+```
+
+两个包都是**从官方 registry 新下载的**，不是本地那份。agent 的 `/health` 也回了。
+
+### 一个吓人的假象：索引同步延迟
+
+发布返回 `+ @supenman/canvas-proxy@0.1.0` 之后，接下来 **近 3 分钟**里：
+
+```
+registry.npmjs.org/@supenman%2fcanvas-proxy  → 404
+npx @supenman/canvas-proxy@0.1.0             → 404
+```
+
+一度怀疑是 scope 没建好或包被限制成私有。真正确认发布成功的是这条**反向证据**：
+
+```
+$ npm publish
+npm error 403 You cannot publish over the previously published versions: 0.1.0.
+```
+
+能报「不能覆盖已发布的 0.1.0」，说明 0.1.0 确实在 registry 上——只是 metadata
+索引还没建好。约 5 分钟后两个包都返回 200。
+
+**记住这个判据**：`npm publish` 报 `cannot publish over previously published versions`
+= 包存在。比等 metadata 刷新可靠。
+
+### 顺带发现：沙箱默认走了腾讯镜像
+
+`npx` 默认请求 `mirrors.tencent.com/npm/`，新发布的包在镜像上必然 404。
+测试新包要显式加 `--registry=https://registry.npmjs.org`，否则会误判成发布失败。
+
+### 验证
+
+- agent 单测：**81 pass / 0 fail**
+- `web` 类型检查通过；`canvas-agent` 类型检查通过
+- 两个包 tarball 均从官方 registry 下载成功
+
+### 界面上同时做了的事：撤掉文档入口
+
+`docs/` 的 Fumadocs 站点能构建（中英双语 37 页），但不打算上线。
+原来右上角「文档」图标指向 `docs.canvas.best`——**上游作者的站点**，用户点进去读别人的文档。
+
+已摘掉：`user-status-actions.tsx` 的书本图标、`topNav.docs` 文案键、`canvas-top-bar.tsx`
+里未使用的 `DOCS_URL` 导入。`DOCS_URL` 默认值改为空字符串并留了注释：
+将来部署后设 `VITE_DOC_URL` 再把图标接回来。
+
+`canvas.docs` 那个键更早之前就已零引用（不是这轮造成的），没动。

@@ -15,8 +15,8 @@ export function checkVersions() {
 /** 查询 npm，提醒升级不再维护的旧版本。 */
 async function checkLatestVersions() {
     try {
-        const latestAgent = await npmVersion("@basketikun/canvas-agent");
-        if (isOlder(VERSION, latestAgent)) logger.warn(`Update available: Canvas Agent ${VERSION} -> ${latestAgent}. Run: npx -y @basketikun/canvas-agent@latest`);
+        const latestAgent = await npmVersion("@supenman/canvas-agent");
+        if (isOlder(VERSION, latestAgent)) logger.warn(`Update available: Canvas Agent ${VERSION} -> ${latestAgent}. Run: npx -y @supenman/canvas-agent@latest`);
     } catch {
         logger.warn("Unable to check the latest npm version; startup will continue.");
     }

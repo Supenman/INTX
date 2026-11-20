@@ -7,7 +7,6 @@ import { UserStatusActions } from "@/components/layout/user-status-actions";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useCanvasSidePanelStore } from "@/stores/use-canvas-side-panel-store";
 import { useThemeStore } from "@/stores/use-theme-store";
-import { DOCS_URL } from "@/constant/env";
 import { SnapshotStorageStatus } from "@/components/layout/snapshot-storage-status";
 
 export function CanvasTopBar({

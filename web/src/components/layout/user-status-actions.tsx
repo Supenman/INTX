@@ -1,12 +1,11 @@
 import type { CSSProperties } from "react";
 import { Tooltip } from "antd";
-import { BookOpen, Keyboard, Puzzle, Settings2 } from "lucide-react";
+import { Keyboard, Puzzle, Settings2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { AnimatedThemeToggler } from "@/components/ui/animated-theme-toggler";
 import { GitHubLink } from "@/components/layout/github-link";
 import { VersionReleaseModal } from "@/components/layout/version-release-modal";
-import { DOCS_URL } from "@/constant/env";
 import { changeAppLocale, type AppLocale } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { canvasThemes } from "@/lib/canvas-theme";
@@ -43,9 +42,6 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
                     <Puzzle className="size-4" />
                 </button>
             ) : null}
-            <a href={DOCS_URL} target="_blank" rel="noopener noreferrer" className={naturalIconClass} style={iconStyle} aria-label={t("topNav.docs")} title={t("topNav.docs")}>
-                <BookOpen className="size-4" />
-            </a>
             <GitHubLink className={cn("flex bg-transparent hover:bg-transparent dark:hover:bg-transparent", gitHubClassName)} style={gitHubStyle} />
             <StatusDivider className="block" />
             {/* 外观：语言 / 主题 */}

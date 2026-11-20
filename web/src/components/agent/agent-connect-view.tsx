@@ -33,7 +33,7 @@ export function AgentConnectView({
     const { t } = useTranslation();
     const desktop = isDesktopApp();
     const { message } = App.useApp();
-    const command = "npx -y @basketikun/canvas-agent@latest";
+    const command = "npx -y @supenman/canvas-agent@latest";
     const statusText = connectError ? t("agent.status.failed") : connected ? activity : enabled ? t("agent.status.connecting") : t("agent.status.disconnected");
     const statusColor = connectError ? "#dc2626" : connected ? "#16a34a" : enabled ? "#d97706" : theme.node.muted;
     return (

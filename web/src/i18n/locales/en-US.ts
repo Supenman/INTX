@@ -410,7 +410,6 @@ export default {
         openAgent: "Open Agent",
         closeAgent: "Close Agent",
         plugins: "Node plugins",
-        docs: "Documentation",
         switchLanguage: "Switch to {{language}}",
         shortcuts: "Keyboard shortcuts",
         lightTheme: "Switch to light theme",

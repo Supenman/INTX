@@ -5,7 +5,7 @@
 ## 启动
 
 ```bash
-npx -y @basketikun/canvas-agent@latest
+npx -y @supenman/canvas-agent@latest
 ```
 
 带上 `@latest` 是因为 npx 会缓存已下载的版本，不加就可能一直运行旧版本。
@@ -13,7 +13,7 @@ npx -y @basketikun/canvas-agent@latest
 需要排查连接、会话、opencode 服务或工具调用问题时，可开启 Debug 模式：
 
 ```bash
-npx -y @basketikun/canvas-agent@latest --debug
+npx -y @supenman/canvas-agent@latest --debug
 ```
 
 Debug 日志会以 `[DEBUG][HH:mm:ss]` 等传统格式输出到终端，并按启动日期保存到 `~/.infinite-canvas/logs/canvas-agent-YYYY-MM-DD.log`。终端日志带级别颜色，文件日志为纯文本；日志包含 HTTP、SSE、会话、turn、opencode 事件和工具调用，token 与图片 Data URL 会自动隐藏。
@@ -40,7 +40,7 @@ Canvas Agent 默认只监听 `127.0.0.1`。网页第一次带正确 token 连接
 
 ## 发布
 
-`canvas-agent` 使用自己的 `package.json` 版本号，不跟仓库根目录 `VERSION` 绑定。推送到 `main` 后，GitHub Actions 会检查 npm 上是否已经存在当前包版本；不存在时才发布 `@basketikun/canvas-agent`。
+`canvas-agent` 使用自己的 `package.json` 版本号，不跟仓库根目录 `VERSION` 绑定。推送到 `main` 后，GitHub Actions 会检查 npm 上是否已经存在当前包版本；不存在时才发布 `@supenman/canvas-agent`。
 
 发布前需要在 GitHub 仓库 Secrets 中配置 `NPM_TOKEN`。
 
@@ -51,7 +51,7 @@ Canvas Agent 通过 `infinite-canvas` MCP 把画布操作暴露给 opencode。op
 只启动本地 Agent 服务、不启动 opencode 时，MCP 命令仍可单独运行：
 
 ```bash
-npx -y @basketikun/canvas-agent@latest mcp
+npx -y @supenman/canvas-agent@latest mcp
 ```
 
 Canvas Agent 源码使用 TypeScript 编写，MCP 协议层使用官方 `@modelcontextprotocol/sdk`，工具入参使用 `zod` 描述。
