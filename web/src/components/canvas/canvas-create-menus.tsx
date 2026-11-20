@@ -7,6 +7,9 @@ import { useThemeStore } from "@/stores/use-theme-store";
 import { listNodeDefinitions, useNodeRegistryVersion } from "@/lib/canvas/node-registry";
 import { getNodeSpec } from "@/constant/canvas";
 import { CanvasNodeType, type ConnectionHandle, type Position } from "@/types/canvas";
+import type { AddNodeCommand } from "@/domain/tool/definition";
+import { resolveAddNodeMenuCommands } from "@/domain/tool/registry";
+import { buildToolContext } from "@/lib/canvas/tool-wiring";
 
 export type PendingConnectionCreate = {
     connection: ConnectionHandle;
@@ -82,7 +85,24 @@ export function NodeCreateMenu({ position, scale = 1, onCreate, onClose }: { pos
     const { t } = useTranslation();
     useNodeRegistryVersion();
     const menuRef = useRef<HTMLDivElement>(null);
+    // 节点条目统一由工具注册表解析产出：注入生产画布节点（lib 注册表），
+    // 与 domain 内置节点解耦。以后在注册表里加画布动作，菜单无需改代码。
     const definitions = listNodeDefinitions().filter((def) => def.showInCreateMenu !== false);
+    const inject: AddNodeCommand[] = definitions.map((def, i) => ({
+        id: `node:${def.type}`,
+        label: getNodeSpec(def.type).title,
+        section: "source",
+        defaultOrder: 10 + i,
+        action: "add-node",
+        payload: { kind: def.type },
+        disabledReason: null,
+    }));
+    const ctx = buildToolContext({
+        toolMode: "select", selectedCount: 0, nodeCount: 0, clipboardCount: 0,
+        canUndo: false, canRedo: false, demoMode: false,
+    });
+    // 只渲染能创建节点的条目；画布动作（粘贴 / 整理）在当前菜单无 dispatch，暂不显示。
+    const nodeCommands = resolveAddNodeMenuCommands(ctx, inject).filter((cmd) => cmd.action === "add-node");
     // Close automatically when clicking outside the menu.
     useEffect(() => {
         const handlePointerDown = (event: PointerEvent) => {
@@ -108,9 +128,19 @@ export function NodeCreateMenu({ position, scale = 1, onCreate, onClose }: { pos
                 </button>
             </div>
             <div className="grid gap-0.5">
-                {definitions.map((def) => (
-                    <ConnectionCreateOption key={def.type} theme={theme} icon={def.icon} title={getNodeSpec(def.type).title} description={def.description} onClick={() => onCreate(def.type)} />
-                ))}
+                {nodeCommands.map((cmd) => {
+                    const def = definitions.find((d) => d.type === cmd.payload?.kind);
+                    return (
+                        <ConnectionCreateOption
+                            key={cmd.id}
+                            theme={theme}
+                            icon={def?.icon}
+                            title={cmd.label}
+                            description={def?.description}
+                            onClick={() => onCreate(cmd.payload?.kind ?? "")}
+                        />
+                    );
+                })}
             </div>
         </div>
     );

@@ -12,6 +12,8 @@ import type {
 export interface ContextMenuCommand {
   id: string;
   label: string;
+  /** i18n key；有值时 UI 优先用它翻译，label 兜底。 */
+  labelKey?: string;
   action: string;
   payload?: Readonly<Record<string, string>>;
   danger: boolean;
@@ -164,23 +166,29 @@ export function resolveToolbarEntries(
 /**
  * 添加菜单：节点条目**动态**取自节点注册表，画布动作取自本注册表。
  * 因此新增节点类型时，菜单、侧栏、校验都不需要改 UI 代码。
+ *
+ * `nodeCommands` 允许调用方注入生产节点条目（画布用的是 lib 的 CanvasNodeDefinition，
+ * 与 domain 的 NodeDefinition 是两套）。不传时退回 domain 内置节点，供单测与无画布场景用。
  */
-export function resolveAddNodeMenuCommands(ctx: ToolContext): AddNodeCommand[] {
-  const nodes: AddNodeCommand[] = listNodeDefinitions().map((def, i) => ({
-    id: `node:${def.kind}`,
-    label: def.title,
-    section: def.category,
-    defaultOrder: 10 + i,
-    action: 'add-node',
-    payload: { kind: def.kind },
-    disabledReason: null,
-  }));
+export function resolveAddNodeMenuCommands(ctx: ToolContext, nodeCommands?: readonly AddNodeCommand[]): AddNodeCommand[] {
+  const nodes: AddNodeCommand[] = nodeCommands
+    ? [...nodeCommands]
+    : listNodeDefinitions().map((def, i) => ({
+        id: `node:${def.kind}`,
+        label: def.title,
+        section: def.category,
+        defaultOrder: 10 + i,
+        action: 'add-node',
+        payload: { kind: def.kind },
+        disabledReason: null,
+      }));
 
   const actions: AddNodeCommand[] = getToolbarTools('add-node-menu')
     .filter((t) => !t.applicable || t.applicable(ctx))
     .map((t) => ({
       id: t.id,
       label: t.label,
+      labelKey: t.labelKey,
       section: t.section ?? 'canvas',
       defaultOrder: t.defaultOrder,
       action: t.action,
@@ -201,6 +209,7 @@ export function resolveNodeContextMenu(ctx: ToolContext): ContextMenuCommand[] {
     .map((t) => ({
       id: t.id,
       label: t.countLabel ? t.label.replace('{n}', String(ctx.selectedCount)) : t.label,
+      labelKey: t.labelKey,
       action: t.action,
       payload: t.payload,
       danger: Boolean(t.danger),

@@ -43,6 +43,12 @@ export interface ToolContext {
   node: ToolNodeContext | null;
   /** 右键菜单命中的节点 id；空白处右键为 null。多选右键时指向被点的那个。 */
   contextNodeId?: string | null;
+  /** 右键菜单：命中节点是视频且有画面时，才给「截帧 / 提取音频」入口。 */
+  canCaptureVideoFrame?: boolean;
+  canExtractAudio?: boolean;
+  /** 右键菜单：当前选区能否合并成组 / 拆掉命中的组。 */
+  canGroup?: boolean;
+  canUngroup?: boolean;
 }
 
 export interface ToolSwitchOption {
@@ -57,6 +63,8 @@ export interface ToolDefinition {
   /** 相邻工具 category 不同时，解析管线自动插一条分隔线。 */
   category: ToolCategory;
   label: string;
+  /** i18n key；有值时 UI 优先用它翻译，label 只作兜底。 */
+  labelKey?: string;
   /** 完整提示语，进 title 属性；label 保持短，能塞进悬浮栏。 */
   hint: string;
   defaultVisible: boolean;
@@ -92,6 +100,8 @@ export type ToolEntry =
 export interface AddNodeCommand {
   id: string;
   label: string;
+  /** i18n key；有值时 UI 优先用它翻译，label 兜底。 */
+  labelKey?: string;
   section: MenuSection;
   defaultOrder: number;
   action: string;

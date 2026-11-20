@@ -29,6 +29,10 @@ export interface CanvasToolState {
   demoMode: boolean;
   node?: ToolNodeContext | null;
   contextNodeId?: string | null;
+  canCaptureVideoFrame?: boolean;
+  canExtractAudio?: boolean;
+  canGroup?: boolean;
+  canUngroup?: boolean;
 }
 
 /** 画布的 pan 与注册表的 hand 是同一个工具，只在这里对齐一次。 */
@@ -43,6 +47,10 @@ export function buildToolContext(state: CanvasToolState): ToolContext {
     demoMode: state.demoMode,
     node: state.node ?? null,
     contextNodeId: state.contextNodeId ?? null,
+    canCaptureVideoFrame: state.canCaptureVideoFrame ?? false,
+    canExtractAudio: state.canExtractAudio ?? false,
+    canGroup: state.canGroup ?? false,
+    canUngroup: state.canUngroup ?? false,
   };
 }
 

@@ -10,6 +10,7 @@ import {
   migrateToolbarPrefs,
   resetToolRegistry,
   resolveAddNodeMenuCommands,
+  resolveNodeContextMenu,
   resolveToolbarEntries,
   resolveToolbarTools,
 } from './registry';
@@ -161,6 +162,57 @@ describe('添加菜单动态跟随节点注册表', () => {
     const list = resolveAddNodeMenuCommands(baseCtx);
     const lastNode = Math.max(...list.filter((c) => c.action === 'add-node').map((c) => c.defaultOrder));
     for (const c of list.filter((x) => x.action !== 'add-node')) expect(c.defaultOrder).toBeGreaterThan(lastNode);
+  });
+});
+
+describe('节点右键菜单与生产按钮对齐', () => {
+  const ctx = (over: Partial<ToolContext> = {}): ToolContext => ({
+    ...baseCtx,
+    selectedCount: 1,
+    contextNodeId: 'n1',
+    canCaptureVideoFrame: false,
+    canExtractAudio: false,
+    canGroup: false,
+    canUngroup: false,
+    ...over,
+  });
+
+  it('视频节点：截帧三连 + 提取音频 + 复制 + 删除', () => {
+    const ids = resolveNodeContextMenu(ctx({ canCaptureVideoFrame: true, canExtractAudio: true })).map((c) => c.id);
+    expect(ids).toEqual([
+      'ctx-capture-first',
+      'ctx-capture-last',
+      'ctx-capture-current',
+      'ctx-extract-audio',
+      'ctx-duplicate',
+      'ctx-delete',
+    ]);
+  });
+
+  it('普通节点：没有截帧与提取音频，只有复制与删除', () => {
+    const ids = resolveNodeContextMenu(ctx()).map((c) => c.id);
+    expect(ids).toEqual(['ctx-duplicate', 'ctx-delete']);
+  });
+
+  it('可分组/解组时才出现打组与解散组', () => {
+    const ids = resolveNodeContextMenu(ctx({ canGroup: true, canUngroup: true })).map((c) => c.id);
+    expect(ids).toContain('ctx-group');
+    expect(ids).toContain('ctx-ungroup');
+    // 分组项排在复制之前。
+    expect(ids.indexOf('ctx-group')).toBeLessThan(ids.indexOf('ctx-duplicate'));
+  });
+
+  it('连线右键（无命中节点）：只剩删除', () => {
+    const ids = resolveNodeContextMenu(ctx({ contextNodeId: null, selectedCount: 0 })).map((c) => c.id);
+    expect(ids).toEqual(['ctx-delete']);
+  });
+
+  it('删除是危险项，复制带 i18n key', () => {
+    const list = resolveNodeContextMenu(ctx());
+    const del = list.find((c) => c.id === 'ctx-delete');
+    const dup = list.find((c) => c.id === 'ctx-duplicate');
+    expect(del?.danger).toBe(true);
+    expect(dup?.labelKey).toBe('canvas.controls.duplicate');
   });
 });
 

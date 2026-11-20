@@ -266,3 +266,19 @@ Windows / macOS 安装包；Linux deb / AppImage 打包；release 下 `read_agen
 - `pnpm verify` 全绿：71 文件 / 853 用例，结构/令牌门禁守住。
 
 边界：预览字幕是缩略窗内的近似布局（字号 11px），非 720p 像素级等同导出；内容同源已由共用纯函数 + 单测钉住。
+
+---
+
+## 第十轮：三处菜单接注册表 + README 重写（2026-11-20，#113 + README）
+
+### README 整篇重写
+把原 `basketikun/infinite-canvas` 的赞助商表、社群链接、原作者联系方式、Star History、外链全删掉，换成我们自己的仓库（`Supenman/INTX`）与技术栈徽章；核心功能按实际实现写（含时间线剪辑、费用预估、任务中心）。全仓库无任何旧项目引用残留。
+
+### 三处菜单接注册表（两处落地，一处判定不接）
+- **右键菜单（`canvas-context-menu.tsx`）**：把注册表 `node-context-menu` 定义从「理想化草稿」（生成/批量连接/改名）改为**与生产按钮逐一对齐**（截帧三连/提取音频/打组/解散/复制/删除）。新增 `ToolContext.canCaptureVideoFrame/canExtractAudio/canGroup/canUngroup` 与 `labelKey` 支持 i18n。组件按 `resolveNodeContextMenu` 渲染，只保留 id→图标/回调映射。5 例单测 + 浏览器 E2E（图片菜单只有复制/删除、复制生效、删除生效、零错误）。
+- **添加菜单（`canvas-create-menus.tsx`）**：`resolveAddNodeMenuCommands` 增加 `nodeCommands` 注入参数——画布用的是 lib 的 CanvasNodeDefinition，与 domain 的 NodeDefinition 是两套，硬接会换错节点集。现在注入生产节点，节点列表（文本/图片/视频/音频/组）与顺序不变；E2E 验证创建生效、零错误。
+- **节点悬浮栏（判定不接）**：注册表 `node-hover` 定义的是「复制/生成/取消/删除」，生产悬浮栏是「信息/解散组/删除/重试/下载/存资产/编辑/生图/字号/上传 + 动态 imageTools」——几乎没有交集。硬接会凭空塞进三个生产没有的按钮，是产品倒退。**结论：不接，保持原样。** 若要接，需先把 node-hover 定义重写成生产按钮集，属于「重做悬浮栏」而非「接线」。
+
+### 门禁与验收
+- `pnpm verify` 全绿：71 文件 / **858 用例**（新增 5 例右键菜单 + 之前同源 3 例）。
+- 七组 E2E 回归全 exit=0、零错误：多选对齐、时间线拖动持久化、文字轨、播放联动高亮、预览字幕、右键菜单、添加菜单。
