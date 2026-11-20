@@ -50,21 +50,22 @@ describe('工具注册表', () => {
     expect(ids.indexOf('align-left')).toBeLessThan(ids.indexOf('delete-selection'));
   });
 
-  it('applicable 决定出现与否：生成节点显示「生成」，忙时换成「取消」', () => {
+  it('applicable 决定出现与否：没有命中节点时悬浮栏为空', () => {
     expect(resolveToolbarTools('node-hover', baseCtx, null)).toHaveLength(0);
-    const idle = resolveToolbarTools('node-hover', nodeCtx(), null).map((t) => t.id);
-    expect(idle).toContain('node-generate');
-    expect(idle).not.toContain('node-cancel');
-    const busy = resolveToolbarTools('node-hover', nodeCtx({ busy: true }), null).map((t) => t.id);
-    expect(busy).toContain('node-cancel');
-    expect(busy).not.toContain('node-generate');
+    expect(resolveToolbarTools('node-hover', nodeCtx(), null).map((t) => t.id)).toEqual([
+      'node-info',
+      'node-duplicate',
+      'node-delete',
+    ]);
   });
 
-  it('文字节点不会出现生成按钮（不为每种节点写一条 if）', () => {
-    const ids = resolveToolbarTools('node-hover', nodeCtx({ category: 'source', kind: 'text-input' }), null).map(
-      (t) => t.id,
-    );
-    expect(ids).toEqual(['node-duplicate', 'node-delete']);
+  it('node-hover 只收与节点类别无关的条目', () => {
+    // 字体加减 / 上传替换按 image / video / text / audio 分别成立，留在组件里按类型渲染。
+    // ToolNodeContext 没有 type 字段，所以注册表里不该出现这些 id。
+    const ids = resolveToolbarTools('node-hover', nodeCtx(), null).map((t) => t.id);
+    expect(ids).not.toContain('node-generate');
+    expect(ids).not.toContain('node-cancel');
+    expect(ids).not.toContain('node-delete-batch');
   });
 
   it('disabled 由 ctx 计算：少于 3 个节点时等距按钮灰掉', () => {

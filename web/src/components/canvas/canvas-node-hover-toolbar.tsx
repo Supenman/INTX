@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { App, Modal, Segmented, Tooltip } from "antd";
-import { Download, Ellipsis, FolderPlus, Image as ImageIcon, Info, MessageSquare, Minus, Music2, Plus, RefreshCw, Ungroup, Upload, Video } from "lucide-react";
+import { Download, Ellipsis, FolderPlus, Image as ImageIcon, Info, MessageSquare, Minus, Music2, Plus, RefreshCw, Trash2, Ungroup, Upload, Video } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { resolveToolbarTools } from "@/domain";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { getNodeDefinition } from "@/lib/canvas/node-registry";
+import { nodeToolbarHandler } from "@/lib/canvas/node-toolbar-actions";
+import { buildToolContext } from "@/lib/canvas/tool-wiring";
 import { formatBytes, getDataUrlByteSize } from "@/lib/image-utils";
 import { useCopyText } from "@/hooks/use-copy-text";
+import { useToolbarPrefs } from "@/hooks/use-toolbar-prefs";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { CanvasNodeType, type CanvasNodeData, type ViewportTransform } from "@/types/canvas";
 import type { CanvasNodeToolbarItem } from "@/types/canvas-plugin";
@@ -37,15 +41,25 @@ type CanvasNodeHoverToolbarProps = {
     onReversePrompt: (node: CanvasNodeData) => void;
     onRetry: (node: CanvasNodeData) => void;
     onToggleFreeResize: (node: CanvasNodeData) => void;
+    onDuplicate: (node: CanvasNodeData) => void;
+    onDelete: (node: CanvasNodeData) => void;
     onUngroup?: (node: CanvasNodeData) => void;
     extraTools?: CanvasNodeToolbarItem[];
+};
+
+/** 注册表条目的图标。domain 层不放 JSX，所以图标留在这里按 id 查。 */
+const NODE_TOOL_ICON: Record<string, ReactNode> = {
+    "node-info": <Info className="size-4" />,
+    "node-duplicate": <Plus className="size-4" />,
+    "node-delete": <Trash2 className="size-4" />,
 };
 
 type ToolbarTool = {
     id: string;
     title: string;
     label: string;
-    icon: ReactNode;
+    /** 注册表不存图标（domain 不能 import JSX），图标按 id 在此处查；查不到就不渲染该条目。 */
+    icon?: ReactNode;
     onClick: () => void;
     active?: boolean;
     danger?: boolean;
@@ -75,6 +89,8 @@ export function CanvasNodeHoverToolbar({
     onReversePrompt,
     onRetry,
     onToggleFreeResize,
+    onDuplicate,
+    onDelete,
     onUngroup,
     extraTools = [],
 }: CanvasNodeHoverToolbarProps) {
@@ -86,6 +102,7 @@ export function CanvasNodeHoverToolbar({
     const { message } = App.useApp();
     const { t } = useTranslation();
     const copyText = useCopyText();
+    const { prefs } = useToolbarPrefs("node-hover");
 
     useEffect(() => {
         try {
@@ -107,6 +124,16 @@ export function CanvasNodeHoverToolbar({
     if (!node) return null;
 
     const activeNode = node;
+    const toolCtx = buildToolContext({
+        toolMode: "select",
+        selectedCount: 1,
+        nodeCount: 1,
+        clipboardCount: 0,
+        canUndo: false,
+        canRedo: false,
+        demoMode: false,
+        node: { kind: node.type, category: "source", hasAsset: Boolean(node.metadata?.content), busy: node.metadata?.status === "loading" },
+    });
     const left = viewport.x + (node.position.x + node.width / 2) * viewport.k;
     const top = viewport.y + node.position.y * viewport.k - 14;
     const isImage = node.type === CanvasNodeType.Image;
@@ -137,12 +164,18 @@ export function CanvasNodeHoverToolbar({
         setImageToolSettingsOpen(true);
     }
 
-    // 删除入口不放在悬浮栏：它是鼠标划过就出现的浮层，图片节点上会堆到十四个按钮，
-    // 危险操作放在这里误触代价最高。单个删除走右键菜单（位置精确），批量走底部工具栏与 Delete 键。
-    const baseToolbarTools: ToolbarTool[] = [
-        { id: "info", title: t("canvas.nodeToolbar.infoTitle"), label: t("canvas.nodeToolbar.info"), icon: <Info className="size-4" />, onClick: () => onInfo(node) },
-        ...(node.type === CanvasNodeType.Group && onUngroup ? [{ id: "ungroup", title: t("canvas.nodeToolbar.ungroupTitle"), label: t("canvas.nodeToolbar.ungroup"), icon: <Ungroup className="size-4" />, onClick: () => onUngroup(node) }] : []),
-    ];
+    // 通用条目（信息 / 复制 / 删除）由注册表决定有哪些、什么顺序、用户隐藏了哪些。
+    // 按节点类型分别成立的条目（字体加减、上传替换、图片工具箱）仍在其后按类型拼。
+    const baseToolbarTools: ToolbarTool[] = resolveToolbarTools("node-hover", toolCtx, prefs).flatMap((def) => {
+        const onClick = nodeToolbarHandler(def.action, node, {
+            showInfo: onInfo,
+            duplicate: onDuplicate,
+            remove: onDelete,
+        });
+        const icon = NODE_TOOL_ICON[def.id];
+        if (!onClick || !icon) return [];
+        return [{ id: def.id, title: t(def.labelKey ?? def.hint), label: t(def.labelKey ?? def.label), icon, danger: def.danger, onClick }];
+    });
     const nodeToolbarTools: ToolbarTool[] = [
         ...(canQueryVideoTask ? [{ id: "queryVideoTask", title: t("canvas.nodeToolbar.queryVideoTaskTitle"), label: t("canvas.nodeToolbar.queryVideoTask"), icon: <RefreshCw className="size-4" />, onClick: () => onRetry(node) }] : []),
         ...(canRetry ? [{ id: "retry", title: t("canvas.nodeToolbar.retryTitle"), label: t("canvas.node.retry"), icon: <RefreshCw className="size-4" />, onClick: () => onRetry(node) }] : []),
@@ -294,7 +327,7 @@ function ToolbarAction({ title, label, icon, onClick, showLabel, active = false,
         <Tooltip title={title} placement="top" mouseEnterDelay={0.2} color="#ffffff" styles={{ root: { color: "#242529", boxShadow: "0 8px 24px rgba(15,23,42,.16)", fontSize: 13, fontWeight: 500 } }}>
             <button type="button" className={`group relative flex h-12 items-center whitespace-nowrap px-1.5 ${danger ? "text-[#ef4444]" : ""}`} onClick={onClick} aria-label={title}>
                 <span className={`flex h-9 items-center ${hasText ? "gap-2 px-2.5" : "justify-center px-2"} rounded-lg transition group-hover:bg-[#f0f0f1] ${active ? "bg-[#eeeeef]" : ""}`}>
-                    {icon}
+                    {icon ?? null}
                     {hasText ? <span>{label}</span> : null}
                 </span>
             </button>

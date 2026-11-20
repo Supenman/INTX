@@ -182,6 +182,21 @@ export const builtinTools: readonly ToolDefinition[] = [
   },
 
   // ── 节点悬浮栏 ────────────────────────────────────────────
+  // 只收「跟节点类别无关、任何节点都成立」的三条。字体加减、上传替换这类
+  // 按 image / video / text / audio 分别成立的按钮仍留在组件里：
+  // ToolNodeContext 没有 type 字段，硬塞进来等于为了接表而改 domain 契约。
+  {
+    id: 'node-info',
+    toolbar: 'node-hover',
+    category: 'node',
+    label: '信息',
+    labelKey: 'canvas.nodeToolbar.info',
+    hint: '查看节点信息',
+    defaultVisible: true,
+    defaultOrder: 5,
+    action: 'show-node-info',
+    applicable: (ctx) => ctx.node !== null,
+  },
   {
     id: 'node-duplicate',
     toolbar: 'node-hover',
@@ -192,28 +207,6 @@ export const builtinTools: readonly ToolDefinition[] = [
     defaultOrder: 10,
     action: 'duplicate-node',
     applicable: (ctx) => ctx.node !== null,
-  },
-  {
-    id: 'node-generate',
-    toolbar: 'node-hover',
-    category: 'node',
-    label: '生成',
-    hint: '用当前参数生成产物',
-    defaultVisible: true,
-    defaultOrder: 20,
-    action: 'generate-node',
-    applicable: (ctx) => ctx.node?.category === 'generate' && !ctx.node.busy,
-  },
-  {
-    id: 'node-cancel',
-    toolbar: 'node-hover',
-    category: 'node',
-    label: '取消',
-    hint: '取消当前生成任务',
-    defaultVisible: true,
-    defaultOrder: 21,
-    action: 'cancel-node',
-    applicable: (ctx) => ctx.node?.category === 'generate' && ctx.node.busy,
   },
   {
     id: 'node-delete',

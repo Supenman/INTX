@@ -64,7 +64,7 @@ const b1 = await firstBox();
 const c1 = centerOf(b1);
 await page.mouse.click(c1.x, c1.y);
 await page.waitForTimeout(800);
-const infoBtn = page.locator('button[aria-label="查看节点信息"]');
+const infoBtn = page.locator('button[aria-label="信息"]');
 const hoverVisible = (await infoBtn.count()) > 0;
 let hoverLabels = [];
 if (hoverVisible) {

@@ -45,10 +45,12 @@ describe("画布工具接线层", () => {
   });
 
   it("applicable 不通过的按钮不可见", () => {
-    const idle = toolView("node-hover", "node-generate", buildToolContext({ ...fields, node: { kind: "gen", category: "generate", hasAsset: false, busy: false } }));
-    const source = toolView("node-hover", "node-generate", buildToolContext({ ...fields, node: { kind: "text", category: "source", hasAsset: false, busy: false } }));
-    expect(idle.visible).toBe(true);
-    expect(source.visible).toBe(false);
+    // node-hover 里按节点类别分流的「生成 / 取消」已移回组件（ToolNodeContext 没有 type 字段），
+    // 这里用仍然按上下文分流的条目来验：没有命中节点时悬浮栏为空。
+    const hit = toolView("node-hover", "node-info", buildToolContext({ ...fields, node: { kind: "gen", category: "generate", hasAsset: false, busy: false } }));
+    const miss = toolView("node-hover", "node-info", buildToolContext({ ...fields, node: null }));
+    expect(hit.visible).toBe(true);
+    expect(miss.visible).toBe(false);
   });
 
   it("定义缺失时返回中性状态，UI 不退化", () => {
