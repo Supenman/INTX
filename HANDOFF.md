@@ -831,3 +831,60 @@ Cannot find module '@xyflow/react' or its corresponding type declarations.
 这条挂了三轮没动，是因为我一直在等「砍哪个」的答案。真去读代码才发现前提是错的——
 **不是入口太多，是名字重复**。以后遇到「要不要砍掉重复项」的问题，
 先查清每项的实际行为，别急着做减法。
+
+## 第二十一轮：插件市场第一次真的有插件（2026-11-21）
+
+### 两个开关一开，整条链路就通了
+
+上一轮把代码侧做完，卡在两个我按不了的地方：仓库私有、token 缺 workflow 权限。
+用户把两者都开了之后：
+
+| 动作 | 结果 |
+|---|---|
+| token 补 Workflows 权限 | `da07994` 推送成功（之前被 `refusing to allow ... without workflow scope` 挡住） |
+| 仓库转公开 | `private: false`，jsDelivr 立刻 200 |
+
+### 端到端实测（这是第一次真正跑通）
+
+以前只能说「分支推上去了」，现在能说「用户点了安装，插件真的能用」：
+
+```
+REGISTRY_URL_OK: true
+REGISTRY_HTTP: 200
+PLUGINS_LISTED: 5 ["Markdown 节点","SVG 节点","HTML 节点","3D 全景节点","便利贴节点"]
+INSTALL_BUTTONS: 5
+PLUGIN_JS_SERVED: [{"name":"markdown.js","status":200}]
+INSTALL_TOAST: true
+INSTALL_BUTTONS_AFTER: 4 (应比安装前少 1)
+PLUGIN_REGISTRY_PASS
+```
+
+关键在 `markdown.js => 200` 和 `INSTALL_BUTTONS_AFTER: 4`：点了安装之后
+CDN 真的把插件 js 送来，按钮真的从「安装」变成已安装态。不是只看清单拉到了。
+
+界面上也改了文案：从「来自仓库注册表」变成**「本项目官方插件，来自仓库注册表」**，
+不再暗示这是别人的东西。
+
+### 新增 `web/plugin_registry_check.mjs`
+
+把这条链路固化成脚本，盯三件事：
+1. 清单请求打到自己仓库的地址（不是上游），且 200
+2. 五个官方插件都列出来，每项都有安装按钮
+3. 点安装真的下载 js、按钮变成已安装态
+
+**特意把「清单 404」和「代码坏了」分开报**：脚本会输出 `REGISTRY_HTTP: 404`，
+一眼看出是仓库又变回私有了，而不是去翻代码。
+
+### 一个反复出现的环境问题
+
+TLS 连接在这台机器上不稳，`push` / `curl` 时不时报
+`GnuTLS recv error (-110): The TLS connection was non-properly terminated`。
+重试即可，但**重试逻辑本身写错过一次**：我用 `git push | tail -4` 然后看退出码，
+`tail` 的退出码永远是 0，把「推送失败」当成了「推送成功」。
+正确写法是把输出存进变量再用 grep 判断关键字。
+
+### 验证
+
+- `plugin_registry_check.mjs` 全部断言 PASS
+- `pnpm verify`：72 文件 / 864 用例全绿
+- 5 个插件 js 全部 200，字节数与构建产物一致
