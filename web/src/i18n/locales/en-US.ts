@@ -256,6 +256,12 @@ export default {
         undo: "Undo",
         redo: "Redo",
         openMenu: "Open canvas menu",
+        menuGroup: {
+            project: "Project",
+            file: "File",
+            produce: "Produce",
+            edit: "Edit",
+        },
         renameHint: "Double-click to rename the canvas",
         shortcuts: "Keyboard shortcuts",
         miniMapOpen: "Open minimap",

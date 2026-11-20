@@ -256,6 +256,12 @@ export default {
         undo: "撤销",
         redo: "重做",
         openMenu: "打开画布菜单",
+        menuGroup: {
+            project: "项目",
+            file: "文件",
+            produce: "制作",
+            edit: "编辑",
+        },
         renameHint: "双击修改画布名称",
         shortcuts: "快捷键",
         miniMapOpen: "打开小地图",

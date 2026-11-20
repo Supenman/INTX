@@ -5,6 +5,8 @@ import { APP_VERSION } from "@/constant/env";
 import { parseChangelog, type ReleaseInfo } from "@/lib/release";
 
 // 版本与更新日志读本仓库，不能读上游项目——否则用户看到的是别人的版本号，点击更新跳到别人仓库。
+// 注意：仓库目前是 private，raw / jsDelivr 都会 404，本 hook 只能等仓库转公开后才真正生效。
+// 这不是代码问题，转公开前不去伪造一个假成功。见 docs/品牌去上游-发布清单.md。
 const REPO_RAW = "https://raw.githubusercontent.com/Supenman/INTX/dev";
 const latestVersionUrl = `${REPO_RAW}/VERSION`;
 const latestChangelogUrl = `${REPO_RAW}/CHANGELOG.md`;

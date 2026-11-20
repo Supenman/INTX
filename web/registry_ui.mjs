@@ -10,7 +10,13 @@ const browser = await chromium.launch({
 const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push('PAGEERROR: ' + e.message));
-page.on('console', (m) => { if (m.type() === 'error') errors.push('CONSOLE: ' + m.text()); });
+page.on('console', (m) => { if (m.type() === 'error' && !m.text().startsWith('Failed to load resource')) errors.push('CONSOLE: ' + m.text()); });
+
+// 版本检查读的 VERSION 在本仓库转公开前必然 404（仓库是 private），属已知外部条件，不算回归。
+// 只豁免这一条精确 URL，其它 404 仍然算失败。
+const RAW_GITHUB_PRIVATE = 'https://raw.githubusercontent.com/Supenman/INTX/';
+page.on('requestfailed', (r) => { if (!r.url().startsWith(RAW_GITHUB_PRIVATE)) errors.push('REQFAIL: ' + r.url()); });
+page.on('response', (r) => { if (r.status() >= 400 && !r.url().startsWith(RAW_GITHUB_PRIVATE)) errors.push('HTTP' + r.status() + ': ' + r.url()); });
 
 const fail = (msg) => { console.error('FAIL:', msg); process.exitCode = 1; };
 const ok = (cond, msg) => { console.log((cond ? 'PASS: ' : 'FAIL: ') + msg); if (!cond) process.exitCode = 1; };

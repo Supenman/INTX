@@ -41,6 +41,13 @@ function localPluginsManifest(): Plugin {
 export default defineConfig({
     base: process.env.VITE_BASE || "/",
     plugins: [react(), localPluginsManifest()],
+    // 允许通过反向代理域名访问 dev server（仅开发期生效，不影响生产构建）。
+    server: {
+        host: "0.0.0.0",
+        allowedHosts: true,
+        // 部署平台会注入 PORT；本地开发没有该变量时回落到 5173。
+        port: Number(process.env.PORT) || 5173,
+    },
     resolve: {
         alias: {
             "@": resolve(webDir, "src"),

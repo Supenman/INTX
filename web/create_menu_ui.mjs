@@ -4,7 +4,13 @@ const browser = await chromium.launch({ headless: true, executablePath: '/usr/bi
 const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push('PAGEERROR: ' + e.message));
-page.on('console', (m) => { if (m.type() === 'error') errors.push('CONSOLE: ' + m.text()); });
+page.on('console', (m) => { if (m.type() === 'error' && !m.text().startsWith('Failed to load resource')) errors.push('CONSOLE: ' + m.text()); });
+
+// 版本检查读的 VERSION 在本仓库转公开前必然 404（仓库是 private），属已知外部条件，不算回归。
+// 只豁免这一条精确 URL，其它 404 仍然算失败。
+const RAW_GITHUB_PRIVATE = 'https://raw.githubusercontent.com/Supenman/INTX/';
+page.on('requestfailed', (r) => { if (!r.url().startsWith(RAW_GITHUB_PRIVATE)) errors.push('REQFAIL: ' + r.url()); });
+page.on('response', (r) => { if (r.status() >= 400 && !r.url().startsWith(RAW_GITHUB_PRIVATE)) errors.push('HTTP' + r.status() + ': ' + r.url()); });
 
 await page.goto('http://127.0.0.1:3010/canvas', { waitUntil: 'domcontentloaded' });
 await page.waitForTimeout(500);
@@ -28,7 +34,9 @@ await page.evaluate(() => {
   });
 });
 await page.goto('http://127.0.0.1:3010/canvas/e2e-create', { waitUntil: 'domcontentloaded' });
-await page.waitForTimeout(900);
+// 等 SPA 真正挂载出画布表面再交互，硬等 900ms 在冷启动时不够
+await page.getByText('空白画布').first().waitFor({ state: 'visible', timeout: 15000 }).catch(() => {});
+await page.waitForTimeout(600);
 
 // 双击画布空白处打开创建菜单
 const canvas = page.locator('[data-canvas-surface], .relative.overflow-hidden').first();

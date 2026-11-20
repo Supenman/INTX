@@ -107,24 +107,46 @@ export function CanvasTopBar({
                         trigger={["click"]}
                         menu={{
                             items: [
-                                { key: "home", icon: <Home className="size-4" />, label: t("canvas.home"), onClick: onHome },
-                                { key: "docs", icon: <BookOpen className="size-4" />, label: t("canvas.docs"), onClick: () => window.open(DOCS_URL, "_blank", "noopener,noreferrer") },
-                                { key: "projects", icon: <Images className="size-4" />, label: t("canvas.projects"), onClick: onProjects },
-                                { type: "divider" },
-                                { key: "new", icon: <Plus className="size-4" />, label: t("canvas.create"), onClick: onCreateProject },
-                                { key: "delete", danger: true, icon: <Trash2 className="size-4" />, label: t("canvas.deleteCurrent"), onClick: onDeleteProject },
-                                { type: "divider" },
-                                { key: "import", icon: <Upload className="size-4" />, label: t("canvas.importAsset"), onClick: onImportImage },
-                                { key: "export", icon: <Download className="size-4" />, label: t("canvas.exportCurrent"), onClick: onExportProject },
-                                { key: "save-workflow", icon: <Download className="size-4" />, label: t("canvas.workflow.save"), disabled: !canSaveWorkflow, onClick: onSaveWorkflow },
-                                { key: "insert-workflow", icon: <Upload className="size-4" />, label: t("canvas.workflow.insert"), onClick: onInsertWorkflow },
-                                { key: "preview-chain", label: t("canvas.chain.preview"), disabled: !canPreviewChain, onClick: onPreviewChain },
-                                { key: "generation-history", icon: <History className="size-4" />, label: t("canvas.generationHistory.entry"), onClick: onOpenGenerationHistory },
-                                { key: "storyboard", icon: <Clapperboard className="size-4" />, label: t("canvas.storyboard.entry"), onClick: onOpenStoryboard },
-                                { key: "timeline", icon: <Film className="size-4" />, label: t("canvas.timeline.entry"), onClick: onOpenTimeline },
-                                { type: "divider" },
-                                { key: "undo", disabled: !canUndo, icon: <Undo2 className="size-4" />, label: <MenuLabel text={t("canvas.undo")} shortcut="⌘ Z" />, onClick: onUndo },
-                                { key: "redo", disabled: !canRedo, icon: <Redo2 className="size-4" />, label: <MenuLabel text={t("canvas.redo")} shortcut="⌘ ⇧ Z / ⌘ Y" />, onClick: onRedo },
+                                // 分组标题让用户能按用途定位，而不是在一长列里逐条读。
+                                {
+                                    type: "group",
+                                    label: t("canvas.menuGroup.project"),
+                                    children: [
+                                        { key: "projects", icon: <Images className="size-4" />, label: t("canvas.projects"), onClick: onProjects },
+                                        { key: "new", icon: <Plus className="size-4" />, label: t("canvas.create"), onClick: onCreateProject },
+                                        { key: "delete", danger: true, icon: <Trash2 className="size-4" />, label: t("canvas.deleteCurrent"), onClick: onDeleteProject },
+                                    ],
+                                },
+                                {
+                                    type: "group",
+                                    label: t("canvas.menuGroup.file"),
+                                    children: [
+                                        { key: "import", icon: <Upload className="size-4" />, label: t("canvas.importAsset"), onClick: onImportImage },
+                                        { key: "export", icon: <Download className="size-4" />, label: t("canvas.exportCurrent"), onClick: onExportProject },
+                                        { key: "save-workflow", icon: <Download className="size-4" />, label: t("canvas.workflow.save"), disabled: !canSaveWorkflow, onClick: onSaveWorkflow },
+                                        // 预览链路依赖当前选择态，属于工作流的预览步骤，收进同一组。
+                                        { key: "insert-workflow", icon: <Upload className="size-4" />, label: t("canvas.workflow.insert"), onClick: onInsertWorkflow },
+                                        { key: "preview-chain", label: t("canvas.chain.preview"), disabled: !canPreviewChain, onClick: onPreviewChain },
+                                    ],
+                                },
+                                {
+                                    type: "group",
+                                    label: t("canvas.menuGroup.produce"),
+                                    children: [
+                                        { key: "generation-history", icon: <History className="size-4" />, label: t("canvas.generationHistory.entry"), onClick: onOpenGenerationHistory },
+                                        { key: "storyboard", icon: <Clapperboard className="size-4" />, label: t("canvas.storyboard.entry"), onClick: onOpenStoryboard },
+                                        { key: "timeline", icon: <Film className="size-4" />, label: t("canvas.timeline.entry"), onClick: onOpenTimeline },
+                                    ],
+                                },
+                                {
+                                    type: "group",
+                                    label: t("canvas.menuGroup.edit"),
+                                    // 撤销/重做保留在此：主工具栏对应按钮可被偏好隐藏，这里是没有可见按钮时的兜底入口。
+                                    children: [
+                                        { key: "undo", disabled: !canUndo, icon: <Undo2 className="size-4" />, label: <MenuLabel text={t("canvas.undo")} shortcut="⌘ Z" />, onClick: onUndo },
+                                        { key: "redo", disabled: !canRedo, icon: <Redo2 className="size-4" />, label: <MenuLabel text={t("canvas.redo")} shortcut="⌘ ⇧ Z / ⌘ Y" />, onClick: onRedo },
+                                    ],
+                                },
                             ],
                         }}
                     >
