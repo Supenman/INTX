@@ -962,3 +962,39 @@ npm error 403 You cannot publish over the previously published versions: 0.1.0.
 将来部署后设 `VITE_DOC_URL` 再把图标接回来。
 
 `canvas.docs` 那个键更早之前就已零引用（不是这轮造成的），没动。
+
+## 第二十三轮：npm 发布改走 OIDC（2026-11-21）
+
+### 补上元数据缺口
+
+上一轮发布的包在 registry 上是**裸的**——`repository` 字段为空。npm 页面上不会显示
+「来自哪个仓库」，用户也没法点回源码核实。两个包各补一条：
+
+```json
+"repository": { "type": "git", "url": "git+https://github.com/Supenman/INTX.git", "directory": "canvas-agent" }
+```
+
+`canvas-agent` 原本的 `description` 为空，一并补上。这是**只对下次发布生效**的改动，
+已发布的 0.6.0 / 0.1.0 不会追溯。
+
+### 新增 `publish-npm.yml`：不存 token 的发布方式
+
+| 设计点 | 选择 | 为什么 |
+|---|---|---|
+| 认证 | `id-token: write` + Trusted Publishing | 凭据随 job 失效，泄漏无从谈起 |
+| 触发 | `release: published` / `workflow_dispatch` | 不在每次 push 时发，避免版本号被日常提交拖着走 |
+| tag 校验 | tag 与 `package.json` 版本不一致就失败 | tag 是外部可见的声明，package.json 是实际发出的内容，不一致比失败更难排查 |
+| npm 版本 | job 里 `npm i -g npm@latest` | Trusted Publishing 需要 npm 11.5+，node 22 自带 10.x |
+
+比上一轮还多一步：发布前跑 `npm ci && npm test`，agent 的 81 个用例不过就不发。
+
+### 为什么绕开 token 是必须的，不是洁癖
+
+npm 在 2025-11 把 classic token 全部**永久吊销**（不可重建、不可恢复）。现在只剩
+Granular，而其中带 bypass 2FA 的直接发布权限 **2027-01 起移除**，改为
+「暂存 + 人工批准」。也就是说上一轮那种发法有明确寿命。现在接 OIDC，一次到位。
+
+### 还差用户点一下
+
+两个包页面上各绑一次 Trusted Publisher（GitHub Actions / Supenman / INTX / `publish-npm.yml`）。
+步骤写在 `docs/品牌去上游-发布清单.md` 附四。绑完就能用 Release 发版。

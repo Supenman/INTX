@@ -1,5 +1,6 @@
 {
   "name": "@supenman/canvas-agent",
+  "description": "Local bridge between the Infinite Canvas web app and opencode running on your machine.",
   "version": "0.6.0",
   "license": "MIT",
   "type": "module",
@@ -42,5 +43,10 @@
   },
   "publishConfig": {
     "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Supenman/INTX.git",
+    "directory": "canvas-agent"
   }
 }
