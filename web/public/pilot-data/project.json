@@ -1,0 +1,82 @@
+{
+ "title": "无限画布 1",
+ "nodes": [
+  {
+   "id": "image-1795079987467-x6vmm",
+   "type": "image",
+   "title": "canvas-image-image-1794585151465-xd3ah.png",
+   "position": {
+    "x": 133.5,
+    "y": -5.421909090909092
+   },
+   "width": 380,
+   "height": 640,
+   "storageKey": "image:-0qy___oHZvDn4jIVfgKb",
+   "file": "/pilot-data/image_-0qy___oHZvDn4jIVfgKb.png"
+  },
+  {
+   "id": "video-1795079996547-bjqcy",
+   "type": "video",
+   "title": "对着镜头说你好",
+   "position": {
+    "x": 802.2316363636364,
+    "y": 206.52045454545444
+   },
+   "width": 420,
+   "height": 236,
+   "storageKey": "video:MyqnYp6fWfwxBfw7Q_nZg",
+   "file": "/pilot-data/video_MyqnYp6fWfwxBfw7Q_nZg.mp4"
+  },
+  {
+   "id": "video-1795099777011-q8nvu",
+   "type": "video",
+   "title": "SC_04_202605260130.mp4",
+   "position": {
+    "x": 1290.5068631545453,
+    "y": 352.60920358181824
+   },
+   "width": 420,
+   "height": 236.25,
+   "storageKey": "video:YnV5sSDuuGKON4cSJV7YU",
+   "file": "/pilot-data/video_YnV5sSDuuGKON4cSJV7YU.mp4"
+  },
+  {
+   "id": "audio-1795100078600-lwbqr",
+   "type": "audio",
+   "title": "SC_04_202605260130.mp4 · 音频",
+   "position": {
+    "x": 1862.5977722454543,
+    "y": 408.85920358181835
+   },
+   "width": 340,
+   "height": 120,
+   "storageKey": "audio:KkbQw_QZ87rMcC2fGw8Pa",
+   "file": "/pilot-data/audio_KkbQw_QZ87rMcC2fGw8Pa.wav"
+  },
+  {
+   "id": "image-1795107188825-ci7k5",
+   "type": "image",
+   "title": "清晨，女主推开咖啡馆的门近景，她发现桌上留着一封信窗外雨势渐大",
+   "position": {
+    "x": 1403.3477722454545,
+    "y": 636.563987990909
+   },
+   "width": 142.5,
+   "height": 240,
+   "storageKey": "image:8ePzog1mhyVqOZ82fRA0o",
+   "file": "/pilot-data/image_8ePzog1mhyVqOZ82fRA0o.png"
+  }
+ ],
+ "connections": [
+  {
+   "id": "jSWneg9M47UnTDtmBpcze",
+   "fromNodeId": "image-1795079987467-x6vmm",
+   "toNodeId": "video-1795079996547-bjqcy"
+  },
+  {
+   "id": "zaVm2zYj10a4ajX_mftKQ",
+   "fromNodeId": "video-1795099777011-q8nvu",
+   "toNodeId": "audio-1795100078600-lwbqr"
+  }
+ ]
+}

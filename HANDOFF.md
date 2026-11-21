@@ -1382,3 +1382,26 @@ ERRORS_TOTAL: 0 []
 
 - 主题切换的「画布场景降级」没搬：INTX 没有 `data-canvas-world-layer` 标记，搬了不会触发。若后续要给画布加无动画切换，需先加标记 + CSS 规则，另算一轮。
 - 本轮是视觉/交互对齐，没碰功能路径；真机观感（连点手感、主版本描边在浅色下的对比度）仍属 A 类真机证据。
+
+## 第三十二轮：B9 未跟踪项裁决 + B2 复核（2026-11-21）
+
+用户说「接着做吧」。按总览下一项是 B2 宫格切分，先核对再动手。
+
+### B2 复核：已完整实现，无需重做
+
+- `src/lib/canvas/canvas-image-data.ts:48` `splitDataUrl`：切图核心
+- `src/components/canvas/canvas-node-split-dialog.tsx`：任意行列 + 可拖拽切线 + 撤销重做 + 缩放，比 BeefTV 的 49 行固定预设纯函数更强
+- `src/pages/canvas/project.tsx:2245` `splitImageNode`：切完生成 N 个独立图片子节点，平铺原图右侧 +96px、格间距 16px，建连线、全选、提示成功——正是 BeefTV「产物进画布」的核心设计
+- `domain/node/grid.ts` 是「多图拼宫格」的布局函数，与「切一张图」语义不同，两者并存不冲突
+
+结论：B2 不是缺口，总览已移到已完成表，不动代码。
+
+### B9 裁决（3 个未跟踪项）
+
+| 项 | 裁决 | 理由 |
+|---|---|---|
+| `canvas-agent/codex-server.md` | 删除 | 空文件 0 行、零引用、Codex 适配器已在任务 84-87 删除 |
+| `docs/content/docs/progress/visual-consistency-shots/`（4 张 / 220K） | 入库 | 视觉一致性证据，符合项目留证纪律；零引用但保留可追溯 |
+| `web/public/pilot-data/`（7.5M） | 入库 | 被 `pages/canvas-flow-pilot/index.tsx:148` 真实 fetch；HANDOFF 第十三轮明确「保留作为对照基线」，删了试点页 404 |
+
+`pnpm verify` 全绿：75 文件 / 886 用例。工作区已干净，三项未跟踪全部处理完毕。
