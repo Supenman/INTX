@@ -132,6 +132,7 @@ Base URL 如果已经以 `/v1` 结尾，系统不会再追加 `/v1`。
 ## Canvas Agent
 
 - 桌面版随包提供 Node 和 Canvas Agent。INTX 会在后台自动启动 Agent；若本地已有 Agent 则复用，退出时只关闭由 INTX 启动的实例。固定版本的 OpenCode CLI 首次使用时通过随包 npm 下载。
+- 提供独立的本地 Agent Skill 管理页，支持搜索、新建、编辑、删除及导入 Markdown，并可在 Agent 输入框通过 `/` 调用已保存的 Skill。
 - 在本地运行 Canvas Agent，通过 MCP 连到浏览器，不需要给 Web 服务器开放画布状态。
 - 可读取当前画布、选区、节点、连线与生成状态，并执行结构化操作。
 - 在浏览器侧边栏里使用 OpenCode Agent：流式回复、历史会话、模型选择、停止、用量与诊断日志，`/` 引用本地 Skill；默认免费模型不需要 API Key。
