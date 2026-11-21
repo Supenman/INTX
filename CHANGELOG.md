@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- [调整] 桌面版随包内置 Canvas Agent 与 Node 运行环境，启动 INTX 时在后台自动运行，并在退出时关闭；日常使用不再需要手动打开 PowerShell。
+- [修复] 随包 Agent 通过 Node 直接启动 OpenCode 的 npm CLI，避免 Windows 命令 shell 报“系统找不到指定路径”。
+- [新增] 增加独立技能中心，可搜索、新建、导入 Markdown 并管理本地 Agent Skill，同时保留 Agent 面板快捷入口。
+
 ## v0.2.0 - 2026-11-22
 
 + [新增] INTX 内置剪辑台：在项目内剪辑并直接从 INTX 素材库导入图片/视频，导出成片后归档回素材库。编辑器核心和界面改编自 OpenCut Classic（MIT），见 `THIRD_PARTY_NOTICES.md`。

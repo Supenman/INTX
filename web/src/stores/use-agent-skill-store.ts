@@ -34,8 +34,8 @@ export const useAgentSkillStore = create<AgentSkillStore>((set, get) => ({
     loading: false,
     loaded: false,
     errors: [],
-    loadSkills: async (endpoint, token) => {
-        if (get().loading) return;
+    loadSkills: async (endpoint, token, forceReload = false) => {
+        if (get().loading || (get().loaded && !forceReload)) return;
         set({ loading: true });
         try {
             const data = await fetchOpencodeSkills(endpoint, token);

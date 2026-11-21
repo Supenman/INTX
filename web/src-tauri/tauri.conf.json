@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "node node_modules/vite/bin/vite.js --host 0.0.0.0 --port 3000",
     "devUrl": "http://localhost:3000",
-    "beforeBuildCommand": "node node_modules/vite/bin/vite.js build",
+    "beforeBuildCommand": "node scripts/prepare-agent-runtime.mjs && node node_modules/vite/bin/vite.js build",
     "frontendDist": "../dist"
   },
   "app": {
@@ -27,6 +27,9 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "resources": {
+      "resources/canvas-agent-runtime/": "canvas-agent-runtime/"
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

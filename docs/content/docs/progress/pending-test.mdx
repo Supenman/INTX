@@ -5,6 +5,17 @@ description: Implemented changes that still need manual verification
 
 # Pending Tests
 
+## Local Skill management in Agent (desktop acceptance pending)
+
+- The top navigation’s Skills item opens a dedicated management page. Search filters by name or purpose; create and Markdown import use the same editor.
+- Import a Skill Markdown file with `name` and `description` frontmatter; check that fields are prefilled, save it, then find and invoke it through `/` in the Agent composer.
+- Open the Agent panel’s Skills tab in a canvas; after connecting, it should list Skills in the current canvas workspace.
+- Create a Skill with a valid name, description and instructions. It should appear in the list and in the chat composer’s `/` picker.
+- Edit its description or instructions and save. Reopen it to confirm persistence; the `/` picker should show the updated Skill.
+- Confirm deletion and check it disappears from the list and `/` picker. Canceling the confirmation should keep it.
+- Invalid names or missing required text should show an error without writing files. If a Skill changes externally while editing, saving should report a revision conflict and allow refresh/retry.
+- Skills are stored only under `.agents/skills` in the current canvas workspace. A Skill marketplace and submissions require a separate catalog/review service and are not included.
+
 ## INTX embedded editing studio (Windows desktop acceptance passed)
 
 - Open 剪辑台 from INTX navigation. Confirm it stays inside the same INTX window and the canvas editor remains available via Back to canvas.

@@ -10,6 +10,7 @@ import ConfigPage from "@/pages/config";
 import NotFound from "@/pages/not-found";
 import TasksPage from "@/pages/tasks";
 import EditingStudioPage from "@/pages/editing-studio";
+import SkillsPage from "@/pages/skills";
 
 export const router = createBrowserRouter([
     {
@@ -22,6 +23,7 @@ export const router = createBrowserRouter([
         children: [
             { path: "/", element: <Navigate to="/canvas" replace /> },
             { path: "/assets", element: <AssetsPage /> },
+            { path: "/skills", element: <SkillsPage /> },
             { path: "/tasks", element: <TasksPage /> },
             { path: "/canvas", element: <CanvasPage /> },
             { path: "/canvas/:id", element: <CanvasProjectPage /> },

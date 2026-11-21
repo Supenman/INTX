@@ -6,7 +6,7 @@ import express, { type NextFunction, type Request, type Response } from "express
 import { messageMetadataStore } from "../agent/message-metadata.js";
 import { createOpencodeThread, deleteOpencodeThread, interruptOpencodeTurn, listOpencodeModels, listOpencodeThreads, readOpencodeThread, renameOpencodeThread, runOpencodeTurn } from "../agent/opencode.js";
 import { AGENT_PROTOCOL_VERSION, CanvasSession } from "../canvas/session.js";
-import { SkillStore } from "../skills/store.js";
+import { SkillStore, SkillStoreError } from "../skills/store.js";
 import { DEFAULT_PORT, ensureSiteWorkspace, loadConfig, saveConfig, type CanvasAgentConfig } from "../config.js";
 import { logger } from "../utils/logger.js";
 import { checkVersions } from "../version-check.js";
@@ -134,6 +134,25 @@ export function startHttpServer() {
         const { skills, errors } = await new SkillStore(workspace.workspacePath).list();
         res.json({ ok: true, data: skills.map((skill) => ({ ...skill, scope: "repo", enabled: true, managed: true })), errors });
     }));
+    app.get("/agent/opencode/skills/:name", route(async (req, res) => {
+        const workspace = ensureSiteWorkspace(config);
+        res.json({ ok: true, data: await new SkillStore(workspace.workspacePath).get(routeParam(req.params.name)) });
+    }));
+    app.post("/agent/opencode/skills", mutation(async (req, res) => {
+        const workspace = ensureSiteWorkspace(config);
+        const data = await new SkillStore(workspace.workspacePath).create(req.body);
+        res.json({ ok: true, data });
+    }));
+    app.post("/agent/opencode/skills/:name/update", mutation(async (req, res) => {
+        const workspace = ensureSiteWorkspace(config);
+        const data = await new SkillStore(workspace.workspacePath).update(routeParam(req.params.name), req.body);
+        res.json({ ok: true, data });
+    }));
+    app.post("/agent/opencode/skills/:name/delete", mutation(async (req, res) => {
+        const workspace = ensureSiteWorkspace(config);
+        await new SkillStore(workspace.workspacePath).delete(routeParam(req.params.name), String(req.body?.expectedRevision || ""));
+        res.json({ ok: true });
+    }));
     app.post("/agent/opencode/threads/new", mutation(async (_req, res) => {
         const workspace = ensureSiteWorkspace(config);
         res.json({ ok: true, threadId: await createOpencodeThread(workspace.workspacePath) });
@@ -183,7 +202,8 @@ export function startHttpServer() {
     app.use((_req, res) => res.status(404).json({ ok: false, error: "not found" }));
     app.use((error: Error, req: Request, res: Response, _next: NextFunction) => {
         logger.error("HTTP request failed", { method: req.method, path: req.path, error });
-        res.status(500).json({ ok: false, error: error.message });
+        const statusCode = error instanceof SkillStoreError ? error.statusCode : 500;
+        res.status(statusCode).json({ ok: false, error: error.message });
     });
 
     app.listen(port, "127.0.0.1", () => {

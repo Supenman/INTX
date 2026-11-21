@@ -43,6 +43,7 @@ The RunningHub channel supports single-image video generation with Vidu Q2 Pro F
 
 ## Canvas Agent
 
+- Desktop builds bundle Node and Canvas Agent. INTX starts it in the background, reuses an already running local Agent, and stops only the instance it started when exiting. The pinned OpenCode CLI downloads on first use through the bundled npm runtime.
 - Run the local Canvas Agent and connect it to the browser over MCP without giving a web server direct access to browser state.
 - Read the active canvas, selection, nodes, edges, generation status, and apply structured operations.
 - Use the OpenCode agent from the browser side panel with streaming responses, history, a model picker, stop, token usage and diagnostics, `/` mentions of local Skills; the default free model needs no API key.

@@ -83,25 +83,27 @@ export function AgentConnectView({
                     ) : null}
                 </div>
                 <div className="rounded-lg px-3 py-2.5">
-                    <div className="text-sm font-medium leading-5">{t("agent.connect.directTitle")}</div>
-                    <div className="mt-1 text-xs leading-5" style={{ color: theme.node.muted }}>
-                        {t("agent.connect.opencodeText")}
-                    </div>
-                    <div className="mt-2 flex items-center gap-2 rounded-md border bg-transparent px-2 py-1.5" style={{ borderColor: theme.node.stroke, color: theme.node.text }}>
-                        <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap text-[11px] leading-5">{command}</code>
-                        <Tooltip title={t("agent.connect.copyCommand")}>
-                            <Button
-                                size="small"
-                                type="text"
-                                className="!h-6 !w-6 !min-w-6"
-                                icon={<Copy className="size-3.5" />}
-                                onClick={() => {
-                                    copyToClipboard(command);
-                                    message.success(t("agent.connect.commandCopied"));
-                                }}
-                            />
-                        </Tooltip>
-                    </div>
+                    <div className="text-sm font-medium leading-5">{t(desktop ? "agent.connect.title" : "agent.connect.directTitle")}</div>
+                    {desktop ? <div className="mt-1 text-xs leading-5" style={{ color: theme.node.muted }}>{t("agent.connect.embeddedAgentText")}</div> : (
+                        <>
+                            <div className="mt-1 text-xs leading-5" style={{ color: theme.node.muted }}>{t("agent.connect.opencodeText")}</div>
+                            <div className="mt-2 flex items-center gap-2 rounded-md border bg-transparent px-2 py-1.5" style={{ borderColor: theme.node.stroke, color: theme.node.text }}>
+                                <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap text-[11px] leading-5">{command}</code>
+                                <Tooltip title={t("agent.connect.copyCommand")}>
+                                    <Button
+                                        size="small"
+                                        type="text"
+                                        className="!h-6 !w-6 !min-w-6"
+                                        icon={<Copy className="size-3.5" />}
+                                        onClick={() => {
+                                            copyToClipboard(command);
+                                            message.success(t("agent.connect.commandCopied"));
+                                        }}
+                                    />
+                                </Tooltip>
+                            </div>
+                        </>
+                    )}
                 </div>
             </div>
         </div>

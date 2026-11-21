@@ -25,6 +25,7 @@ export type AgentSkillSummary = {
     scope: AgentSkillScope;
     enabled: boolean;
     managed: boolean;
+    revision: string;
 };
 export type AgentSkillDetail = {
     name: string;
@@ -80,6 +81,22 @@ export function fetchOpencodeModels(endpoint: string, token: string) {
 
 export function fetchOpencodeSkills(endpoint: string, token: string) {
     return fetchAgentJson<AgentSkillsResponse>(endpoint, token, "/agent/opencode/skills");
+}
+
+export function fetchOpencodeSkill(endpoint: string, token: string, name: string) {
+    return fetchAgentJson<AgentSkillResponse>(endpoint, token, `/agent/opencode/skills/${encodeURIComponent(name)}`);
+}
+
+export function createOpencodeSkill(endpoint: string, token: string, input: AgentSkillInput) {
+    return fetchAgentJson<AgentSkillResponse>(endpoint, token, "/agent/opencode/skills", jsonPost(input));
+}
+
+export function updateOpencodeSkill(endpoint: string, token: string, name: string, input: AgentSkillInput) {
+    return fetchAgentJson<AgentSkillResponse>(endpoint, token, `/agent/opencode/skills/${encodeURIComponent(name)}/update`, jsonPost(input));
+}
+
+export function deleteOpencodeSkill(endpoint: string, token: string, name: string, expectedRevision: string) {
+    return fetchAgentJson<{ ok?: boolean }>(endpoint, token, `/agent/opencode/skills/${encodeURIComponent(name)}/delete`, jsonPost({ expectedRevision }));
 }
 
 export function fetchOpencodeThreads(endpoint: string, token: string) {

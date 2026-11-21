@@ -45,6 +45,12 @@
 - 许可：MPL-2.0（许可文本随 npm 包提供）
 - 用途：在桌面 WebView2 中解码本地媒体并编码 H.264/AAC MP4；原样依赖，不修改其源码。
 
+## Canvas Agent 与随包运行环境
+
+- `canvas-agent/` 是 INTX 随附的本地 Agent，按其 `package.json` 声明的 MIT 许可分发；产物只包含运行所需文件，依赖包的许可文本保留在随包 `node_modules` 中。
+- Node.js 运行时随桌面版提供，其许可声明一并放在 Agent runtime 目录的 `Node-LICENSE.txt`；npm CLI 的许可随 `node_modules/npm` 提供。
+- OpenCode CLI 不随包分发；首次使用时仍由 npm 按 `canvas-agent/src/agent/opencode.ts` 中锁定的版本下载。
+
 ## OpenCut editor npm dependencies
 
 - The embedded OpenCut Classic editor uses the additional packages recorded in `web/package.json` (including `opencut-wasm`, Hugeicons, Sonner, SoundTouchJS, Culori and React resizable panels). Each package remains distributed under its own upstream license in the package registry; no dependency source was copied into this repository.

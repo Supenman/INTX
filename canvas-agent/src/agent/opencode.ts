@@ -241,14 +241,23 @@ async function ensureServer(cwd: string): Promise<OpencodeServer> {
 }
 
 async function startServer(cwd: string): Promise<OpencodeServer> {
-    const command = `${process.env.OPENCODE_BIN || `npx -y opencode-ai@${OPENCODE_VERSION}`} serve --port 0 --hostname 127.0.0.1`;
-    const child = spawn(command, {
-        cwd,
-        shell: true,
-        windowsHide: true,
-        stdio: ["ignore", "pipe", "pipe"],
-        env: { ...process.env, OPENCODE_CONFIG_CONTENT: JSON.stringify(canvasConfig()) },
-    });
+    const args = ["-y", `opencode-ai@${OPENCODE_VERSION}`, "serve", "--port", "0", "--hostname", "127.0.0.1"];
+    const npxCli = path.join(path.dirname(process.execPath), "node_modules", "npm", "bin", "npx-cli.js");
+    const bundledNpx = !process.env.OPENCODE_BIN && fs.existsSync(npxCli);
+    const child = bundledNpx
+        ? spawn(process.execPath, [npxCli, ...args], {
+            cwd,
+            windowsHide: true,
+            stdio: ["ignore", "pipe", "pipe"],
+            env: { ...process.env, OPENCODE_CONFIG_CONTENT: JSON.stringify(canvasConfig()) },
+        })
+        : spawn(`${process.env.OPENCODE_BIN || "npx"} ${args.join(" ")}`, {
+            cwd,
+            shell: true,
+            windowsHide: true,
+            stdio: ["ignore", "pipe", "pipe"],
+            env: { ...process.env, OPENCODE_CONFIG_CONTENT: JSON.stringify(canvasConfig()) },
+        });
     let stderr = "";
     child.stderr?.setEncoding("utf8");
     child.stderr?.on("data", (chunk: string) => { stderr = `${stderr}${chunk}`.slice(-2000); });

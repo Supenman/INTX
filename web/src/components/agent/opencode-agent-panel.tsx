@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { App, Button, Tooltip } from "antd";
 import dayjs from "dayjs";
-import { Bot, ChevronUp, Cpu, History, MessageSquare, PanelRightClose, PlugZap, Plus, Terminal } from "lucide-react";
+import { Bot, ChevronUp, Cpu, History, MessageSquare, PanelRightClose, PlugZap, Plus, Sparkles, Terminal } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useShallow } from "zustand/react/shallow";
 
@@ -35,6 +35,7 @@ import {
 import { AgentHistoryView } from "./agent-history-view";
 import { AgentLogView } from "./agent-log-view";
 import { AgentPanelTabs } from "./agent-panel-tabs";
+import { AgentSkillManagerView } from "./agent-skill-manager-view";
 
 const rt = (key: string, options?: Record<string, unknown>) => i18n.t(`agent.runtime.${key}`, options);
 
@@ -526,11 +527,13 @@ export function OpencodeAgentPanel() {
                 items={[
                     { value: "chat", label: t("agent.panel.chat"), icon: <MessageSquare className="size-3.5" /> },
                     { value: "history", label: t("agent.panel.history"), icon: <History className="size-3.5" />, count: threads.length },
+                    { value: "skills", label: t("agent.panel.skills"), icon: <Sparkles className="size-3.5" /> },
                     { value: "log", label: t("agent.panel.logs"), icon: <Terminal className="size-3.5" />, count: eventLogs.length },
                 ]}
                 onChange={(activeTab) => {
                     setAgentState({ activeTab });
                     if (activeTab === "history") void loadThreads();
+                    if (activeTab === "skills" && connected) void useAgentSkillStore.getState().loadSkills(endpoint, token, true);
                 }}
                 right={
                     <>
@@ -582,6 +585,8 @@ export function OpencodeAgentPanel() {
                     onDeleteThreads={confirmDeleteThreads}
                     onRenameThread={(threadId, title) => void renameThread(threadId, title)}
                 />
+            ) : activeTab === "skills" ? (
+                <AgentSkillManagerView theme={theme} endpoint={endpoint} token={token} connected={connected} />
             ) : activeTab === "log" ? (
                 <AgentLogView
                     logs={eventLogs}
