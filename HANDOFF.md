@@ -26,7 +26,8 @@
 
 - 看到 `codex*` 属性报错 → 先比 blob SHA 查本地旧文件，别改远端。
 - `vitest run` 全量因 `bun:test` 收集失败是既有问题，门禁是 `vitest run src`。
-- 本机直连 GitHub 会被重置，推送走代理：`HTTPS_PROXY=http://127.0.0.1:7897 HTTP_PROXY=http://127.0.0.1:7897 git push origin dev`；`playwright install chromium` 同样需代理（本机已装）。
+- 本机直连 GitHub 会被重置，推送优先走代理：`HTTPS_PROXY=http://127.0.0.1:7897 HTTP_PROXY=http://127.0.0.1:7897 git push origin dev`；`playwright install chromium` 同样需代理（本机已装）。
+- **2026-11-21 补充**：沙箱重建后 7897 代理没了，`github.com:443` 直接 TCP 不通，但 `api.github.com:443` 和 `gh api` 正常。这时用 REST 的 git-data API 推：POST `git/blobs`（base64）→ POST `git/trees`（`base_tree` = 父提交树）→ POST `git/commits` → PATCH `git/refs/heads/dev`。API 会规范化 message 尾部换行，**远端 SHA 会与本地不同但 tree 完全一致**；本地要用 `git hash-object -t commit -w --stdin` 重建远端提交对象后 `git update-ref`（分支和 origin/dev 都要改），否则 status 会一直显示领先。远端 CI 由 ref 更新正常触发。
 - 4 张视觉截图未入库，别按路径找。
 
 ## 进度补充（WorkBuddy 接手轮，已提交）
