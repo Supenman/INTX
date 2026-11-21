@@ -22,7 +22,7 @@ export function AppTopNav() {
     const connectLocalAgent = useAgentStore((state) => state.connectLocalAgent);
     const togglePanel = useAgentStore((state) => state.togglePanel);
     const panelOpen = useAgentStore((state) => state.panelOpen);
-    const hideHeader = /^\/canvas\/[^/]+/.test(pathname);
+    const hideHeader = /^\/canvas\/[^/]+/.test(pathname) || pathname === "/editing-studio";
     const slug = pathname.split("/").filter(Boolean)[0];
     const activeToolSlug = navigationTools.some((tool) => tool.slug === slug) ? (slug as NavigationToolSlug) : undefined;
 

@@ -9,6 +9,7 @@ import CanvasFlowPilotPage from "@/pages/canvas-flow-pilot";
 import ConfigPage from "@/pages/config";
 import NotFound from "@/pages/not-found";
 import TasksPage from "@/pages/tasks";
+import EditingStudioPage from "@/pages/editing-studio";
 
 export const router = createBrowserRouter([
     {
@@ -25,6 +26,7 @@ export const router = createBrowserRouter([
             { path: "/canvas", element: <CanvasPage /> },
             { path: "/canvas/:id", element: <CanvasProjectPage /> },
             { path: "/canvas-flow-pilot", element: <CanvasFlowPilotPage /> },
+            { path: "/editing-studio", element: <EditingStudioPage /> },
             { path: "/config", element: <ConfigPage /> },
         ],
     },

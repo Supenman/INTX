@@ -5,8 +5,25 @@ description: Implemented changes that still need manual verification
 
 # Pending Tests
 
+## INTX embedded editing studio (Windows desktop acceptance passed)
+
+- Open 剪辑台 from INTX navigation. Confirm it stays inside the same INTX window and the canvas editor remains available via Back to canvas.
+- Import one image and one video from INTX Assets. Confirm both appear in the editor media panel, can be dragged to the timeline, and preview correctly; source assets remain in INTX Assets after restart.
+- Arrange and trim clips, add a title or transition, save/reopen the editing studio, and confirm the edit project and timeline remain intact.
+- Rename the editing project from its header, leave the page, return, and confirm the new name remains. Force a local storage failure and confirm the page does not claim the rename succeeded.
+- Switch INTX between light and dark themes. Confirm the editor panels and scrollbars remain readable and the rest of INTX keeps its existing theme.
+- Export a short MP4 and confirm it downloads and also appears as a video in INTX Assets. Verify playback in Windows WebView2; test cancel/failure handling and large local media.
+- User confirmed on 2026-11-22 that the editing studio test flow passed without issues, including media import, editing, project persistence, theme display and MP4 export to disk and My Assets.
+
+## Generation cancellation warning
+
+- Open the stop confirmation during a mock generation and check that it warns the provider may still charge for a request already sent.
+
 ## Timeline playhead and drag reorder (pending Windows desktop acceptance)
 
+- After the timeline is saved, create or import a successful image/video node on the canvas. Use Add shot media above the video/image track. Confirm it is appended after the final shot, appears in preview and export, and disappears from the choices once added. Removing the clip should leave the source node on the canvas.
+- Select a video, audio, or text clip, then press Delete. Only that clip should leave the timeline; its source node should remain on the canvas. Press Space with a clip selected to start or pause preview. Confirm the same keys do not delete selected canvas nodes or trigger canvas panning.
+- Drag a clip close to the timeline start or another clip edge. Confirm it snaps precisely and a vertical guide marks the snap target; drag away and confirm the guide disappears.
 - Click different positions on the shot track. The playhead should move proportionally across the whole timeline and show the shot under it. Dragging should update its position continuously.
 - Focus the playhead and use the arrow keys to move by one frame at the current frame rate. Home and End should seek to the start and end.
 - Drag a shot by its handle onto another row. Order and numbering should update immediately, and MP4 export should use the new order. The existing move-up/down buttons should remain usable.

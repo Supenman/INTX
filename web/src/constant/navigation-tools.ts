@@ -1,9 +1,13 @@
-import { Images, ListChecks, Maximize2, Settings2 } from "lucide-react";
+import { Clapperboard, Images, ListChecks, Maximize2, Settings2 } from "lucide-react";
 
 export const navigationTools = [
     {
         slug: "canvas",
         icon: Maximize2,
+    },
+    {
+        slug: "editing-studio",
+        icon: Clapperboard,
     },
     {
         slug: "assets",

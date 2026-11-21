@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Film, GripVertical, Music2, Pause, Play, Plus, Scissors, Trash2, Type } from "lucide-react";
 import { App, Button, Select } from "antd";
 import type { CanvasNodeData } from "@/types/canvas";
 import type { Timeline, TimelineTrack } from "@/domain/timeline/model";
-import { addClip, moveClip, removeClip, splitClip, timelineDuration, trimClip } from "@/domain/timeline/model";
+import { addClip, moveClip, removeClip, splitClip, timelineDuration, trackDuration, trimClip } from "@/domain/timeline/model";
 import { secondsToTicks, ticksPerFrame, ticksToSeconds } from "@/domain/timeline/time";
 import { addClipToTrack, clipAtSeconds, pixelToSeconds, replaceTrackClips, resolveClips, snapToEdges, trackOf, type ResolvedClip } from "@/domain/timeline/view";
 import { nodesById } from "@/domain/timeline/resolve";
@@ -42,11 +42,14 @@ export function CanvasTimelineDialog({ open, onClose, nodes, timeline, onTimelin
     const [playing, setPlaying] = useState(false);
     const [pixelsPerSecond, setPixelsPerSecond] = useState(48);
     const [drag, setDrag] = useState<{ clipId: string; originX: number; originTick: number; trackId: TimelineTrack["kind"] } | null>(null);
+    const [snapGuideTick, setSnapGuideTick] = useState<number | null>(null);
+    const [selectedClip, setSelectedClip] = useState<{ clipId: string; kind: TimelineTrack["kind"] } | null>(null);
     const [trimDrag, setTrimDrag] = useState<{ clipId: string; kind: TimelineTrack["kind"]; edge: "start" | "end"; pointerX: number; startTick: number; durationTick: number } | null>(null);
     const [previewError, setPreviewError] = useState("");
     const playbackStart = useRef(0);
     const playbackStartedAt = useRef(0);
     const videoRef = useRef<HTMLVideoElement>(null);
+    const timelineRootRef = useRef<HTMLElement | null>(null);
     const audioRefs = useRef(new Map<string, HTMLAudioElement>());
 
     const fps = timeline.fps;
@@ -58,6 +61,10 @@ export function CanvasTimelineDialog({ open, onClose, nodes, timeline, onTimelin
     const audioClips = useMemo(() => resolveClips(audioTrack, index), [audioTrack, index]);
     const textClips = useMemo(() => resolveClips(textTrack, index), [textTrack, index]);
     const textNodes = useMemo(() => nodes.filter((node) => node.type === "text" && node.metadata?.content?.trim()), [nodes]);
+    const availableShotNodes = useMemo(() => nodes.filter((node) =>
+        (node.type === "image" || node.type === "video") && node.metadata?.status === "success" && node.metadata.content
+        && !videoTrack.clips.some((clip) => clip.nodeId === node.id),
+    ), [nodes, videoTrack]);
     const totalSeconds = ticksToSeconds(timelineDuration(timeline));
     const visiblePlayhead = Math.min(playhead, totalSeconds);
     const current = clipAtSeconds(videoClips, visiblePlayhead);
@@ -74,6 +81,14 @@ export function CanvasTimelineDialog({ open, onClose, nodes, timeline, onTimelin
     // 按 kind 替换 clips（领域层纯函数，已钉住 id≠kind 的回归）；从 ref 读最新 timeline 避免拖动中闭包过期。
     const replaceTrack = (kind: TimelineTrack["kind"], nextClips: NonNullable<Timeline["tracks"]>[number]["clips"]) => {
         onTimelineChange(replaceTrackClips(timelineRef.current, kind, nextClips));
+    };
+    const selectClip = (kind: TimelineTrack["kind"], clipId: string) => {
+        setSelectedClip({ kind, clipId });
+        timelineRootRef.current?.focus({ preventScroll: true });
+    };
+    const removeTimelineClip = (kind: TimelineTrack["kind"], clipId: string) => {
+        replaceTrack(kind, removeClip(trackOf(timelineRef.current, kind), clipId).clips);
+        setSelectedClip((current) => current?.clipId === clipId ? null : current);
     };
 
     useEffect(() => {
@@ -149,14 +164,23 @@ export function CanvasTimelineDialog({ open, onClose, nodes, timeline, onTimelin
             const deltaTicks = secondsToTicks((event.clientX - drag.originX) / pixelsPerSecond);
             const live = timelineRef.current;
             const track = trackOf(live, drag.trackId);
-            // 候选点：同轨其它片段的起止 + 时间线 0 点；排除正在拖的片段自身。
+            // 候选点：时间线 0 点和同轨其它片段的起止；排除正在拖的片段自身。
             const edges = track.clips
                 .filter((item) => item.id !== drag.clipId)
                 .flatMap((item) => [item.startTick, item.startTick + item.durationTick]);
-            const desired = snapToEdges(drag.originTick + deltaTicks, edges, secondsToTicks(0.25), fps);
-            replaceTrack(drag.trackId, moveClip(track, drag.clipId, desired).clips);
+            const candidates = [0, ...edges];
+            const rawTick = drag.originTick + deltaTicks;
+            const threshold = secondsToTicks(0.25);
+            const snapEdge = candidates
+                .filter((edge) => Math.abs(rawTick - edge) <= threshold)
+                .sort((a, b) => Math.abs(rawTick - a) - Math.abs(rawTick - b))[0] ?? null;
+            const desired = snapToEdges(rawTick, candidates, threshold, fps);
+            const moved = moveClip(track, drag.clipId, desired);
+            const resolvedTick = moved.clips.find((item) => item.id === drag.clipId)?.startTick ?? desired;
+            setSnapGuideTick(snapEdge === resolvedTick ? snapEdge : candidates.includes(resolvedTick) ? resolvedTick : null);
+            replaceTrack(drag.trackId, moved.clips);
         };
-        const handleUp = () => setDrag(null);
+        const handleUp = () => { setDrag(null); setSnapGuideTick(null); };
         window.addEventListener("pointermove", handleMove);
         window.addEventListener("pointerup", handleUp, { once: true });
         return () => { window.removeEventListener("pointermove", handleMove); window.removeEventListener("pointerup", handleUp); };
@@ -197,6 +221,20 @@ export function CanvasTimelineDialog({ open, onClose, nodes, timeline, onTimelin
         setPlaying(true);
     };
 
+    const handleTimelineKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+        const target = event.target;
+        if (target instanceof HTMLElement && target.closest("button,input,select,textarea,[role='combobox'],[contenteditable='true']")) return;
+        if ((event.key === "Delete" || event.key === "Backspace") && selectedClip) {
+            event.preventDefault();
+            event.stopPropagation();
+            removeTimelineClip(selectedClip.kind, selectedClip.clipId);
+        } else if (event.code === "Space") {
+            event.preventDefault();
+            event.stopPropagation();
+            togglePlayback();
+        }
+    };
+
     const addAudio = async (file: File) => {
         const nodeId = await onImportAudio(file);
         if (!nodeId) return;
@@ -213,6 +251,16 @@ export function CanvasTimelineDialog({ open, onClose, nodes, timeline, onTimelin
             id: `text-${nodeId}`, nodeId,
             startTick: secondsToTicks(visiblePlayhead), durationTick: secondsToTicks(4), sourceStartTick: 0,
         }));
+    };
+
+    const addShot = (nodeId: string) => {
+        const node = index.get(nodeId);
+        if (!node || (node.type !== "image" && node.type !== "video")) return;
+        const track = trackOf(timelineRef.current, "video");
+        const durationTick = node.metadata?.durationMs ? secondsToTicks(node.metadata.durationMs / 1000) : secondsToTicks(4);
+        replaceTrack("video", addClip(track, {
+            id: `clip-${nodeId}`, nodeId, startTick: trackDuration(track), durationTick, sourceStartTick: 0,
+        }).clips);
     };
 
     const exportVideo = async () => {
@@ -240,7 +288,7 @@ export function CanvasTimelineDialog({ open, onClose, nodes, timeline, onTimelin
 
     const timelineSeconds = Math.max(totalSeconds, 10);
 
-    return <section aria-label={t("canvas.timeline.entry")} className="flex h-full min-h-0 flex-col overflow-hidden border-t" style={{ borderColor: theme.node.stroke, color: theme.node.text }}>
+    return <section ref={timelineRootRef} tabIndex={-1} onKeyDown={handleTimelineKeyDown} aria-label={t("canvas.timeline.entry")} className="flex h-full min-h-0 flex-col overflow-hidden border-t outline-none" style={{ borderColor: theme.node.stroke, color: theme.node.text }}>
         <div className="flex shrink-0 items-center justify-between gap-4 px-4 py-2">
             <div className="flex items-center gap-2 text-sm font-medium"><Film className="size-4" />{t("canvas.timeline.entry")}</div>
             <div className="flex items-center gap-2">
@@ -280,9 +328,10 @@ export function CanvasTimelineDialog({ open, onClose, nodes, timeline, onTimelin
             </section>
 
             <section className="min-w-0 shrink-0 rounded-xl border p-3" style={{ borderColor: theme.node.stroke }}>
-                <div className="mb-2 flex items-center justify-between text-xs font-medium opacity-60"><span><Film className="mr-1 inline size-3.5" />{t("canvas.timeline.entry")} · {totalSeconds.toFixed(2)} 秒</span><span className="flex items-center gap-2"><button type="button" onClick={() => setPixelsPerSecond((v) => Math.max(18, v / 1.25))}>−</button><span>{Math.round(pixelsPerSecond)} px/s</span><button type="button" onClick={() => setPixelsPerSecond((v) => Math.min(160, v * 1.25))}>＋</button></span></div>
+                <div className="mb-2 flex items-center justify-between text-xs font-medium opacity-60"><span><Film className="mr-1 inline size-3.5" />{t("canvas.timeline.entry")} · {totalSeconds.toFixed(2)} 秒</span><span className="flex items-center gap-2"><button type="button" onClick={() => setPixelsPerSecond((v) => Math.max(18, v / 1.25))}>−</button><span>{Math.round(pixelsPerSecond)} px/s</span><button type="button" onClick={() => setPixelsPerSecond((v) => Math.min(160, v * 1.25))}>＋</button><Select size="small" aria-label={t("canvas.timeline.addShot")} placeholder={t("canvas.timeline.addShot")} options={availableShotNodes.map((node) => ({ value: node.id, label: node.title }))} onChange={addShot} disabled={!availableShotNodes.length} notFoundContent={t("canvas.timeline.addShotEmpty")} className="w-44" /></span></div>
                 <div className="overflow-x-auto pb-1">
                     <div className="relative" style={{ width: Math.max(640, timelineSeconds * pixelsPerSecond), minWidth: "100%" }}>
+                        {snapGuideTick !== null && <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 z-20 border-l border-dashed opacity-70" style={{ left: ticksToSeconds(snapGuideTick) * pixelsPerSecond, borderColor: theme.node.text }} />}
                         <div className="relative h-7 border-b" style={{ borderColor: theme.node.stroke }} onPointerDown={(event) => seekTrack(event.clientX, event.currentTarget)}>
                             {Array.from({ length: Math.ceil(timelineSeconds / Math.max(1, Math.ceil(80 / pixelsPerSecond))) + 1 }, (_, i) => i * Math.max(1, Math.ceil(80 / pixelsPerSecond))).filter((s) => s <= timelineSeconds).map((s) => <span key={s} className="absolute bottom-1 text-xs opacity-50" style={{ left: s * pixelsPerSecond }}>{s}s</span>)}
                         </div>
@@ -290,15 +339,15 @@ export function CanvasTimelineDialog({ open, onClose, nodes, timeline, onTimelin
                         <div className="relative mt-1 h-12 rounded-md bg-black/5 dark:bg-white/5" onPointerDown={(event) => seekTrack(event.clientX, event.currentTarget)}>
                             {videoClips.map((item, i) => <div key={item.clip.id}
                                 className={`absolute inset-y-1 flex items-center overflow-hidden rounded border text-white ${exporting ? "cursor-default opacity-60" : "cursor-grab active:cursor-grabbing"}`}
-                                style={{ left: item.startSeconds * pixelsPerSecond, width: Math.max(28, item.durationSeconds * pixelsPerSecond), background: i % 2 ? "#665c8f" : "#4e7d72", borderColor: "transparent" }}
+                                style={{ left: item.startSeconds * pixelsPerSecond, width: Math.max(28, item.durationSeconds * pixelsPerSecond), background: i % 2 ? "#665c8f" : "#4e7d72", borderColor: selectedClip?.clipId === item.clip.id ? theme.node.text : "transparent" }}
                                 aria-label={t("canvas.timeline.dragShot", { name: label(item.node, String(i + 1)) })} title={t("canvas.timeline.dragShotHint")}
-                                onPointerDown={(event) => { if (exporting) return; event.stopPropagation(); setDrag({ clipId: item.clip.id, originX: event.clientX, originTick: item.clip.startTick, trackId: "video" }); }}>
-                                <button type="button" disabled={exporting} aria-label={t("canvas.timeline.trimStart", { name: label(item.node, String(i + 1)) })} className="h-full w-1.5 shrink-0 cursor-ew-resize bg-white/30" onPointerDown={(event) => { event.stopPropagation(); setTrimDrag({ clipId: item.clip.id, kind: "video", edge: "start", pointerX: event.clientX, startTick: item.clip.startTick, durationTick: item.clip.durationTick }); }} />
+                                onPointerDown={(event) => { if (exporting) return; event.stopPropagation(); selectClip("video", item.clip.id); setDrag({ clipId: item.clip.id, originX: event.clientX, originTick: item.clip.startTick, trackId: "video" }); }}>
+                                <button type="button" disabled={exporting} aria-label={t("canvas.timeline.trimStart", { name: label(item.node, String(i + 1)) })} className="h-full w-1.5 shrink-0 cursor-ew-resize bg-white/30" onPointerDown={(event) => { event.stopPropagation(); selectClip("video", item.clip.id); setTrimDrag({ clipId: item.clip.id, kind: "video", edge: "start", pointerX: event.clientX, startTick: item.clip.startTick, durationTick: item.clip.durationTick }); }} />
                                 <GripVertical className="ml-0.5 size-3.5 shrink-0 opacity-70" />
                                 {item.node?.type === "image" && item.node.metadata?.content ? <img src={item.node.metadata.content} alt="" className="h-full w-14 object-cover" draggable={false} /> : <Film className="size-4 shrink-0" />}
                                 <span className="truncate text-xs">{label(item.node, "素材已删除")}</span>
-                                <button type="button" aria-label="从时间线移除" className="ml-auto shrink-0 rounded p-0.5 hover:bg-white/20" onPointerDown={(e) => e.stopPropagation()} onClick={() => replaceTrack("video", removeClip(videoTrack, item.clip.id).clips)}><Trash2 className="size-3.5" /></button>
-                                <button type="button" disabled={exporting} aria-label={t("canvas.timeline.trimEnd", { name: label(item.node, String(i + 1)) })} className="h-full w-1.5 shrink-0 cursor-ew-resize bg-white/30" onPointerDown={(event) => { event.stopPropagation(); setTrimDrag({ clipId: item.clip.id, kind: "video", edge: "end", pointerX: event.clientX, startTick: item.clip.startTick, durationTick: item.clip.durationTick }); }} />
+                                <button type="button" aria-label="从时间线移除" className="ml-auto shrink-0 rounded p-0.5 hover:bg-white/20" onPointerDown={(e) => e.stopPropagation()} onClick={() => removeTimelineClip("video", item.clip.id)}><Trash2 className="size-3.5" /></button>
+                                <button type="button" disabled={exporting} aria-label={t("canvas.timeline.trimEnd", { name: label(item.node, String(i + 1)) })} className="h-full w-1.5 shrink-0 cursor-ew-resize bg-white/30" onPointerDown={(event) => { event.stopPropagation(); selectClip("video", item.clip.id); setTrimDrag({ clipId: item.clip.id, kind: "video", edge: "end", pointerX: event.clientX, startTick: item.clip.startTick, durationTick: item.clip.durationTick }); }} />
                             </div>)}
                             <div className="pointer-events-none absolute inset-y-0 z-10 w-px" style={{ left: visiblePlayhead * pixelsPerSecond, background: theme.node.text }}><div className="absolute -left-1 top-0 size-2 rounded-full" style={{ background: theme.node.text }} /></div>
                         </div>
@@ -306,11 +355,11 @@ export function CanvasTimelineDialog({ open, onClose, nodes, timeline, onTimelin
                         <div className="relative mt-1 h-10 rounded-md bg-black/5 dark:bg-white/5" onPointerDown={(event) => seekTrack(event.clientX, event.currentTarget)}>
                             {audioClips.map((item) => <div key={item.clip.id}
                                 className="absolute inset-y-1 flex cursor-grab items-center overflow-hidden rounded bg-emerald-700 text-white active:cursor-grabbing"
-                                style={{ left: item.startSeconds * pixelsPerSecond, width: Math.max(28, item.durationSeconds * pixelsPerSecond) }}
-                                onPointerDown={(event) => { event.stopPropagation(); setDrag({ clipId: item.clip.id, originX: event.clientX, originTick: item.clip.startTick, trackId: "audio" }); }}>
-                                <button type="button" aria-label={`${label(item.node, "音频")} 入点`} className="h-full w-2 shrink-0 cursor-ew-resize bg-emerald-300/70" onPointerDown={(event) => { event.stopPropagation(); setTrimDrag({ clipId: item.clip.id, kind: "audio", edge: "start", pointerX: event.clientX, startTick: item.clip.startTick, durationTick: item.clip.durationTick }); }} />
+                                style={{ left: item.startSeconds * pixelsPerSecond, width: Math.max(28, item.durationSeconds * pixelsPerSecond), outline: selectedClip?.clipId === item.clip.id ? `2px solid ${theme.node.text}` : undefined }}
+                                onPointerDown={(event) => { event.stopPropagation(); selectClip("audio", item.clip.id); setDrag({ clipId: item.clip.id, originX: event.clientX, originTick: item.clip.startTick, trackId: "audio" }); }}>
+                                <button type="button" aria-label={`${label(item.node, "音频")} 入点`} className="h-full w-2 shrink-0 cursor-ew-resize bg-emerald-300/70" onPointerDown={(event) => { event.stopPropagation(); selectClip("audio", item.clip.id); setTrimDrag({ clipId: item.clip.id, kind: "audio", edge: "start", pointerX: event.clientX, startTick: item.clip.startTick, durationTick: item.clip.durationTick }); }} />
                                 <span className="min-w-0 flex-1 truncate px-1 text-xs">{label(item.node, "音频已删除")}</span>
-                                <button type="button" aria-label={`${label(item.node, "音频")} 出点`} className="h-full w-2 shrink-0 cursor-ew-resize bg-emerald-300/70" onPointerDown={(event) => { event.stopPropagation(); setTrimDrag({ clipId: item.clip.id, kind: "audio", edge: "end", pointerX: event.clientX, startTick: item.clip.startTick, durationTick: item.clip.durationTick }); }} />
+                                <button type="button" aria-label={`${label(item.node, "音频")} 出点`} className="h-full w-2 shrink-0 cursor-ew-resize bg-emerald-300/70" onPointerDown={(event) => { event.stopPropagation(); selectClip("audio", item.clip.id); setTrimDrag({ clipId: item.clip.id, kind: "audio", edge: "end", pointerX: event.clientX, startTick: item.clip.startTick, durationTick: item.clip.durationTick }); }} />
                             </div>)}
                             <div className="pointer-events-none absolute inset-y-0 z-10 w-px" style={{ left: visiblePlayhead * pixelsPerSecond, background: theme.node.text }} />
                         </div>
@@ -320,10 +369,10 @@ export function CanvasTimelineDialog({ open, onClose, nodes, timeline, onTimelin
                         <div className="relative mt-1 h-9 rounded-md bg-black/5 dark:bg-white/5" onPointerDown={(event) => seekTrack(event.clientX, event.currentTarget)}>
                             {textClips.map((item) => <div key={item.clip.id}
                                 className="absolute inset-y-1 flex cursor-grab items-center gap-1 overflow-hidden rounded bg-amber-700 text-white active:cursor-grabbing"
-                                style={{ left: item.startSeconds * pixelsPerSecond, width: Math.max(28, item.durationSeconds * pixelsPerSecond) }}
-                                onPointerDown={(event) => { event.stopPropagation(); setDrag({ clipId: item.clip.id, originX: event.clientX, originTick: item.clip.startTick, trackId: "text" }); }}>
+                                style={{ left: item.startSeconds * pixelsPerSecond, width: Math.max(28, item.durationSeconds * pixelsPerSecond), outline: selectedClip?.clipId === item.clip.id ? `2px solid ${theme.node.text}` : undefined }}
+                                onPointerDown={(event) => { event.stopPropagation(); selectClip("text", item.clip.id); setDrag({ clipId: item.clip.id, originX: event.clientX, originTick: item.clip.startTick, trackId: "text" }); }}>
                                 <span className="min-w-0 flex-1 truncate px-1 text-xs">{label(item.node, "文字已删除")}</span>
-                                <button type="button" aria-label={t("canvas.timeline.removeFromTimeline")} className="mr-0.5 shrink-0 rounded p-0.5 hover:bg-white/20" onPointerDown={(e) => e.stopPropagation()} onClick={() => replaceTrack("text", removeClip(textTrack, item.clip.id).clips)}><Trash2 className="size-3" /></button>
+                                <button type="button" aria-label={t("canvas.timeline.removeFromTimeline")} className="mr-0.5 shrink-0 rounded p-0.5 hover:bg-white/20" onPointerDown={(e) => e.stopPropagation()} onClick={() => removeTimelineClip("text", item.clip.id)}><Trash2 className="size-3" /></button>
                             </div>)}
                             <div className="pointer-events-none absolute inset-y-0 z-10 w-px" style={{ left: visiblePlayhead * pixelsPerSecond, background: theme.node.text }} />
                         </div>
@@ -345,7 +394,7 @@ export function CanvasTimelineDialog({ open, onClose, nodes, timeline, onTimelin
                 </div>)}{!audioClips.length && <div className="px-2 py-2 text-sm opacity-45">还没有音频。可导入旁白，或先把音频文件拖入画布。</div>}</div>
             </section>
 
-            <div className="flex items-center justify-between"><div className="flex items-center gap-2 text-xs opacity-55"><Scissors className="size-3.5" />拖动片段改变位置，标签两侧改变入出点；片段之间可留空档。</div><Button type="primary" loading={exporting} disabled={!videoClips.length} onClick={() => void exportVideo()}>{exporting ? `导出中 ${progress}%` : "导出视频"}</Button></div>
+            <div className="flex items-center justify-between"><div className="flex items-center gap-2 text-xs opacity-55"><Scissors className="size-3.5" />选中片段后按 Delete 移除；按 Space 播放 / 暂停。拖动片段改变位置，标签两侧改变入出点。</div><Button type="primary" loading={exporting} disabled={!videoClips.length} onClick={() => void exportVideo()}>{exporting ? `导出中 ${progress}%` : "导出视频"}</Button></div>
         </div>
     </section>;
 }

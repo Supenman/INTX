@@ -1,0 +1,28 @@
+.opencut-editor .panel {
+    --background: var(--surface-card);
+    --card: var(--surface-card);
+    --border: color-mix(in oklch, var(--foreground) 10%, transparent);
+    --input: var(--surface-sunken);
+    --secondary: var(--surface-card-hover);
+    --muted: var(--surface-sunken);
+    --accent: var(--surface-card-hover);
+}
+
+.opencut-editor .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+}
+
+.opencut-editor .scrollbar-thin::-webkit-scrollbar {
+    width: 7px;
+    height: 7px;
+}
+
+.opencut-editor .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.opencut-editor .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 4px;
+}

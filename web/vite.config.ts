@@ -3,6 +3,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
+import wasm from "vite-plugin-wasm";
 
 import { parseChangelog } from "./src/lib/release";
 
@@ -40,7 +41,7 @@ function localPluginsManifest(): Plugin {
 
 export default defineConfig({
     base: process.env.VITE_BASE || "/",
-    plugins: [react(), localPluginsManifest()],
+    plugins: [react(), wasm(), localPluginsManifest()],
     // 允许通过反向代理域名访问 dev server（仅开发期生效，不影响生产构建）。
     server: {
         host: "0.0.0.0",
@@ -57,4 +58,5 @@ export default defineConfig({
         __APP_VERSION__: JSON.stringify(localVersion),
         __APP_RELEASES__: JSON.stringify(parseChangelog(localChangelog)),
     },
+    build: { target: "esnext" },
 });

@@ -30,6 +30,13 @@
   - 预设从 Python 元组改成「静态尺寸 + i18n 语言键」两段式，中英双语；指令文本按原意翻译，不逐字照搬。
   - 尺寸沿用 INTX 的 `size` 像素串，不调用上游 `reframe`；生成链路改走 `requestSingleImage`（含任务三态与台账）。
   - 五个预设的产出张数与原实现一致（三视图各 1 张，分镜与多机位各 4 张）。
+## OpenCut Classic（MIT，可复制修改）
+
+- 来源：`OpenCut-app/OpenCut` 归档前的 Classic 编辑器，Git commit `cf5e79e919144200294fb9fed22a222592a0aeea`
+- 许可：MIT，Copyright (c) OpenCut contributors；许可全文保存在 `web/src/lib/opencut/LICENSE`
+- 移植部分：`web/src/lib/opencut/` 中的编辑器核心、媒体处理、预览、时间线、场景、音频/文本素材面板、属性面板、快捷操作及导出依赖；源文件内保留许可头。
+- 修改说明：将 Next 路由与图片组件换成 INTX React Router/原生图片兼容层；编辑器作为 INTX 内部 `/editing-studio` 页面运行；从 INTX 素材库复制本地媒体到剪辑项目，并以来源资产 ID 追踪；导出后下载并存回 INTX 素材库。
+- 未移植 OpenCut 网站/服务端、登录、云端 API 与独立应用启动流程。过渡和调整素材面板的上游 UI 未接入；Windows WebView2 解码/导出仍待验收。
 - 未移植：`src/canvas/TimelineEditor.tsx`、`timeline*.ts` 与 `AssistantPanel` 系列。本项目时间线是独立实现，没有复制 OpenDirector 时间线代码。
 
 ## Mediabunny 1.66.1
@@ -37,6 +44,12 @@
 - 来源：npm 包 `mediabunny@1.66.1`，作者 Vanilagy
 - 许可：MPL-2.0（许可文本随 npm 包提供）
 - 用途：在桌面 WebView2 中解码本地媒体并编码 H.264/AAC MP4；原样依赖，不修改其源码。
+
+## OpenCut editor npm dependencies
+
+- The embedded OpenCut Classic editor uses the additional packages recorded in `web/package.json` (including `opencut-wasm`, Hugeicons, Sonner, SoundTouchJS, Culori and React resizable panels). Each package remains distributed under its own upstream license in the package registry; no dependency source was copied into this repository.
+- Added dependencies include `@huggingface/transformers`; its package license is distributed with the package registry metadata and installed package.
+- `vite-plugin-wasm` (MIT) is used by Vite to bundle `opencut-wasm`'s ESM WebAssembly module; its source is not copied.
 
 ## 维护规则
 
