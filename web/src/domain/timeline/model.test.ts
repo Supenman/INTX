@@ -172,6 +172,17 @@ describe("legacy migration", () => {
         expect(ticksToSeconds(audio!.clips[0]!.durationTick)).toBe(5);
     });
 
+    it("旧数据迁移：有镜号的按镜号排，没镜号的按画布 x 接在后面", () => {
+        const timeline = fromLegacyNodes([
+            { id: "no-order", type: "image", title: "无编号但 x 很小", position: { x: 10 }, metadata: { status: "success", content: "a" } },
+            { id: "second", type: "image", title: "第 2 镜", position: { x: 900 }, metadata: { status: "success", content: "b", timelineOrder: 2 } },
+            { id: "first", type: "image", title: "第 1 镜", position: { x: 800 }, metadata: { status: "success", content: "c", timelineOrder: 1 } },
+        ], 30);
+        const [video] = timeline.tracks;
+        // 混排会用 position.x 覆盖镜号，把 x=10 的无编号镜头插到最前面——那正是要防的。
+        expect(video!.clips.map((item) => item.nodeId)).toEqual(["first", "second", "no-order"]);
+    });
+
     it("honours explicit trim points over the default duration", () => {
         const timeline = fromLegacyNodes([
             { id: "v", type: "video", title: "带裁剪", position: { x: 0 }, metadata: { status: "success", content: "x", durationMs: 10000, timelineTrimStartSeconds: 2, timelineTrimEndSeconds: 6 } },

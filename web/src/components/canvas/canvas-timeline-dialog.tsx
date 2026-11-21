@@ -217,6 +217,13 @@ export function CanvasTimelineDialog({ open, onClose, nodes, timeline, onTimelin
 
     const exportVideo = async () => {
         setPlaying(false);
+        // 尾部空档渲染成黑底（见 timeline-export 的逐帧清屏），不是停在最后一帧。
+        // 提前说清楚，免得用户以为导出把片子截短了。
+        const endOf = (clips: typeof videoClips) => clips
+            .filter((item) => item.node?.type !== "text" && item.node?.metadata?.status === "success" && item.node.metadata.content)
+            .reduce((end, item) => Math.max(end, item.startSeconds + item.durationSeconds), 0);
+        const tailSeconds = Math.round(endOf(audioClips) - endOf(videoClips));
+        if (tailSeconds >= 1) message.warning(t("canvas.timeline.audioLonger", { seconds: tailSeconds }));
         setExporting(true);
         setProgress(0);
         try {

@@ -9,12 +9,14 @@ import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type Positi
 
 export function createStoryboardShotGraph(script: string, references: CanvasNodeData[], existingNodes: CanvasNodeData[], center: Position, viewportSize: { width: number; height: number }) {
     const lines = storyboardLines(script);
-    const shots = lines.length ? Math.min(2, lines.length) : 0;
+    // 列数必须只定义一次：之前叫 shots，下面却写死 `% 2` / `/ 2`，
+    // 一旦列数改成 3，宽高按 3 列算、节点却还按 2 列摆，网格直接错位。
+    const columns = lines.length ? Math.min(2, lines.length) : 2;
     const imageSize = NODE_DEFAULT_SIZE[CanvasNodeType.Image];
     const columnGap = 96;
     const rowGap = 72;
-    const gridWidth = shots * imageSize.width + Math.max(0, shots - 1) * columnGap;
-    const rowCount = Math.ceil(lines.length / 2);
+    const gridWidth = columns * imageSize.width + Math.max(0, columns - 1) * columnGap;
+    const rowCount = Math.ceil(lines.length / columns);
     const gridHeight = rowCount * imageSize.height + Math.max(0, rowCount - 1) * rowGap;
     const existingRight = existingNodes.length ? nodeBounds(existingNodes).right : null;
     const left = existingRight === null ? center.x - gridWidth / 2 : existingRight + 140;
@@ -25,8 +27,8 @@ export function createStoryboardShotGraph(script: string, references: CanvasNode
     if (!lines.length) return { nodes, connections, viewport: { x: 0, y: 0, k: 1 } };
 
     lines.forEach((line, index) => {
-        const column = index % 2;
-        const row = Math.floor(index / 2);
+        const column = index % columns;
+        const row = Math.floor(index / columns);
         const x = left + column * (imageSize.width + columnGap);
         const y = top + row * (imageSize.height + rowGap);
         const node = createCanvasNode(CanvasNodeType.Image, {

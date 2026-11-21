@@ -153,13 +153,20 @@ export function fromLegacyNodes(nodes: readonly {
         timelineTrimEndSeconds?: number;
     };
 }[], fps: number): Timeline {
-    const playable = nodes
-        .filter((node) => node.metadata?.status === "success" && node.metadata.content)
-        .sort((a, b) => (a.metadata?.timelineOrder ?? a.position.x) - (b.metadata?.timelineOrder ?? b.position.x));
+    const playable = nodes.filter((node) => node.metadata?.status === "success" && node.metadata.content);
+    // timelineOrder 是「第几镜」，position.x 是画布坐标，两套数字不能混着减：
+    // 有 order 的节点 x 可能是 50，没 order 的可能是 20，混排会把第 2 镜排到第 1 镜前面。
+    // 分两段：显式编号的先按编号，剩下的按画布 x 排末尾。
+    const withOrder = playable
+        .filter((node) => typeof node.metadata?.timelineOrder === "number")
+        .sort((a, b) => (a.metadata!.timelineOrder ?? 0) - (b.metadata!.timelineOrder ?? 0));
+    const byPosition = playable
+        .filter((node) => typeof node.metadata?.timelineOrder !== "number")
+        .sort((a, b) => a.position.x - b.position.x);
 
     const videoClips: TimelineClip[] = [];
     let cursor = 0;
-    for (const node of playable) {
+    for (const node of [...withOrder, ...byPosition]) {
         if (node.type !== "video" && node.type !== "image") continue;
         const sourceStart = node.metadata?.timelineTrimStartSeconds ?? 0;
         const sourceEnd = node.metadata?.timelineTrimEndSeconds

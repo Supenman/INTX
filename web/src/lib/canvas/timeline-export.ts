@@ -113,6 +113,9 @@ export async function encodeTimeline(nodes: CanvasNodeData[], timeline: Timeline
     if (!context) throw new Error("无法创建视频画布");
     const target = new BufferTarget();
     const output = new Output({ format: encoder.container === "mp4" ? new Mp4OutputFormat() : new WebMOutputFormat(), target });
+    // mediabunny 的 writer 一旦 start 就需要显式收尾；中途抛错时只 dispose 输入，
+    // writer 会悬着（下一次导出可能拿到半开的封装器）。
+    let finalized = false;
     const videoSource = new CanvasSource(canvas, { codec: encoder.videoCodec, bitrate: Math.round(options.width * options.height * options.fps * 0.12) });
     output.addVideoTrack(videoSource, { frameRate: options.fps });
 
@@ -187,11 +190,19 @@ export async function encodeTimeline(nodes: CanvasNodeData[], timeline: Timeline
         }
         if (audioSource && mixedBuffer) await audioSource.add(mixedBuffer);
         await output.finalize();
+        finalized = true;
         options.onProgress?.(100);
         if (!target.buffer) throw new Error("视频封装没有生成文件");
         const type = encoder.container === "mp4" ? "video/mp4" : "video/webm";
         return { blob: new Blob([target.buffer], { type }), container: encoder.container };
     } finally {
+        if (!finalized) {
+            try {
+                await output.cancel();
+            } catch {
+                // 取消失败不能盖掉真正的报错；writer 已经半开也总比丢掉原始异常好。
+            }
+        }
         inputs.forEach(({ input, objectUrl }) => {
             input?.dispose();
             if (objectUrl) URL.revokeObjectURL(objectUrl);
