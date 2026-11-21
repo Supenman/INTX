@@ -1,9 +1,9 @@
-import { Bot } from "lucide-react";
-import { Button, Tooltip } from "antd";
-import { Link, useLocation } from "react-router-dom";
+import { Bot, House, Plus, type LucideIcon } from "lucide-react";
+import { Button } from "antd";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
-import { navigationTools, type NavigationToolSlug } from "@/constant/navigation-tools";
+import { navigationTools } from "@/constant/navigation-tools";
 import { AppConfigModal } from "@/components/layout/app-config-modal";
 import { UserStatusActions } from "@/components/layout/user-status-actions";
 import { isDesktopApp } from "@/lib/agent/agent-client";
@@ -14,6 +14,7 @@ import { useAgentStore } from "@/stores/use-agent-store";
 export function AppTopNav() {
     const { t } = useTranslation();
     const { pathname } = useLocation();
+    const navigate = useNavigate();
     const autoConnectRef = useRef(false);
     const agentToken = useAgentStore((state) => state.token);
     const agentEnabled = useAgentStore((state) => state.enabled);
@@ -22,69 +23,81 @@ export function AppTopNav() {
     const connectLocalAgent = useAgentStore((state) => state.connectLocalAgent);
     const togglePanel = useAgentStore((state) => state.togglePanel);
     const panelOpen = useAgentStore((state) => state.panelOpen);
-    const hideHeader = /^\/canvas\/[^/]+/.test(pathname) || pathname === "/editing-studio";
-    const slug = pathname.split("/").filter(Boolean)[0];
-    const activeToolSlug = navigationTools.some((tool) => tool.slug === slug) ? (slug as NavigationToolSlug) : undefined;
+    const hideSidebar = /^\/canvas\/[^/]+/.test(pathname) || pathname === "/editing-studio";
 
     // 桌面版读本地配置自动连接；浏览器里只能用上次手动填过的地址和 token。
     useEffect(() => {
         if (autoConnectRef.current || agentEnabled || agentConnected) return;
         autoConnectRef.current = true;
         if (isDesktopApp()) void connectLocalAgent({ silent: true });
-        else if (agentToken.trim()) connectAgent({ silent: true });
+        else if (agentToken.trim()) void connectAgent({ silent: true });
     }, [agentConnected, agentEnabled, agentToken, connectAgent, connectLocalAgent]);
 
     return (
         <>
-            {!hideHeader ? (
-                <header className="sticky top-0 z-20 h-14 shrink-0 border-b border-border/70 bg-background/85 backdrop-blur-xl">
-                    <div className="mx-auto flex h-full max-w-7xl items-stretch justify-between gap-5 px-6">
-                        <div className="flex min-w-0 items-center">
-                            <Link to="/" className="flex h-full shrink-0 items-center gap-2 whitespace-nowrap text-sm font-semibold leading-none tracking-tight text-foreground transition hover:text-muted-foreground">
-                                <span
-                                    className="size-5 shrink-0 bg-current"
-                                    style={{
-                                        mask: "url(/logo.svg) center / contain no-repeat",
-                                        WebkitMask: "url(/logo.svg) center / contain no-repeat",
-                                    }}
-                                />
-                                <span className="shrink-0 text-base font-medium">{t("meta.title")}</span>
-                            </Link>
+            {!hideSidebar ? (
+                <aside className="z-30 flex h-full w-60 shrink-0 flex-col border-r border-border/70 bg-[var(--surface-card)] px-3 py-4">
+                    <Link to="/" className="flex h-10 items-center gap-2 px-2 text-foreground transition hover:opacity-75">
+                        <span
+                            className="size-6 shrink-0 bg-current"
+                            style={{ mask: "url(/logo.svg) center / contain no-repeat", WebkitMask: "url(/logo.svg) center / contain no-repeat" }}
+                        />
+                        <span className="text-base font-semibold tracking-tight">INTX</span>
+                    </Link>
 
-                            <nav className="hide-scrollbar ml-8 flex h-14 min-w-0 items-center gap-7 overflow-x-auto">
-                                {navigationTools.map((tool) => {
-                                    const Icon = tool.icon;
-                                    const active = tool.slug === activeToolSlug;
-                                    return (
-                                        <Link
-                                            key={tool.slug}
-                                            to={`/${tool.slug}`}
-                                            className={cn(
-                                                "relative flex h-14 shrink-0 items-center gap-2 text-sm leading-6 transition after:absolute after:inset-x-0 after:bottom-0 after:h-px",
-                                                active
-                                                    ? "font-medium text-foreground after:bg-foreground"
-                                                    : "text-muted-foreground after:bg-transparent hover:text-foreground",
-                                            )}
-                                        >
-                                            <Icon className="size-4" />
-                                            <span className="truncate">{t(`navigation.${tool.slug}`)}</span>
-                                        </Link>
-                                    );
-                                })}
-                            </nav>
-                        </div>
+                    <Button
+                        type="primary"
+                        icon={<Plus className="size-4" />}
+                        className="!mt-5 !h-10 !justify-start !font-medium"
+                        onClick={() => navigate("/canvas?mode=new")}
+                    >
+                        {t("home.newCanvas")}
+                    </Button>
 
-                        <div className="my-auto flex h-9 min-w-0 items-center justify-end gap-2 justify-self-end whitespace-nowrap">
-                            <Tooltip title={t(panelOpen ? "topNav.closeAgent" : "topNav.openAgent")}>
-                                <Button type="text" shape="circle" className="!h-8 !w-8 !min-w-8" icon={<Bot className="size-4" />} onClick={togglePanel} aria-label={t(panelOpen ? "topNav.closeAgent" : "topNav.openAgent")} />
-                            </Tooltip>
-                            <UserStatusActions />
+                    <nav className="mt-5 flex flex-col gap-1">
+                        <SidebarLink to="/" icon={House} label={t("navigation.home")} active={pathname === "/"} />
+                        {navigationTools.map((tool) => {
+                            const active = pathname === `/${tool.slug}` || pathname.startsWith(`/${tool.slug}/`);
+                            return <SidebarLink key={tool.slug} to={`/${tool.slug}`} icon={tool.icon} label={t(`navigation.${tool.slug}`)} active={active} />;
+                        })}
+                    </nav>
+
+                    <div className="mt-auto border-t border-border/70 pt-3">
+                        <button
+                            type="button"
+                            onClick={togglePanel}
+                            className={cn(
+                                "flex h-10 w-full items-center gap-3 rounded-lg px-3 text-sm transition hover:bg-[var(--surface-card-hover)]",
+                                panelOpen && "bg-[var(--surface-card-hover)]",
+                            )}
+                            aria-label={t(panelOpen ? "topNav.closeAgent" : "topNav.openAgent")}
+                        >
+                            <Bot className="size-4" />
+                            <span className="flex-1 text-left">INTX Agent</span>
+                            <span aria-label={agentConnected ? t("agent.status.connected") : t("agent.status.disconnected")} className={cn("size-2 rounded-full", agentConnected ? "bg-emerald-500" : "bg-muted-foreground/40")} />
+                        </button>
+                        <div className="mt-3 flex items-center justify-between px-2">
+                            <UserStatusActions showConfig={false} />
                         </div>
                     </div>
-                </header>
+                </aside>
             ) : null}
-
             <AppConfigModal />
         </>
+    );
+}
+
+function SidebarLink({ to, icon: Icon, label, active }: { to: string; icon: LucideIcon; label: string; active: boolean }) {
+    return (
+        <Link
+            to={to}
+            className={cn(
+                "flex h-10 items-center gap-3 rounded-lg px-3 text-sm transition",
+                active ? "bg-[var(--surface-card-hover)] font-medium text-foreground" : "text-muted-foreground hover:bg-[var(--surface-card-hover)] hover:text-foreground",
+            )}
+        >
+            <Icon className="size-4 shrink-0" />
+            <span className="truncate">{label}</span>
+        </Link>
     );
 }

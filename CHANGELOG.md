@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- [调整] 首页改为创作工作台，加入侧边导航、现有功能快捷入口和最近项目列表。
 - [调整] 桌面版随包内置 Canvas Agent 与 Node 运行环境，启动 INTX 时在后台自动运行，并在退出时关闭；日常使用不再需要手动打开 PowerShell。
 - [修复] 随包 Agent 通过 Node 直接启动 OpenCode 的 npm CLI，避免 Windows 命令 shell 报“系统找不到指定路径”。
 - [新增] 增加独立技能中心，可搜索、新建、导入 Markdown 并管理本地 Agent Skill，同时保留 Agent 面板快捷入口。

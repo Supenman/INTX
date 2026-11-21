@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate, Outlet } from "react-router-dom";
+import { createBrowserRouter, Outlet } from "react-router-dom";
 
 import { AnalyticsTracker } from "@/components/layout/analytics-tracker";
 import UserLayout from "@/layouts/user-layout";
@@ -11,6 +11,7 @@ import NotFound from "@/pages/not-found";
 import TasksPage from "@/pages/tasks";
 import EditingStudioPage from "@/pages/editing-studio";
 import SkillsPage from "@/pages/skills";
+import HomePage from "@/pages/home";
 
 export const router = createBrowserRouter([
     {
@@ -21,7 +22,7 @@ export const router = createBrowserRouter([
             </UserLayout>
         ),
         children: [
-            { path: "/", element: <Navigate to="/canvas" replace /> },
+            { path: "/", element: <HomePage /> },
             { path: "/assets", element: <AssetsPage /> },
             { path: "/skills", element: <SkillsPage /> },
             { path: "/tasks", element: <TasksPage /> },

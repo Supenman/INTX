@@ -401,6 +401,7 @@ export default {
         },
     },
     navigation: {
+        home: "Home",
         canvas: "My Canvases",
         "editing-studio": "Editing Studio",
         image: "Image Studio",
@@ -409,6 +410,18 @@ export default {
         skills: "Skills",
         tasks: "Tasks",
         config: "Settings",
+    },
+    home: {
+        title: "Creative workspace",
+        description: "Move between canvases, assets, and editing from one place.",
+        newCanvas: "Create a canvas",
+        newCanvasHint: "Start with a blank canvas for your ideas and media",
+        quickActions: "Quick access",
+        shortcuts: { canvas: "Free canvas", projects: "Projects", editingStudio: "Editing studio", assets: "My assets", skills: "Skills", tasks: "Tasks", agent: "INTX Agent" },
+        recentProjects: "Recent projects",
+        viewAllProjects: "View all",
+        emptyProjects: "No recent projects yet",
+        emptyProjectsHint: "New canvases will appear here.",
     },
     editingStudio: {
         title: "INTX Editing Studio", loading: "Opening the editing studio…", loadFailed: "Failed to load the editing project: {{message}}", back: "Back to canvas", renameProject: "Rename editing project", projectRenamed: "Editing project renamed", renameFailed: "Rename failed. Try again.", importFromLibrary: "Import from library", libraryTitle: "Import from INTX Assets", libraryHint: "Choose images or videos, then drag them to the timeline. The original assets remain in INTX.", importSelected: "Import selected", imported: "Imported", emptyLibrary: "No images or videos in the asset library yet", assetMissing: "Could not find media file: {{name}}", assetImportFailed: "Failed to import media: {{name}}", assetImportFailedGeneric: "Media import failed. Try again.", importSuccess: "Imported {{count}} assets",

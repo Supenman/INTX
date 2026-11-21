@@ -400,6 +400,7 @@ export default {
         },
     },
     navigation: {
+        home: "首页",
         canvas: "我的画布",
         "editing-studio": "剪辑台",
         image: "生图工作台",
@@ -408,6 +409,18 @@ export default {
         skills: "技能",
         tasks: "任务中心",
         config: "配置",
+    },
+    home: {
+        title: "创作工作台",
+        description: "从画布、素材到剪辑，在一个地方继续你的创作。",
+        newCanvas: "新建画布创作",
+        newCanvasHint: "创建一张空白画布，开始组织想法与素材",
+        quickActions: "快速入口",
+        shortcuts: { canvas: "自由画布", projects: "项目库", editingStudio: "剪辑台", assets: "我的资产", skills: "技能中心", tasks: "任务中心", agent: "INTX Agent" },
+        recentProjects: "最近项目",
+        viewAllProjects: "查看全部",
+        emptyProjects: "还没有最近项目",
+        emptyProjectsHint: "新建画布后会显示在这里。",
     },
     editingStudio: {
         title: "INTX 剪辑台", loading: "正在打开剪辑台…", loadFailed: "剪辑台项目加载失败：{{message}}", back: "返回画布", renameProject: "重命名剪辑项目", projectRenamed: "剪辑项目已重命名", renameFailed: "重命名失败，请重试。", importFromLibrary: "从素材库导入", libraryTitle: "从 INTX 素材库导入", libraryHint: "选择图片或视频素材，导入后可拖到下方时间线编辑。原素材仍保留在 INTX 素材库。", importSelected: "导入所选", imported: "已导入", emptyLibrary: "素材库中还没有图片或视频", assetMissing: "找不到素材文件：{{name}}", assetImportFailed: "导入素材失败：{{name}}", assetImportFailedGeneric: "素材导入失败，请重试。", importSuccess: "已导入 {{count}} 个素材",

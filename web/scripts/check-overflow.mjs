@@ -49,14 +49,13 @@ function findFreePort() {
     });
 }
 
-/** 被测页面。`/` 会跳到 `/canvas`，`/canvas/:id` 需要真实项目数据，都不纳入。 */
+/** 被测页面。首页工作台直接渲染；`/canvas/:id` 需要真实项目数据，不纳入。 */
 const ROUTES = [
+    { path: "/", name: "首页" },
     { path: "/assets", name: "我的资产" },
     { path: "/tasks", name: "任务中心" },
     { path: "/canvas", name: "我的画布" },
     { path: "/config", name: "配置" },
-    // 画布详情（/canvas/:id）需要真实项目数据，自动检查造不出场景，留给真机。
-    { path: "/__not-found__", name: "404 页" },
 ];
 
 const VIEWPORTS = [
