@@ -226,6 +226,16 @@ export const builtinTools: readonly ToolDefinition[] = [
     action: 'rename',
   },
   {
+    id: 'download-selection',
+    toolbar: 'selection',
+    category: 'edit',
+    label: '批量下载',
+    hint: '把选中的图片/视频/音频按画布顺序导出：01_标题.png，打包成一个 zip',
+    defaultVisible: true,
+    defaultOrder: 107,
+    action: 'download',
+  },
+  {
     id: 'duplicate-selection',
     toolbar: 'selection',
     category: 'edit',

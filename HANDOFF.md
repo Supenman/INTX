@@ -1204,3 +1204,71 @@ BeefTV 精读清单 §1 留的一条 ⬜ 是 `applyGenerationConsumerEffect` /
   挂载，也不影响台账正确性；要消除得引入跨标签页协调，成本大于收益，**不做**。
 - 若将来把挂产物改成 effect 驱动（监听 task 状态自动 attach），届时必须补
   一次性消费标记——本轮的结论只对当前命令式架构有效。
+
+## 第二十八轮：画布框选批量导出（2026-11-21）
+
+BeefTV 精读清单 §3 剩三条 ⬜（120ms 错峰 / fetch→blob→objectURL / 返回成功失败）
+终于落地。但落地方式不是照抄，清单里的判断标准是「**目的**要不要保，不是手段
+要不要抄」。
+
+### 为什么是 zip，不是逐个下载
+
+BeefTV 是纯网页，交付路径就是连续触发浏览器下载，所以它的三个绕坑手段是被
+环境逼出来的。我们是桌面应用：`saveFile` 每调一次弹一次系统「另存为」，10 张
+图 = 10 次确认；Tauri WebView 里连续 `a.click()` 没有下载管理器兜底。所以：
+
+```
+框选 ≥2 个节点 → 浮栏「批量下载」→ 取字节 → 打成一个 zip → 弹一次对话框
+```
+
+- 只下载一次 → 不存在「连续下载被拦截」，120ms 错峰没有意义；
+- 字节直接进 zip → 不存在 objectURL 生命周期，revoke 也不用写；
+- 部分失败照样出包 → 三条的**目的**全保住。
+- 复用已真机验过的 `dialog:allow-save` + `fs:allow-write-file`，**没有新增任何
+  桌面权限**。这也是不选「选目录写 N 个文件」的原因：那要 `dialog:allow-open`
+  加目录 fs scope，改 Rust 侧能力声明，本环境无法验证。
+
+### 改动
+
+| 文件 | 作用 |
+|---|---|
+| `src/domain/asset/batch-export.ts` | 纯函数：挑可导出节点、按画布坐标排序、`01_标题.png` 命名、逐条取字节并单独汇报失败 |
+| `src/hooks/use-batch-export.ts` | 执行层：读取 → `createZip` → `saveFile`；单文件时直接存图片本体 |
+| `src/components/canvas/canvas-selection-toolbar.tsx` | 浮栏加「批量下载」，按注册表决定显隐，无媒体时灰掉；「保存工作流」图标从 `Download` 换成 `FileDown`（两个下载类图标挨着会认错） |
+| `src/domain/tool/definitions.ts` | 注册 `download-selection`（selection / edit / order 107） |
+| i18n 中英 | `canvas.batchExport.*` 七条 |
+
+`buildExportFileName` / `sortForExport` 从「有单测没调用方」变成真正在用。
+
+### 验证（都是跑出来的）
+
+单测 `src/domain/asset/batch-export.test.ts` 8 条：乱序坐标 → 01/02/03、混文本
+节点断号不出现、12 张时补零宽度跟着总数、`封面/终稿` → `封面 终稿`、`CON` →
+`未命名_CON`、扩展名优先 mimeType、单条读取失败不影响整批。
+
+端到端 `web/batch_export_check.mjs`（真浏览器、真上传、真下载）：
+
+```
+NODES: 2
+BUTTON: 批量下载（2 个）
+DOWNLOAD_NAME: canvas-export-20261121-1415.zip
+ZIP_ENTRIES: ["01_封面.png","02_内页.png"]
+ZIP_SIZES: {"01_封面.png":70,"02_内页.png":79}
+TOAST: {"done":true,"matched":"已导出 2 个文件"}
+PAGE_ERRORS: []
+```
+
+包内字节数与上传原图一致（70 / 79 字节），证明不是空壳条目。
+
+`pnpm verify` 全绿：73 文件 / **873 用例**（上轮 865，+8），令牌 115、结构预算
+3860 均未变。
+
+### 边界
+
+- **只验了浏览器通道**（file-saver）。桌面「另存为」弹窗那一段要在真机点：
+  默认名 `canvas-export-<日期>-<时分>.zip`，取消不提示、写盘失败报错，这两条
+  与既有「另存为」共用同一条链路（第一轮真机验过），本轮没有重验。
+- **跨域图片会失败**：远程 `https://` 素材若不给 CORS 头，`fetch` 拿不到字节，
+  该条进失败清单，其余照常出包。不绕过——绕过等于把用户的图送到第三方代理。
+- 排序在浏览器检查里只能验「与上传顺序一致」，因为节点由程序摆放；真正的
+  坐标排序由单测覆盖（人工拖动后再导出没跑过）。

@@ -1,11 +1,13 @@
 import { useMemo, type ReactNode } from "react";
-import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceAround, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceAround, Download, Group, Ungroup } from "lucide-react";
+import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceAround, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceAround, Download, FileDown, Group, Ungroup } from "lucide-react";
 import { Tooltip } from "antd";
 import { useTranslation } from "react-i18next";
 
 import { canvasThemes } from "@/lib/canvas-theme";
 import { nodeBounds } from "@/lib/canvas/canvas-node-geometry";
 import { buildToolContext, toolView } from "@/lib/canvas/tool-wiring";
+import { isBatchExportable } from "@/domain/asset/batch-export";
+import { useBatchExport } from "@/hooks/use-batch-export";
 import { useToolbarPrefs } from "@/hooks/use-toolbar-prefs";
 import type { AlignAxis, DistributeAxis } from "@/lib/canvas/canvas-align";
 import { useThemeStore } from "@/stores/use-theme-store";
@@ -60,6 +62,8 @@ export function CanvasSelectionToolbar({
     );
     const { prefs } = useToolbarPrefs("selection");
     const distributeView = toolView("selection", "distribute-horizontal", toolCtx, prefs);
+    const downloadView = toolView("selection", "download-selection", toolCtx, prefs);
+    const batchExport = useBatchExport();
     if (nodes.length < 2) return null;
 
     const bounds = nodeBounds(nodes);
@@ -71,6 +75,10 @@ export function CanvasSelectionToolbar({
     // 已经同组的节点、或全是分组时，浮栏整个消失。对齐需要的是「至少两个节点」。
     const showActions = showToolbar;
     const canDistribute = nodes.length >= 3 && distributeView.visible && !distributeView.disabled;
+    // 选区里可能混着文本节点，能下载的只有带媒体的那些；一个都没有就灰掉，
+    // 免得用户点了才被告知「没有可导出的」。
+    const mediaCount = nodes.filter(isBatchExportable).length;
+    const hasMedia = mediaCount > 0;
 
     return (
         <>
@@ -114,7 +122,15 @@ export function CanvasSelectionToolbar({
                     {canGroup ? <SelectionAction title={t("canvas.nodeToolbar.groupTitle")} label={t("canvas.nodeToolbar.group")} icon={<Group className="size-4" />} onClick={onGroup} /> : null}
                     {canUngroup ? <SelectionAction title={t("canvas.nodeToolbar.ungroupTitle")} label={t("canvas.nodeToolbar.ungroup")} icon={<Ungroup className="size-4" />} onClick={onUngroup} /> : null}
                     <Divider />
-                    <SelectionIconAction title={t("canvas.workflow.save")} icon={<Download className="size-4" />} onClick={onSaveWorkflow} />
+                    {downloadView.visible ? (
+                        <SelectionIconAction
+                            title={t("canvas.batchExport.title", { count: hasMedia ? mediaCount : 0 })}
+                            icon={<Download className="size-4" />}
+                            disabled={batchExport.busy || !hasMedia}
+                            onClick={() => void batchExport.run(nodes)}
+                        />
+                    ) : null}
+                    <SelectionIconAction title={t("canvas.workflow.save")} icon={<FileDown className="size-4" />} onClick={onSaveWorkflow} />
                 </div>
             ) : null}
         </>

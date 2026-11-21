@@ -300,6 +300,7 @@ export default {
         chain: { preview: "预览生成链路", ordered: "按上游到终点排列。确认后逐步提交生成，费用以厂商账单为准。", run: "确认运行", progress: "已完成 {{completed}} / {{total}} 步", finished: "已完成 {{count}} 个生成步骤", stopped: "在「{{title}}」停止：{{detail}}", changed: "画布或生成状态已变化，请重新预览链路", busy: "另一窗口正在运行这张画布的链路", missingInput: "当前步骤没有提示词或可用的上游输入", reuse: "复用已有内容", generate: "需要生成", blocked: "已有任务待处理", configuration: "缺少模型或渠道配置", unsupported: "当前节点无法生成", cycle: "链路存在循环，请检查连线", missing: "链路引用了缺失节点，请检查连线", ledgerUnavailable: "任务台账未就绪，无法预览链路", estimate: "可估部分合计 {{price}}", unknown: "还有 {{count}} 步无法估价" },
         workflow: { save: "将选区保存为工作流", insert: "插入工作流", importFailed: "无法插入工作流，请检查 ZIP 文件" },
         export: { defaultProjectName: "无限画布", defaultNodesName: "画布元素", item: "元素" },
+        batchExport: { title: "批量下载（{{count}} 个）", running: "正在打包 {{count}} 个文件…", done: "已导出 {{count}} 个文件", partial: "已导出 {{ok}} 个，{{failed}} 个读取失败", allFailed: "全部读取失败，没有可导出的文件", empty: "选中的节点里没有可下载的媒体", failed: "导出失败，请重试" },
         createMenu: {
             fromNode: "引用该节点生成", close: "关闭", text: "文本生成", textDescription: "脚本、广告词、品牌文案", image: "图片生成", video: "视频生成", audio: "音频参考", select: "选择节点",
         },
