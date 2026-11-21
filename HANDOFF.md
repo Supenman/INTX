@@ -1303,3 +1303,48 @@ PAGE_ERRORS: []
   （`node_modules/mediabunny/dist/modules/src/output.d.ts:338`），但「编码中途抛错
   后 writer 真的被正确回收」需要真跑一次失败导出才验得了，本轮**未做真机导出**。
 - **P2-7 只覆盖旧数据迁移路径**，新时间线模型的排序不走 `fromLegacyNodes`。
+
+## 第三十轮：B1 版本对比（2026-11-21）
+
+按 BeefTV 三问核对后只搬两条结论：**快照剥运行态字段**、**原地重生成保留稳定节点 ID 并建版本族**。
+没有复制 BeefTV 的整段实现，也没有给它引入新的任务字段——INTX 自己的运行态是
+`status / errorDetails / retryBlocked / videoTaskId / videoTaskProvider / primaryImageId / images[].status`。
+
+### 改动
+
+| 文件 | 作用 |
+|---|---|
+| `src/domain/node/media-version.ts` | 纯函数：版本族根 ID、A–Z 标签分配、剥运行态字段的快照、版本列表、设主版本、副本清版本关系 |
+| `src/domain/node/media-version.test.ts` | 7 条：首次 A→B、再次升 C、批次图状态归一化、空节点不产快照、跨版本族标签不串、根节点被删仍可列版本、副本清字段 |
+| `src/types/canvas.ts` | `CanvasNodeMetadata` 增加 `versionOfNodeId / versionLabel / versionPrimary` |
+| `src/pages/canvas/project.tsx` | 图片节点原地重生成前调 `prepareMediaGenerationVersion`：旧图存为偏移 +36 的快照，当前节点升版；重复/复制时清版本字段；接版本对比弹窗 |
+| `src/components/canvas/canvas-version-compare-modal.tsx` | A–Z 版本卡片：模型 / 尺寸 / 提示词、设为主版本、点预览定位画布 |
+| `src/components/canvas/canvas-node.tsx` | 有版本标签的节点左上角显示版本徽标，点开对比；结构预算通过压缩既有 JSX 抵消，未涨基线 |
+| i18n 中英 | `canvas.versionCompare.*`、`canvas.node.versionBadge/openVersions` |
+| `web/version_compare_check.mjs` | 浏览器端到端：注入 A/B 两版 → 点徽标 → 弹窗两卡 → 切主版本 → 点预览定位 → 零页面错误 |
+
+### 验证（都是跑出来的）
+
+`pnpm verify` 全绿：**75 文件 / 886 用例**（上轮 74 / 879，+1 文件 +7 用例），
+令牌 115（基线 145）、结构预算 3855（基线 3860，**比上轮少 5**）、依赖边界 0 违规。
+`vite build` 通过（13.8s）。
+
+`version_compare_check.mjs` 实测：
+
+```
+BADGES: 1 1
+MODAL_CARDS: 2
+MODAL_HAS_PROMPTS: true true
+PRIMARY_SWITCHED: true
+MODAL_AFTER_FOCUS: 0
+ERRORS_TOTAL: 0 []
+```
+
+截图：`/root/.codebuddy/artifact/2f8a7d30-9c21-4f0b-1d6b-eb5a2a90b000/probe/version_compare_modal.png`。
+
+### 边界
+
+- **本轮只接图片节点的原地重生成**；视频/音频的纯函数已支持，但 UI 入口与真实重生成路径未接。
+- **快照保存在原节点旁 +36px**，数量多时会有视觉重叠；这是 BeefTV 的既定取舍，先不引入自动排版。
+- **版本标签封顶 Z**；从 Z 继续生成不会再升标签，避免制造非法标签。真要更多版本需要另行设计编号。
+- 端到端检查注入了带版本字段的项目，**没有真 Key、没有真出图**；真生成后快照是否按预期写入，仍是 A1 那类真机证据。

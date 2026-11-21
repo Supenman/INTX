@@ -87,6 +87,12 @@ export type CanvasNodeMetadata = {
     mimeType?: string;
     bytes?: number;
     durationMs?: number;
+    /** 版本族根 ID；快照和当前版本都指向同一个稳定 ID。 */
+    versionOfNodeId?: string;
+    /** 版本族内的展示标签，A 为最初版本。 */
+    versionLabel?: string;
+    /** 当前版本族中被设为主版本的节点。 */
+    versionPrimary?: boolean;
     timelineOrder?: number;
     timelineStartSeconds?: number;
     timelineTrimStartSeconds?: number;

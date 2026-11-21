@@ -41,6 +41,7 @@ type CanvasNodeProps = {
     sequenceIndex?: number;
     /** 时间线播放头正命中该镜头时，画布上高亮显示。 */
     isTimelineActive?: boolean;
+    onOpenVersions?: (node: CanvasNodeData) => void;
     onMouseDown: (event: React.MouseEvent, nodeId: string) => void;
     onSelectCapture?: (event: React.MouseEvent, nodeId: string) => void;
     onHoverStart: (nodeId: string) => void;
@@ -106,6 +107,7 @@ export const CanvasNode = React.memo(function CanvasNode({
     batchExpanded = false,
     sequenceIndex,
     isTimelineActive = false,
+    onOpenVersions,
     onMouseDown,
     onSelectCapture,
     onHoverStart,
@@ -165,10 +167,7 @@ export const CanvasNode = React.memo(function CanvasNode({
         ratio: 1,
     });
 
-    useEffect(() => {
-        setTitleDraft(data.title || "");
-    }, [data.title]);
-
+    useEffect(() => { setTitleDraft(data.title || ""); }, [data.title]);
     useEffect(() => {
         if (!isEditingTitle) return;
         titleInputRef.current?.focus();
@@ -327,6 +326,7 @@ export const CanvasNode = React.memo(function CanvasNode({
                 else onContextMenu(event, data.id);
             }}
         >
+            {data.metadata?.versionLabel && onOpenVersions ? <button type="button" data-version-badge={data.metadata.versionLabel} title={`${t("canvas.node.versionBadge", { label: data.metadata.versionLabel })}${data.metadata.versionPrimary ? ` · ${t("canvas.node.versionBadgePrimary")}` : ""} · ${t("canvas.node.openVersions")}`} className="absolute left-2 top-2 z-[66] rounded-full border px-2 py-1 text-xs font-medium shadow-sm" style={{ background: data.metadata.versionPrimary ? theme.toolbar.activeBg : theme.toolbar.panel, borderColor: data.metadata.versionPrimary ? theme.node.activeStroke : theme.toolbar.border, color: data.metadata.versionPrimary ? theme.node.activeStroke : theme.node.text }} onMouseDown={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); onOpenVersions(data); }}>{data.metadata.versionLabel}</button> : null}
             {sequenceIndex !== undefined ? <span
                 data-sequence-index={sequenceIndex}
                 title={t("canvas.timeline.sequence", { index: sequenceIndex })}

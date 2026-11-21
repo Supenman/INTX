@@ -49,8 +49,10 @@ import { CanvasNodePromptPanel, type CanvasNodeGenerationMode } from "@/componen
 import { CanvasToolbar } from "@/components/canvas/canvas-toolbar";
 import { AssetPickerModal, type InsertAssetPayload } from "@/components/canvas/asset-picker-modal";
 import { CanvasGenerationHistoryModal } from "@/components/canvas/canvas-generation-history-modal";
+import { CanvasVersionCompareModal } from "@/components/canvas/canvas-version-compare-modal";
 import { CanvasTimelineDialog } from "@/components/canvas/canvas-timeline-dialog";
 import { resolveTimeline } from "@/domain/timeline/resolve";
+import { clearVersionFields, listMediaVersions, prepareMediaGenerationVersion, setPrimaryMediaVersion, versionRootIdOf } from "@/domain/node/media-version";
 import { resolveClips, trackOf } from "@/domain/timeline/view";
 import { CanvasStoryboardDialog } from "@/components/canvas/canvas-storyboard-dialog";
 import { CanvasSidePanel } from "@/components/canvas/canvas-side-panel";
@@ -272,6 +274,7 @@ function InfiniteCanvasPage() {
     const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
     const [assetPickerOpen, setAssetPickerOpen] = useState(false);
     const [generationHistoryOpen, setGenerationHistoryOpen] = useState(false);
+    const [versionCompareRootId, setVersionCompareRootId] = useState<string | null>(null);
     const [loadedProjectId, setLoadedProjectId] = useState<string | null>(null);
     const projectLoaded = loadedProjectId === projectId;
     const [toolbarNodeId, setToolbarNodeId] = useState<string | null>(null);
@@ -748,6 +751,7 @@ function InfiniteCanvasPage() {
         const clips = resolveClips(trackOf(timeline, "video"), nodeById);
         return new Map(clips.map((clip, index) => [clip.clip.nodeId, index + 1]));
     }, [nodes, currentProject?.timeline, nodeById]);
+    const versionCompareVersions = useMemo(() => (versionCompareRootId ? listMediaVersions(nodes, versionCompareRootId) : []), [nodes, versionCompareRootId]);
 
     // Connections are culled like nodes; a cubic curve stays inside its control-point hull, so endpoint bounds widened by the curvature is a safe test.
     const visibleConnections = useMemo(
@@ -1049,6 +1053,7 @@ function InfiniteCanvasPage() {
             id,
             title: `${source.title} Copy`,
             position: { x: source.position.x + 36, y: source.position.y + 36 },
+            metadata: clearVersionFields(source.metadata),
         };
         const referenceConnections = connectionsRef.current.filter((connection) => connection.toNodeId === nodeId).map((connection) => ({ ...connection, id: nanoid(), toNodeId: id }));
 
@@ -1068,7 +1073,7 @@ function InfiniteCanvasPage() {
             .map((node) => ({
                 ...node,
                 position: { ...node.position },
-                metadata: node.metadata ? { ...node.metadata } : undefined,
+                metadata: clearVersionFields(node.metadata),
             }));
 
         if (!copiedNodes.length) return;
@@ -2803,6 +2808,7 @@ function InfiniteCanvasPage() {
                     const isImageNode = sourceNode?.type === CanvasNodeType.Image;
                     const isEmptyImageNode = isImageNode && !sourceNode?.metadata?.content;
                     const reuseImageNode = isImageNode && (overwriteExisting || isEmptyImageNode);
+                    const versionPlan = reuseImageNode ? prepareMediaGenerationVersion(nodesRef.current, nodeId, nanoid()) : null;
                     const sourceReference =
                         isImageNode && sourceNode?.metadata?.content && !overwriteExisting
                             ? [{ id: sourceNode.id, name: `${sourceNode.title || sourceNode.id}.png`, type: sourceNode.metadata.mimeType || "image/png", dataUrl: sourceNode.metadata.content, storageKey: sourceNode.metadata.storageKey }]
@@ -2834,11 +2840,12 @@ function InfiniteCanvasPage() {
                             images: imageIds.map((id) => ({ id, status: NODE_STATUS_LOADING, content: "", naturalWidth: 0, naturalHeight: 0, bytes: 0, mimeType: "" })),
                             primaryImageId: undefined,
                             ...generationMetadata,
+                            ...(versionPlan?.currentMetadata || {}),
                         },
                     };
 
                     setNodes((prev) => [
-                        ...prev.map((node) =>
+                        ...(versionPlan ? versionPlan.nodes : prev).map((node) =>
                             node.id === nodeId && reuseImageNode
                                 ? {
                                       ...node,
@@ -3633,6 +3640,7 @@ function InfiniteCanvasPage() {
                             onDeleteBatchImage={deleteBatchImage}
                             onRetry={handleNodeRetry}
                             onViewImage={handleNodeViewImage}
+                            onOpenVersions={(node) => setVersionCompareRootId(versionRootIdOf(node))}
                             onSelectReference={selectNodeReference}
                             onContextMenu={handleNodeContextMenu}
                         />
@@ -3854,21 +3862,7 @@ function InfiniteCanvasPage() {
                     {previewContent ? <img src={previewContent} alt={previewNode?.title || t("assets.kinds.image")} style={{ maxWidth: "100%", maxHeight: "80vh", objectFit: "contain" }} /> : null}
                 </Modal>
 
-                <Modal
-                    destroyOnHidden
-                    title={t("canvas.projectPage.clearTitle")}
-                    open={clearConfirmOpen}
-                    centered
-                    onCancel={() => setClearConfirmOpen(false)}
-                    footer={
-                        <>
-                            <Button onClick={() => setClearConfirmOpen(false)}>{t("common.cancel")}</Button>
-                            <Button danger type="primary" onClick={clearCanvas}>
-                                {t("canvas.projectPage.clear")}
-                            </Button>
-                        </>
-                    }
-                >
+                <Modal destroyOnHidden title={t("canvas.projectPage.clearTitle")} open={clearConfirmOpen} centered onCancel={() => setClearConfirmOpen(false)} footer={<><Button onClick={() => setClearConfirmOpen(false)}>{t("common.cancel")}</Button><Button danger type="primary" onClick={clearCanvas}>{t("canvas.projectPage.clear")}</Button></>}>
                     <p className="text-sm opacity-60">{t("canvas.projectPage.clearDescription")}</p>
                 </Modal>
 
@@ -3877,6 +3871,7 @@ function InfiniteCanvasPage() {
                 {generationHistoryOpen ? (
                     <CanvasGenerationHistoryModal open onInsert={handleAssetInsert} onClose={() => setGenerationHistoryOpen(false)} />
                 ) : null}
+                {versionCompareRootId ? <CanvasVersionCompareModal open versions={versionCompareVersions} onClose={() => setVersionCompareRootId(null)} onSetPrimary={(nodeId) => setNodes((prev) => setPrimaryMediaVersion(prev, nodeId))} onFocus={(nodeId) => { setVersionCompareRootId(null); focusNode(nodeId); }} /> : null}
                 </div>
                 {timelineOpen ? <div className="h-[48%] min-h-[280px] shrink-0"><CanvasTimelineDialog
                     open

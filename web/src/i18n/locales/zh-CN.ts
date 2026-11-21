@@ -235,6 +235,7 @@ export default {
             empty: "还没有可插入的生成结果",
             emptyHint: "在生图或视频工作台生成成功后，这里会出现结果。",
         },
+        versionCompare: { title: "版本对比", empty: "还没有可对比的版本", currentPrimary: "当前主版本", setPrimary: "设为主版本", focus: "点击定位到画布节点", model: "模型", size: "尺寸", prompt: "提示词", imageAlt: "版本图片" },
         defaultTitle: "无限画布 {{count}}",
         library: "画布库",
         title: "无限画布",
@@ -306,7 +307,7 @@ export default {
         },
         node: {
             node: "节点",
-            untitled: "未命名节点", renameHint: "双击修改节点名称", group: "组", nodeCount: "{{count}} 个节点", generating: "生成中", failed: "生成失败", retry: "重试", retryBlockedHint: "这单可能已收单：先去任务中心核对任务号，别在这里直接重发", missingPlugin: "缺少插件", missingPluginDescription: "节点类型“{{type}}”的插件未安装或未启用", generateImage: "用文本生图", generate: "生图", editText: "双击编辑文字", emptyImage: "空图片节点", emptyVideo: "空视频节点", emptyAudio: "空音频节点", audio: "音频", batchExpanded: "图片组已展开", batchCollapsed: "图片组已收起", textBatchExpanded: "备选文本已展开", textBatchCollapsed: "备选文本已收起", createCopy: "创建副本", setPrimary: "设为主图", setPrimaryText: "设为主文本",
+            untitled: "未命名节点", renameHint: "双击修改节点名称", group: "组", nodeCount: "{{count}} 个节点", generating: "生成中", failed: "生成失败", retry: "重试", retryBlockedHint: "这单可能已收单：先去任务中心核对任务号，别在这里直接重发", missingPlugin: "缺少插件", missingPluginDescription: "节点类型“{{type}}”的插件未安装或未启用", generateImage: "用文本生图", generate: "生图", editText: "双击编辑文字", emptyImage: "空图片节点", emptyVideo: "空视频节点", emptyAudio: "空音频节点", audio: "音频", batchExpanded: "图片组已展开", batchCollapsed: "图片组已收起", textBatchExpanded: "备选文本已展开", textBatchCollapsed: "备选文本已收起", createCopy: "创建副本", setPrimary: "设为主图", setPrimaryText: "设为主文本", versionBadge: "版本 {{label}}", versionBadgePrimary: "主版本", openVersions: "查看版本对比",
         },
         videoFrames: { first: "截取首帧", last: "截取尾帧", current: "截取当前帧", extractAudio: "分离音频到新节点", audioExtracted: "已将视频音轨保存为音频节点", noAudioTrack: "该视频没有音轨", extractAudioFailed: "无法从视频中提取音频", firstTitle: "{{name}} 首帧", lastTitle: "{{name}} 尾帧", currentTitle: "{{name}} 当前帧", captured: "已生成图片节点", failed: "无法截取该画面，请重试" },
         sidePanel: {

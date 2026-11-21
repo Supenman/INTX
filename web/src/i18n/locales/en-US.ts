@@ -235,6 +235,7 @@ export default {
             empty: "No results to insert yet",
             emptyHint: "Generate successfully from the image or video studio and results will show up here.",
         },
+        versionCompare: { title: "Version compare", empty: "No versions to compare yet", currentPrimary: "Current primary", setPrimary: "Set as primary", focus: "Click to locate on canvas", model: "Model", size: "Size", prompt: "Prompt", imageAlt: "Version image" },
         defaultTitle: "Infinite Canvas {{count}}",
         library: "Canvas library",
         title: "Infinite Canvas",
@@ -307,7 +308,7 @@ export default {
         },
         node: {
             node: "Node",
-            untitled: "Untitled node", renameHint: "Double-click to rename the node", group: "Group", nodeCount: "{{count}} nodes", generating: "Generating", failed: "Generation failed", retry: "Retry", retryBlockedHint: "This order may already be accepted — check its id in the task center instead of resending here", missingPlugin: "Plugin missing", missingPluginDescription: "The plugin for node type “{{type}}” is not installed or enabled", generateImage: "Generate image from text", generate: "Generate", editText: "Double-click to edit text", emptyImage: "Empty image node", emptyVideo: "Empty video node", emptyAudio: "Empty audio node", audio: "Audio", batchExpanded: "Image group expanded", batchCollapsed: "Image group collapsed", textBatchExpanded: "Text alternatives expanded", textBatchCollapsed: "Text alternatives collapsed", createCopy: "Create copy", setPrimary: "Set as primary", setPrimaryText: "Set as primary",
+            untitled: "Untitled node", renameHint: "Double-click to rename the node", group: "Group", nodeCount: "{{count}} nodes", generating: "Generating", failed: "Generation failed", retry: "Retry", retryBlockedHint: "This order may already be accepted — check its id in the task center instead of resending here", missingPlugin: "Plugin missing", missingPluginDescription: "The plugin for node type “{{type}}” is not installed or enabled", generateImage: "Generate image from text", generate: "Generate", editText: "Double-click to edit text", emptyImage: "Empty image node", emptyVideo: "Empty video node", emptyAudio: "Empty audio node", audio: "Audio", batchExpanded: "Image group expanded", batchCollapsed: "Image group collapsed", textBatchExpanded: "Text alternatives expanded", textBatchCollapsed: "Text alternatives collapsed", createCopy: "Create copy", setPrimary: "Set as primary", setPrimaryText: "Set as primary", versionBadge: "Version {{label}}", versionBadgePrimary: "Primary", openVersions: "Compare versions",
         },
         videoFrames: { first: "Capture first frame", last: "Capture last frame", current: "Capture current frame", extractAudio: "Extract audio to a new node", audioExtracted: "Video audio saved as an audio node", noAudioTrack: "This video has no audio track", extractAudioFailed: "Could not extract audio from this video", firstTitle: "{{name}} first frame", lastTitle: "{{name}} last frame", currentTitle: "{{name}} current frame", captured: "Image node created", failed: "Could not capture this frame. Try again." },
         sidePanel: {
