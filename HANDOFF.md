@@ -1348,3 +1348,37 @@ ERRORS_TOTAL: 0 []
 - **快照保存在原节点旁 +36px**，数量多时会有视觉重叠；这是 BeefTV 的既定取舍，先不引入自动排版。
 - **版本标签封顶 Z**；从 Z 继续生成不会再升标签，避免制造非法标签。真要更多版本需要另行设计编号。
 - 端到端检查注入了带版本字段的项目，**没有真 Key、没有真出图**；真生成后快照是否按预期写入，仍是 A1 那类真机证据。
+
+## 第三十一轮：全站 UI 对照 BeefTV 复查（2026-11-21）
+
+用户问「能不能先把 UI 向 BeefTV 对齐」，选了「全站复查对齐」范围。先按纪律盘点：78 个同名文件里已对齐核心色板/阴影/对比度（第十七轮），剩下真正能**安全**对齐的不多——大部分差异是架构性的，照搬会引入死代码。
+
+### 盘点结论（哪些搬、哪些不搬）
+
+| 差距 | 性质 | 处理 |
+|---|---|---|
+| 主题切换器缺并发锁 / reduced-motion 降级 / ViewTransition 异常兜底 / 动画引用回收 | BeefTV 踩过的真坑，纯 JS | ✅ 对齐 |
+| 版本对比弹窗宽度偏窄、卡片偏窄、主版本无外发光、按钮无主次 | 纯视觉细节 | ✅ 对齐 |
+| `globals.css` 2 万行 `app-workspace-*` 语义类 | 架构差异，INTX 用 Tailwind 原子类 | ❌ 搬了全是死 CSS |
+| `canvas-theme` 的 frame/spatial/timeline/accent 四组 | 无消费方 | ❌ 文档已记录有意不引 |
+| antd `controlTheme` 全套 | INTX 用 `darkAlgorithm` 自动生成 | ❌ 手写值会变死值 |
+| 主题切换的 `data-canvas-world-layer` / `data-theme-switching` 降级 | INTX 没有这个 DOM 标记和 CSS | ❌ 照搬即死代码，没搬 |
+
+### 改动
+
+| 文件 | 作用 |
+|---|---|
+| `src/components/ui/animated-theme-toggler.tsx` | 模块级 `themeTransitionInFlight` 并发锁 + `themeClipAnimation` 引用；当前主题从 DOM 读不用闭包 state；`prefers-reduced-motion` 直接切；`startViewTransition` try/catch 兜底；`cleaned` 幂等 + 锁释放 |
+| `src/components/canvas/canvas-version-compare-modal.tsx` | 宽度 1120→1180 / 卡宽 280→328；主版本加外发光 `0 0 0 2px toolbar.activeBg`（引用令牌不写死）；图片区 h-48→h-52；提示词 line-clamp 4→5；未设主版本按钮 type=primary 高亮 |
+| `web/theme_toggle_check.mjs` | 浏览器端到端：连点 5 次不卡中间态、dark/colorScheme/图标一致、reduced-motion 立即翻转无 VT 残留 |
+
+### 验证（都是跑出来的）
+
+`pnpm verify` 全绿：**75 文件 / 886 用例**（与上轮持平），令牌 115（基线 145）、结构预算未涨、边界 0 违规。`vite build` 通过。
+`theme_toggle_check.mjs`：`A_VT_CLEANED / A_STATE_CONSISTENT / A_ICON_MATCH / B_IMMEDIATE_FLIP / B_NO_VT` 全 true，页面错误 0。
+`version_compare_check.mjs`：两卡、提示词、切主版本、定位全绿，错误 0。
+
+### 边界
+
+- 主题切换的「画布场景降级」没搬：INTX 没有 `data-canvas-world-layer` 标记，搬了不会触发。若后续要给画布加无动画切换，需先加标记 + CSS 规则，另算一轮。
+- 本轮是视觉/交互对齐，没碰功能路径；真机观感（连点手感、主版本描边在浅色下的对比度）仍属 A 类真机证据。

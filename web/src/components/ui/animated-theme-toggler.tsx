@@ -17,6 +17,12 @@ interface AnimatedThemeTogglerProps extends React.ComponentPropsWithoutRef<"butt
     onThemeChange?: (theme: "light" | "dark") => void;
 }
 
+// 模块级锁：连续快速点击时，前一个 ViewTransition 还没结束就再起一个，会出现两套剪裁动画叠加、
+// 主题停在中间态。BeefTV 上游用同样的锁挡住并发，这里对齐。动画引用也留着，cleanup 时取消，
+// 避免 finished 和 ready 两条路径各驱动一次动画。
+let themeTransitionInFlight = false;
+let themeClipAnimation: Animation | null = null;
+
 function polygonCollapsed(cx: number, cy: number, vertexCount: number): string {
     const pairs = Array.from({ length: vertexCount }, () => `${cx}px ${cy}px`).join(", ");
     return `polygon(${pairs})`;
@@ -113,6 +119,11 @@ export const AnimatedThemeToggler = ({ children, className, duration = 400, vari
         const button = buttonRef.current;
         if (!button) return;
 
+        // 以 DOM 实际状态为准，不用闭包里的 isDark——连点/外部改主题时 state 可能滞后一帧。
+        const currentTheme = document.documentElement.classList.contains("dark") ? "dark" : "light";
+        const nextTheme = targetTheme ?? (currentTheme === "dark" ? "light" : "dark");
+        if (nextTheme === currentTheme) return;
+
         const viewportWidth = window.visualViewport?.width ?? window.innerWidth;
         const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
 
@@ -130,60 +141,80 @@ export const AnimatedThemeToggler = ({ children, className, duration = 400, vari
         const maxRadius = Math.hypot(Math.max(x, viewportWidth - x), Math.max(y, viewportHeight - y));
 
         const applyTheme = () => {
-            const nextTheme = targetTheme ?? (isDark ? "light" : "dark");
-            if (nextTheme === (isDark ? "dark" : "light")) return;
             setIsDark(nextTheme === "dark");
             document.documentElement.classList.toggle("dark", nextTheme === "dark");
             document.documentElement.style.colorScheme = nextTheme;
             onThemeChange?.(nextTheme);
         };
 
-        if (typeof document.startViewTransition !== "function") {
-            applyTheme();
+        const root = document.documentElement;
+        // 减弱动效偏好 / 不支持 ViewTransition：直接切，不跑剪裁动画，避免 ca11y 问题与中间态。
+        const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        if (reducedMotion || typeof document.startViewTransition !== "function") {
+            flushSync(applyTheme);
             return;
         }
+        if (themeTransitionInFlight) return;
+        themeTransitionInFlight = true;
 
         const clipPath = getThemeTransitionClipPaths(shape, x, y, maxRadius, viewportWidth, viewportHeight);
 
-        const root = document.documentElement;
         root.dataset.magicuiThemeVt = "active";
         root.style.setProperty("--magicui-theme-toggle-vt-duration", `${duration}ms`);
         // Pin the collapsed clip-path via CSS so Firefox does not paint the new
         // theme unclipped between snapshot and the ready.then() JS animation.
         root.style.setProperty("--magicui-theme-vt-clip-from", clipPath[0]);
+        let cleaned = false;
         const cleanup = () => {
+            if (cleaned) return;
+            cleaned = true;
+            themeClipAnimation?.cancel();
+            themeClipAnimation = null;
+            themeTransitionInFlight = false;
             delete root.dataset.magicuiThemeVt;
             root.style.removeProperty("--magicui-theme-toggle-vt-duration");
             root.style.removeProperty("--magicui-theme-vt-clip-from");
         };
 
-        const transition = document.startViewTransition(() => {
+        let transition: ReturnType<NonNullable<typeof document.startViewTransition>>;
+        try {
+            transition = document.startViewTransition(() => {
+                flushSync(applyTheme);
+            });
+        } catch {
+            // 有些 WebView 实现了 startViewTransition 但在特定时机抛错；兜底直接切主题并放锁。
+            cleanup();
             flushSync(applyTheme);
-        });
+            return;
+        }
         if (typeof transition?.finished?.finally === "function") {
-            transition.finished.finally(cleanup);
+            void transition.finished.then(cleanup, cleanup);
         } else {
             cleanup();
         }
 
         const ready = transition?.ready;
         if (ready && typeof ready.then === "function") {
-            ready.then(() => {
-                document.documentElement.animate(
-                    {
-                        clipPath,
-                    },
-                    {
-                        duration,
-                        // Star: linear avoids easing overshoot that fights polygon interpolation at t→1; VT group duration is synced above.
-                        easing: shape === "star" ? "linear" : "ease-in-out",
-                        fill: "forwards",
-                        pseudoElement: "::view-transition-new(root)",
-                    },
-                );
-            });
+            void ready
+                .then(() => {
+                    if (cleaned) return;
+                    themeClipAnimation?.cancel();
+                    themeClipAnimation = document.documentElement.animate(
+                        {
+                            clipPath,
+                        },
+                        {
+                            duration,
+                            // Star: linear avoids easing overshoot that fights polygon interpolation at t→1; VT group duration is synced above.
+                            easing: shape === "star" ? "linear" : "ease-in-out",
+                            fill: "forwards",
+                            pseudoElement: "::view-transition-new(root)",
+                        },
+                    );
+                })
+                .catch(() => undefined);
         }
-    }, [shape, fromCenter, duration, isDark, targetTheme, onThemeChange]);
+    }, [shape, fromCenter, duration, targetTheme, onThemeChange]);
 
     return (
         <button type="button" ref={buttonRef} onClick={toggleTheme} className={cn(className)} {...props}>

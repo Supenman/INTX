@@ -73,6 +73,8 @@ antd 默认占位色只有约 2.4:1，本项目已在 `app-theme.ts` 统一提�
 | 状态指示点 | ✅ `SnapshotStorageStatus` 自带 |
 | 危险操作视觉权重 | ✅ 红色 + 分隔 |
 | 时间线弹窗滚动条 | ✅ `thin-scrollbar` |
+| 主题切换器并发锁 / reduced-motion 降级 / VT 异常兜底 | ✅ 第三十一轮对齐（纯 JS 部分；画布场景降级因无 DOM 标记没搬） |
+| 版本对比弹窗宽度/卡宽/主版本外发光/按钮主次 | ✅ 第三十一轮对齐 |
 | 上游的 `frame` / `spatial` / `timeline` / `accent` 四组令牌 | ❌ 未引入——本项目没有消费方，引入即死代码 |
 | 上游的三层令牌文件拆分（theme-tokens / semantic-tokens / component-tokens） | ❌ 未照搬——本项目已有 `tokens.css`，拆开是无收益的结构改动 |
 | 上游的字号 `--typ-*` 语义类（14 档） | ❌ 未引入——与现有 `.typ-*` 重叠 |
