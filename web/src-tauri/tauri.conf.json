@@ -4,9 +4,9 @@
   "version": "0.2.2",
   "identifier": "app.intx.desktop",
   "build": {
-    "beforeDevCommand": "node node_modules/vite/bin/vite.js --host 0.0.0.0 --port 3000",
+    "beforeDevCommand": "node scripts/prepare-comfyui-gateway.mjs && node node_modules/vite/bin/vite.js --host 0.0.0.0 --port 3000",
     "devUrl": "http://localhost:3000",
-    "beforeBuildCommand": "node scripts/prepare-agent-runtime.mjs && node node_modules/vite/bin/vite.js build",
+    "beforeBuildCommand": "node scripts/prepare-agent-runtime.mjs && node scripts/prepare-comfyui-gateway.mjs && node node_modules/vite/bin/vite.js build",
     "frontendDist": "../dist"
   },
   "app": {
@@ -36,8 +36,14 @@
     "active": true,
     "targets": ["nsis"],
     "createUpdaterArtifacts": true,
+    "windows": {
+      "nsis": {
+        "installerHooks": "installer-hooks.nsh"
+      }
+    },
     "resources": {
-      "resources/canvas-agent-runtime/": "canvas-agent-runtime/"
+      "resources/canvas-agent-runtime/": "canvas-agent-runtime/",
+      "resources/comfyui-gateway/": "comfyui-gateway/"
     },
     "icon": [
       "icons/32x32.png",

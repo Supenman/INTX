@@ -146,25 +146,46 @@ struct ManagedLocalGateway(std::sync::Mutex<Option<std::process::Child>>);
 
 const LOCAL_GATEWAY_URL: &str = "http://127.0.0.1:8190";
 
+#[derive(serde::Serialize)]
+struct ComfyConnectionStatus {
+    comfy: bool,
+    gateway: bool,
+}
+
+#[tauri::command]
+fn check_comfy_connections() -> ComfyConnectionStatus {
+    ComfyConnectionStatus {
+        comfy: agent_is_listening("http://127.0.0.1:8188"),
+        gateway: agent_is_listening(LOCAL_GATEWAY_URL),
+    }
+}
+
 impl ManagedLocalGateway {
-    fn start() -> Self {
+    fn start(app: &tauri::AppHandle) -> Self {
         // 已在运行（用户自己起的，或上次的残留）→ 接管，不重复拉起，退出时也不归我们关
         if agent_is_listening(LOCAL_GATEWAY_URL) {
             return Self::default();
         }
-        let Some(gateway_dir) = find_local_gateway_dir() else { return Self::default() };
+        let Some(gateway_dir) = find_local_gateway_dir(app) else { return Self::default() };
+        let Ok(data_dir) = app.path().app_local_data_dir() else { return Self::default() };
         let entry = gateway_dir.join("src").join("server.js");
         if !entry.is_file() {
             return Self::default();
         }
-        // 用系统 node：网关的 node_modules 由用户用系统 node 安装，版本必须一致
-        let mut command = std::process::Command::new(if cfg!(windows) { "node.exe" } else { "node" });
+        // 优先复用随包 Node，开发模式回退到系统 PATH。
+        let node_name = if cfg!(windows) { "node.exe" } else { "node" };
+        let node = find_agent_runtime(app)
+            .map(|runtime| runtime.join("node").join(node_name))
+            .filter(|path| path.is_file())
+            .unwrap_or_else(|| node_name.into());
+        let mut command = std::process::Command::new(node);
         command
             .arg(&entry)
             .current_dir(&gateway_dir)
             .env("PORT", "8190")
             .env("HOST", "127.0.0.1")
             .env("COMFY_URL", "http://127.0.0.1:8188")
+            .env("DATA_DIR", data_dir.join("comfyui-gateway"))
             .env("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000")
             // 随包节点由网关启动器首次安装；我们直连网关，不需要它再动 ComfyUI
             .env("DISABLE_NODE_BOOTSTRAP", "1")
@@ -209,12 +230,12 @@ impl ManagedLocalGateway {
     }
 }
 
-/// 找网关目录：优先环境变量指定，其次安装目录旁与 resources 下。
-/// 自用时把网关放在 INTX 安装目录旁边即可，无需任何配置。
-fn find_local_gateway_dir() -> Option<std::path::PathBuf> {
+/// 找到随应用资源打包的网关目录。
+fn find_local_gateway_dir(app: &tauri::AppHandle) -> Option<std::path::PathBuf> {
     let mut candidates = Vec::new();
-    if let Some(dir) = std::env::var_os("INTX_COMFY_GATEWAY_DIR") {
-        candidates.push(std::path::PathBuf::from(dir));
+    if let Ok(resources) = app.path().resource_dir() {
+        candidates.push(resources.join("comfyui-gateway"));
+        candidates.push(resources.join("resources").join("comfyui-gateway"));
     }
     if let Ok(executable) = std::env::current_exe() {
         if let Some(parent) = executable.parent() {
@@ -237,10 +258,10 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             app.manage(ManagedCanvasAgent::start(app.handle()));
-            app.manage(ManagedLocalGateway::start());
+            app.manage(ManagedLocalGateway::start(app.handle()));
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![read_agent_config])
+        .invoke_handler(tauri::generate_handler![read_agent_config, check_comfy_connections])
         .build(tauri::generate_context!())
         .expect("启动 INTX 窗口失败")
         .run(|app, event| {

@@ -9,6 +9,7 @@ data/
 .DS_Store
 web/src-tauri/target
 web/src-tauri/resources/canvas-agent-runtime/
+web/src-tauri/resources/comfyui-gateway/
 web/src-tauri/gen/schemas
 .idea
 web/dist

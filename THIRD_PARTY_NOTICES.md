@@ -51,6 +51,12 @@
 - Node.js 运行时随桌面版提供，其许可声明一并放在 Agent runtime 目录的 `Node-LICENSE.txt`；npm CLI 的许可随 `node_modules/npm` 提供。
 - OpenCode CLI 不随包分发；首次使用时仍由 npm 按 `canvas-agent/src/agent/opencode.ts` 中锁定的版本下载。
 
+## ComfyUI Local Infinite Canvas Gateway（MIT）
+
+- 来源：`1314521gjy/ComfyUI-Local-Infinite-Canvas` 提供的 `comfyui-gateway/`，按 MIT 许可复制并修改；原许可与版权声明保存在 `comfyui-gateway/LICENSE`。
+- 随 INTX 分发的网关依赖按 `comfyui-gateway/package-lock.json` 安装，依赖包各自的许可文件保留在安装包的 `node_modules` 中。
+- INTX 仅打包网关服务端、工作流、提示词和运行依赖；ComfyUI、模型权重及自定义节点仍由用户安装和管理。
+
 ## OpenCut editor npm dependencies
 
 - The embedded OpenCut Classic editor uses the additional packages recorded in `web/package.json` (including `opencut-wasm`, Hugeicons, Sonner, SoundTouchJS, Culori and React resizable panels). Each package remains distributed under its own upstream license in the package registry; no dependency source was copied into this repository.
