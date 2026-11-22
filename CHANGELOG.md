@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.2.1 - 2026-11-23
+
 - [调整] Windows 打包目标从 `all` 收敛为仅 `nsis`，只产出 NSIS 安装包，简化发布与更新。
 - [新增] 桌面端接入 Tauri 应用内更新：版本弹窗可检测、下载并安装签名更新包，带二次确认与进度；需配置签名密钥并发布 GitHub Release 后才生效，详见 `UPDATE-MECHANISM-REFERENCE.md`（待真机验收）。
 - [新增] 桌面端自动拉起并回收本地 ComfyUI 网关（随 INTX 启停），INTX 可作为 OpenAI 渠道直连本地出图；接入方法见 `COMFYUI-LOCAL-SETUP.md`（待 Windows 真机验收）。
