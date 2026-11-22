@@ -15,16 +15,24 @@ description: Implemented changes that still need manual verification
 - 更新后浏览器本地的 API Key 与画布数据不丢。
 - 沙箱为 Linux 且无签名/无 Release，未做端到端验证；链路按 Tauri updater 标准接入。
 
-## Local ComfyUI gateway auto start/stop (pending Windows desktop acceptance)
+## Local ComfyUI status panel & auto channel (pending Windows desktop acceptance)
+
+**云端已验证（静态/逻辑，沙箱无 GPU、无 ComfyUI、无 node_modules）**
+
+- 网关客户端服务层复用 `createProviderTransport("direct")`（桌面端由 Rust 侧发请求，无 CORS），封装 `/health`、`/api/setup/status`、`/api/workflows`、`/api/setup/scan`、`/v1/models`。
+- 设置页五态判定逻辑、工作流缺失项渲染、扫描轮询（约 50 秒上限）均通过 tsc 语法检查；`/api/workflows` 每条带 `availability.problems` 已核对（逐字段读网关 `setup.js` / `workflow-availability.js`）。
+- 渠道同步按固定 id `local-comfyui` 幂等更新，只动该渠道；模型能力按 `/v1/models` 的 `metadata.type`（image/video）映射，已与 `registry.json` 的 `type` 取值核对。
+
+**Windows 真机待验**
 
 - 前置：启动本机 ComfyUI（默认 8188）。
-- 在「配置 → 本地 ComfyUI」点「测试连接」，确认 ComfyUI 与 INTX 内置网关均可连接。
-- 从不含 `SourceCode` 的独立检出启动开发版，并验证 Windows 安装版也能自动启动随包网关。
-- 启动 INTX 后网关应自动在 8190 就绪：浏览器打开 `http://127.0.0.1:8190/health` 应返回 ok，`/v1/models` 能列出模型。
-- 在设置 → 渠道新建 `OpenAI` 渠道，Base URL 填 `http://127.0.0.1:8190`、Key 填 `local`，拉取模型并标注 image/video 能力。
-- 画布出一张图确认链路通；关闭 INTX 后 8190 端口应释放（网关被回收）。
-- 若 8190 已被用户自己起的网关占用，INTX 应接管而不重复拉起、退出时也不关闭它。
-- 沙箱为 Linux 且无 GPU / node_modules，未做端到端验证；协议匹配结论来自逐字段读源码。
+- 打开「配置 → 本地 ComfyUI」：网关可达且 ComfyUI 未启动时应显示「ComfyUI 未启动」；关闭网关进程（或占住 8190）应显示「网关不可达」，两者提示文案不同。
+- 扫描中应显示「正在扫描模型与节点…」并在完成后自动刷新，无需手动点；点「重新扫描」应重新触发并更新结果。
+- 0 个可用工作流时应列出每个工作流的缺失项（缺哪个模型/节点），文案与网关 `/api/workflows` 的 `problems` 一致；补齐依赖后重扫，状态应变为可用。
+- 存在可用工作流时：打开画布模型选择器，应出现「本地 ComfyUI」渠道及对应模型，直接选中即可生成一张图，画布显示结果。
+- 重扫不应重复创建渠道或模型，也不应改动已配置的云端渠道；可用工作流变空时，内置渠道应自动消失。
+- 退出 INTX 后 8190 端口应释放（网关被回收）；若 8190 已被用户自建网关占用，INTX 应接管不重复拉起、退出也不关它。
+- 说明：资源下载器、自动安装自定义节点不在本轮范围；工作流缺依赖时只展示缺失项，不自动补齐。
 
 ## Creative workspace home (Windows desktop acceptance pending)
 

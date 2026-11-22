@@ -151,6 +151,12 @@ export const defaultWebdavSyncConfig: WebdavSyncConfig = {
     lastSyncedAt: "",
 };
 
+/** 内置「本地 ComfyUI」渠道的固定 id：重扫只更新它，不会重复创建，也不碰用户云端渠道。 */
+export const LOCAL_COMFY_CHANNEL_ID = "local-comfyui";
+export const LOCAL_COMFY_BASE_URL = "http://127.0.0.1:8190";
+/** 网关不校验 Key，但 OpenAI 协议要求非空，占位即可。 */
+export const LOCAL_COMFY_API_KEY = "local";
+
 type ConfigStore = {
     config: AiConfig;
     webdav: WebdavSyncConfig;
@@ -159,6 +165,8 @@ type ConfigStore = {
     shouldPromptContinue: boolean;
     updateConfig: <K extends keyof AiConfig>(key: K, value: AiConfig[K]) => void;
     importChannelCredentials: (input: { baseUrl?: string | null; apiKey?: string | null }) => ChannelCredentialsImportResult;
+    /** 用网关当前可用工作流同步内置本地渠道；没有可用工作流时移除该渠道。幂等，不动其他渠道。 */
+    syncLocalComfyChannel: (models: Array<{ name: string; capability: ModelCapability }>) => void;
     updateWebdavConfig: <K extends keyof WebdavSyncConfig>(key: K, value: WebdavSyncConfig[K]) => void;
     isAiConfigReady: (config: AiConfig, model: string) => boolean;
     openConfigDialog: (shouldPromptContinue?: boolean, tab?: ConfigTabKey) => void;
@@ -181,6 +189,15 @@ export function guessCapability(name: string): ModelCapability {
     if (AUDIO_KEYWORDS.some((keyword) => value.includes(keyword))) return "audio";
     if (IMAGE_KEYWORDS.some((keyword) => value.includes(keyword))) return "image";
     return "text";
+}
+
+/** 两个渠道的模型清单是否完全一致（名称 + 能力），用于跳过无谓写入。 */
+function sameChannelModels(a: ModelChannel, b: ModelChannel) {
+    if (a.models.length !== b.models.length) return false;
+    const snapshot = (channel: ModelChannel) => channel.models.map((model) => `${model.name}\u0000${model.capability}`).sort();
+    const left = snapshot(a);
+    const right = snapshot(b);
+    return left.every((value, index) => value === right[index]);
 }
 
 function findChannelModel(config: AiConfig, value: string): { channel: ModelChannel; model: ChannelModel } | null {
@@ -253,6 +270,33 @@ export const useConfigStore = create<ConfigStore>()(
                 const result = upsertChannelCredentials(currentConfig, input);
                 if (result.config !== currentConfig) set({ config: result.config });
                 return { status: result.status, channelName: result.channelName };
+            },
+            syncLocalComfyChannel: (models) => {
+                const currentConfig = get().config;
+                const existing = currentConfig.channels.find((channel) => channel.id === LOCAL_COMFY_CHANNEL_ID);
+                const others = currentConfig.channels.filter((channel) => channel.id !== LOCAL_COMFY_CHANNEL_ID);
+
+                // 没有可用工作流：清掉内置渠道，避免用户选到必然失败的空渠道。
+                if (models.length === 0) {
+                    if (!existing) return;
+                    set({ config: { ...currentConfig, channels: others } });
+                    return;
+                }
+
+                const channel = createModelChannel({
+                    id: LOCAL_COMFY_CHANNEL_ID,
+                    name: i18n.t("config.comfyui.channelName"),
+                    baseUrl: LOCAL_COMFY_BASE_URL,
+                    apiKey: LOCAL_COMFY_API_KEY,
+                    apiFormat: "openai",
+                    proxyMode: "direct",
+                    models: models.map((model) => ({ name: model.name, capability: model.capability })),
+                });
+                // 内容没变就不写，避免每次打开设置页都触发持久化与重渲染。
+                if (existing && sameChannelModels(existing, channel)) return;
+                // 保留原顺序：已有就原位替换，没有就追加到末尾。
+                const nextChannels = existing ? currentConfig.channels.map((item) => (item.id === LOCAL_COMFY_CHANNEL_ID ? channel : item)) : [...others, channel];
+                set({ config: { ...currentConfig, channels: nextChannels } });
             },
             updateWebdavConfig: (key, value) =>
                 set((state) => ({
