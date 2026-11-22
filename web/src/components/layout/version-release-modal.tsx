@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { Modal, Tag, Timeline } from "antd";
+import { Modal, Progress, Tag, Timeline, App as AntApp, Button } from "antd";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { useVersionCheck } from "@/hooks/use-version-check";
@@ -26,7 +26,25 @@ type VersionReleaseModalProps = {
 
 export function VersionReleaseModal({ className, style }: VersionReleaseModalProps) {
     const { t } = useTranslation();
-    const { open, setOpen, openReleaseModal, latestVersion, releases, checking, hasNewVersion, checkLatestRelease } = useVersionCheck();
+    const { message, modal } = AntApp.useApp();
+    const { open, setOpen, openReleaseModal, latestVersion, releases, checking, hasNewVersion, checkLatestRelease, updatable, updatableVersion, installing, progress, installUpdate } = useVersionCheck();
+
+    const handleInstall = () => {
+        modal.confirm({
+            title: t("version.installTitle"),
+            content: t("version.installContent", { version: updatableVersion }),
+            okText: t("version.installConfirm"),
+            cancelText: t("version.cancel"),
+            onOk: async () => {
+                const ok = await installUpdate();
+                if (ok) {
+                    message.success(t("version.installDone"));
+                } else {
+                    message.error(t("version.installFailed"));
+                }
+            },
+        });
+    };
 
     return (
         <>
@@ -62,6 +80,20 @@ export function VersionReleaseModal({ className, style }: VersionReleaseModalPro
                         <div className="mt-1 text-base font-semibold text-foreground">{latestVersion}</div>
                     </div>
                 </div>
+                {updatable ? (
+                    <div className="mb-4 rounded-[var(--r-lg)] border border-primary/30 bg-primary/5 p-3">
+                        <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                                <div className="text-sm font-medium text-foreground">{t("version.updateAvailable", { version: updatableVersion })}</div>
+                                <div className="mt-0.5 text-xs text-muted-foreground">{t("version.installHint")}</div>
+                            </div>
+                            <Button type="primary" size="small" loading={installing} disabled={installing} onClick={handleInstall}>
+                                {installing ? t("version.installing") : t("version.downloadUpdate")}
+                            </Button>
+                        </div>
+                        {installing ? <Progress percent={progress} size="small" className="mt-2" /> : null}
+                    </div>
+                ) : null}
                 <div className="max-h-[56vh] overflow-y-auto pr-2">
                     <Timeline
                         items={releases.map((release) => ({

@@ -9,6 +9,7 @@
     "core:default",
     "dialog:allow-save",
     "fs:allow-write-file",
+    "updater:default",
     {
       "identifier": "http:default",
       "allow": [

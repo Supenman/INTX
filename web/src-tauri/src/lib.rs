@@ -139,6 +139,92 @@ fn agent_is_listening(url: &str) -> bool {
     address.into_iter().any(|address| TcpStream::connect_timeout(&address, std::time::Duration::from_millis(150)).is_ok())
 }
 
+/// 本地 ComfyUI 网关：把 ComfyUI 的节点协议翻译成 OpenAI 兼容接口，
+/// INTX 只需按普通 OpenAI 渠道连它。随 INTX 启动、退出时回收。
+#[derive(Default)]
+struct ManagedLocalGateway(std::sync::Mutex<Option<std::process::Child>>);
+
+const LOCAL_GATEWAY_URL: &str = "http://127.0.0.1:8190";
+
+impl ManagedLocalGateway {
+    fn start() -> Self {
+        // 已在运行（用户自己起的，或上次的残留）→ 接管，不重复拉起，退出时也不归我们关
+        if agent_is_listening(LOCAL_GATEWAY_URL) {
+            return Self::default();
+        }
+        let Some(gateway_dir) = find_local_gateway_dir() else { return Self::default() };
+        let entry = gateway_dir.join("src").join("server.js");
+        if !entry.is_file() {
+            return Self::default();
+        }
+        // 用系统 node：网关的 node_modules 由用户用系统 node 安装，版本必须一致
+        let mut command = std::process::Command::new(if cfg!(windows) { "node.exe" } else { "node" });
+        command
+            .arg(&entry)
+            .current_dir(&gateway_dir)
+            .env("PORT", "8190")
+            .env("HOST", "127.0.0.1")
+            .env("COMFY_URL", "http://127.0.0.1:8188")
+            .env("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000")
+            // 随包节点由网关启动器首次安装；我们直连网关，不需要它再动 ComfyUI
+            .env("DISABLE_NODE_BOOTSTRAP", "1")
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null());
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            command.creation_flags(0x08000000);
+        }
+        match command.spawn() {
+            Ok(mut child) => {
+                for _ in 0..50 {
+                    if agent_is_listening(LOCAL_GATEWAY_URL) || child.try_wait().ok().flatten().is_some() {
+                        break;
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                }
+                Self(std::sync::Mutex::new(Some(child)))
+            }
+            Err(_) => Self::default(),
+        }
+    }
+
+    fn stop(&self) {
+        let Ok(mut process) = self.0.lock() else { return };
+        let Some(mut child) = process.take() else { return };
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            let _ = std::process::Command::new("taskkill")
+                .args(["/PID", &child.id().to_string(), "/T", "/F"])
+                .creation_flags(0x08000000)
+                .status();
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = child.kill();
+        }
+        let _ = child.wait();
+    }
+}
+
+/// 找网关目录：优先环境变量指定，其次安装目录旁与 resources 下。
+/// 自用时把网关放在 INTX 安装目录旁边即可，无需任何配置。
+fn find_local_gateway_dir() -> Option<std::path::PathBuf> {
+    let mut candidates = Vec::new();
+    if let Some(dir) = std::env::var_os("INTX_COMFY_GATEWAY_DIR") {
+        candidates.push(std::path::PathBuf::from(dir));
+    }
+    if let Ok(executable) = std::env::current_exe() {
+        if let Some(parent) = executable.parent() {
+            candidates.push(parent.join("comfyui-gateway"));
+            candidates.push(parent.join("resources").join("comfyui-gateway"));
+        }
+    }
+    candidates.into_iter().find(|dir| dir.join("src").join("server.js").is_file())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     if !cfg!(debug_assertions) && tauri::is_dev() {
@@ -148,8 +234,10 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             app.manage(ManagedCanvasAgent::start(app.handle()));
+            app.manage(ManagedLocalGateway::start());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![read_agent_config])
@@ -159,6 +247,9 @@ pub fn run() {
             if let tauri::RunEvent::Exit = event {
                 if let Some(agent) = app.try_state::<ManagedCanvasAgent>() {
                     agent.stop();
+                }
+                if let Some(gateway) = app.try_state::<ManagedLocalGateway>() {
+                    gateway.stop();
                 }
             }
         });

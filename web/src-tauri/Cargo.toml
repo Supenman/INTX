@@ -25,6 +25,9 @@ tauri-plugin-http = "2.5.0"
 # 里只给命令权限、不静态放开整个磁盘。
 tauri-plugin-dialog = "2.6.0"
 tauri-plugin-fs = "2.4.0"
+# 应用内自更新：检查 GitHub latest.json → 下载带签名的安装包 → 校验 → 安装。
+# 私钥不进仓库，构建时由 TAURI_SIGNING_PRIVATE_KEY 注入，见 UPDATE-MECHANISM-REFERENCE.md。
+tauri-plugin-updater = "2"
 # read_agent_config 要把 Agent 写下的 { url, token } 序列化给前端。
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { App } from "antd";
 import { useTranslation } from "react-i18next";
 import { APP_VERSION } from "@/constant/env";
 import { parseChangelog, type ReleaseInfo } from "@/lib/release";
+import { runtime } from "@/lib/runtime/capabilities";
 
 // 版本与更新日志读本仓库，不能读上游项目——否则用户看到的是别人的版本号，点击更新跳到别人仓库。
 // 注意：仓库目前是 private，raw / jsDelivr 都会 404，本 hook 只能等仓库转公开后才真正生效。
@@ -37,6 +38,30 @@ export function useVersionCheck() {
     const [checking, setChecking] = useState(false);
     const [open, setOpen] = useState(false);
     const hasNewVersion = isNewerVersion(latestVersion, currentVersion);
+
+    // 桌面端真实更新链路：Tauri updater 校验签名后下载安装。
+    // update 对象用 ref 持有（含下载所需元数据），不进 state。
+    const updateRef = useRef<import("@tauri-apps/plugin-updater").Update | null>(null);
+    const [updatable, setUpdatable] = useState(false);
+    const [updatableVersion, setUpdatableVersion] = useState("");
+    const [installing, setInstalling] = useState(false);
+    const [progress, setProgress] = useState(0);
+
+    // 检测真实可安装更新。浏览器 dev、未配 pubkey、未发布 release 都会失败，
+    // 一律静默降级为「无可安装更新」——查看更新日志的功能不受影响。
+    const checkAppUpdate = useCallback(async () => {
+        if (runtime !== "desktop") return;
+        try {
+            const { check } = await import("@tauri-apps/plugin-updater");
+            const update = await check();
+            updateRef.current = update && update.available ? update : null;
+            setUpdatable(updateRef.current !== null);
+            setUpdatableVersion(update?.version || "");
+        } catch {
+            updateRef.current = null;
+            setUpdatable(false);
+        }
+    }, []);
 
     const checkLatestVersion = useCallback(async () => {
         try {
@@ -78,10 +103,39 @@ export function useVersionCheck() {
         void checkLatestVersion();
     }, [checkLatestVersion]);
 
+    // 下载并安装更新。带进度回调；完成后需用户手动重启 INTX 才生效。
+    const installUpdate = useCallback(async () => {
+        const update = updateRef.current;
+        if (!update || installing) return false;
+        setInstalling(true);
+        setProgress(0);
+        try {
+            let total = 0;
+            let downloaded = 0;
+            await update.downloadAndInstall((event) => {
+                if (event.event === "Started" && event.data.contentLength) {
+                    total = event.data.contentLength;
+                } else if (event.event === "Progress" && total > 0) {
+                    downloaded += event.data.chunkLength;
+                    setProgress(Math.min(100, Math.round((downloaded / total) * 100)));
+                }
+            });
+            setProgress(100);
+            updateRef.current = null;
+            setUpdatable(false);
+            return true;
+        } catch {
+            return false;
+        } finally {
+            setInstalling(false);
+        }
+    }, [installing]);
+
     const openReleaseModal = useCallback(() => {
         setOpen(true);
         void checkLatestRelease();
-    }, [checkLatestRelease]);
+        void checkAppUpdate();
+    }, [checkLatestRelease, checkAppUpdate]);
 
     return {
         open,
@@ -92,5 +146,10 @@ export function useVersionCheck() {
         checking,
         hasNewVersion,
         checkLatestRelease,
+        updatable,
+        updatableVersion,
+        installing,
+        progress,
+        installUpdate,
     };
 }

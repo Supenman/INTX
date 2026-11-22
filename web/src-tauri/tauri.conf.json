@@ -24,9 +24,18 @@
     ],
     "security": {}
   },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/Supenman/INTX/releases/latest/download/latest.json"
+      ],
+      "pubkey": "REPLACE_WITH_YOUR_UPDATER_PUBLIC_KEY"
+    }
+  },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["nsis"],
+    "createUpdaterArtifacts": true,
     "resources": {
       "resources/canvas-agent-runtime/": "canvas-agent-runtime/"
     },

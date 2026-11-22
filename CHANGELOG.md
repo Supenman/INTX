@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- [调整] Windows 打包目标从 `all` 收敛为仅 `nsis`，只产出 NSIS 安装包，简化发布与更新。
+- [新增] 桌面端接入 Tauri 应用内更新：版本弹窗可检测、下载并安装签名更新包，带二次确认与进度；需配置签名密钥并发布 GitHub Release 后才生效，详见 `UPDATE-MECHANISM-REFERENCE.md`（待真机验收）。
+- [新增] 桌面端自动拉起并回收本地 ComfyUI 网关（随 INTX 启停），INTX 可作为 OpenAI 渠道直连本地出图；接入方法见 `COMFYUI-LOCAL-SETUP.md`（待 Windows 真机验收）。
+- [调整] 全端 logo 更换为几何切块 X 标识，覆盖网页侧边栏、favicon、文档站与桌面端图标。
 - [调整] 首页改为创作工作台，加入侧边导航、现有功能快捷入口和最近项目列表。
 - [调整] 桌面版随包内置 Canvas Agent 与 Node 运行环境，启动 INTX 时在后台自动运行，并在退出时关闭；日常使用不再需要手动打开 PowerShell。
 - [修复] 随包 Agent 通过 Node 直接启动 OpenCode 的 npm CLI，避免 Windows 命令 shell 报“系统找不到指定路径”。

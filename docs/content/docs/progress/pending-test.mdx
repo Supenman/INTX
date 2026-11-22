@@ -5,6 +5,25 @@ description: Implemented changes that still need manual verification
 
 # Pending Tests
 
+## In-app updater (pending signing setup + Windows desktop acceptance)
+
+- 前置：按 `UPDATE-MECHANISM-REFERENCE.md` 发布清单做完——仓库公开、生成签名密钥并填入 `updater.pubkey`、签名打包、发 GitHub Release 上传 `latest.json` 与 `.sig`。
+- 未配置签名/未发布时：版本弹窗仍能看更新日志，「下载更新」按钮不出现（静默降级），应用照常用。
+- 装旧版 → 打开版本弹窗 → 检测到新版并显示「下载更新」→ 二次确认 → 下载有进度 → 安装成功 → 重启是新版。
+- 篡改安装包或换错公钥应导致签名校验失败、安装中止。
+- 更新后浏览器本地的 API Key 与画布数据不丢。
+- 沙箱为 Linux 且无签名/无 Release，未做端到端验证；链路按 Tauri updater 标准接入。
+
+## Local ComfyUI gateway auto start/stop (pending Windows desktop acceptance)
+
+- 前置：本机按 `COMFYUI-LOCAL-SETUP.md` 装好 ComfyUI（8188）与 `comfyui-gateway`（含 `node_modules`），系统 `node` 在 PATH 中。
+- 网关目录放在 INTX 安装目录旁的 `comfyui-gateway/`，或用环境变量 `INTX_COMFY_GATEWAY_DIR` 指向它。
+- 启动 INTX 后网关应自动在 8190 就绪：浏览器打开 `http://127.0.0.1:8190/health` 应返回 ok，`/v1/models` 能列出模型。
+- 在设置 → 渠道新建 `OpenAI` 渠道，Base URL 填 `http://127.0.0.1:8190`、Key 填 `local`，拉取模型并标注 image/video 能力。
+- 画布出一张图确认链路通；关闭 INTX 后 8190 端口应释放（网关被回收）。
+- 若 8190 已被用户自己起的网关占用，INTX 应接管而不重复拉起、退出时也不关闭它。
+- 沙箱为 Linux 且无 GPU / node_modules，未做端到端验证；协议匹配结论来自逐字段读源码。
+
 ## Creative workspace home (Windows desktop acceptance pending)
 
 - Launching the app should open the creative workspace. Home, canvases, editing studio, assets, Skills, tasks, and settings in the sidebar should open their existing pages.

@@ -1,4 +1,5 @@
-<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <path d="M32 8L58 54H46L32 29L18 54H6L32 8Z" fill="currentColor"/>
-  <path d="M32 40L40 54H24L32 40Z" fill="currentColor"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="currentColor" fill-rule="evenodd">
+  <path d="M 1.19 62.95 L 28.52 31.21 L 28.52 7.11 L 34.96 0.45 L 35.28 0.40 L 35.28 18.96 L 30.56 24.49 L 30.62 28.78 L 54.91 0.93 L 63.41 0.93 L 35.36 33.38 L 35.28 56.49 L 28.84 63.35 L 28.52 63.41 L 28.56 45.63 L 33.26 40.10 L 33.19 35.81 L 9.68 62.89 Z"/>
+  <path d="M 25.88 30.28 L 0.40 0.89 L 8.89 0.97 L 25.90 20.54 Z"/>
+  <path d="M 62.62 62.97 L 54.12 62.87 L 38.04 44.44 L 37.97 34.57 Z"/>
 </svg>
