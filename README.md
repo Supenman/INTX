@@ -1,11 +1,11 @@
 <p align="center">
-  <img src="web/public/logo.svg" width="88" alt="INTX logo">
+  <img src="docs/public/workbench-logo.svg" width="72" alt="工作台标志">
 </p>
 
-<h1 align="center">INTX · 无限画布</h1>
+<h1 align="center">工作台</h1>
 
 <p align="center">
-  面向图片与短视频创作的开源 AI 工作台
+  组织创意、生成内容与完成剪辑的一体化空间
 </p>
 
 <p align="center">
@@ -21,13 +21,13 @@
   <a href="docs/content/docs/canvas/canvas-shortcuts.mdx">快捷键</a>
 </p>
 
-INTX 将可视化画布、AI 模型和短视频剪辑放在同一工作台中。你可以把文字、图片和视频组织成节点，调用云端模型或本机 ComfyUI 工作流生成内容，再整理素材并完成剪辑。
+工作台将可视化画布、AI 模型和短视频剪辑放在同一空间中。你可以把文字、图片和视频组织成节点，调用云端模型或本机 ComfyUI 工作流生成内容，再整理素材并完成剪辑。
 
 ## 功能
 
-- **无限画布**：组织文本、图片、视频和音频节点，使用连线传递提示词与参考素材，并管理多个画布项目。
+- **可视化画布**：组织文本、图片、视频和音频节点，使用连线传递提示词与参考素材，并管理多个画布项目。
 - **AI 生成**：连接 OpenAI 兼容服务进行图片、音频和视频生成；可导入 ComfyUI API 工作流，声明画布输入并指定结果输出。
-- **本地 ComfyUI**：Windows 桌面版内置连接网关。INTX 连接本机 ComfyUI，检查工作流依赖并在画布中调用可用工作流。
+- **本地 ComfyUI**：Windows 桌面版内置连接网关，可连接本机 ComfyUI、检查工作流依赖并在画布中调用可用工作流。
 - **剪辑台**：将画布素材编排到时间线，添加音频与字幕，预览并导出视频。
 - **素材与助手**：保存和管理生成素材；使用画布助手或本地 Canvas Agent 辅助创作。
 - **节点插件**：安装画布节点插件，或使用 TypeScript SDK 开发自己的插件。
@@ -58,11 +58,11 @@ pnpm tauri:build
 
 ### 配置 AI 服务
 
-在 INTX 的「配置 → 渠道」中添加服务商提供的 Base URL 和 API Key，然后拉取模型并设置模型能力。API Key、画布和生成记录默认保存在本机浏览器中。
+在「配置 → 渠道」中添加服务商提供的 Base URL 和 API Key，然后拉取模型并设置模型能力。API Key、画布和生成记录默认保存在本机浏览器中。
 
 ### 使用本地 ComfyUI
 
-先在本机安装并启动 ComfyUI。Windows 桌面版 INTX 会启动内置网关并连接默认地址 `http://127.0.0.1:8188`。ComfyUI 本体、模型权重和自定义节点需单独安装。
+先在本机安装并启动 ComfyUI。Windows 桌面版工作台会启动内置网关并连接默认地址 `http://127.0.0.1:8188`。ComfyUI 本体、模型权重和自定义节点需单独安装。
 
 在「配置 → 本地 ComfyUI」导入 ComfyUI 导出的 API 格式工作流，确认输入参数及结果输出后即可在画布模型选择器中使用。依赖未满足的工作流不会作为可用模型提供。
 
@@ -89,4 +89,4 @@ pnpm verify
 
 ## 许可证
 
-INTX 使用 [MIT 许可证](LICENSE)。
+本项目使用 [MIT 许可证](LICENSE)。
