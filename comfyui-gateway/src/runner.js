@@ -138,7 +138,8 @@ export async function runWorkflow({ entry, context, comfy, timeoutMs = 10 * 60 *
   const stats = {};
   const moss = resolveMossTier(resolved, params);
   const selected = moss ? { ...resolved, workflow: moss.workflow, bindings: moss.bindings, defaults: moss.defaults } : resolved;
-  const bound = applyQwenHybridMode(applyKrea2Mode(applyMainModelFile(applyBindings(selected.workflow, selected, { ...context, params, quality }, { logger, stats }), selected.mainModelFile), { entry, params, logger }), { entry, params, mode: context.mode, logger });
+  const injected = applyBindings(selected.workflow, selected, { ...context, params, quality }, { logger, stats });
+  const bound = selected.inputContract ? injected : applyQwenHybridMode(applyKrea2Mode(applyMainModelFile(injected, selected.mainModelFile), { entry, params, logger }), { entry, params, mode: context.mode, logger });
   const loraResult = applyLoraChain(bound, params, {
     available: loraCatalog,
     filter: resolved.lora?.filter,
@@ -147,7 +148,7 @@ export async function runWorkflow({ entry, context, comfy, timeoutMs = 10 * 60 *
   });
   const aliased = applyModelAliases(loraResult.workflow, modelAliasFor, loaderSpecs);
   const accel = applyZImageAccel(aliased, { entry, params, logger });
-  const workflow = accel.workflow;
+  const workflow = selected.inputContract ? injected : accel.workflow;
   if (loraResult.applied.length) {
     logger?.info?.(`LoRA ${entry.name}: ${loraResult.applied.map((item) => `${path.basename(item.name)}@${item.strength}`).join(" -> ")}`);
   }
@@ -215,7 +216,8 @@ export async function runWorkflow({ entry, context, comfy, timeoutMs = 10 * 60 *
       }
       onProgress?.({ phase: "completed", promptId, progress: 0.65 });
 
-      const files = collectOutputFiles(history, { includePreview: includePreviewOutputs });
+      const files = collectOutputFiles(history, { includePreview: includePreviewOutputs })
+        .filter((file) => !entry.inputContract || entry.outputNodes?.includes(file.nodeId));
       if (!files.length) throw new GenerationError("ComfyUI 没有返回任何输出文件", { status: 502, code: "no_output_files" });
 
       const outputs = [];
@@ -253,6 +255,7 @@ export async function runWorkflow({ entry, context, comfy, timeoutMs = 10 * 60 *
     }
   };
 
+  if (entry.inputContract) return attemptOnce();
   let lastOom = null;
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     try {
@@ -278,7 +281,7 @@ export async function runWorkflow({ entry, context, comfy, timeoutMs = 10 * 60 *
 }
 
 export async function runImage({ entry, context, comfy, timeoutMs, pollIntervalMs, signal, requestId, onProgress, logger, loraCatalog, modelAliasFor = null, loaderSpecs = MODEL_LOADER_SPECS, includePreviewOutputs = false }) {
-  const count = context.count || 1;
+  const count = entry.inputContract ? 1 : context.count || 1;
   const all = [];
   let lastPromptId;
   let lastUsedSeed = null;

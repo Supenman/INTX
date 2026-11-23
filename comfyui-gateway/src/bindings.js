@@ -12,7 +12,7 @@ export class BindingError extends Error {
   }
 }
 
-export function buildContext({ prompt, negative, size, count, quality, seconds, mode, images = [], uploadedImages = [], uploadedVideos = [], uploadedAudios = [], params = {}, presets = {}, background } = {}) {
+export function buildContext({ prompt, negative, size, count, quality, seconds, mode, images = [], uploadedImages = [], uploadedVideos = [], uploadedAudios = [], params = {}, presets = {}, background, workflowValues = {} } = {}) {
   const parsedSize = parseSize(size);
   const qualityValue = String(quality || "auto").trim().toLowerCase() || "auto";
   const preset = presets?.quality?.[qualityValue] || {};
@@ -31,6 +31,7 @@ export function buildContext({ prompt, negative, size, count, quality, seconds, 
     uploadedVideos,
     uploadedAudios,
     params: params && typeof params === "object" ? params : {},
+    workflowValues,
   };
 }
 
@@ -173,7 +174,7 @@ export function applyBindings(workflow, entry, context, { logger, stats } = {}) 
       const isAudio = binding.loadType === "audio" || binding.from === "audio";
       const media = (isVideo ? context.uploadedVideos : isAudio ? context.uploadedAudios : context.uploadedImages) || [];
       const selected = media.slice(0, Number(binding.max || 8));
-      const min = Number(binding.min || 0);
+      const min = Math.max(Number(binding.min || 0), binding.required ? 1 : 0);
       if (selected.length < min) {
         throw new BindingError(`工作流需要至少 ${min} 个参考素材，但请求里只有 ${selected.length} 个。`, { code: "missing_reference_media" });
       }
@@ -283,7 +284,12 @@ export function applyBindings(workflow, entry, context, { logger, stats } = {}) 
     }
 
     let value;
-    if (binding.from) value = resolvePath(context, binding.from);
+    if (entry.inputContract) {
+      // 不把画布全局默认值或推断默认值灌进用户工作流；未修改的参数保留原值/连线。
+      if (Object.hasOwn(context.workflowValues || {}, key)) value = context.workflowValues[key];
+      else if ((binding.from || key) === "prompt") value = context.prompt;
+      else continue;
+    } else if (binding.from) value = resolvePath(context, binding.from);
     else if (key in context) value = context[key];
 
     if ((value === undefined || value === null || value === "") && binding.random) value = crypto.randomInt(1, 2147483647);

@@ -4,6 +4,8 @@ import { ChevronRight, Copy, Download, Group, Image as ImageIcon, Music2, Puzzle
 
 import { canvasThemes } from "@/lib/canvas-theme";
 import { colorGradeFilter } from "@/lib/canvas/color-grade";
+import { isBrokenVideoContent } from "@/lib/media-blob";
+import { hasResumableVideoTask } from "@/lib/canvas/canvas-generation-helpers";
 import { formatBytes } from "@/lib/image-utils";
 import { pickImageSource } from "@/lib/image-thumbnail";
 import { previewUrlFor, subscribeImagePreviews, getImagePreviewRevision } from "@/services/image-storage";
@@ -524,10 +526,11 @@ function LoadingContent({ theme }: Pick<NodeContentRendererProps, "theme">) {
 
 function ErrorContent({ node, theme, onRetry }: Pick<NodeContentRendererProps, "node" | "theme" | "onRetry">) {
     const { t } = useTranslation();
+    const canQueryVideoTask = hasResumableVideoTask(node);
     return (
         <div className="flex max-w-[260px] flex-col items-center gap-3 px-5 text-center">
             <div className="text-xs leading-5 text-red-300">{node.metadata?.errorDetails || t("canvas.node.failed")}</div>
-            {node.metadata?.retryBlocked ? (
+            {node.metadata?.retryBlocked && !canQueryVideoTask ? (
                 <span className="text-[11px] leading-4" style={{ color: theme.node.muted }}>
                     {t("canvas.node.retryBlockedHint")}
                 </span>
@@ -543,7 +546,7 @@ function ErrorContent({ node, theme, onRetry }: Pick<NodeContentRendererProps, "
                     onMouseDown={(event) => event.stopPropagation()}
                 >
                     <RefreshCw className="size-3.5" />
-                    {t("canvas.node.retry")}
+                    {t(canQueryVideoTask ? "canvas.nodeToolbar.queryVideoTask" : "canvas.node.retry")}
                 </button>
             )}
         </div>
@@ -725,14 +728,18 @@ function EmptyImageContent({ theme }: NodeContentRendererProps) {
 
 function VideoNodeContent({ node, theme }: NodeContentRendererProps) {
     const { t } = useTranslation();
-    if (!node.metadata?.content)
+    const [playbackFailed, setPlaybackFailed] = useState(false);
+    useEffect(() => setPlaybackFailed(false), [node.metadata?.content]);
+    const broken = isBrokenVideoContent(node.metadata);
+    if (!node.metadata?.content || broken || playbackFailed)
         return (
-            <div className="flex h-full w-full flex-col items-center justify-center gap-3" style={{ color: theme.node.placeholder }}>
+            <div className="flex h-full w-full flex-col items-center justify-center gap-3 px-4 text-center" style={{ color: broken || playbackFailed ? theme.node.activeStroke : theme.node.placeholder }}>
                 <Video className="size-7 opacity-60" />
-                <span className="text-xs">{t("canvas.node.emptyVideo")}</span>
+                <span className="text-xs">{broken || playbackFailed ? t("canvas.node.videoLoadFailed") : t("canvas.node.emptyVideo")}</span>
+                {broken ? <span className="text-[10px] opacity-70">{t("canvas.node.videoRetryHint")}</span> : null}
             </div>
         );
-    return <video src={node.metadata.content} controls className="h-full w-full rounded-[18px] bg-black object-contain" style={{ filter: colorGradeFilter(node.metadata.colorGrade) }} data-canvas-video={node.id} data-canvas-no-zoom />;
+    return <video src={node.metadata.content} controls className="h-full w-full rounded-[18px] bg-black object-contain" style={{ filter: colorGradeFilter(node.metadata.colorGrade) }} data-canvas-video={node.id} data-canvas-no-zoom onError={() => setPlaybackFailed(true)} />;
 }
 
 function AudioNodeContent({ node, theme }: NodeContentRendererProps) {

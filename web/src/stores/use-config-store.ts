@@ -4,6 +4,7 @@ import { persist } from "zustand/middleware";
 import { nanoid } from "nanoid";
 
 import i18n from "@/i18n";
+import type { ComfyWorkflowContract, WorkflowValues } from "@/types/comfy-workflow";
 import type { ModelPricing } from "@/domain";
 import { RUNNINGHUB_ORIGIN, RUNNINGHUB_VIDU_MODEL } from "@/domain/provider/endpoints";
 
@@ -13,6 +14,8 @@ export type ReasoningEffort = "auto" | "low" | "medium" | "high" | "xhigh";
 
 export type ChannelModel = {
     name: string;
+    workflow?: ComfyWorkflowContract;
+    label?: string;
     capability: ModelCapability;
     script?: string;
     /** 本地单价，仅用于生成前预估；没填就不猜，预估显示「未配置单价」。 */
@@ -37,6 +40,7 @@ export type ModelChannel = {
 };
 
 export type AiConfig = {
+    workflowValues?: WorkflowValues;
     channelMode: "remote" | "local";
     baseUrl: string;
     apiKey: string;
@@ -166,7 +170,7 @@ type ConfigStore = {
     updateConfig: <K extends keyof AiConfig>(key: K, value: AiConfig[K]) => void;
     importChannelCredentials: (input: { baseUrl?: string | null; apiKey?: string | null }) => ChannelCredentialsImportResult;
     /** 用网关当前可用工作流同步内置本地渠道；没有可用工作流时移除该渠道。幂等，不动其他渠道。 */
-    syncLocalComfyChannel: (models: Array<{ name: string; capability: ModelCapability }>) => void;
+    syncLocalComfyChannel: (models: ChannelModel[]) => void;
     updateWebdavConfig: <K extends keyof WebdavSyncConfig>(key: K, value: WebdavSyncConfig[K]) => void;
     isAiConfigReady: (config: AiConfig, model: string) => boolean;
     openConfigDialog: (shouldPromptContinue?: boolean, tab?: ConfigTabKey) => void;
@@ -194,7 +198,7 @@ export function guessCapability(name: string): ModelCapability {
 /** 两个渠道的模型清单是否完全一致（名称 + 能力），用于跳过无谓写入。 */
 function sameChannelModels(a: ModelChannel, b: ModelChannel) {
     if (a.models.length !== b.models.length) return false;
-    const snapshot = (channel: ModelChannel) => channel.models.map((model) => `${model.name}\u0000${model.capability}`).sort();
+    const snapshot = (channel: ModelChannel) => channel.models.map((model) => JSON.stringify([model.name, model.capability, model.label, model.workflow])).sort();
     const left = snapshot(a);
     const right = snapshot(b);
     return left.every((value, index) => value === right[index]);
@@ -210,6 +214,10 @@ function findChannelModel(config: AiConfig, value: string): { channel: ModelChan
 
 export function modelCapabilityOf(config: AiConfig, value: string): ModelCapability | undefined {
     return findChannelModel(config, value)?.model.capability;
+}
+
+export function modelWorkflowOf(config: AiConfig, value: string): ComfyWorkflowContract | undefined {
+    return findChannelModel(config, value)?.model.workflow;
 }
 
 /** 当前选中模型在渠道里登记的单价；没登记返回 undefined（预估显示「未配置单价」）。 */
@@ -290,7 +298,7 @@ export const useConfigStore = create<ConfigStore>()(
                     apiKey: LOCAL_COMFY_API_KEY,
                     apiFormat: "openai",
                     proxyMode: "direct",
-                    models: models.map((model) => ({ name: model.name, capability: model.capability })),
+                    models,
                 });
                 // 内容没变就不写，避免每次打开设置页都触发持久化与重渲染。
                 if (existing && sameChannelModels(existing, channel)) return;
@@ -375,7 +383,7 @@ export function normalizeChannelModels(models: Array<string | ChannelModel> | un
         const raw = typeof item === "string" ? undefined : item.pricing;
         const perImage = raw && Number.isFinite(raw.perImage) && (raw.perImage as number) > 0 ? (raw.perImage as number) : undefined;
         const pricing: ModelPricing | undefined = raw && perImage !== undefined ? { perImage, currency: (raw.currency || "CNY").trim() || "CNY" } : undefined;
-        result.push({ name, capability, script, ...(pricing ? { pricing } : {}) });
+        result.push({ name, capability, script, ...(pricing ? { pricing } : {}), ...(typeof item !== "string" ? { workflow: item.workflow, label: item.label } : {}) });
     }
     return result;
 }
@@ -485,7 +493,8 @@ export function modelOptionLabel(config: AiConfig, value: string) {
     const decoded = decodeChannelModel(value);
     if (!decoded) return value;
     const channel = config.channels.find((item) => item.id === decoded.channelId);
-    return channel ? `${decoded.model}（${channel.name}）` : decoded.model;
+    const label = channel?.models.find((model) => model.name === decoded.model)?.label || decoded.model;
+    return channel ? `${label}（${channel.name}）` : decoded.model;
 }
 
 export function modelOptionsFromChannels(channels: ModelChannel[]) {

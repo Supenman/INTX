@@ -25,17 +25,24 @@ struct ManagedCanvasAgent(std::sync::Mutex<Option<std::process::Child>>);
 
 impl ManagedCanvasAgent {
     fn start(app: &tauri::AppHandle) -> Self {
+        launch_log(app, "[agent] start() begin");
         if let Some(config) = read_agent_config() {
             if agent_is_listening(&config.url) {
+                launch_log(app, "[agent] already listening, adopt");
                 return Self::default();
             }
         }
-        let Some(runtime) = find_agent_runtime(app) else { return Self::default() };
+        let Some(runtime) = find_agent_runtime(app).map(plain_path) else {
+            launch_log(app, "[agent] runtime not found");
+            return Self::default();
+        };
+        launch_log(app, &format!("[agent] runtime={}", runtime.display()));
         let node_dir = runtime.join("node");
         let agent_dir = runtime.join("canvas-agent");
         let node = node_dir.join(if cfg!(windows) { "node.exe" } else { "node" });
         let entry = agent_dir.join("dist").join("index.js");
         if !node.is_file() || !entry.is_file() {
+            launch_log(app, &format!("[agent] node={} entry={} missing", node.is_file(), entry.is_file()));
             return Self::default();
         }
         let mut search_paths = vec![node_dir];
@@ -43,15 +50,17 @@ impl ManagedCanvasAgent {
             search_paths.extend(std::env::split_paths(&path));
         }
         let Ok(path) = std::env::join_paths(search_paths) else { return Self::default() };
+        let out = child_log_file(app, "agent-stdout.log");
+        let err = child_log_file(app, "agent-stderr.log");
         let mut command = std::process::Command::new(node);
         command
             .arg(entry)
             .current_dir(agent_dir)
             .env("PATH", path)
             .env_remove("PORT")
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null());
+            .stdin(std::process::Stdio::null());
+        if let Some(f) = out { command.stdout(std::process::Stdio::from(f)); }
+        if let Some(f) = err { command.stderr(std::process::Stdio::from(f)); }
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt;
@@ -59,6 +68,7 @@ impl ManagedCanvasAgent {
         }
         match command.spawn() {
             Ok(mut child) => {
+                launch_log(app, &format!("[agent] spawned pid={}", child.id()));
                 for _ in 0..50 {
                     if read_agent_config().is_some_and(|config| agent_is_listening(&config.url)) || child.try_wait().ok().flatten().is_some() {
                         break;
@@ -67,7 +77,10 @@ impl ManagedCanvasAgent {
                 }
                 Self(std::sync::Mutex::new(Some(child)))
             }
-            Err(_) => Self::default(),
+            Err(e) => {
+                launch_log(app, &format!("[agent] spawn FAILED: {}", e));
+                Self::default()
+            }
         }
     }
 
@@ -139,6 +152,53 @@ fn agent_is_listening(url: &str) -> bool {
     address.into_iter().any(|address| TcpStream::connect_timeout(&address, std::time::Duration::from_millis(150)).is_ok())
 }
 
+/// Tauri 在 Windows 上的 resource_dir()/current_exe() 可能返回 `\\?\C:\...`
+/// 形式的扩展长度路径。Node 把这种路径当作脚本入口时会错误解析成盘符本身
+/// （EISDIR: lstat 'C:'），导致子进程启动即退出。传给子进程前统一剥掉该前缀。
+fn plain_path(path: std::path::PathBuf) -> std::path::PathBuf {
+    #[cfg(windows)]
+    {
+        use std::path::PathBuf;
+        let text = path.to_string_lossy();
+        if let Some(rest) = text.strip_prefix(r"\\?\") {
+            return PathBuf::from(rest);
+        }
+    }
+    #[cfg(not(windows))]
+    let _ = &path;
+    path
+}
+
+/// 把进程拉起的关键决策写到本地日志，便于真机排查网关/Agent 未启动的问题。
+/// 日志失败一律忽略，绝不影响主流程。
+fn launch_log(app: &tauri::AppHandle, msg: &str) {
+    let Ok(dir) = app.path().app_local_data_dir() else { return };
+    let _ = std::fs::create_dir_all(&dir);
+    use std::io::Write;
+    if let Ok(mut file) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(dir.join("launch-debug.log"))
+    {
+        let secs = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let _ = writeln!(file, "[{}] {}", secs, msg);
+    }
+}
+
+/// 子进程输出重定向到独立文件，替代 Stdio::null，便于定位启动即退出的原因。
+fn child_log_file(app: &tauri::AppHandle, name: &str) -> Option<std::fs::File> {
+    let dir = app.path().app_local_data_dir().ok()?;
+    let _ = std::fs::create_dir_all(&dir);
+    std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(dir.join(name))
+        .ok()
+}
+
 /// 本地 ComfyUI 网关：把 ComfyUI 的节点协议翻译成 OpenAI 兼容接口，
 /// INTX 只需按普通 OpenAI 渠道连它。随 INTX 启动、退出时回收。
 #[derive(Default)]
@@ -162,23 +222,40 @@ fn check_comfy_connections() -> ComfyConnectionStatus {
 
 impl ManagedLocalGateway {
     fn start(app: &tauri::AppHandle) -> Self {
+        launch_log(app, "[gateway] start() begin");
         // 已在运行（用户自己起的，或上次的残留）→ 接管，不重复拉起，退出时也不归我们关
         if agent_is_listening(LOCAL_GATEWAY_URL) {
+            launch_log(app, "[gateway] port 8190 already listening, adopt");
             return Self::default();
         }
-        let Some(gateway_dir) = find_local_gateway_dir(app) else { return Self::default() };
-        let Ok(data_dir) = app.path().app_local_data_dir() else { return Self::default() };
+        let Some(gateway_dir) = find_local_gateway_dir(app).map(plain_path) else {
+            launch_log(app, "[gateway] gateway_dir not found");
+            return Self::default();
+        };
+        launch_log(app, &format!("[gateway] gateway_dir={}", gateway_dir.display()));
+        let Ok(data_dir) = app.path().app_local_data_dir() else {
+            launch_log(app, "[gateway] app_local_data_dir failed");
+            return Self::default();
+        };
+        let data_dir = plain_path(data_dir);
         let entry = gateway_dir.join("src").join("server.js");
         if !entry.is_file() {
+            launch_log(app, &format!("[gateway] entry missing: {}", entry.display()));
             return Self::default();
         }
         // 优先复用随包 Node，开发模式回退到系统 PATH。
         let node_name = if cfg!(windows) { "node.exe" } else { "node" };
-        let node = find_agent_runtime(app)
+        let runtime = find_agent_runtime(app).map(plain_path);
+        launch_log(app, &format!("[gateway] runtime={:?}", runtime.as_ref().map(|p| p.display().to_string())));
+        let node = runtime
+            .as_ref()
             .map(|runtime| runtime.join("node").join(node_name))
             .filter(|path| path.is_file())
             .unwrap_or_else(|| node_name.into());
-        let mut command = std::process::Command::new(node);
+        launch_log(app, &format!("[gateway] node={} is_file={}", node.display(), node.is_file()));
+        let out = child_log_file(app, "gateway-stdout.log");
+        let err = child_log_file(app, "gateway-stderr.log");
+        let mut command = std::process::Command::new(&node);
         command
             .arg(&entry)
             .current_dir(&gateway_dir)
@@ -189,9 +266,9 @@ impl ManagedLocalGateway {
             .env("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000")
             // 随包节点由网关启动器首次安装；我们直连网关，不需要它再动 ComfyUI
             .env("DISABLE_NODE_BOOTSTRAP", "1")
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null());
+            .stdin(std::process::Stdio::null());
+        if let Some(f) = out { command.stdout(std::process::Stdio::from(f)); }
+        if let Some(f) = err { command.stderr(std::process::Stdio::from(f)); }
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt;
@@ -199,15 +276,23 @@ impl ManagedLocalGateway {
         }
         match command.spawn() {
             Ok(mut child) => {
+                launch_log(app, &format!("[gateway] spawned pid={}", child.id()));
+                let mut listened = false;
                 for _ in 0..50 {
-                    if agent_is_listening(LOCAL_GATEWAY_URL) || child.try_wait().ok().flatten().is_some() {
+                    if agent_is_listening(LOCAL_GATEWAY_URL) { listened = true; break; }
+                    if child.try_wait().ok().flatten().is_some() {
+                        launch_log(app, "[gateway] child exited early");
                         break;
                     }
                     std::thread::sleep(std::time::Duration::from_millis(100));
                 }
+                launch_log(app, &format!("[gateway] waited, listened={}", listened));
                 Self(std::sync::Mutex::new(Some(child)))
             }
-            Err(_) => Self::default(),
+            Err(e) => {
+                launch_log(app, &format!("[gateway] spawn FAILED: {}", e));
+                Self::default()
+            }
         }
     }
 

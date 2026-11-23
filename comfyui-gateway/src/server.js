@@ -9,6 +9,7 @@ import express from "express";
 import multer from "multer";
 
 import { buildContext } from "./bindings.js";
+import { workflowContract } from "./workflow-contract.js";
 import { imageInputCapacity } from "./base-models.js";
 import { createAssistantManager } from "./assistant.js";
 import { createComfyBridge } from "./comfy-bridge.js";
@@ -191,15 +192,24 @@ function gpuVramTotalGb(stats) {
   return totals.length ? Math.max(...totals) / 1024 : 0;
 }
 
+/** 本机与 Tauri 桌面 WebView 的 origin 都算本地来源，避免桌面端写请求被跨站防护误拦。 */
+function isTrustedLocalOrigin(origin) {
+  if (!origin) return true;
+  const value = String(origin);
+  // Tauri 2 桌面 WebView：自定义 scheme，或 Windows WebView2 的 http(s) 回退写法。
+  if (value === "tauri://localhost" || value === "null") return true;
+  try {
+    const host = new URL(value).hostname.toLowerCase();
+    return ["127.0.0.1", "localhost", "::1", "[::1]", "tauri.localhost"].includes(host);
+  } catch {
+    return false;
+  }
+}
+
 function corsMiddleware(config) {
   return (req, res, next) => {
     const origin = req.headers.origin;
-    let localOrigin = false;
-    try {
-      localOrigin = Boolean(origin) && ["127.0.0.1", "localhost", "::1", "[::1]"].includes(new URL(origin).hostname);
-    } catch {
-      localOrigin = false;
-    }
+    const localOrigin = Boolean(origin) && isTrustedLocalOrigin(origin);
     const allowed = config.corsOrigins.includes("*") || localOrigin || (origin && config.corsOrigins.includes(origin));
     if (allowed) {
       res.setHeader("Access-Control-Allow-Origin", config.corsOrigins.includes("*") ? "*" : origin);
@@ -401,6 +411,7 @@ function requireModel(registry, setup, model, expectedType, { mode = "", allowUn
   if (!name) throw new HttpError("缺少 model 参数", { status: 400, code: "missing_model" });
   const found = registry.resolveModel(name, (setup.loaderOptions?.() || {}));
   if (!found) throw new HttpError(`未找到模型：${name}。请先在网关注册工作流，或在画布渠道里拉取模型列表。`, { status: 404, code: "model_not_found" });
+  if (found.entry.draft) throw new HttpError("请先确认工作流的输入绑定和输出节点。", { status: 409, code: "workflow_draft" });
   if (expectedType && found.entry.type !== expectedType) throw new HttpError(`模型 ${name} 的类型是 ${found.entry.type}，不是 ${expectedType}`, { status: 400, code: "model_type_mismatch" });
   const unavailable = workflowAvailabilityProblem(setup, found.entry, { mode, allowUnavailable });
   if (unavailable) throw new HttpError(unavailable.message, { status: 409, code: unavailable.code, details: unavailable.details });
@@ -818,14 +829,9 @@ export async function createGatewayApp(overrides = {}) {
   });
   app.use(corsMiddleware(config));
   const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
-  const localOriginHosts = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
   const isAllowedOrigin = (origin) => {
     if (!origin) return true;
-    try {
-      if (localOriginHosts.has(new URL(origin).hostname)) return true;
-    } catch {
-      return false;
-    }
+    if (isTrustedLocalOrigin(origin)) return true;
     return config.corsOrigins.includes(origin) || config.corsOrigins.includes("*") || origin === config.publicBaseUrl;
   };
   app.use((req, res, next) => {
@@ -1415,7 +1421,7 @@ export async function createGatewayApp(overrides = {}) {
     const degraded = status.phase === "degraded";
     const data = registry
       .listModels((setup.loaderOptions?.() || {}))
-      .filter((model) => (setup.isAvailable(model.baseId) || (degraded && setup.isKnownAvailable?.(model.baseId))) && !model.entry.hidden && model.entry.category !== "upscale" && !workflowVisibility.isHidden(model.entry.id))
+      .filter((model) => (setup.isAvailable(model.baseId) || (degraded && setup.isKnownAvailable?.(model.baseId))) && !model.entry.draft && !model.entry.hidden && model.entry.category !== "upscale" && !workflowVisibility.isHidden(model.entry.id))
       .map((model) => ({
         id: model.modelId,
         object: "model",
@@ -1424,6 +1430,7 @@ export async function createGatewayApp(overrides = {}) {
         metadata: {
           type: model.entry.type,
           workflowId: model.entry.id,
+          workflow: workflowContract(model.entry),
           label: model.entry.baseModel
             ? `${model.entry.label || model.entry.name} · ${model.entry.baseModelLabel || "variant"}`
             : model.entry.label || model.entry.name,
@@ -1474,8 +1481,27 @@ export async function createGatewayApp(overrides = {}) {
   app.get("/api/workflows/:id", (req, res) => {
     const entry = registry.resolve(req.params.id);
     if (!entry) throw new HttpError("工作流不存在", { status: 404, code: "workflow_not_found" });
-    res.json({ workflow: registry.publicEntry(entry), schema: registry.schema(entry) });
+    // 编辑绑定需要知道工作流有哪些节点/输入，从图本体提取（publicEntry 只含元数据）。
+    const nodes = Object.entries(entry.workflow || {}).map(([nodeId, node]) => ({
+      id: String(nodeId),
+      classType: String(node?.class_type || ""),
+      title: String(node?._meta?.title || ""),
+      inputs: Object.keys(node?.inputs || {}),
+    }));
+    res.json({ workflow: registry.publicEntry(entry), schema: registry.schema(entry), nodes });
   });
+
+  // 编辑用户导入工作流的绑定/参数（只改注册表映射，不改 ComfyUI 图）。
+  const updateWorkflowHandler = async (req, res) => {
+    const result = await registry.updateWorkflow(req.params.id, req.body || {});
+    await setup.scan("registry-update");
+    emitModelChange("registry-update");
+    logger.info(`updated workflow ${result.workflow.id}`);
+    res.json({ ok: true, ...result });
+  };
+  app.patch("/api/workflows/:id", updateWorkflowHandler);
+  // Rust transport 只发 GET/POST，提供 POST 别名供桌面端 UI 调用。
+  app.post("/api/workflows/:id/update", updateWorkflowHandler);
 
   app.get("/api/workflows/:id/schema", (req, res) => {
     const found = registry.resolveModel(req.params.id, (setup.loaderOptions?.() || {}));
@@ -1519,13 +1545,16 @@ export async function createGatewayApp(overrides = {}) {
     res.json({ ok: true, count: registry.list().length });
   });
 
-  app.delete("/api/workflows/:id", async (req, res) => {
+  const deleteWorkflowHandler = async (req, res) => {
     const removed = await registry.remove(req.params.id);
     if (!removed) throw new HttpError("工作流不存在", { status: 404, code: "workflow_not_found" });
     // 只移除注册记录，不删除用户工作流文件；本次事件后列表立即更新。
     emitModelChange("registry-remove");
     res.json({ ok: true });
-  });
+  };
+  app.delete("/api/workflows/:id", deleteWorkflowHandler);
+  // Rust transport 只发 GET/POST，提供 POST 别名供桌面端 UI 调用。
+  app.post("/api/workflows/:id/delete", deleteWorkflowHandler);
 
   const requireFreeWorkflow = (id) => {
     const entry = freeWorkflows.get(id);
@@ -2016,6 +2045,7 @@ export async function createGatewayApp(overrides = {}) {
     }
     const context = buildContext({
       prompt: applyBackgroundPrompt(stripImageLabelPreamble(body.prompt), body.background, entry),
+      workflowValues: parseParams(body.workflow_values),
       negative: body.negative,
       size: body.size,
       count: body.n ?? body.count,
@@ -2453,6 +2483,7 @@ export async function createGatewayApp(overrides = {}) {
     }
     const context = buildContext({
       prompt: applyBackgroundPrompt(promptText, body.background, resolvedEntry),
+      workflowValues: parseParams(body.workflow_values),
       negative: body.negative,
       size: body.size,
       count: singleShot ? 1 : (body.n ?? body.count),
@@ -2955,6 +2986,7 @@ export async function createGatewayApp(overrides = {}) {
       prompt: body.prompt,
       size: body.size,
       count: 1,
+      workflowValues: parseParams(body.workflow_values),
       quality: body.resolution_name || body.vquality,
       seconds: body.seconds,
       mode: videoMode,
@@ -3797,8 +3829,10 @@ export async function createGatewayApp(overrides = {}) {
     if (/^\/files\//i.test(text)) {
       const name = decodeURIComponent(text.replace(/^\/files\//i, "").replace(/[?#].*$/, ""));
       candidates.push(path.join(config.outputDir, safeFileName(name)));
+      candidates.push(path.join(config.dataDir, "outputs", safeFileName(name)));
     }
     candidates.push(path.join(config.outputDir, base));
+    candidates.push(path.join(config.dataDir, "outputs", base));
     candidates.push(path.join(config.dataDir, "uploads", base));
     if (path.isAbsolute(text)) candidates.push(text);
     for (const file of candidates) {
@@ -3973,8 +4007,13 @@ export async function createGatewayApp(overrides = {}) {
 
   app.get("/files/:name", (req, res) => {
     const filename = safeFileName(req.params.name);
-    const file = path.join(config.outputDir, filename);
-    if (!filename || !fs.existsSync(file)) throw new HttpError("文件不存在", { status: 404, code: "file_not_found" });
+    if (!filename) throw new HttpError("文件不存在", { status: 404, code: "file_not_found" });
+    // 兼容旧版本：产物可能落在 dataDir/outputs，而 outputDir 指向安装目录。
+    const candidates = [path.join(config.outputDir, filename), path.join(config.dataDir, "outputs", filename)];
+    const file = candidates.find((candidate) => {
+      try { return fs.existsSync(candidate) && fs.statSync(candidate).isFile(); } catch { return false; }
+    });
+    if (!file) throw new HttpError("文件不存在", { status: 404, code: "file_not_found" });
     res.sendFile(file);
   });
 

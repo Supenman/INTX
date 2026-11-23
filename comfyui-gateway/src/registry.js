@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
+import { validateWorkflowContract } from "./workflow-contract.js";
 
 import { deepClone, isPlainObject, nowIso, readJsonFile, slugify, truncate, writeJsonAtomic } from "./util.js";
 import { baseModelDefault, decorateEntry, findUnetLoader, listBaseModels, listModelDescriptors, resolveBaseModelFile, resolveBaseModelVariant } from "./base-models.js";
@@ -53,6 +54,135 @@ function firstNode(nodes, pattern) {
   return nodes.find((node) => pattern.test(node.classType));
 }
 
+/** 输入是 [节点id, 输出索引] 形式的连线时，返回上游节点，否则 null。 */
+function linkedNode(nodes, value) {
+  if (!Array.isArray(value) || typeof value[0] !== "string") return null;
+  return nodes.find((node) => node.id === value[0]) || null;
+}
+
+/**
+ * 解析文本输入的可写目标。ComfyUI 常见写法有两种：
+ *   1) CLIPTextEncode.text 直接是字符串 → 直接绑定它
+ *   2) text 连到 PrimitiveStringMultiline（标题常含 User Prompt）→ 绑定该节点的 value
+ * 返回 { node, input } 或 null。
+ */
+function resolveTextBinding(nodes, textNode, inputName) {
+  const value = textNode.inputs?.[inputName];
+  if (typeof value === "string") return { node: textNode.id, input: inputName };
+  const upstream = linkedNode(nodes, value);
+  if (upstream && /PrimitiveString/i.test(upstream.classType)) {
+    const target = "value" in (upstream.inputs || {}) ? "value" : "text";
+    return { node: upstream.id, input: target };
+  }
+  return null;
+}
+
+/** 视频生成节点家族：承载 prompt/尺寸/帧数/参考素材的条件节点。 */
+const VIDEO_CLASS_PATTERN = /MiniMaxH3|MinimaxH3|PH3Image|HyperFlow|WanImageToVideo|WanFirstLastFrame|WanVace|HunyuanVideo|CogVideoX|LtxVideo|LTXVideo|AnimateDiff|VDN-H3|VideoConditioning|ImageToVideo|h3-key-inputs|H3.*(?:Video|Conditioning|Sampler|Ref)/i;
+/** H3 系：帧数需 17k+5 对齐、尺寸需 32 像素对齐、默认 24fps。 */
+const H3_CLASS_PATTERN = /MiniMaxH3|MinimaxH3|PH3Image|HyperFlow|VDN-H3|h3-key-inputs|H3.*(?:Video|Conditioning|Ref|Sampler)/i;
+
+/** 判断节点是否能作为视频参数载体（已知类名，或具备"帧数 + 尺寸/提示词/参考素材"特征）。 */
+function isVideoCarrier(node) {
+  const keys = Object.keys(node.inputs || {}).map((key) => key.toLowerCase());
+  const hasFrames = keys.some((key) => ["length", "num_frames", "frames", "video_frames", "duration"].includes(key));
+  const hasMedia = keys.some((key) => /ref_image|ref_video|ref_audio|first_frame|last_frame|start_image|end_image|picture/.test(key));
+  const hasSize = keys.includes("width") && keys.includes("height");
+  const hasPrompt = keys.includes("prompt");
+  return VIDEO_CLASS_PATTERN.test(node.classType || "") || (hasFrames && (hasSize || hasPrompt || hasMedia));
+}
+
+/** 从输入名里识别 "前缀+序号" 的参考素材组，如 ref_images.ref_image_0、picture_1。 */
+function mediaArraySpecs(carriers) {
+  const specs = [];
+  const seen = new Set();
+  for (const node of carriers) {
+    for (const input of Object.keys(node.inputs || {})) {
+      const match = input.match(/^(.*?)(\d+)$/);
+      if (!match) continue;
+      const prefix = match[1];
+      if (seen.has(prefix) || !/(image|picture|video|audio|frame|ref)/i.test(prefix)) continue;
+      const from = /video/i.test(prefix) ? (/audio/i.test(prefix) ? "audio" : "video") : /audio/i.test(prefix) ? "audio" : "image";
+      seen.add(prefix);
+      specs.push({ node, prefix, from, indexBase: Number(match[2]) });
+    }
+  }
+  return specs;
+}
+
+/** 视频参数绑定：尺寸/帧数/fps/seed/steps/cfg/H3 高级参数/首尾帧/参考素材数组。 */
+function inferVideoBindings(nodes, bindings) {
+  const carriers = nodes.filter(isVideoCarrier);
+  if (!carriers.length) return;
+  const main = carriers.find((node) => /ref_image|first_frame|start_image/i.test(Object.keys(node.inputs || {}).join(" ").toLowerCase())) || carriers[0];
+  const isH3 = H3_CLASS_PATTERN.test(main.classType || "");
+  const fpsValue = Number(main.inputs?.fps ?? main.inputs?.frame_rate);
+  const fps = Number.isFinite(fpsValue) && fpsValue > 0 ? fpsValue : isH3 ? 24 : 16;
+
+  for (const input of Object.keys(main.inputs || {})) {
+    const low = input.toLowerCase();
+    const fallback = Number.isFinite(main.inputs[input]) ? main.inputs[input] : undefined;
+    if (low === "width" || low === "height") {
+      bindings[low] = { node: main.id, input, from: `size.${low}`, default: fallback, ...(isH3 ? { transform: "snap32" } : {}) };
+    } else if (["length", "num_frames", "frames", "video_frames"].includes(low)) {
+      bindings.length = { node: main.id, input, from: "seconds", transform: isH3 ? "secondsToFrames17" : "secondsToFrames", fps, default: fallback };
+    } else if (low === "duration" && !bindings.length) {
+      bindings.length = { node: main.id, input, from: "seconds", default: fallback };
+    } else if (low === "fps" || low === "frame_rate") {
+      bindings.fps = { node: main.id, input, default: fallback ?? fps };
+    } else if (low === "prompt" && !bindings.prompt) {
+      bindings.prompt = resolveTextBinding(nodes, main, "prompt") || { node: main.id, input };
+    }
+  }
+
+  // 采样器参数可能在独立 sampler / sigma 节点上（SelfLiftH3Sampler、HyperFlowSigmas 等）。
+  const h3Tuning = ["transition_step", "lowres_scale", "rho", "w_min", "w_max"];
+  for (const node of nodes) {
+    if (!/Sampler|Sigmas|Noise|KSampler/i.test(node.classType || "")) continue;
+    for (const input of Object.keys(node.inputs || {})) {
+      const low = input.toLowerCase();
+      const fallback = Number.isFinite(node.inputs[input]) ? node.inputs[input] : undefined;
+      if ((low === "seed" || low === "noise_seed") && !bindings.seed) {
+        bindings.seed = { node: node.id, input, from: "params.seed", random: true, default: fallback };
+      } else if (low === "steps" && !bindings.steps) {
+        bindings.steps = { node: node.id, input, from: "params.steps", default: fallback };
+      } else if (low === "cfg" && !bindings.cfg) {
+        bindings.cfg = { node: node.id, input, from: "params.cfg", default: fallback };
+      } else if (h3Tuning.includes(low)) {
+        bindings[low] = { node: node.id, input, from: `params.${low}`, default: fallback };
+      }
+    }
+  }
+
+  // 首尾帧：第一张参考图→first，第二张→last；覆盖普通 LoadImage 绑定。
+  for (const node of carriers) {
+    for (const input of Object.keys(node.inputs || {})) {
+      const low = input.toLowerCase();
+      if (["first_frame", "start_image", "start_frame"].includes(low)) bindings.image = { node: node.id, input, from: "image", imageIndex: 0, asLink: true };
+      else if (["last_frame", "end_image", "end_frame"].includes(low)) bindings.image2 = { node: node.id, input, from: "image", imageIndex: 1, asLink: true };
+    }
+  }
+
+  // 参考素材数组：ref_images / ref_videos / ref_audios / picture_N 等。
+  for (const spec of mediaArraySpecs(carriers)) {
+    const sampleCount = carriers.reduce((count, node) => count + Object.keys(node.inputs || {}).filter((key) => key.startsWith(spec.prefix)).length, 0);
+    const firstInput = Object.keys(spec.node.inputs || {}).find((key) => key.startsWith(spec.prefix));
+    if (!firstInput) continue;
+    const key = spec.from === "image" ? "refs" : spec.from === "video" ? "videos" : "audios";
+    bindings[key] = {
+      node: spec.node.id,
+      input: firstInput,
+      from: spec.from,
+      array: true,
+      loadType: spec.from,
+      inputPrefix: spec.prefix,
+      indexBase: spec.indexBase,
+      min: 0,
+      max: Math.max(1, sampleCount),
+    };
+  }
+}
+
 export function inferBindings(workflow) {
   const nodes = findNodes(workflow);
   const bindings = {};
@@ -60,24 +190,43 @@ export function inferBindings(workflow) {
   if (textNodes.length) {
     const positive = textNodes.find((node) => /positive|正向|正面/i.test(String(node.meta.title || ""))) || textNodes[0];
     const negative = textNodes.find((node) => /negative|负向|负面/i.test(String(node.meta.title || ""))) || textNodes.find((node) => node.id !== positive.id);
-    if (typeof positive.inputs.text === "string") bindings.prompt = { node: positive.id, input: "text" };
-    else if (typeof positive.inputs.text_g === "string") {
-      bindings.prompt = { node: positive.id, input: "text_g" };
-      bindings.prompt2 = { node: positive.id, input: "text_l" };
+    const prompt = resolveTextBinding(nodes, positive, "text") || resolveTextBinding(nodes, positive, "text_g");
+    if (prompt) {
+      bindings.prompt = prompt;
+      // text_g 双通道模型（如 SD3）还要同步 text_l
+      if (prompt.input === "text_g") bindings.prompt2 = { node: prompt.node, input: "text_l", from: "prompt" };
     }
     if (negative) {
-      if (typeof negative.inputs.text === "string") bindings.negative = { node: negative.id, input: "text", default: "" };
-      else if (typeof negative.inputs.text_g === "string") {
-        bindings.negative = { node: negative.id, input: "text_g", default: "" };
-        bindings.negative2 = { node: negative.id, input: "text_l", default: "" };
+      const neg = resolveTextBinding(nodes, negative, "text") || resolveTextBinding(nodes, negative, "text_g");
+      if (neg) {
+        bindings.negative = { ...neg, default: "" };
+        if (neg.input === "text_g") bindings.negative2 = { node: neg.node, input: "text_l", default: "" };
       }
     }
   }
 
   const latent = firstNode(nodes, /Empty.*LatentImage/i);
   if (latent) {
-    if (Number.isFinite(latent.inputs.width)) bindings.width = { node: latent.id, input: "width", from: "size.width", default: latent.inputs.width };
-    if (Number.isFinite(latent.inputs.height)) bindings.height = { node: latent.id, input: "height", from: "size.height", default: latent.inputs.height };
+    // 宽高可能是连线到 ResolutionSelector / 尺寸计算节点（由 aspect_ratio+megapixels 动态算出），
+    // 此时直接绑定 latent 的 width/height，applyBindings 写入数字会覆盖连线，让画布尺寸生效。
+    const sizeInput = (name, from) => {
+      const value = latent.inputs?.[name];
+      if (Number.isFinite(value)) return { node: latent.id, input: name, from, default: value };
+      const upstream = linkedNode(nodes, value);
+      if (upstream && /ResolutionSelector|Resolution|AspectRatio|ImageSize/i.test(upstream.classType)) {
+        const binding = { node: latent.id, input: name, from };
+        const multiple = Number(upstream.inputs?.multiple);
+        if (multiple === 16) binding.transform = "snap16";
+        else if (multiple === 32) binding.transform = "snap32";
+        else if (Number.isFinite(multiple) && multiple > 1) binding.transform = "round";
+        return binding;
+      }
+      return null;
+    };
+    const widthBinding = sizeInput("width", "size.width");
+    if (widthBinding) bindings.width = widthBinding;
+    const heightBinding = sizeInput("height", "size.height");
+    if (heightBinding) bindings.height = heightBinding;
     if (Number.isFinite(latent.inputs.batch_size)) bindings.batch = { node: latent.id, input: "batch_size", from: "count", default: latent.inputs.batch_size };
   }
 
@@ -99,46 +248,14 @@ export function inferBindings(workflow) {
     bindings.steps = { node: basicScheduler.id, input: "steps", from: "quality.steps", default: basicScheduler.inputs.steps };
   }
 
-  const loadImages = nodes.filter((node) => /^LoadImage/i.test(node.classType));
-  if (loadImages[0]) bindings.image = { node: loadImages[0].id, input: "image", from: "image", imageIndex: 0 };
-  if (loadImages[1]) bindings.image2 = { node: loadImages[1].id, input: "image", from: "image", imageIndex: 1 };
+  // 视频类参数（尺寸/帧数/fps/seed/steps/cfg/H3 高级参数/首尾帧/参考素材数组）
+  inferVideoBindings(nodes, bindings);
 
-  for (const node of nodes) {
-    if (!/WanImageToVideo|WanFirstLastFrame|WanVace|MiniMaxH3|MinimaxH3|VDN-H3|H3/i.test(node.classType)) continue;
-    const isH3 = /MiniMaxH3|MinimaxH3|H3/i.test(node.classType);
-    const nodeFps = Number(node.inputs?.fps ?? node.inputs?.frame_rate);
-    for (const input of Object.keys(node.inputs || {})) {
-      const low = input.toLowerCase();
-      const value = node.inputs[input];
-      if ((low === "width" || low === "height") && (!bindings[low] || isH3)) {
-        bindings[low] = { node: node.id, input, from: `size.${low}`, default: Number.isFinite(value) ? value : undefined, ...(isH3 ? { transform: "snap32" } : {}) };
-      }
-      if ((low === "length" || low === "num_frames" || low === "frames") && !bindings.length) {
-        bindings.length = {
-          node: node.id,
-          input,
-          from: "seconds",
-          transform: isH3 ? "secondsToFrames17" : "secondsToFrames",
-          fps: Number.isFinite(nodeFps) ? nodeFps : isH3 ? 24 : 16,
-          default: Number.isFinite(value) ? value : undefined,
-        };
-      }
-      if ((low === "fps" || low === "frame_rate") && !bindings.fps) {
-        bindings.fps = { node: node.id, input, default: Number.isFinite(value) ? value : isH3 ? 24 : 16 };
-      }
-      if (["start_image", "start_frame", "first_frame"].includes(low) && !bindings.image) {
-        bindings.image = { node: node.id, input, from: "image", imageIndex: 0 };
-      }
-      if (["end_image", "last_frame"].includes(low) && !bindings.image2) {
-        bindings.image2 = { node: node.id, input, from: "image", imageIndex: 1 };
-      }
-      const refMatch = low.match(/^ref_images\.ref_image_(\d+)$/);
-      if (refMatch) {
-        const index = Number(refMatch[1]);
-        const key = index === 0 ? "image" : `image${index + 1}`;
-        if (!bindings[key]) bindings[key] = { node: node.id, input, from: "image", imageIndex: index };
-      }
-    }
+  // LoadImage 兜底：视频工作流里 ref_images 数组已接管参考图，不要再绑原始 LoadImage，避免重复注入。
+  if (!bindings.refs && !bindings.videos && !bindings.audios) {
+    const loadImages = nodes.filter((node) => /^LoadImage/i.test(node.classType));
+    if (loadImages[0] && !bindings.image) bindings.image = { node: loadImages[0].id, input: "image", from: "image", imageIndex: 0 };
+    if (loadImages[1] && !bindings.image2) bindings.image2 = { node: loadImages[1].id, input: "image", from: "image", imageIndex: 1 };
   }
 
   if (!bindings.prompt) {
@@ -253,7 +370,7 @@ export function createRegistry({ dir, maxWorkflowBytes = 5 * 1024 * 1024, logger
           file: raw.file,
           filePath,
           workflow,
-          bindings: raw.bindings && Object.keys(raw.bindings).length ? raw.bindings : inferBindings(workflow),
+          bindings: raw.inputContract ? raw.bindings || {} : raw.bindings && Object.keys(raw.bindings).length ? raw.bindings : inferBindings(workflow),
         };
         if (raw.variants) {
           entry.variants = {};
@@ -336,6 +453,9 @@ export function createRegistry({ dir, maxWorkflowBytes = 5 * 1024 * 1024, logger
       description: entry.description || "",
       category: entry.category || null,
       hidden: entry.hidden === true,
+      draft: entry.draft === true,
+      inputContract: entry.inputContract === true,
+      outputNodes: entry.outputNodes || [],
       file: entry.file,
       bindings: entry.bindings || {},
       defaults: entry.defaults || {},
@@ -487,7 +607,7 @@ export function createRegistry({ dir, maxWorkflowBytes = 5 * 1024 * 1024, logger
     return name;
   }
 
-  async function importWorkflow({ url, path: sourcePath, json, name, type, bindings: overrideBindings, defaults, presets, parameters, lora, description, overwrite = false } = {}) {
+  async function importWorkflow({ url, path: sourcePath, json, name, type, bindings: overrideBindings, defaults, presets, parameters, lora, description, overwrite = false, draft = false } = {}) {
     let workflow;
     let derivedName = "";
     let source = {};
@@ -564,11 +684,15 @@ export function createRegistry({ dir, maxWorkflowBytes = 5 * 1024 * 1024, logger
       finalName = existing.name;
     } else {
       finalName = await uniqueName(desiredName);
-      id = slugify(finalName, `workflow-${Date.now()}`);
+      // slugify 只保留 a-z0-9，纯中文名会被清成类型前缀（如 "image"），
+      // 导致多个中文工作流 id 撞车。清成前缀时改用类型 + 时间戳保证唯一。
+      const slugBase = slugify(finalName, "");
+      const makeId = () => (slugBase && slugBase !== resolvedType ? slugBase : `${resolvedType}-${Date.now().toString(36)}`);
+      id = makeId();
       let suffix = 1;
       while (cache.has(id)) {
         suffix += 1;
-        id = `${slugify(finalName, "workflow")}-${suffix}`;
+        id = `${makeId()}-${suffix}`;
       }
       fileName = `${id}.json`;
     }
@@ -576,7 +700,7 @@ export function createRegistry({ dir, maxWorkflowBytes = 5 * 1024 * 1024, logger
     const inferred = inferBindings(workflow);
     const mergedBindings = { ...inferred, ...(overrideBindings || {}) };
     const warnings = [...outputWarnings(workflow), ...bindingWarnings(workflow, mergedBindings)];
-    if (!mergedBindings.prompt) warnings.push("没有自动推断到 prompt 绑定，请在 registry 里手动指定。");
+    if (!mergedBindings.prompt) warnings.push("没有自动推断到提示词绑定，请在输入绑定编辑器中确认。");
 
     await writeJsonAtomic(path.join(dir, fileName), workflow);
     const entry = {
@@ -586,6 +710,7 @@ export function createRegistry({ dir, maxWorkflowBytes = 5 * 1024 * 1024, logger
       description: description || "",
       file: fileName,
       bindings: mergedBindings,
+      ...(draft ? { draft: true, inputContract: true, outputNodes: [] } : {}),
       defaults: isPlainObject(defaults) ? defaults : {},
       presets: isPlainObject(presets) ? presets : {},
       parameters: Array.isArray(parameters) ? parameters : [],
@@ -643,11 +768,55 @@ export function createRegistry({ dir, maxWorkflowBytes = 5 * 1024 * 1024, logger
 
   async function remove(id) {
     const data = await readRegistryData();
+    const target = data.find((entry) => entry.id === id);
     const next = data.filter((entry) => entry.id !== id);
     if (next.length === data.length) return false;
     await writeJsonAtomic(registryPath, { version: 1, workflows: next });
+    // 同时删除工作流文件，否则下一次 scan() 会把散落的 JSON 重新导入，
+    // 表现为「删除后工作流又回来了」。只允许删注册表目录内的相对路径文件。
+    if (target?.file && !path.isAbsolute(target.file) && !target.file.split(/[\\/]/).includes("..")) {
+      await fsp.unlink(path.join(dir, target.file)).catch(() => {});
+    }
     await load();
     return true;
+  }
+
+  // 更新用户导入工作流的元数据。只接受画布编辑需要的字段，
+  // 工作流 JSON 本身不改写（改绑定只改注册表映射，不动 ComfyUI 图）。
+  async function updateWorkflow(id, patch = {}) {
+    const data = await readRegistryData();
+    const index = data.findIndex((entry) => entry.id === id);
+    if (index < 0) throw new RegistryError("工作流不存在", { status: 404, code: "workflow_not_found" });
+    const current = data[index];
+    if (current.hidden) throw new RegistryError("内置工作流不能编辑", { status: 400, code: "workflow_internal" });
+
+    const next = { ...current };
+    if (typeof patch.label === "string" && patch.label.trim()) next.label = patch.label.trim();
+    if (typeof patch.description === "string") next.description = patch.description;
+    if (isPlainObject(patch.bindings)) next.bindings = patch.bindings;
+    if (Array.isArray(patch.parameters)) next.parameters = patch.parameters;
+    if (isPlainObject(patch.defaults)) next.defaults = patch.defaults;
+    if (isPlainObject(patch.presets)) next.presets = patch.presets;
+    if (patch.inputContract === true) {
+      const workflow = resolve(id)?.workflow;
+      try {
+        validateWorkflowContract(workflow, next.bindings, patch.outputNodes);
+      } catch (error) {
+        throw new RegistryError(error.message, { status: 422, code: "invalid_workflow_contract" });
+      }
+      next.inputContract = true;
+      next.outputNodes = patch.outputNodes;
+      next.draft = false;
+    }
+
+    data[index] = next;
+    await writeJsonAtomic(registryPath, { version: 1, workflows: data });
+    await load();
+    // workflow 图在 load 后从 cache 取（注册表数据里只有 file 路径，没有图本体）。
+    const workflow = resolve(id)?.workflow;
+    const warnings = workflow ? [...bindingWarnings(workflow, next.bindings)] : [];
+    if (!Object.keys(next.bindings || {}).length) warnings.push("还没有任何绑定，画布参数将无法传入工作流。");
+    return { workflow: publicEntry(resolve(id)), warnings };
   }
 
   return {
@@ -664,6 +833,7 @@ export function createRegistry({ dir, maxWorkflowBytes = 5 * 1024 * 1024, logger
     importWorkflow,
     scan,
     remove,
+    updateWorkflow,
     publicEntry,
     isLoaded: () => loaded,
   };

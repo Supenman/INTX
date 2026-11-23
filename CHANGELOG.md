@@ -2,11 +2,27 @@
 
 ## Unreleased
 
+- [修复] ComfyUI 工作流未收到可选的参考素材组时，不再使用原工作流为该组预接的素材。
+
+- [修复] 视频任务等待超时后提示原任务可能仍在运行，并在节点上直接提供「获取任务状态」。
+
+- [调整] 用户导入的 ComfyUI 工作流先确认输入绑定和结果输出节点，再作为画布模型使用；画布按工作流声明展示参数，只发送明确修改的值，保留其余原参数与连线，并修复首尾帧的图片连线注入。
+
 - [新增] 配置页「本地 ComfyUI」改为状态面板：区分网关不可达 / ComfyUI 未启动 / 扫描中 / 无可用工作流 / 可用五态，逐个列出工作流状态与缺失的模型、节点，并支持一键重新扫描。
 - [新增] 可用工作流自动同步到画布：内置「本地 ComfyUI」渠道按工作流能力（图片/视频）生成模型，固定 id 幂等更新，不重复创建、不影响云端渠道；无可用工作流时自动移除该渠道。
 - [调整] INTX 仓库和桌面安装包自带 ComfyUI 网关，默认自动发现，无需从参考项目选目录。
 
 - [修复] Windows 安装器在覆盖文件前停止当前安装目录中的 Canvas Agent Node 进程，避免升级时无法写入 `node.exe`。
+- [修复] Windows 安装器预安装钩子中 PowerShell 命令的引号写法错误，导致安装以 "Unable to stop the INTX Canvas Agent" 中止；首次安装不再执行多余的 Agent 停止检查。
+- [修复] Windows 下随包 Node 因 Tauri 返回 `\\?\` 扩展路径前缀而无法启动 Agent/网关（`EISDIR: lstat 'D:'`），传给子进程前统一剥离该前缀。
+- [修复] 本地 ComfyUI 配置页在网关启动完成前加载时首屏请求失败会永久卡在「网关不可达」；gatewayDown 时限次自动重试，并在错误里附带真实原因。
+- [修复] Tauri HTTP 插件的 URL scope 只写了 `http://**`（不带端口），无法匹配本地网关 `127.0.0.1:8190`，导致配置页报 "url not allowed on the configured scope"；为 8190/8188 补上带端口的精确允许条目。
+- [修复] 网关写请求（导入/扫描等 POST）被跨站防护以 403 拒绝：Tauri HTTP 插件会强制注入 `Origin: tauri://localhost` 或 `http://tauri.localhost`，不在网关本机白名单；将 Tauri 桌面 origin 视为本地可信（外部 origin 仍拒绝）。导入弹窗错误提示改为附带真实原因与状态码。
+- [修复] 导入正面提示词连到 `PrimitiveStringMultiline`（Text User Prompt）的工作流时，`inferBindings` 无法识别连线引用、漏掉 prompt 绑定，导致画布输入提示词无效、始终出写死的默认场景；现在沿连线回溯绑定上游文本节点的 `value`。
+- [修复] latent 宽高连到 `ResolutionSelector` 等尺寸计算节点的工作流，画布尺寸选择无效；现在识别上游尺寸节点并把绑定写到 latent 的 width/height（注入时覆盖连线），按上游 `multiple` 自动 snap16/snap32。
+- [新增] 视频工作流绑定自动推断：不再只认少数 Wan/H3 类名，改为按节点特征识别视频条件/采样节点，自动绑定 prompt/尺寸/帧数(秒→帧对齐)/fps/seed/steps/cfg 及 H3 高级参数(transition_step/lowres_scale/rho/w_min/w_max)，并识别 ref_images/ref_videos/ref_audios 等参考素材数组与首尾帧；参考素材由网关动态注入 LoadImage/Video/Audio 节点，不再与原图重复。编辑绑定面板补齐视频参数项并支持手动新增绑定。
+- [修复] 打包版视频生成任务显示已完成但画布视频节点黑屏：任务产物写到 `DATA_DIR/outputs`（用户数据目录），而 `/files/:name` 只从安装目录的 `data/outputs` 查找，导致视频地址 404；现在默认输出目录跟随 `DATA_DIR`，且 `/files` 路由兼容两个目录。
+- [修复] 视频下载失败被两层 catch 吞掉后把坏直链写进节点（`storageKey` 为空），节点显示黑屏 0:00 且无任何重试入口；现在本地网关地址下载失败直接报错、HTML 错误响应不再被当成视频，历史坏节点显示加载失败并可通过工具栏「查询视频任务」自动重下。
 
 ## v0.2.2
 

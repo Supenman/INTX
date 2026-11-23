@@ -45,6 +45,7 @@ export type CanvasNodeText = {
 };
 
 export type CanvasNodeMetadata = {
+    workflowValues?: import("./comfy-workflow").WorkflowValues;
     content?: string;
     composerContent?: string;
     prompt?: string;

@@ -45,6 +45,7 @@ export function loadConfig(overrides = {}) {
   const gatewayToken = String(overrides.gatewayToken ?? process.env.GATEWAY_TOKEN ?? "").trim();
   const publicBaseUrlRaw = String(overrides.publicBaseUrl ?? process.env.PUBLIC_BASE_URL ?? "").trim();
   const maxUploadBytes = num(overrides.maxUploadBytes ?? process.env.MAX_UPLOAD_BYTES, 512 * 1024 * 1024);
+  const dataDir = path.resolve(overrides.dataDir ?? process.env.DATA_DIR ?? path.join(rootDir, "data"));
   const config = {
     rootDir,
     appRoot,
@@ -59,8 +60,10 @@ export function loadConfig(overrides = {}) {
     scanDebounceMs: num(overrides.scanDebounceMs ?? process.env.SCAN_DEBOUNCE_MS, 800),
     workflowDir: path.resolve(overrides.workflowDir ?? process.env.WORKFLOW_DIR ?? path.join(rootDir, "workflows")),
     canvasDist: path.resolve(overrides.canvasDist ?? process.env.CANVAS_DIST ?? path.join(appRoot, "infinite-canvas", "web", "dist")),
-    dataDir: path.resolve(overrides.dataDir ?? process.env.DATA_DIR ?? path.join(rootDir, "data")),
-    outputDir: path.resolve(overrides.outputDir ?? process.env.OUTPUT_DIR ?? path.join(rootDir, "data", "outputs")),
+    dataDir,
+    // 任务产物由 tasks.js 写到 dataDir/outputs；默认输出目录必须跟着 DATA_DIR 走，
+    // 否则打包版会把文件写到用户数据目录，而 /files 路由去安装目录找，导致视频 404。
+    outputDir: path.resolve(overrides.outputDir ?? process.env.OUTPUT_DIR ?? path.join(dataDir, "outputs")),
     publicBaseUrl: (publicBaseUrlRaw || `http://${host}:${port}`).replace(/\/+$/, ""),
     publicBaseUrlExplicit: Boolean(publicBaseUrlRaw),
     launcherControlUrl: String(overrides.launcherControlUrl ?? process.env.LAUNCHER_CONTROL_URL ?? "").replace(/\/+$/, ""),

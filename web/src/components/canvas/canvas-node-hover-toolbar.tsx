@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 
 import { resolveToolbarTools } from "@/domain";
 import { canvasThemes } from "@/lib/canvas-theme";
+import { isBrokenVideoContent } from "@/lib/media-blob";
 import { getNodeDefinition } from "@/lib/canvas/node-registry";
 import { nodeToolbarHandler } from "@/lib/canvas/node-toolbar-actions";
 import { buildToolContext } from "@/lib/canvas/tool-wiring";
@@ -140,7 +141,8 @@ export function CanvasNodeHoverToolbar({
     const isVideo = node.type === CanvasNodeType.Video;
     const isAudio = node.type === CanvasNodeType.Audio;
     const hasImage = isImage && Boolean(node.metadata?.content);
-    const hasVideo = isVideo && Boolean(node.metadata?.content);
+    const brokenVideo = isVideo && isBrokenVideoContent(node.metadata);
+    const hasVideo = isVideo && Boolean(node.metadata?.content) && !brokenVideo;
     const hasAudio = isAudio && Boolean(node.metadata?.content);
     const isText = node.type === CanvasNodeType.Text;
     // 已收单/需先确认的失败不给重试入口：点一下就是新提交一单（见 lib/canvas/task-retry-guard.ts）。

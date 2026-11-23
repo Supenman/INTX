@@ -1,7 +1,8 @@
 import { nanoid } from "nanoid";
 
 import i18n from "@/i18n";
-import { readLocalBlob } from "@/lib/media-blob";
+import { comfyWorkflowRequest } from "@/lib/comfy-workflow";
+import { isLocalGatewayUrl, readLocalBlob } from "@/lib/media-blob";
 import { dataUrlToFile, readFileAsDataUrl } from "@/lib/image-utils";
 import { clampVideoSeconds, computeVideoSize, inferVideoRatio } from "@/lib/media-size";
 import { getMediaBlob, resolveMediaUrl, uploadMediaFile, type UploadedFile } from "@/services/file-storage";
@@ -85,10 +86,10 @@ export async function waitForVideoGenerationTask(config: AiConfig, task: VideoGe
         }
         if (state.status === "completed") return state.result;
         if (state.status === "failed") throw videoTaskFailed(state.error);
-        if (attempt === 119) throw new Error(apiText("videoTimeout", { provider: "" }));
+        if (attempt === 119) break;
         await delay(2500, options?.signal);
     }
-    throw new Error(apiText("videoTimeout", { provider: "" }));
+    throw new Error(apiText("videoTimeout"));
 }
 
 /** 重启后可恢复的已收单视频任务（含可重建的查单句柄与三态结论）。 */
@@ -267,7 +268,12 @@ export async function storeGeneratedVideo(result: VideoGenerationResult): Promis
     if (result.url) {
         try {
             return await uploadMediaFile(result.url, "video");
-        } catch {
+        } catch (error) {
+            // 第三方渠道允许退回直链（媒体元素直连不需要 CORS）；本地网关直链失败必须报错，
+            // 否则会把一个 404 的地址写进节点，表现为黑屏且无法重试。
+            if (isLocalGatewayUrl(result.url)) {
+                throw new Error(`${apiText("videoDownloadFailed")}（${readRequestError(error, apiText("requestFailed"))}）`);
+            }
             return { url: result.url, storageKey: "", bytes: 0, mimeType: result.mimeType || "video/mp4" };
         }
     }
@@ -309,6 +315,12 @@ async function createOpenAIVideoTask(config: AiConfig, model: string, prompt: st
     }
     videos.forEach((file) => body.append("video[]", file));
     audios.forEach((file) => body.append("audio[]", file));
+    const workflow = comfyWorkflowRequest(config, model);
+    if (workflow) {
+        for (const key of ["seconds", "size", "ratio", "resolution_name", "generate_audio", "watermark", "mode", "first_frame", "last_frame", "images", "image[]"]) body.delete(key);
+        images.forEach((file, index) => body.append("image[]", file, `ref_${index + 1}.png`));
+        body.set("workflow_values", JSON.stringify(workflow.workflow_values));
+    }
     try {
         const response = await createProviderTransport(config.proxyMode).request({
             method: "POST",
@@ -348,9 +360,16 @@ async function videoResultFromUrl(url: string, config: Pick<AiConfig, "proxyMode
     try {
         const blob = await createProviderTransport(config.proxyMode).blob({ method: "GET", url, signal: options?.signal });
         await assertVideoBlob(blob);
+        // 404/错误页常以 HTML 返回；这类响应即使状态码 200 也不能当视频写进节点。
+        if (/text\/html/i.test(blob.type)) throw new Error(apiText("videoDownloadFailed"));
         return { blob };
     } catch (error) {
         if ((error instanceof ProviderTransportError && error.kind === "aborted") || options?.signal?.aborted) throw error;
+        // 本地网关的视频地址下载失败就是真失败：吞掉会把坏 URL 写进节点，变成黑屏且无从恢复。
+        // 只有第三方渠道那种不能直接 GET 的结果 URL 才保留回退。
+        if (isLocalGatewayUrl(url)) {
+            throw new Error(`${apiText("videoDownloadFailed")}（${readRequestError(error, apiText("requestFailed"))}）`);
+        }
         return { url, mimeType: "video/mp4" };
     }
 }
@@ -525,7 +544,8 @@ function statusMessage(status: number | undefined, fallback: string) {
 }
 
 async function assertVideoBlob(blob: Blob) {
-    if (!blob.type.includes("json")) return;
+    if (!blob.type.includes("json") && !/text\/html/i.test(blob.type)) return;
+    if (/text\/html/i.test(blob.type)) throw new Error(apiText("videoDownloadFailed"));
     let payload: { code?: number; msg?: string; error?: { message?: string } };
     try {
         payload = JSON.parse(await blob.text()) as { code?: number; msg?: string; error?: { message?: string } };

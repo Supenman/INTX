@@ -1,5 +1,7 @@
 
 import i18n from "@/i18n";
+import { comfyWorkflowRequest } from "@/lib/comfy-workflow";
+import { imageEditFormData } from "./image-request-body";
 import { buildApiUrl, resolveModelRequestConfig, resolveModelScript, type AiConfig, type ModelChannel } from "@/stores/use-config-store";
 import { normalizePluginImages, runModelPlugin } from "./model-plugin";
 import { nanoid } from "nanoid";
@@ -761,6 +763,7 @@ async function recoverSubmittedModelScope(requestConfig: AiConfig, payload: unkn
 }
 
 async function requestGenerationRaw(config: AiConfig, prompt: string, options?: RequestOptions, hooks?: SubmitHooks) {
+    const workflow = comfyWorkflowRequest(config);
     const requestConfig = resolveModelRequestConfig(config, config.model || config.imageModel);
     if (isModelScopeRequest(requestConfig)) {
         return requestModelScopeImages(requestConfig, prompt, 0, options, hooks);
@@ -806,10 +809,12 @@ async function requestGenerationRaw(config: AiConfig, prompt: string, options?: 
             body: JSON.stringify({
                 model: requestConfig.model,
                 prompt: withSystemPrompt(requestConfig, prompt),
-                n,
-                ...(quality ? { quality } : {}),
-                ...(requestSize ? { size: requestSize } : {}),
-                ...(background ? { background } : {}),
+                n: workflow ? 1 : n,
+                ...(workflow || {
+                    ...(quality ? { quality } : {}),
+                    ...(requestSize ? { size: requestSize } : {}),
+                    ...(background ? { background } : {}),
+                }),
                 // gpt-image models reject response_format; they always return b64.
                 ...(/gpt-image/.test(requestConfig.model) ? {} : { response_format: "b64_json" }),
                 output_format: IMAGE_OUTPUT_FORMAT,
@@ -886,27 +891,12 @@ async function requestEditRaw(config: AiConfig, prompt: string, references: Refe
     const quality = capabilities.quality === "supported" ? normalizeQuality(config.quality) : undefined;
     const requestSize = capabilities.size === "supported" ? resolveRequestSize(config.size) : undefined;
     const background = capabilities.background === "supported" ? normalizeBackground(config.background) : undefined;
-    const formData = new FormData();
-    formData.set("model", requestConfig.model);
-    formData.set("prompt", withSystemPrompt(requestConfig, requestPrompt));
-    formData.set("n", String(n));
-    // gpt-image models reject response_format; they always return b64.
-    if (!/gpt-image/.test(requestConfig.model)) {
-        formData.set("response_format", "b64_json");
-    }
-    formData.set("output_format", IMAGE_OUTPUT_FORMAT);
-    if (quality) {
-        formData.set("quality", quality);
-    }
-    if (requestSize) {
-        formData.set("size", requestSize);
-    }
-    if (background) {
-        formData.set("background", background);
-    }
     const files = await Promise.all(references.map(async (image) => dataUrlToFile({ ...image, dataUrl: await imageToDataUrl(image) })));
-    const imageField = files.length > 1 ? "image[]" : "image";
-    files.forEach((file) => formData.append(imageField, file));
+    const formData = imageEditFormData(config, {
+        model: requestConfig.model, prompt: withSystemPrompt(requestConfig, requestPrompt), n,
+        response_format: /gpt-image/.test(requestConfig.model) ? undefined : "b64_json",
+        output_format: IMAGE_OUTPUT_FORMAT, quality, size: requestSize || undefined, background,
+    }, files);
 
     try {
         const response = await createProviderTransport(requestConfig.proxyMode).request({
