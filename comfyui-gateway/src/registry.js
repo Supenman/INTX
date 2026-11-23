@@ -272,10 +272,13 @@ export function inferBindings(workflow) {
   return bindings;
 }
 
+export function isKnownWorkflowOutput(classType) {
+  return /SaveImage|SaveVideo|VHS_VideoCombine|SaveWebM/i.test(classType);
+}
+
 function outputWarnings(workflow) {
-  const classes = Object.values(workflow || {}).map((node) => String(node?.class_type || ""));
   const warnings = [];
-  if (!classes.some((value) => /SaveImage|SaveVideo|VHS_VideoCombine|SaveWebM/i.test(value))) {
+  if (!Object.values(workflow || {}).some((node) => isKnownWorkflowOutput(node?.class_type))) {
     warnings.push("工作流里没有找到 SaveImage / SaveVideo / VHS_VideoCombine 输出节点，生成结果可能无法取回。");
   }
   return warnings;
@@ -298,6 +301,36 @@ function bindingWarnings(workflow, bindings) {
   return warnings;
 }
 
+export async function migrateUserWorkflows(legacyDir, dir, maxWorkflowBytes) {
+  if (!legacyDir || path.resolve(legacyDir) === dir || fs.existsSync(path.join(dir, REGISTRY_FILE))) return;
+  const legacyRegistry = path.join(legacyDir, REGISTRY_FILE);
+  if (!fs.existsSync(legacyRegistry)) return;
+  const data = await readJsonFile(legacyRegistry, maxWorkflowBytes);
+  if (data.version !== 1 || !Array.isArray(data.workflows)) throw new Error("旧工作流注册表格式不受支持");
+  const workflows = data.workflows.filter((entry) => {
+    const source = entry.source;
+    // 扫描旧网关目录所得的预设无需迁移。配置页导入使用 json 或 url。
+    if (source?.kind === "json" || source?.kind === "url") return true;
+    if (source?.kind !== "path" || typeof source.path !== "string") return false;
+    const relative = path.relative(legacyDir, source.path);
+    return path.isAbsolute(relative) || relative.startsWith(".." + path.sep);
+  });
+  await fsp.mkdir(dir, { recursive: true });
+  for (const entry of workflows) {
+    if (typeof entry.file !== "string" || !/^[^/\\]+\.json$/i.test(entry.file) || entry.file === REGISTRY_FILE) {
+      throw new Error("旧工作流注册表包含无效的文件名");
+    }
+    const source = path.join(legacyDir, entry.file);
+    const target = path.join(dir, entry.file);
+    try {
+      await fsp.copyFile(source, target, fs.constants.COPYFILE_EXCL);
+    } catch (error) {
+      if (error.code !== "EEXIST" || !(await fsp.readFile(source)).equals(await fsp.readFile(target))) throw error;
+    }
+  }
+  await writeJsonAtomic(path.join(dir, REGISTRY_FILE), { version: 1, workflows });
+}
+
 export function createRegistry({ dir, maxWorkflowBytes = 5 * 1024 * 1024, logger, mainModelFile = () => "" } = {}) {
   const registryPath = path.join(dir, REGISTRY_FILE);
   let cache = new Map();
@@ -305,6 +338,13 @@ export function createRegistry({ dir, maxWorkflowBytes = 5 * 1024 * 1024, logger
   let signature = "";
   let loaded = false;
   let loading = null;
+  let writes = Promise.resolve();
+
+  function enqueueWrite(operation) {
+    const result = writes.then(operation);
+    writes = result.catch(() => {});
+    return result;
+  }
 
   async function ensureRegistryFile() {
     try {
@@ -830,10 +870,10 @@ export function createRegistry({ dir, maxWorkflowBytes = 5 * 1024 * 1024, logger
     listModels,
     resolveForMode,
     schema,
-    importWorkflow,
-    scan,
-    remove,
-    updateWorkflow,
+    importWorkflow: (input) => enqueueWrite(() => importWorkflow(input)),
+    scan: () => enqueueWrite(scan),
+    remove: (id) => enqueueWrite(() => remove(id)),
+    updateWorkflow: (id, patch) => enqueueWrite(() => updateWorkflow(id, patch)),
     publicEntry,
     isLoaded: () => loaded,
   };

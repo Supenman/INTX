@@ -19,7 +19,7 @@ import { describeAutoDirectories, detectComfyLayout, directoryLoadReport, manual
 import { pickFolder } from "./folder-picker.js";
 import { createMainModelStore } from "./main-models.js";
 import { createModelEventBus } from "./model-events.js";
-import { createRegistry } from "./registry.js";
+import { createRegistry, isKnownWorkflowOutput, migrateUserWorkflows } from "./registry.js";
 import { createSessionTracker } from "./sessions.js";
 import { createSetupManager } from "./setup.js";
 import { pickWorkflowDir, workflowDirCandidates } from "./workflow-dir.js";
@@ -604,6 +604,7 @@ export async function stopGateway({ tasks, comfy, setup, server, abortActiveRequ
 export async function createGatewayApp(overrides = {}) {
   const config = loadConfig(overrides);
   const logger = createLogger(overrides.logPrefix || "gateway");
+  await migrateUserWorkflows(process.env.LEGACY_WORKFLOW_DIR, config.workflowDir, config.maxWorkflowBytes);
   const assistant = createAssistantManager({ config, logger, idleMs: config.assistantIdleMs });
   try {
     const recovery = await recoverWorkflowBackups(config);
@@ -1487,8 +1488,9 @@ export async function createGatewayApp(overrides = {}) {
       classType: String(node?.class_type || ""),
       title: String(node?._meta?.title || ""),
       inputs: Object.keys(node?.inputs || {}),
+      recommendedOutput: isKnownWorkflowOutput(node?.class_type),
     }));
-    res.json({ workflow: registry.publicEntry(entry), schema: registry.schema(entry), nodes });
+    res.json({ workflow: { ...registry.publicEntry(entry), availability: setup.workflowStatus(entry.id) }, schema: registry.schema(entry), nodes });
   });
 
   // 编辑用户导入工作流的绑定/参数（只改注册表映射，不改 ComfyUI 图）。

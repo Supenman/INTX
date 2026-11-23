@@ -264,7 +264,14 @@ function videoPluginResult(result: unknown): VideoGenerationResult {
 }
 
 export async function storeGeneratedVideo(result: VideoGenerationResult): Promise<UploadedFile> {
-    if (result.blob) return uploadMediaFile(result.blob, "video");
+    if (result.blob) {
+        try {
+            return await uploadMediaFile(result.blob, "video");
+        } catch (error) {
+            const reason = readRequestError(error, apiText("requestFailed"));
+            throw new Error(`${apiText("videoSaveFailed")}（${reason}）`, { cause: error });
+        }
+    }
     if (result.url) {
         try {
             return await uploadMediaFile(result.url, "video");

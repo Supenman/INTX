@@ -3,7 +3,6 @@ import { Modal, Progress, Tag, Timeline, App as AntApp, Button } from "antd";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { useVersionCheck } from "@/hooks/use-version-check";
-import { APP_VERSION } from "@/constant/env";
 import { cn } from "@/lib/utils";
 
 function getTagColor(type: string) {
@@ -27,7 +26,7 @@ type VersionReleaseModalProps = {
 export function VersionReleaseModal({ className, style }: VersionReleaseModalProps) {
     const { t } = useTranslation();
     const { message, modal } = AntApp.useApp();
-    const { open, setOpen, openReleaseModal, latestVersion, releases, checking, hasNewVersion, checkLatestRelease, updatable, updatableVersion, installing, progress, installUpdate } = useVersionCheck();
+    const { open, setOpen, openReleaseModal, currentVersion, latestVersion, releases, checking, hasNewVersion, checkLatestRelease, updatable, updatableVersion, installing, progress, installUpdate } = useVersionCheck();
 
     const handleInstall = () => {
         modal.confirm({
@@ -56,7 +55,7 @@ export function VersionReleaseModal({ className, style }: VersionReleaseModalPro
                 title={t("version.viewUpdates")}
             >
                 <span className="relative inline-flex">
-                    {APP_VERSION}
+                    {currentVersion}
                     {hasNewVersion ? <span className="absolute -right-1.5 -top-1 size-1.5 rounded-full bg-green-500" /> : null}
                 </span>
             </button>
@@ -64,7 +63,7 @@ export function VersionReleaseModal({ className, style }: VersionReleaseModalPro
                 <div className="mb-5 grid grid-cols-2 gap-3">
                     <div className="rounded-[var(--r-lg)] border border-border p-3">
                         <div className="text-xs text-muted-foreground">{t("version.currentVersion")}</div>
-                        <div className="mt-1 text-base font-semibold text-foreground">{APP_VERSION}</div>
+                        <div className="mt-1 text-base font-semibold text-foreground">{currentVersion}</div>
                     </div>
                     <div className="rounded-[var(--r-lg)] border border-border p-3">
                         <div className="flex items-center justify-between gap-3">
@@ -104,7 +103,7 @@ export function VersionReleaseModal({ className, style }: VersionReleaseModalPro
                                         <span className="text-xs text-muted-foreground">{release.date}</span>
                                         <div className="flex min-w-0 items-center gap-1.5">
                                             {release.version === latestVersion ? <Tag color="green">{t("version.latest")}</Tag> : null}
-                                            {release.version === APP_VERSION ? <Tag>{t("version.current")}</Tag> : null}
+                                            {release.version === currentVersion ? <Tag>{t("version.current")}</Tag> : null}
                                         </div>
                                     </div>
                                     <div className="mt-2 space-y-1.5">

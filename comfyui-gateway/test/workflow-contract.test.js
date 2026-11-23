@@ -1,10 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, readFile } from "node:fs/promises";
+import { mkdtemp, rm, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { applyBindings, buildContext } from "../src/bindings.js";
-import { createRegistry, inferBindings } from "../src/registry.js";
+import { createRegistry, inferBindings, migrateUserWorkflows } from "../src/registry.js";
+import { createTaskStore } from "../src/tasks.js";
 import { runImage } from "../src/runner.js";
 import { validateWorkflowContract, workflowContract } from "../src/workflow-contract.js";
 
@@ -98,6 +99,75 @@ test("只执行一次，只下载选定节点的输出", async () => {
   assert.equal(submissions, 1);
   assert.deepEqual(downloads, ["chosen.png"]);
   assert.equal(result.promptId, "original-task");
+});
+
+test("旧网关迁移保留已发布工作流，跳过目录预设，重启不覆盖新设置", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "intx-workflow-migrate-"));
+  try {
+    const legacyDir = path.join(root, "legacy");
+    const dir = path.join(root, "data", "workflows");
+    const legacy = createRegistry({ dir: legacyDir });
+    await legacy.load();
+    const { workflow: { id } } = await legacy.importWorkflow({ json: graph(), name: "user-model", draft: true });
+    await legacy.updateWorkflow(id, { label: "旧名称", inputContract: true, outputNodes: ["4"], bindings: {} });
+    const preset = path.join(legacyDir, "preset.json");
+    await writeFile(preset, JSON.stringify({ ...graph(), "6": { class_type: "Extra", inputs: {} } }));
+    await legacy.scan();
+    assert.equal(legacy.list().length, 2);
+
+    await migrateUserWorkflows(legacyDir, dir);
+    const registry = createRegistry({ dir });
+    await registry.load();
+    assert.deepEqual(registry.list().map((entry) => entry.id), [id]);
+    assert.deepEqual(registry.resolve(id).outputNodes, ["4"]);
+    assert.deepEqual(registry.resolve(id).bindings, {});
+    assert.deepEqual(registry.resolve(id).workflow, graph());
+    await registry.updateWorkflow(id, { label: "新名称" });
+    await migrateUserWorkflows(legacyDir, dir);
+    const reopened = createRegistry({ dir });
+    await reopened.load();
+    assert.equal(reopened.resolve(id).label, "新名称");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("导入并发重扫时所有草稿保持独立且不会被扫描发布", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "intx-workflow-scan-"));
+  try {
+    const registry = createRegistry({ dir });
+    await registry.load();
+    const [first, summary, second] = await Promise.all([
+      registry.importWorkflow({ json: graph(), name: "same-name", draft: true }),
+      registry.scan(),
+      registry.importWorkflow({ json: graph(), name: "same-name", draft: true }),
+    ]);
+    assert.deepEqual(summary.added, []);
+    assert.notEqual(first.workflow.id, second.workflow.id);
+    assert.equal(registry.list().length, 2);
+    assert.ok(registry.list().every((entry) => entry.draft));
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("重启后原任务仍可定位已生成的视频，未完成任务明确报错", async () => {
+  const dataDir = await mkdtemp(path.join(os.tmpdir(), "intx-video-restore-"));
+  try {
+    const store = createTaskStore({ dataDir });
+    await writeFile(path.join(dataDir, "outputs", "original.mp4"), "video");
+    await writeFile(path.join(dataDir, "tasks.json"), JSON.stringify({ tasks: [
+      { id: "original", status: "running" },
+      { id: "incomplete", status: "running" },
+    ] }));
+    await store.load();
+    assert.equal(store.get("original").status, "completed");
+    assert.equal(store.get("original").url, "/files/original.mp4");
+    assert.equal(store.get("incomplete").status, "failed");
+    assert.match(store.get("incomplete").error, /重启/);
+  } finally {
+    await rm(dataDir, { recursive: true, force: true });
+  }
 });
 
 test("执行失败不自动重发工作流", async () => {

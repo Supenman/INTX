@@ -13,9 +13,9 @@ import { CanvasAudioSettingsPopover, type CanvasAudioSettingKey } from "./canvas
 import { CanvasPromptChipInput } from "./canvas-prompt-chip-input";
 import { CanvasVideoSettingsPopover } from "./canvas-video-settings-popover";
 import { CanvasTextSettingsPopover } from "./canvas-text-settings-popover";
-import { CanvasNodeType, type CanvasGenerationMode, type CanvasNodeData } from "@/types/canvas";
+import { CanvasNodeType, type CanvasConnection, type CanvasGenerationMode, type CanvasNodeData } from "@/types/canvas";
 import type { CanvasResourceReference } from "@/lib/canvas/canvas-resource-references";
-import { nodeGenerationMode } from "./canvas-node-generation";
+import { buildNodeGenerationContext, nodeGenerationMode } from "./canvas-node-generation";
 import { CanvasNodeReferenceBar } from "./canvas-node-reference-bar";
 
 export type CanvasNodeGenerationMode = CanvasGenerationMode;
@@ -29,6 +29,7 @@ type CanvasNodePromptPanelProps = {
     onStop: (nodeId: string) => void;
     mentionReferences?: CanvasResourceReference[];
     nodes: CanvasNodeData[];
+    connections: CanvasConnection[];
     connectedNodes?: CanvasNodeData[];
     onDisconnectReference?: (fromNodeId: string, toNodeId: string) => void;
     onStartReferenceSelection?: (nodeId: string) => void;
@@ -36,7 +37,7 @@ type CanvasNodePromptPanelProps = {
     modeOverride?: CanvasNodeGenerationMode; // Plugin nodes set their generation type through useBuiltinPanel.mode.
 };
 
-export function CanvasNodePromptPanel({ node, nodes, isRunning, onPromptChange, onConfigChange, onGenerate, onStop, mentionReferences = [], connectedNodes = [], onDisconnectReference, onStartReferenceSelection, onImageSettingsOpenChange, modeOverride }: CanvasNodePromptPanelProps) {
+export function CanvasNodePromptPanel({ node, nodes, connections, isRunning, onPromptChange, onConfigChange, onGenerate, onStop, mentionReferences = [], connectedNodes = [], onDisconnectReference, onStartReferenceSelection, onImageSettingsOpenChange, modeOverride }: CanvasNodePromptPanelProps) {
     const { t } = useTranslation();
     const globalConfig = useEffectiveConfig();
     const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
@@ -64,7 +65,19 @@ export function CanvasNodePromptPanel({ node, nodes, isRunning, onPromptChange, 
     // 有上游素材时可只凭输入生成，保留原生成配置节点「无需提示词」的能力；
     // 文本模式与音频模式必须有提示词或上游文本，和 handleGenerateNode 的校验保持一致。
     const hasUpstreamText = connectedNodes.some((item) => item.type === CanvasNodeType.Text && Boolean(item.metadata?.content?.trim()));
-    const canSubmit = Boolean(prompt.trim()) || (mode === "image" || mode === "video" ? connectedNodes.length > 0 : hasUpstreamText);
+    const workflow = mode === "image" || mode === "video" ? modelWorkflowOf(config, config.model) : undefined;
+    const requiredMedia = workflow?.fields.filter((field) => field.media && (field.required || (field.array && (field.min ?? 0) > 0))) ?? [];
+    const context = requiredMedia.length ? buildNodeGenerationContext(node.id, nodes, connections, "") : undefined;
+    const imageIds = new Set(context?.referenceImages.map((image) => image.id));
+    if (mode === "image" && hasImageContent && globalConfig.nodeRegenerateBehavior !== "overwrite") imageIds.add(node.id);
+    const inputStatus = requiredMedia.map((field) => {
+        const actual = field.media === "image" ? imageIds.size : mode === "video" ? (field.media === "video" ? context?.videoCount : context?.audioCount) ?? 0 : 0;
+        const needed = field.array ? Math.max(field.min ?? 0, field.required ? 1 : 0) : (field.media === "video" ? field.videoIndex ?? 0 : field.imageIndex ?? 0) + 1;
+        const label = field.media === "video" ? "参考视频" : field.media === "audio" ? "参考音频" : "参考图";
+        return { actual, needed, label };
+    });
+    const missingMedia = inputStatus.some(({ actual, needed }) => actual < needed);
+    const canSubmit = !missingMedia && (Boolean(prompt.trim()) || (mode === "image" || mode === "video" ? connectedNodes.length > 0 || (Boolean(workflow) && imageIds.size > 0) : hasUpstreamText));
     const submit = () => {
         if (!canSubmit || isRunning) return;
         onGenerate(node.id, mode, prompt.trim());
@@ -95,6 +108,12 @@ export function CanvasNodePromptPanel({ node, nodes, isRunning, onPromptChange, 
                 placeholder={t(`canvas.promptPanel.${mode === "image" && hasImageContent ? "editImage" : mode === "text" && hasTextContent ? "editText" : mode}`)}
             />
 
+            {inputStatus.length > 0 && (
+                <p role="status" className="mt-2 text-xs text-muted-foreground">
+                    {inputStatus.map(({ label, actual, needed }) => `${label} ${Math.min(actual, needed)}/${needed}`).join(" · ")}
+                    {missingMedia && " · 请连接缺少的素材"}
+                </p>
+            )}
             <div className="mt-2 flex min-w-0 items-center justify-between gap-2">
                 <div className="flex min-w-0 items-center gap-2">
                     <Tooltip title={t("canvas.promptPanel.expandEditor")}>

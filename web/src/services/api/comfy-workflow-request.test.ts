@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const h = vi.hoisted(() => {
     const storage = new Map<string, string>();
     Object.assign(globalThis, { localStorage: { getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => storage.set(key, value), removeItem: (key: string) => storage.delete(key) } });
-    return { request: vi.fn() };
+    return { request: vi.fn(), uploadMediaFile: vi.fn() };
 });
 vi.mock("./provider-transport", async (original) => ({
     ...await original<typeof import("./provider-transport")>(),
@@ -15,11 +15,12 @@ vi.mock("@/services/generation", async (original) => ({
     submitVideoTask: async ({ transport }: { transport: { submit: () => unknown } }) => ({ handle: await transport.submit() }),
 }));
 vi.mock("@/services/image-storage", () => ({ imageToDataUrl: async (image: { dataUrl: string }) => image.dataUrl }));
+vi.mock("@/services/file-storage", () => ({ uploadMediaFile: h.uploadMediaFile }));
 
 import { defaultConfig, createModelChannel, useConfigStore, type AiConfig } from "@/stores/use-config-store";
 import { comfyWorkflowRequest } from "@/lib/comfy-workflow";
 import { requestGeneration, requestEdit } from "./image";
-import { createVideoGenerationTask } from "./video";
+import { createVideoGenerationTask, storeGeneratedVideo } from "./video";
 
 function configFor(capability: "image" | "video" = "image"): AiConfig {
     return {
@@ -65,6 +66,12 @@ describe("工作流到前端请求的接线", () => {
         const body = h.request.mock.calls[0][0].body as FormData;
         expect(body.get("workflow_values")).toBe('{"steps":12}');
         for (const key of ["size", "seconds", "mode", "resolution_name"]) expect(body.has(key)).toBe(false);
+    });
+
+    it("视频已生成但本地保存失败时给出保存错误，不重新提交", async () => {
+        h.uploadMediaFile.mockRejectedValueOnce(new Error("disk full"));
+        await expect(storeGeneratedVideo({ blob: new Blob(["video"], { type: "video/mp4" }) })).rejects.toThrow(/视频已生成，但无法保存到本地.*disk full/);
+        expect(h.request).not.toHaveBeenCalled();
     });
 
     it("渠道重扫和归一化保留声明，参数变化能更新同名模型", () => {

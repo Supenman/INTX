@@ -166,6 +166,7 @@ export interface WorkflowParameter {
 
 /** 工作流完整定义（详情接口返回）。 */
 export interface WorkflowDetail {
+    availability?: WorkflowAvailability;
     draft?: boolean;
     inputContract?: boolean;
     outputNodes?: string[];
@@ -204,6 +205,7 @@ export async function importGatewayWorkflow(input: {
 
 /** 工作流里的一个 ComfyUI 节点（用于编辑绑定时选择）。 */
 export interface WorkflowNode {
+    recommendedOutput?: boolean;
     id: string;
     classType: string;
     title: string;

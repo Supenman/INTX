@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { App } from "antd";
+import { getVersion } from "@tauri-apps/api/app";
 import { useTranslation } from "react-i18next";
 import { APP_VERSION } from "@/constant/env";
 import { parseChangelog, type ReleaseInfo } from "@/lib/release";
@@ -30,14 +31,24 @@ function isNewerVersion(latestVersion: string, currentVersion: string) {
 
 export function useVersionCheck() {
     const { t } = useTranslation();
-    const currentVersion = APP_VERSION;
+    const [currentVersion, setCurrentVersion] = useState(APP_VERSION);
     const { message } = App.useApp();
     const localReleases = useMemo(readLocalReleases, []);
-    const [latestVersion, setLatestVersion] = useState(currentVersion);
+    const [remoteVersion, setRemoteVersion] = useState<string>();
+    const latestVersion = remoteVersion || currentVersion;
     const [releases, setReleases] = useState<ReleaseInfo[]>(localReleases);
     const [checking, setChecking] = useState(false);
     const [open, setOpen] = useState(false);
     const hasNewVersion = isNewerVersion(latestVersion, currentVersion);
+
+    useEffect(() => {
+        if (runtime !== "desktop") return;
+        let active = true;
+        void getVersion().then((version) => {
+            if (active && version) setCurrentVersion(`v${version}`);
+        }).catch(() => {});
+        return () => { active = false; };
+    }, []);
 
     // 桌面端真实更新链路：Tauri updater 校验签名后下载安装。
     // update 对象用 ref 持有（含下载所需元数据），不进 state。
@@ -68,12 +79,12 @@ export function useVersionCheck() {
             const response = await fetch(latestVersionUrl);
             if (!response.ok) return false;
             const version = await response.text();
-            setLatestVersion(version.trim() || currentVersion);
+            setRemoteVersion(version.trim() || undefined);
             return true;
         } catch {
             return false;
         }
-    }, [currentVersion]);
+    }, []);
 
     const checkLatestRelease = useCallback(
         async (showMessage = false) => {
@@ -83,12 +94,12 @@ export function useVersionCheck() {
                 if (!versionResponse.ok) throw new Error(t("version.readFailed"));
                 if (!changelogResponse.ok) throw new Error(t("version.changelogFailed"));
                 const [version, changelog] = await Promise.all([versionResponse.text(), changelogResponse.text()]);
-                setLatestVersion(version.trim() || currentVersion);
+                setRemoteVersion(version.trim() || undefined);
                 if (changelog.trim()) setReleases(parseChangelog(changelog));
                 if (showMessage) message.success(t("version.updated"));
                 return true;
             } catch {
-                setLatestVersion(currentVersion);
+                setRemoteVersion(undefined);
                 setReleases(localReleases);
                 if (showMessage) message.error(t("version.updateFailed"));
                 return false;
@@ -96,7 +107,7 @@ export function useVersionCheck() {
                 setChecking(false);
             }
         },
-        [currentVersion, localReleases, message, t],
+        [localReleases, message, t],
     );
 
     useEffect(() => {
@@ -141,6 +152,7 @@ export function useVersionCheck() {
         open,
         setOpen,
         openReleaseModal,
+        currentVersion,
         latestVersion,
         releases,
         checking,

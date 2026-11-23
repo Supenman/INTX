@@ -9,6 +9,7 @@ export type ComfyWorkflowContract = {
         media?: string;
         array?: boolean;
         imageIndex?: number;
+        videoIndex?: number;
         min?: number;
         max?: number;
         type: string;

@@ -6,8 +6,10 @@ export function workflowContract(entry) {
       const original = entry.workflow?.[binding.node]?.inputs?.[binding.input];
       const value = binding.transform ? undefined : original;
       return { key, from: binding.from || key, required: binding.required === true,
-        media: binding.array ? binding.loadType || binding.from : binding.imageIndex !== undefined || binding.from === "image" ? "image" : binding.from === "video" ? "video" : undefined,
-        imageIndex: binding.imageIndex, min: binding.min, max: binding.max, array: binding.array === true,
+        media: binding.array
+          ? binding.loadType === "video" || binding.from === "video" ? "video" : binding.loadType === "audio" || binding.from === "audio" ? "audio" : "image"
+          : binding.imageIndex !== undefined || binding.from === "image" ? "image" : binding.from === "video" ? "video" : undefined,
+        imageIndex: binding.imageIndex, videoIndex: binding.videoIndex, min: binding.min, max: binding.max, array: binding.array === true,
         type: typeof original === "number" || binding.transform && binding.transform !== "boolean" ? "number" : typeof original === "boolean" || binding.transform === "boolean" ? "boolean" : "string",
         default: (binding.from || key) !== "prompt" && ["string", "number", "boolean"].includes(typeof value) ? value : undefined,
         transform: binding.transform };

@@ -49,6 +49,14 @@ export function ComfyWorkflowEditor({ id, open, onClose, onSaved }: { id: string
             })),
         [nodes],
     );
+    const outputOptions = useMemo(() => {
+        const recommended = new Set(nodes.filter((node) => node.recommendedOutput).map((node) => node.id));
+        if (!recommended.size) return nodeOptions;
+        return [
+            ...nodeOptions.filter((node) => recommended.has(node.value)).map((node) => ({ ...node, label: `推荐 · ${node.label}` })),
+            ...nodeOptions.filter((node) => !recommended.has(node.value)),
+        ];
+    }, [nodes, nodeOptions]);
 
     // 选中节点后，输入下拉只列该节点的实际输入，避免手填出错。
     const inputOptionsFor = (nodeId: string) => {
@@ -93,8 +101,13 @@ export function ComfyWorkflowEditor({ id, open, onClose, onSaved }: { id: string
                     <p className="text-sm">自动识别仅提供建议。请确认输入位置与结果输出；未修改的参数沿用工作流原值。</p>
                     <div className="space-y-1">
                         <label className="text-sm">结果输出节点（保存图片或视频的节点）</label>
-                        <Select className="w-full" value={outputNodes[0]} options={nodeOptions} placeholder="请选择结果输出节点" onChange={(value) => setOutputNodes([value])} />
+                        <Select className="w-full" value={outputNodes[0]} options={outputOptions} placeholder="请选择结果输出节点" onChange={(value) => setOutputNodes([value])} />
                     </div>
+                    {!!detail.availability?.problems?.length && (
+                        <Alert type={detail.availability.checking ? "info" : "warning"} showIcon message="ComfyUI 依赖检查" description={
+                            <ul>{detail.availability.problems.map((problem, index) => <li key={index}>{problem.message}</li>)}</ul>
+                        } />
+                    )}
 
                     <div className="space-y-3">
                         <div className="flex items-center justify-between gap-2">

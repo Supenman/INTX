@@ -263,6 +263,8 @@ impl ManagedLocalGateway {
             .env("HOST", "127.0.0.1")
             .env("COMFY_URL", "http://127.0.0.1:8188")
             .env("DATA_DIR", data_dir.join("comfyui-gateway"))
+            .env("WORKFLOW_DIR", data_dir.join("comfyui-gateway").join("workflows"))
+            .env("LEGACY_WORKFLOW_DIR", gateway_dir.join("workflows"))
             .env("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000")
             // 随包节点由网关启动器首次安装；我们直连网关，不需要它再动 ComfyUI
             .env("DISABLE_NODE_BOOTSTRAP", "1")
