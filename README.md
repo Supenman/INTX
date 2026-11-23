@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/public/workbench-logo.svg" width="72" alt="工作台标志">
+  <img src="web/public/logo.svg" width="88" alt="工作台标志">
 </p>
 
 <h1 align="center">工作台</h1>
