@@ -288,7 +288,7 @@ export default {
         openAgent: "打开本地 Agent 面板",
         nodeTypes: { image: "图片", text: "文本", video: "视频", audio: "音频", group: "组" },
         toolbar: {
-            select: "选择", pan: "移动", focus: "居中聚焦", text: "文本", image: "图片", video: "视频", audio: "音频", group: "组", extensions: "扩展节点", upload: "上传资产", appearance: "画布外观", clear: "清空画布",
+            addNode: "添加节点", select: "选择", pan: "移动", focus: "居中聚焦", text: "文本", image: "图片", video: "视频", audio: "音频", group: "组", extensions: "扩展节点", upload: "导入素材", appearance: "画布外观", clear: "清空画布",
             themeMode: "主题模式", light: "浅色", dark: "深色", gridStyle: "网格样式", dots: "点", lines: "线", blank: "空白", imageInfo: "图片信息",
         },
         project: {
@@ -299,7 +299,7 @@ export default {
         },
         trash: { entry: "回收站（{{count}}）", backToLibrary: "返回画布库", empty: "回收站里没有可恢复的画布", unavailable: "另有 {{count}} 条旧删除记录没有画布快照，因此无法恢复。", deletedAt: "删除于 {{date}}", restore: "恢复", restored: "画布已恢复", permanentTitle: "永久删除画布？", permanentDescription: "“{{name}}”及其画布快照将被永久删除，无法恢复。", permanentDelete: "永久删除", permanentlyDeleted: "画布已永久删除" },
         chain: { preview: "预览生成链路", ordered: "按上游到终点排列。确认后逐步提交生成，费用以厂商账单为准。", run: "确认运行", progress: "已完成 {{completed}} / {{total}} 步", finished: "已完成 {{count}} 个生成步骤", stopped: "在「{{title}}」停止：{{detail}}", changed: "画布或生成状态已变化，请重新预览链路", busy: "另一窗口正在运行这张画布的链路", missingInput: "当前步骤没有提示词或可用的上游输入", reuse: "复用已有内容", generate: "需要生成", blocked: "已有任务待处理", configuration: "缺少模型或渠道配置", unsupported: "当前节点无法生成", cycle: "链路存在循环，请检查连线", missing: "链路引用了缺失节点，请检查连线", ledgerUnavailable: "任务台账未就绪，无法预览链路", estimate: "可估部分合计 {{price}}", unknown: "还有 {{count}} 步无法估价" },
-        workflow: { save: "将选区保存为工作流", insert: "插入工作流", importFailed: "无法插入工作流，请检查 ZIP 文件" },
+        workflow: { entry: "工作流", save: "将选区保存为工作流", insert: "插入工作流", importFailed: "无法插入工作流，请检查 ZIP 文件" },
         export: { defaultProjectName: "无限画布", defaultNodesName: "画布元素", item: "元素" },
         batchExport: { title: "批量下载（{{count}} 个）", running: "正在打包 {{count}} 个文件…", done: "已导出 {{count}} 个文件", partial: "已导出 {{ok}} 个，{{failed}} 个读取失败", allFailed: "全部读取失败，没有可导出的文件", empty: "选中的节点里没有可下载的媒体", failed: "导出失败，请重试" },
         createMenu: {
@@ -370,8 +370,8 @@ export default {
             splitTitle: "切分图片", splitDescription: "生成 {{count}} 个图片子节点，并按原图网格排列到画布右侧", splitHint: "滚轮缩放 · 中键或空格+左键拖动画面 · Delete 删除选中线 · Ctrl/Cmd+Z 撤回 · Ctrl/Cmd+Shift+Z 重做", undoSplitTitle: "撤回切图调整 (Ctrl/Cmd+Z)", undoSplit: "撤回切图调整", redoSplitTitle: "重做切图调整 (Ctrl/Cmd+Shift+Z)", redoSplit: "重做切图调整", rows: "行数", columns: "列数", horizontalLine: "横向线", verticalLine: "纵向线", deleteLine: "删除线", resetLines: "重置线", pieceCount: "切片数量", pieces: "{{count}} 个", averageSize: "平均约", generateChildren: "生成子节点",
         },
         plugins: { title: "节点插件", installedPlugin: "已安装插件 {{name}}", installed: "已安装 {{name}}", installFailed: "安装失败：{{error}}", enabled: "已启用", disabled: "已禁用", upgradeAvailable: "有新版本，点击升级", updateFromSource: "从来源更新", updated: "已更新", uninstallTitle: "卸载该插件？", uninstall: "卸载", newVersion: "有新版本可升级", officialDescription: "本项目官方插件，来自仓库注册表", refresh: "刷新", loadFailed: "加载失败：{{error}}", loadingOfficial: "正在获取官方插件…", noOfficial: "暂无官方插件", install: "安装", urlPlaceholder: "输入插件 JS 文件 URL，例如 https://.../plugin.js", noThirdParty: "还没有安装第三方插件", official: "官方插件", local: "本地插件", thirdParty: "第三方插件", warning: "插件代码会在当前页面内直接执行，可访问本地数据（包含 AI API Key）。请仅安装你信任来源的插件。", aiConfigRequired: "AI 配置未就绪，请先在设置里配置模型与密钥", interactiveTitle: "当前：交互中。点击切回「移动」——拖动可移动节点", movableTitle: "当前：可移动。点击切到「交互」——可操作节点内容（如转动全景）", move: "移动", interact: "交互" },
-        promptPanel: { video: "描述要生成的视频内容", audio: "描述要生成的音频内容", image: "描述要生成的图片内容", text: "请输入你想要生成的文本内容", editImage: "请输入你想要把这张图修改成什么", editText: "请输入你想要将本段文本修改成什么", expandEditor: "放大编辑", editorTitle: "编辑提示词", stopGeneration: "停止生成", generate: "生成", stop: "停止" },
-        references: { title: "参考内容", select: "从画布选择参考节点", disconnect: "断开参考连接", empty: "暂无内容", selecting: "正在添加参考", choose: "选择", selectingHint: "从画布选择参考 · ESC 返回输入框" },
+        promptPanel: { nodeSettings: "节点配置", video: "描述要生成的视频内容", audio: "描述要生成的音频内容", image: "描述要生成的图片内容", text: "请输入你想要生成的文本内容", editImage: "请输入你想要把这张图修改成什么", editText: "请输入你想要将本段文本修改成什么", expandEditor: "放大编辑", editorTitle: "编辑提示词", stopGeneration: "停止生成", generate: "生成", stop: "停止" },
+        references: { title: "参考内容", add: "点选连线", finish: "完成选择", select: "从画布选择参考节点", disconnect: "断开参考连接", empty: "暂无内容", selecting: "正在添加参考", choose: "选择", selectingHint: "从画布选择参考 · ESC 返回输入框" },
         controls: { ratio: "比例", duplicate: "复制", delete: "删除", images: "{{count}} 张", texts: "{{count}} 条", generations: "{{count}} 次", reasoning: "推理" },
         generation: { interrupted: "页面刷新后生成已中断，请重新生成。", front: "正面视角", rotateRight: "向右旋转 {{angle}} 度", rotateLeft: "向左旋转 {{angle}} 度", level: "水平视角", topDown: "俯视 {{angle}} 度", lowAngle: "仰视 {{angle}} 度", angleLabel: "AI 多角度：{{horizontal}}，{{pitch}}，镜头距离 {{distance}}，{{lens}}镜头", anglePrompt: "基于参考图重新生成同一主体的新视角，保持主体、颜色、材质和画面风格一致，不要只做透视变形。{{angle}}。" },
         agentOps: { add_node: "新增节点", update_node: "更新节点", delete_node: "删除节点", delete_connections: "删除连线", connect_nodes: "连接", set_viewport: "调整视图", select_nodes: "选择节点", run_generation: "触发生成" },

@@ -80,7 +80,7 @@ export function ConnectionCreateOption({ theme, icon, title, description, onClic
     );
 }
 
-export function NodeCreateMenu({ position, scale = 1, onCreate, onClose }: { position: Position; scale?: number; onCreate: (type: string) => void; onClose: () => void }) {
+export function NodeCreateMenu({ position, onCreate, onClose }: { position: Position; onCreate: (type: string) => void; onClose: () => void }) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const { t } = useTranslation();
     useNodeRegistryVersion();
@@ -103,9 +103,13 @@ export function NodeCreateMenu({ position, scale = 1, onCreate, onClose }: { pos
     });
     // 只渲染能创建节点的条目；画布动作（粘贴 / 整理）在当前菜单无 dispatch，暂不显示。
     const nodeCommands = resolveAddNodeMenuCommands(ctx, inject).filter((cmd) => cmd.action === "add-node");
+    useEffect(() => {
+        menuRef.current?.focus({ preventScroll: true });
+    }, []);
     // Close automatically when clicking outside the menu.
     useEffect(() => {
         const handlePointerDown = (event: PointerEvent) => {
+            if (event.target instanceof Element && event.target.closest('[data-toolbar-id="tool-add-node"]')) return;
             if (menuRef.current && !menuRef.current.contains(event.target as Node)) onClose();
         };
         document.addEventListener("pointerdown", handlePointerDown, true);
@@ -114,10 +118,18 @@ export function NodeCreateMenu({ position, scale = 1, onCreate, onClose }: { pos
     return (
         <div
             ref={menuRef}
-            className="absolute z-[120] max-h-[70vh] w-[240px] overflow-y-auto rounded-2xl border p-2 shadow-2xl backdrop-blur thin-scrollbar"
+            role="dialog"
+            aria-label={t("canvas.createMenu.select")}
+            tabIndex={-1}
+            className="thin-scrollbar absolute z-[90] w-60 max-w-[calc(100%-1rem)] overflow-y-auto rounded-xl border p-2 shadow-xl outline-none"
             data-canvas-no-zoom
-            style={{ left: position.x, top: position.y, transform: `scale(${1 / scale})`, transformOrigin: "top left", background: theme.node.panel, borderColor: theme.node.stroke, color: theme.node.text }}
+            style={{ left: position.x, top: position.y, maxHeight: `calc(100% - ${position.y + 8}px)`, background: theme.node.panel, borderColor: theme.node.stroke, color: theme.node.text }}
             onPointerDown={(event) => event.stopPropagation()}
+            onKeyDown={(event) => {
+                if (event.key !== "Escape") return;
+                event.stopPropagation();
+                onClose();
+            }}
         >
             <div className="mb-1.5 flex items-center justify-between px-1">
                 <span className="text-sm font-medium" style={{ color: theme.node.muted }}>

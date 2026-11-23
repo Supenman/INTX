@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { BookOpen, Bot, Clapperboard, Download, Film, History, Home, Images, Menu, PanelLeftClose, PanelLeftOpen, Plus, Redo2, Trash2, Undo2, Upload } from "lucide-react";
+import { Bot, Clapperboard, Download, History, Images, Menu, PanelLeftClose, PanelLeftOpen, Plus, Redo2, Scissors, Trash2, Undo2, Upload, Workflow } from "lucide-react";
 import { Button, Dropdown, Modal, Tooltip } from "antd";
 import { useTranslation } from "react-i18next";
 
 import { UserStatusActions } from "@/components/layout/user-status-actions";
 import { canvasThemes } from "@/lib/canvas-theme";
-import { useCanvasSidePanelStore } from "@/stores/use-canvas-side-panel-store";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { SnapshotStorageStatus } from "@/components/layout/snapshot-storage-status";
+import { useCanvasSidePanelStore } from "@/stores/use-canvas-side-panel-store";
 
 export function CanvasTopBar({
     title,
@@ -32,7 +32,7 @@ export function CanvasTopBar({
     onPreviewChain,
     onOpenGenerationHistory,
     onOpenStoryboard,
-    onOpenTimeline,
+    onOpenEditingStudio,
     onOpenPlugins,
     onUndo,
     onRedo,
@@ -62,7 +62,7 @@ export function CanvasTopBar({
     onPreviewChain: () => void;
     onOpenGenerationHistory: () => void;
     onOpenStoryboard: () => void;
-    onOpenTimeline: () => void;
+    onOpenEditingStudio: () => void;
     onOpenPlugins: () => void;
     onUndo: () => void;
     onRedo: () => void;
@@ -77,6 +77,11 @@ export function CanvasTopBar({
     const [shortcutsOpen, setShortcutsOpen] = useState(false);
     const sidePanelOpen = useCanvasSidePanelStore((state) => state.panelOpen);
     const toggleSidePanel = useCanvasSidePanelStore((state) => state.togglePanel);
+    const workflowItems = [
+        { key: "save-workflow", icon: <Download className="size-4" />, label: t("canvas.workflow.save"), disabled: !canSaveWorkflow, onClick: onSaveWorkflow },
+        { key: "insert-workflow", icon: <Upload className="size-4" />, label: t("canvas.workflow.insert"), onClick: onInsertWorkflow },
+        { key: "preview-chain", label: t("canvas.chain.preview"), disabled: !canPreviewChain, onClick: onPreviewChain },
+    ];
 
     useEffect(() => {
         if (!isTitleEditing) return;
@@ -89,16 +94,10 @@ export function CanvasTopBar({
 
     return (
         <>
-            <div className="pointer-events-none absolute left-0 right-0 top-0 z-50 flex h-16 items-center justify-between pl-1 pr-4">
-                <div className="pointer-events-auto flex min-w-0 items-center gap-2">
+            <div className="pointer-events-none absolute left-0 right-0 top-0 z-50 flex h-14 items-start justify-between gap-2 px-2 pt-2">
+                <div className="pointer-events-auto flex min-w-0 items-center gap-1 rounded-xl border px-1.5 py-1 shadow-sm backdrop-blur" style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text }}>
                     <Tooltip title={sidePanelOpen ? t("canvas.collapsePanel") : t("canvas.expandPanel")}>
-                        <button
-                            type="button"
-                            onClick={toggleSidePanel}
-                            aria-label={sidePanelOpen ? t("canvas.collapsePanel") : t("canvas.expandPanel")}
-                            className="grid size-7 place-items-center rounded-full transition hover:bg-black/5 dark:hover:bg-white/10"
-                            style={{ color: theme.node.text }}
-                        >
+                        <button type="button" onClick={toggleSidePanel} aria-label={sidePanelOpen ? t("canvas.collapsePanel") : t("canvas.expandPanel")} className="grid size-8 place-items-center rounded-lg transition hover:bg-black/5 dark:hover:bg-white/10" style={{ color: theme.node.text }}>
                             {sidePanelOpen ? <PanelLeftClose className="size-4" /> : <PanelLeftOpen className="size-4" />}
                         </button>
                     </Tooltip>
@@ -122,10 +121,7 @@ export function CanvasTopBar({
                                     children: [
                                         { key: "import", icon: <Upload className="size-4" />, label: t("canvas.importMedia"), onClick: onImportImage },
                                         { key: "export", icon: <Download className="size-4" />, label: t("canvas.exportCurrent"), onClick: onExportProject },
-                                        { key: "save-workflow", icon: <Download className="size-4" />, label: t("canvas.workflow.save"), disabled: !canSaveWorkflow, onClick: onSaveWorkflow },
-                                        // 预览链路依赖当前选择态，属于工作流的预览步骤，收进同一组。
-                                        { key: "insert-workflow", icon: <Upload className="size-4" />, label: t("canvas.workflow.insert"), onClick: onInsertWorkflow },
-                                        { key: "preview-chain", label: t("canvas.chain.preview"), disabled: !canPreviewChain, onClick: onPreviewChain },
+                                        ...workflowItems,
                                     ],
                                 },
                                 {
@@ -134,7 +130,7 @@ export function CanvasTopBar({
                                     children: [
                                         { key: "generation-history", icon: <History className="size-4" />, label: t("canvas.generationHistory.entry"), onClick: onOpenGenerationHistory },
                                         { key: "storyboard", icon: <Clapperboard className="size-4" />, label: t("canvas.storyboard.entry"), onClick: onOpenStoryboard },
-                                        { key: "timeline", icon: <Film className="size-4" />, label: t("canvas.timeline.entry"), onClick: onOpenTimeline },
+                                        { key: "editing-studio", icon: <Scissors className="size-4" />, label: t("editingStudio.title"), onClick: onOpenEditingStudio },
                                     ],
                                 },
                                 {
@@ -149,7 +145,7 @@ export function CanvasTopBar({
                             ],
                         }}
                     >
-                        <button type="button" className="grid size-7 place-items-center rounded-full transition hover:bg-black/5 dark:hover:bg-white/10" style={{ color: theme.node.text }} aria-label={t("canvas.openMenu")}>
+                        <button type="button" className="grid size-8 shrink-0 place-items-center rounded-lg transition hover:bg-black/5 dark:hover:bg-white/10" style={{ color: theme.node.text }} aria-label={t("canvas.openMenu")}>
                             <Menu className="size-4" />
                         </button>
                     </Dropdown>
@@ -165,39 +161,47 @@ export function CanvasTopBar({
                                     if (event.key === "Enter") onFinishTitleEditing();
                                     if (event.key === "Escape") onCancelTitleEditing();
                                 }}
-                                className="max-w-[280px] bg-transparent p-0 text-left text-lg font-semibold tracking-normal outline-none"
+                                className="w-full min-w-0 max-w-[280px] bg-transparent p-0 text-left text-base font-semibold outline-none"
                                 style={{ color: theme.node.text }}
                             />
                         ) : (
                             <button
                                 type="button"
-                                className="max-w-[280px] truncate border-b border-dashed border-transparent text-left text-lg font-semibold tracking-normal transition hover:border-current"
-                                onDoubleClick={onStartTitleEditing}
+                                className="min-w-0 max-w-[280px] truncate text-left text-sm font-semibold transition-opacity hover:opacity-75"
+                                onClick={onStartTitleEditing}
                                 title={t("canvas.renameHint")}
                             >
                                 {title}
                             </button>
                         )}
                     </div>
-                    {/* 标题与状态之间加一道竖线：之前标题、保存状态、Agent 状态三者在同一行同一灰度，
-                        读起来是一串连续文字，分不出谁是主信息。 */}
-                    <span aria-hidden className="mx-0.5 h-4 w-px shrink-0" style={{ background: theme.toolbar.border }} />
-                    <SnapshotStorageStatus kind="projects" />
-                    <CompactAgentStatus status={compactAgentStatus} onClick={onToggleAgent} />
+                    <div className="hidden shrink-0 items-center gap-2 @min-[760px]:flex">
+                        <SnapshotStorageStatus kind="projects" />
+                    </div>
                 </div>
 
-                <div className="pointer-events-auto flex items-center gap-1.5">
-                    <UserStatusActions variant="canvas" onOpenShortcuts={() => setShortcutsOpen(true)} onOpenPlugins={onOpenPlugins} />
-                    <span className="h-6 w-px" style={{ background: theme.toolbar.border }} />
+                <div className="pointer-events-auto flex shrink-0 items-center gap-1 rounded-xl border p-1 shadow-sm backdrop-blur" style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text }}>
+                    <Dropdown trigger={["click"]} menu={{ items: workflowItems }}>
+                        <Button type="text" className="!h-8 !rounded-lg" aria-label={t("canvas.workflow.entry")} title={t("canvas.workflow.entry")} icon={<Workflow className="size-4" />}>
+                            <span className="hidden @min-[600px]:inline">{t("canvas.workflow.entry")}</span>
+                        </Button>
+                    </Dropdown>
                     <Button
                         type="text"
-                        className="!h-9 !rounded-xl !px-3 !font-medium"
-                        style={{ background: agentOpen ? theme.toolbar.activeBg : theme.toolbar.panel, color: theme.node.text, boxShadow: "0 10px 30px rgba(15,23,42,.10)" }}
+                        className="!h-8 !rounded-lg"
+                        aria-label="Agent"
+                        aria-pressed={agentOpen}
+                        title="Agent"
+                        style={agentOpen ? { background: theme.toolbar.activeBg, color: theme.toolbar.activeText } : undefined}
                         icon={<Bot className="size-4" />}
                         onClick={onToggleAgent}
                     >
-                        Agent
+                        <span className="hidden @min-[600px]:inline">Agent</span>
                     </Button>
+                    <Tooltip title={t("canvas.generationHistory.entry")}>
+                        <Button type="text" className="!h-8 !w-8 !min-w-8 !rounded-lg !p-0" aria-label={t("canvas.generationHistory.entry")} icon={<History className="size-4" />} onClick={onOpenGenerationHistory} />
+                    </Tooltip>
+                    <UserStatusActions variant="canvas" onOpenShortcuts={() => setShortcutsOpen(true)} onOpenPlugins={onOpenPlugins} />
                 </div>
             </div>
             <Modal destroyOnHidden title={t("canvas.shortcuts")} open={shortcutsOpen} onCancel={() => setShortcutsOpen(false)} footer={null} centered>

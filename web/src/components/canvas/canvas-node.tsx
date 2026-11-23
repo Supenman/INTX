@@ -40,9 +40,7 @@ type CanvasNodeProps = {
     isGroupDropTarget?: boolean;
     batchExpanded?: boolean;
     /** 在时间线视频轨中的镜头序号（从 1 开始）；不在时间线上时为 undefined。 */
-    sequenceIndex?: number;
     /** 时间线播放头正命中该镜头时，画布上高亮显示。 */
-    isTimelineActive?: boolean;
     onOpenVersions?: (node: CanvasNodeData) => void;
     onMouseDown: (event: React.MouseEvent, nodeId: string) => void;
     onSelectCapture?: (event: React.MouseEvent, nodeId: string) => void;
@@ -107,8 +105,6 @@ export const CanvasNode = React.memo(function CanvasNode({
     groupChildCount = 0,
     isGroupDropTarget = false,
     batchExpanded = false,
-    sequenceIndex,
-    isTimelineActive = false,
     onOpenVersions,
     onMouseDown,
     onSelectCapture,
@@ -303,7 +299,6 @@ export const CanvasNode = React.memo(function CanvasNode({
     return (
         <div
             data-node-id={data.id}
-            data-timeline-active={isTimelineActive ? "true" : undefined}
             className={`node-element group/node absolute flex select-none flex-col transition-shadow duration-200 ${isGroup ? "z-[5]" : isSelected ? "z-50" : "z-10"} ${referenceSelectionState === "available" ? "cursor-pointer" : referenceSelectionState ? "cursor-not-allowed" : ""}`}
             style={{
                 transform: `translate(${data.position.x}px, ${data.position.y}px)`,
@@ -329,18 +324,7 @@ export const CanvasNode = React.memo(function CanvasNode({
             }}
         >
             {data.metadata?.versionLabel && onOpenVersions ? <button type="button" data-version-badge={data.metadata.versionLabel} title={`${t("canvas.node.versionBadge", { label: data.metadata.versionLabel })}${data.metadata.versionPrimary ? ` · ${t("canvas.node.versionBadgePrimary")}` : ""} · ${t("canvas.node.openVersions")}`} className="absolute left-2 top-2 z-[66] rounded-full border px-2 py-1 text-xs font-medium shadow-sm" style={{ background: data.metadata.versionPrimary ? theme.toolbar.activeBg : theme.toolbar.panel, borderColor: data.metadata.versionPrimary ? theme.node.activeStroke : theme.toolbar.border, color: data.metadata.versionPrimary ? theme.node.activeStroke : theme.node.text }} onMouseDown={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); onOpenVersions(data); }}>{data.metadata.versionLabel}</button> : null}
-            {sequenceIndex !== undefined ? <span
-                data-sequence-index={sequenceIndex}
-                title={t("canvas.timeline.sequence", { index: sequenceIndex })}
-                className="pointer-events-none absolute -left-2 -top-2 z-[80] flex size-6 items-center justify-center rounded-full text-xs font-bold text-white shadow-md"
-                style={{ background: isTimelineActive ? "#22c55e" : theme.node.activeStroke }}
-            >{sequenceIndex}</span> : null}
-            {isTimelineActive ? <div
-                data-timeline-active
-                className="pointer-events-none absolute -inset-1 z-[70] rounded-3xl"
-                style={{ border: "2px solid #22c55e", boxShadow: "0 0 0 3px rgba(34,197,94,.25), 0 0 24px rgba(34,197,94,.45)" }}
-            /> : null}
-            {!referenceSelectionState && (isSelected || hovered || isEditingTitle) && (
+            {(!referenceSelectionState || referenceSelectionState === "target") && (isSelected || hovered || isEditingTitle) && (
                 <div className="absolute left-3 top-[-28px] z-[65] max-w-[calc(100%-24px)]" onMouseDown={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
                     {isEditingTitle ? (
                         <input
@@ -465,8 +449,8 @@ export const CanvasNode = React.memo(function CanvasNode({
 
             {/* Counter-scale the panel so its on-screen size stays constant while the canvas zooms. */}
             {showPanel && !isGroup && renderPanel ? (
-                <div className="absolute left-1/2 top-full z-[70] w-[600px] pt-4" style={{ transform: `translateX(-50%) scale(${1 / scale})`, transformOrigin: "top center" }} data-node-panel={data.id}>
-                    <PanelViewportShift scale={scale} top={data.position.y}>{renderPanel(data)}</PanelViewportShift>
+                <div className="pointer-events-none absolute left-1/2 top-full z-[70] w-[min(920px,calc(100vw-32px))] -translate-x-1/2 pt-4" data-node-panel={data.id}>
+                    <div className="pointer-events-auto">{renderPanel(data)}</div>
                 </div>
             ) : null}
         </div>

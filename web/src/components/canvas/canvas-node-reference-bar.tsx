@@ -1,6 +1,6 @@
-import { FileText, Image as ImageIcon, Music2, Plus, Puzzle, Video, X } from "lucide-react";
+import { FileText, Image as ImageIcon, Link2, Music2, Puzzle, Video, X } from "lucide-react";
 import { Popover } from "antd";
-import { useSyncExternalStore } from "react";
+import { useSyncExternalStore, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { canvasThemes } from "@/lib/canvas-theme";
@@ -10,19 +10,30 @@ import { getImagePreviewRevision, previewUrlFor, subscribeImagePreviews } from "
 import { useThemeStore } from "@/stores/use-theme-store";
 import { CanvasNodeType, type CanvasNodeData } from "@/types/canvas";
 
-export function CanvasNodeReferenceBar({ nodeId, nodes, connectedNodes, onDisconnect, onStartSelection }: { nodeId: string; nodes: CanvasNodeData[]; connectedNodes: CanvasNodeData[]; onDisconnect?: (fromNodeId: string, toNodeId: string) => void; onStartSelection?: (nodeId: string) => void }) {
+export function CanvasNodeReferenceBar({ nodeId, nodes, connectedNodes, actions, selecting, onFinishSelection, onDisconnect, onStartSelection }: { nodeId: string; nodes: CanvasNodeData[]; connectedNodes: CanvasNodeData[]; actions?: ReactNode; selecting?: boolean; onFinishSelection?: () => void; onDisconnect?: (fromNodeId: string, toNodeId: string) => void; onStartSelection?: (nodeId: string) => void }) {
     const { t } = useTranslation();
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const references = connectedNodes.flatMap((sourceNode) => (sourceNode.type === CanvasNodeType.Group ? getGroupResourceNodes(sourceNode.id, nodes) : [sourceNode]).map((node) => ({ node, sourceNodeId: sourceNode.id })));
     return (
         <div className="mb-2">
-            <div className="mb-1.5 text-[11px] font-medium" style={{ color: theme.node.muted }}>{t("canvas.references.title")}</div>
-            <div className="thin-scrollbar flex min-h-12 gap-2 overflow-x-auto pb-1">
-                {references.map(({ node, sourceNodeId }) => <ReferenceItem key={`${sourceNodeId}:${node.id}`} node={node} onRemove={() => onDisconnect?.(sourceNodeId, nodeId)} />)}
-                <button type="button" className="grid size-12 shrink-0 place-items-center rounded-xl border bg-transparent transition hover:opacity-70" style={{ borderColor: theme.toolbar.border, color: theme.node.muted }} title={t("canvas.references.select")} onClick={() => onStartSelection?.(nodeId)}>
-                    <Plus className="size-4" />
-                </button>
+            <div className="mb-1.5 flex flex-wrap items-center justify-between gap-1 text-xs font-medium" style={{ color: theme.node.muted }}>
+                {references.length > 0 && <span>{t("canvas.references.title")}</span>}
+                <div className="ml-auto flex items-center gap-1">
+                    {onStartSelection && (
+                        <button type="button" className="inline-flex items-center gap-1 rounded-md px-2 py-1 transition hover:opacity-70" style={{ color: theme.node.text }} aria-pressed={Boolean(selecting)} onClick={selecting ? onFinishSelection : () => onStartSelection(nodeId)}>
+                            <Link2 className="size-3.5" />
+                            {t(selecting ? "canvas.references.finish" : "canvas.references.add")}
+                        </button>
+                    )}
+                    {actions}
+                </div>
             </div>
+            {selecting ? <p role="status" className="mb-2 text-xs" style={{ color: theme.node.muted }}>{t("canvas.references.selectingHint")}</p> : null}
+            {references.length > 0 && (
+                <div className="thin-scrollbar flex min-h-12 gap-2 overflow-x-auto pb-1">
+                    {references.map(({ node, sourceNodeId }) => <ReferenceItem key={`${sourceNodeId}:${node.id}`} node={node} onRemove={() => onDisconnect?.(sourceNodeId, nodeId)} />)}
+                </div>
+            )}
         </div>
     );
 }

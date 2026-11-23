@@ -39,9 +39,35 @@ function localPluginsManifest(): Plugin {
     };
 }
 
+function windowsDesktopStyles(): Plugin {
+    return {
+        name: "windows-desktop-styles",
+        apply: "build",
+        transformIndexHtml: {
+            order: "post",
+            handler(html, { bundle }) {
+                if (!bundle) return html;
+                // WebView2 can render the app without its external stylesheet when loaded from Tauri's asset origin.
+                let inlined = false;
+                const result = html.replace(/<link\s+[^>]*>/gi, (tag) => {
+                    if (!/\brel="stylesheet"/i.test(tag)) return tag;
+                    const href = /\bhref="([^"]+)"/i.exec(tag)?.[1];
+                    if (!href) return tag;
+                    const asset = Object.values(bundle).find((item) => href.endsWith(`/${item.fileName}`));
+                    if (asset?.type !== "asset" || typeof asset.source !== "string" || !asset.fileName.endsWith(".css")) return tag;
+                    inlined = true;
+                    return `<style>${asset.source.replace(/<\/style/gi, "<\\/style")}</style>`;
+                });
+                if (!inlined) throw new Error("Windows desktop build could not embed the app stylesheet");
+                return result;
+            },
+        },
+    };
+}
+
 export default defineConfig({
     base: process.env.VITE_BASE || "/",
-    plugins: [react(), wasm(), localPluginsManifest()],
+    plugins: [react(), wasm(), localPluginsManifest(), ...(process.env.TAURI_ENV_PLATFORM === "windows" ? [windowsDesktopStyles()] : [])],
     // 允许通过反向代理域名访问 dev server（仅开发期生效，不影响生产构建）。
     server: {
         host: "0.0.0.0",

@@ -30,6 +30,9 @@ type CanvasNodePromptPanelProps = {
     mentionReferences?: CanvasResourceReference[];
     nodes: CanvasNodeData[];
     connections: CanvasConnection[];
+    selectingReferences?: boolean;
+    referencePromptUpdateId?: string;
+    onFinishReferenceSelection?: () => void;
     connectedNodes?: CanvasNodeData[];
     onDisconnectReference?: (fromNodeId: string, toNodeId: string) => void;
     onStartReferenceSelection?: (nodeId: string) => void;
@@ -37,7 +40,7 @@ type CanvasNodePromptPanelProps = {
     modeOverride?: CanvasNodeGenerationMode; // Plugin nodes set their generation type through useBuiltinPanel.mode.
 };
 
-export function CanvasNodePromptPanel({ node, nodes, connections, isRunning, onPromptChange, onConfigChange, onGenerate, onStop, mentionReferences = [], connectedNodes = [], onDisconnectReference, onStartReferenceSelection, onImageSettingsOpenChange, modeOverride }: CanvasNodePromptPanelProps) {
+export function CanvasNodePromptPanel({ node, nodes, connections, selectingReferences = false, referencePromptUpdateId, onFinishReferenceSelection, isRunning, onPromptChange, onConfigChange, onGenerate, onStop, mentionReferences = [], connectedNodes = [], onDisconnectReference, onStartReferenceSelection, onImageSettingsOpenChange, modeOverride }: CanvasNodePromptPanelProps) {
     const { t } = useTranslation();
     const globalConfig = useEffectiveConfig();
     const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
@@ -50,11 +53,11 @@ export function CanvasNodePromptPanel({ node, nodes, connections, isRunning, onP
     const [prompt, setPrompt] = useState(node.metadata?.composerContent ?? node.metadata?.prompt ?? "");
     const [expanded, setExpanded] = useState(false);
 
-    // Restore prompts only when switching nodes; preserve the current input after generation on the same node.
+    // Restore the stored draft when switching nodes or inserting a reference from the canvas.
     useEffect(() => {
         setPrompt(node.metadata?.composerContent ?? node.metadata?.prompt ?? "");
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [node.id]);
+    }, [node.id, referencePromptUpdateId]);
 
     const updatePrompt = (value: string) => {
         setPrompt(value);
@@ -77,7 +80,7 @@ export function CanvasNodePromptPanel({ node, nodes, connections, isRunning, onP
         return { actual, needed, label };
     });
     const missingMedia = inputStatus.some(({ actual, needed }) => actual < needed);
-    const canSubmit = !missingMedia && (Boolean(prompt.trim()) || (mode === "image" || mode === "video" ? connectedNodes.length > 0 || (Boolean(workflow) && imageIds.size > 0) : hasUpstreamText));
+    const canSubmit = !selectingReferences && !missingMedia && (Boolean(prompt.trim()) || (mode === "image" || mode === "video" ? connectedNodes.length > 0 || (Boolean(workflow) && imageIds.size > 0) : hasUpstreamText));
     const submit = () => {
         if (!canSubmit || isRunning) return;
         onGenerate(node.id, mode, prompt.trim());
@@ -91,19 +94,32 @@ export function CanvasNodePromptPanel({ node, nodes, connections, isRunning, onP
         <div
             data-canvas-no-zoom
             data-canvas-prompt-panel
-            className="rounded-2xl border p-3 shadow-2xl backdrop-blur"
+            className="rounded-2xl border p-3.5 shadow-xl backdrop-blur"
             style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text }}
             onMouseDown={(event) => event.stopPropagation()}
             onPointerDown={(event) => event.stopPropagation()}
             onWheel={(event) => event.stopPropagation()}
         >
-            <CanvasNodeReferenceBar nodeId={node.id} nodes={nodes} connectedNodes={connectedNodes} onDisconnect={onDisconnectReference} onStartSelection={onStartReferenceSelection} />
+            <CanvasNodeReferenceBar
+                nodeId={node.id}
+                nodes={nodes}
+                connectedNodes={connectedNodes}
+                actions={(
+                    <Tooltip title={t("canvas.promptPanel.expandEditor")}>
+                        <Button type="text" className="!h-7 !w-7 !min-w-7 !p-0" style={{ color: theme.node.text }} icon={<Maximize2 className="size-3.5" />} onClick={openExpandedEditor} aria-label={t("canvas.promptPanel.expandEditor")} />
+                    </Tooltip>
+                )}
+                selecting={selectingReferences}
+                onFinishSelection={onFinishReferenceSelection}
+                onDisconnect={onDisconnectReference}
+                onStartSelection={onStartReferenceSelection}
+            />
             <CanvasPromptChipInput
                 value={prompt}
                 references={mentionReferences}
                 onChange={updatePrompt}
                 onSubmit={submit}
-                className="thin-scrollbar h-[var(--intx-panel-composer,10rem)] w-full cursor-text resize-none rounded-xl px-3 py-2 text-sm leading-5 outline-none"
+                className="thin-scrollbar h-[var(--intx-panel-composer,10rem)] w-full cursor-text resize-none rounded-xl px-3 py-2.5 text-sm leading-5 outline-none"
                 style={{ background: "transparent", color: theme.node.text }}
                 placeholder={t(`canvas.promptPanel.${mode === "image" && hasImageContent ? "editImage" : mode === "text" && hasTextContent ? "editText" : mode}`)}
             />
@@ -114,11 +130,8 @@ export function CanvasNodePromptPanel({ node, nodes, connections, isRunning, onP
                     {missingMedia && " · 请连接缺少的素材"}
                 </p>
             )}
-            <div className="mt-2 flex min-w-0 items-center justify-between gap-2">
-                <div className="flex min-w-0 items-center gap-2">
-                    <Tooltip title={t("canvas.promptPanel.expandEditor")}>
-                        <Button type="text" className="!h-8 !w-8 !min-w-8 shrink-0 !rounded-full !bg-transparent !p-0" style={{ color: theme.node.text }} icon={<Maximize2 className="size-3.5" />} onClick={openExpandedEditor} aria-label={t("canvas.promptPanel.expandEditor")} />
-                    </Tooltip>
+            <div className="mt-2 flex min-w-0 items-end justify-between gap-2">
+                <div className="flex min-w-0 flex-wrap items-center gap-1">
                     {mode === "image" ? (
                         <>
                             <ModelPicker config={config} value={config.model} onChange={(model) => onConfigChange(node.id, { model })} capability="image" onMissingConfig={() => openConfigDialog(true)} className="max-w-[190px]" />
@@ -164,7 +177,10 @@ export function CanvasNodePromptPanel({ node, nodes, connections, isRunning, onP
                                 <span className="text-xs font-medium">{t("canvas.promptPanel.stop")}</span>
                             </>
                         ) : (
-                            <ArrowUp className="size-4" />
+                            <>
+                                <ArrowUp className="size-4" />
+                                {t("canvas.promptPanel.generate")}
+                            </>
                         )}
                     </span>
                 </Button>

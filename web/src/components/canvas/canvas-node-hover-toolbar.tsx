@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { App, Modal, Segmented, Tooltip } from "antd";
-import { Download, Ellipsis, FolderPlus, Image as ImageIcon, Info, MessageSquare, Minus, Music2, Plus, RefreshCw, Trash2, Ungroup, Upload, Video } from "lucide-react";
+import { Download, Ellipsis, FolderPlus, Image as ImageIcon, Info, Minus, Music2, Plus, RefreshCw, SlidersHorizontal, Trash2, Ungroup, Upload, Video } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { resolveToolbarTools } from "@/domain";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { isBrokenVideoContent } from "@/lib/media-blob";
-import { getNodeDefinition } from "@/lib/canvas/node-registry";
+import { getNodeDefinition, isBuiltinNodeType } from "@/lib/canvas/node-registry";
 import { nodeToolbarHandler } from "@/lib/canvas/node-toolbar-actions";
 import { buildToolContext } from "@/lib/canvas/tool-wiring";
 import { formatBytes, getDataUrlByteSize } from "@/lib/image-utils";
@@ -20,6 +20,7 @@ import { IMAGE_QUICK_TOOLS_STORAGE_KEY, buildImageToolbarTools, defaultImageQuic
 
 type CanvasNodeHoverToolbarProps = {
     node: CanvasNodeData | null;
+    panelNodeId: string | null;
     viewport: ViewportTransform;
     onKeep: (nodeId: string) => void;
     onLeave: () => void;
@@ -68,6 +69,7 @@ type ToolbarTool = {
 
 export function CanvasNodeHoverToolbar({
     node,
+    panelNodeId,
     viewport,
     onKeep,
     onLeave,
@@ -102,6 +104,7 @@ export function CanvasNodeHoverToolbar({
     const [imageToolSettingsOpen, setImageToolSettingsOpen] = useState(false);
     const { message } = App.useApp();
     const { t } = useTranslation();
+    const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const copyText = useCopyText();
     const { prefs } = useToolbarPrefs("node-hover");
 
@@ -183,7 +186,6 @@ export function CanvasNodeHoverToolbar({
         ...(canRetry ? [{ id: "retry", title: t("canvas.nodeToolbar.retryTitle"), label: t("canvas.node.retry"), icon: <RefreshCw className="size-4" />, onClick: () => onRetry(node) }] : []),
         ...(hasImage || hasVideo || isText ? [{ id: "saveAsset", title: t("common.addToAssets"), label: t("canvas.nodeToolbar.saveAsset"), icon: <FolderPlus className="size-4" />, onClick: () => onSaveAsset(node) }] : []),
         ...(hasImage || hasVideo || hasAudio ? [{ id: "download", title: t(hasAudio ? "canvas.nodeToolbar.downloadAudio" : hasVideo ? "canvas.nodeToolbar.downloadVideo" : "canvas.nodeToolbar.downloadImage"), label: t("common.download"), icon: <Download className="size-4" />, onClick: () => onDownload(node) }] : []),
-        ...(isVideo ? [{ id: "edit", title: t("common.edit"), label: t("common.edit"), icon: <MessageSquare className="size-4" />, onClick: () => onToggleDialog(node) }] : []),
         ...(isText ? [{ id: "generateImage", title: t("canvas.node.generateImage"), label: t("canvas.node.generate"), icon: <ImageIcon className="size-4" />, onClick: () => onGenerateImage(node) }] : []),
         ...(isText ? [{ id: "decreaseFont", title: t("canvas.nodeToolbar.decreaseFont"), label: t("canvas.nodeToolbar.zoomOut"), icon: <Minus className="size-4" />, onClick: () => onDecreaseFont(node) }] : []),
         ...(isText ? [{ id: "increaseFont", title: t("canvas.nodeToolbar.increaseFont"), label: t("canvas.nodeToolbar.zoomIn"), icon: <Plus className="size-4" />, onClick: () => onIncreaseFont(node) }] : []),
@@ -220,9 +222,13 @@ export function CanvasNodeHoverToolbar({
     return (
         <>
             <div
-                className="absolute z-[70] flex h-12 -translate-x-1/2 -translate-y-full items-center overflow-visible rounded-[18px] border border-black/10 bg-white text-[15px] text-[#242529] shadow-[0_8px_28px_rgba(15,23,42,.12)]"
+                className="absolute z-[70] flex h-12 -translate-x-1/2 -translate-y-full items-center overflow-visible rounded-xl border text-sm shadow-md"
                 data-node-toolbar={node.id}
-                style={{ left, top }}
+                style={{
+                    left, top,
+                    background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text,
+                    "--node-toolbar-hover": theme.toolbar.itemHover, "--node-toolbar-active": theme.toolbar.activeBg,
+                } as CSSProperties}
                 onMouseEnter={() => onKeep(node.id)}
                 onMouseLeave={() => {
                     if (!imageToolSettingsOpen) onLeave();
@@ -230,6 +236,18 @@ export function CanvasNodeHoverToolbar({
                 onMouseDown={(event) => event.stopPropagation()}
                 onPointerDown={(event) => event.stopPropagation()}
             >
+                {isBuiltinNodeType(node.type) && node.type !== CanvasNodeType.Group && !getNodeDefinition(node.type)?.hidePanel && (
+                    <ToolbarAction
+                        id="node-settings"
+                        title={t("canvas.promptPanel.nodeSettings")}
+                        label={t("canvas.promptPanel.nodeSettings")}
+                        icon={<SlidersHorizontal className="size-4" />}
+                        active={panelNodeId === node.id}
+                        pressed={panelNodeId === node.id}
+                        onClick={() => onToggleDialog(node)}
+                        showLabel={false}
+                    />
+                )}
                 {toolbarTools.map((tool) => (
                     <ToolbarAction key={tool.id} {...tool} showLabel={isImage ? showImageToolLabels : true} />
                 ))}
@@ -323,12 +341,12 @@ export function CanvasNodeInfoModal({ node, open, onClose }: { node: CanvasNodeD
     );
 }
 
-function ToolbarAction({ title, label, icon, onClick, showLabel, active = false, danger = false }: ToolbarTool & { showLabel: boolean }) {
+function ToolbarAction({ title, label, icon, onClick, showLabel, pressed, active = false, danger = false }: ToolbarTool & { showLabel: boolean; pressed?: boolean }) {
     const hasText = showLabel && Boolean(label);
     return (
         <Tooltip title={title} placement="top" mouseEnterDelay={0.2} color="#ffffff" styles={{ root: { color: "#242529", boxShadow: "0 8px 24px rgba(15,23,42,.16)", fontSize: 13, fontWeight: 500 } }}>
-            <button type="button" className={`group relative flex h-12 items-center whitespace-nowrap px-1.5 ${danger ? "text-[#ef4444]" : ""}`} onClick={onClick} aria-label={title}>
-                <span className={`flex h-9 items-center ${hasText ? "gap-2 px-2.5" : "justify-center px-2"} rounded-lg transition group-hover:bg-[#f0f0f1] ${active ? "bg-[#eeeeef]" : ""}`}>
+            <button type="button" className={`group relative flex h-12 items-center whitespace-nowrap px-1.5 ${danger ? "text-destructive" : ""}`} onClick={onClick} aria-label={title} aria-pressed={pressed}>
+                <span className={`flex h-9 items-center ${hasText ? "gap-2 px-2.5" : "justify-center px-2"} rounded-lg transition ${active ? "bg-[var(--node-toolbar-active)]" : "group-hover:bg-[var(--node-toolbar-hover)]"}`}>
                     {icon ?? null}
                     {hasText ? <span>{label}</span> : null}
                 </span>
