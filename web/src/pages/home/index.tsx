@@ -81,9 +81,14 @@ export default function HomePage() {
                 <section className="mt-10" aria-labelledby="home-recent-title">
                     <div className="mb-4 flex items-center justify-between gap-3">
                         <h2 id="home-recent-title" className="text-base font-semibold">{t("home.recentProjects")}</h2>
-                        <button type="button" onClick={() => navigate("/canvas")} className="inline-flex items-center gap-1 text-sm text-muted-foreground transition hover:text-foreground">
-                            {t("home.viewAllProjects")} <ArrowRight className="size-4" />
-                        </button>
+                        <span className="flex items-center gap-4">
+                            <button type="button" onClick={createCanvas} className="inline-flex items-center gap-1 text-sm text-muted-foreground transition hover:text-foreground">
+                                {t("home.newCanvasShort")} <Plus className="size-4" />
+                            </button>
+                            <button type="button" onClick={() => navigate("/canvas")} className="inline-flex items-center gap-1 text-sm text-muted-foreground transition hover:text-foreground">
+                                {t("home.viewAllProjects")} <ArrowRight className="size-4" />
+                            </button>
+                        </span>
                     </div>
                     {recentProjects.length ? (
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">

@@ -11,6 +11,7 @@ import { setImageBlob } from "@/services/image-storage";
 import { CanvasDeleteProjectsDialog } from "@/components/canvas/canvas-delete-projects-dialog";
 import { CanvasProjectCard } from "@/components/canvas/canvas-project-card";
 import { PageHeader, PageShell } from "@/components/layout/page-header";
+import { EmptyState } from "@/components/layout/empty-state";
 import type { CanvasExportFile } from "@/types/canvas-export";
 import { useCanvasStore } from "@/stores/canvas/use-canvas-store";
 import { useAssetStore } from "@/stores/use-asset-store";
@@ -244,16 +245,17 @@ export default function CanvasPage() {
                             {t("canvas.emptyFolder")}
                         </section>
                     ) : (
-                        <section className="mt-4 flex min-h-[360px] flex-col items-center justify-center rounded-xl bg-[var(--surface-sunken)] px-6 text-center">
-                            <div className="flex size-11 items-center justify-center rounded-full bg-[var(--surface-card)] text-muted-foreground">
-                                <Plus className="size-5" />
-                            </div>
-                            <p className="typ-heading mt-4">{t("canvas.empty")}</p>
-                            <p className="typ-caption mt-1.5 max-w-xs text-muted-foreground">{t("canvas.emptyDescription")}</p>
-                            <Button type="primary" className="mt-5" icon={<Plus className="size-4" />} onClick={createAndEnter}>
-                                {t("canvas.create")}
-                            </Button>
-                        </section>
+                        <EmptyState
+                            icon={Plus}
+                            title={t("canvas.empty")}
+                            description={t("canvas.emptyDescription")}
+                            className="mt-4 min-h-[360px]"
+                            action={
+                                <Button type="primary" icon={<Plus className="size-4" />} onClick={createAndEnter}>
+                                    {t("canvas.create")}
+                                </Button>
+                            }
+                        />
                     )}
                 </div>
 

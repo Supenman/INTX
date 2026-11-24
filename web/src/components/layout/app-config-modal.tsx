@@ -52,7 +52,7 @@ function createWebdavDomainProgress(): Record<AppSyncDomainKey, WebdavDomainProg
     );
 }
 
-export function AppConfigPanel({ showDoneButton = false, initialTab = "channels" }: { showDoneButton?: boolean; initialTab?: ConfigTabKey }) {
+export function AppConfigPanel({ showDoneButton = false, initialTab = "channels", onTabChange }: { showDoneButton?: boolean; initialTab?: ConfigTabKey; onTabChange?: (tab: ConfigTabKey) => void }) {
     const { message } = App.useApp();
     const { i18n, t } = useTranslation();
     const saveNotice = useSaveNotice();
@@ -188,7 +188,11 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
                 /* 空间不足时 antd 只会裁掉末尾并塞进「更多」，改用下拉模式保证每个标签都能点到 */
                 more={{ icon: <Ellipsis className="size-4" /> }}
                 className="config-tabs"
-                onChange={(key) => setActiveTab(key as ConfigTabKey)}
+                onChange={(key) => {
+                    const nextTab = key as ConfigTabKey;
+                    setActiveTab(nextTab);
+                    onTabChange?.(nextTab);
+                }}
                 items={[
                     {
                         key: "channels",

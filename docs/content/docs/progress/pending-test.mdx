@@ -5,6 +5,37 @@ description: Implemented changes that still need manual verification
 
 # Pending Tests
 
+## 全局命令面板与空状态（批 3）
+
+- 在工作区任意页按 `⌘K`（Windows 上 `Ctrl+K`）：弹出命令面板并聚焦输入框；再按一次关闭。
+- 输入「剪辑」「资产」「存储」「任务」等词能看到对应项；输入某个画布标题能匹配到最近项目项。
+- `↑` / `↓` 切换高亮且高亮项跟随滚动；`Enter` 打开当前项；`Esc` 关闭并清空输入。
+- 选中「新建画布」：创建并直接进入新画布；未加载完成时点击不报错。
+- 选中「打开 / 收起 INTX Agent」：Agent 面板状态切换。
+- 点侧栏搜索按钮与按 `⌘K` 行为一致。
+- 在画布或剪辑台（侧栏隐藏）按 `⌘K` 仍能呼出面板；面板关闭后焦点回到页面，不残留在输入框。
+- 项目库无项目时与资产页无结果时的空状态：图标、标题、说明、按钮间距一致，切换这两页不应看到上下位移。
+- 项目库空状态的「新建画布」按钮可用；资产页空状态无按钮，符合原设计。
+
+## 创作主流程：画布 → 资产 → 剪辑台（批 2）
+
+- 画布上放几张生成图或导入图，点顶部菜单「归档到资产库」：提示「已归档 N 个素材」，打开资产页能看到它们，标题取提示词前 24 字，来源为 Canvas。
+- 再点一次「归档到资产库」：提示「N 个素材已在资产库中」，资产数量不增加（按节点去重，不重复建卡）。
+- 退出重进画布后再次归档，同样不应重复；节点被删除后其在资产库里的卡片保持不动。
+- 选中若干节点后归档：只归档选中的图片/视频节点，文本节点与空节点不产生资产。
+- 从画布菜单进入剪辑台：素材弹窗顶部提示「已为「xxx」置顶 N 个素材」，列表里该画布素材排在最前。
+- 剪辑台左上角按钮文案变为「返回画布」，点击回到刚才那张画布，而不是项目库。
+- 画布无任何图片/视频时归档：提示「画布上还没有可归档的图片或视频」，不写入空资产。
+- 画布未归档直接在剪辑台打开素材弹窗：提示「xxx 还没有归档的素材，先回画布用『归档到资产库』」。
+- 看板/资产页仍显示原有资产；归档不会修改或删除任何已有资产。
+
+## 侧栏设置入口拆分（批 1）
+
+- 侧栏「模型配置」直达 `/config?tab=channels`，「存储设置」直达 `/config?tab=local-storage`，两项高亮互斥。
+- 在设置页内切换其他标签（任务 / 本地代理 / 偏好 / WebDAV），URL 的 `tab` 同步更新；刷新或复制链接后停在同一标签，侧栏高亮跟随。
+- 旧链接 `/config` 不带 `tab` 时默认落在「渠道」，并让「模型配置」保持高亮。
+- 从画布或剪辑台（隐藏侧栏）返回工作区后，侧栏高亮与当前分区一致。
+
 ## 画布节点配置与参考素材
 
 - Windows WebView2 已在独立配置中复现原验收包的样式丢失，并用修正版验证侧栏恢复纵向排列、工作流入口位于顶部、导入和缩放工具位于画布底部。
@@ -44,6 +75,7 @@ description: Implemented changes that still need manual verification
 - Moss 文生图已在 Windows 桌面安装包验收；其他视频工作流仍待验收。
 - 图片请求仍使用现有同步接口，本轮未新增图片任务重启恢复协议；视频重启后的恢复以及本地保存失败后的取回仍待验证。
 - 自动检查：前端 897 个单测、网关 6 个回归用例通过；对生图参数接线做过破坏性自检（断开时用例失败，恢复后通过）。独立 Chrome 测试页完成真实组件的参数编辑、输出选择及模拟网关发布；五个页面在 1280 / 1440 / 1920 无横向溢出。Vite 构建通过（本机需将根路径盘符规范化）；全局类型、令牌与结构门禁仍有本轮未修改的剪辑台等文件问题，不记为全绿。
+
 
 ## In-app updater (pending signing setup + Windows desktop acceptance)
 
@@ -245,6 +277,7 @@ On a real device, with three nodes of different widths:
 5. Select a group as a whole and align: the group box and the nodes inside must move together.
 6. Align twice: the second click changes nothing and adds no undo entry.
 
+
 ## Native save-as (M2.5 item 3, awaiting real-device verification)
 
 - On desktop, exporting canvas projects / selected projects / side-panel nodes, exporting all assets, downloading a single asset, downloading node images or a batch, exporting task diagnostics, and exporting settings should all open the system Save dialog with the correct default name and extension — not silently drop the file into the download folder as before.
@@ -255,6 +288,7 @@ On a real device, with three nodes of different widths:
 - The browser dev channel (`vite dev`) still downloads directly without the system dialog.
 - Automated: `cargo check` passes (dialog and fs plugins registered; capabilities grant only `dialog:allow-save` and `fs:allow-write-file`); `vitest run src` is 758/758 green (6 new cases in `lib/runtime/save-file.test.ts` covering cancel, write failure, data-URL decoding, and filename sanitising); tsc reports 0 errors; `vite build` passes.
 - **Not verified**: dialog behaviour in a real Windows window, the read-only directory error message, and file placement from an installed build.
+
 
 The current release needs manual verification in these areas:
 

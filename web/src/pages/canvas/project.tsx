@@ -20,6 +20,7 @@ import { imageReferenceLabel } from "@/lib/image-reference-prompt";
 import { canvasThemes, type CanvasBackgroundMode } from "@/lib/canvas-theme";
 import { useSaveFile, useSaveNotice } from "@/hooks/use-save-file";
 import { useAssetStore } from "@/stores/use-asset-store";
+import { archivedCanvasNodeIds, importCanvasMediaToAssets } from "@/application/canvas/canvas-assets";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { cropDataUrl, splitDataUrl, upscaleDataUrl } from "@/lib/canvas/canvas-image-data";
 import { fitNodeSize, nodeSizeFromRatio } from "@/lib/canvas/canvas-node-size";
@@ -236,6 +237,7 @@ function InfiniteCanvasPage() {
     const isAiConfigReady = useConfigStore((state) => state.isAiConfigReady);
     const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
     const addAsset = useAssetStore((state) => state.addAsset);
+    const libraryAssets = useAssetStore((state) => state.assets);
     const cleanupAssetImages = useAssetStore((state) => state.cleanupImages);
     const hydrated = useCanvasStore((state) => state.hydrated);
     const createProject = useCanvasStore((state) => state.createProject);
@@ -2222,6 +2224,34 @@ function InfiniteCanvasPage() {
         [addAsset, message, t],
     );
 
+    // 批量归档：剪辑台只读资产库，进剪辑台前把画布里的图片/视频一次性落成资产。
+    const saveCanvasMediaToAssets = useCallback(async () => {
+        const result = importCanvasMediaToAssets({
+            canvasProjectId: projectId,
+            nodes,
+            selectedNodeIds,
+            archivedNodeIds: archivedCanvasNodeIds(libraryAssets),
+            addAsset,
+        });
+        try {
+            await useAssetStore.getState().confirmSave();
+        } catch {
+            message.error(t("common.saveToLocalFailed"));
+            return;
+        }
+        if (!result.imported) {
+            message.info(result.skipped ? t("canvas.projectPage.assetsAlreadyArchived", { count: result.skipped }) : t("canvas.projectPage.noMediaToArchive"));
+            return;
+        }
+        message.success(t("canvas.projectPage.archivedToAssets", { count: result.imported }));
+    }, [addAsset, libraryAssets, message, nodes, projectId, selectedNodeIds, t]);
+
+    const openEditingStudio = useCallback(() => {
+        const params = new URLSearchParams({ from: projectId });
+        if (currentProject?.title) params.set("title", currentProject.title);
+        navigate(`/editing-studio?${params.toString()}`);
+    }, [currentProject?.title, navigate, projectId]);
+
     const createImageReversePromptNodes = useCallback(
         (node: CanvasNodeData) => {
             if (node.type !== CanvasNodeType.Image || !node.metadata?.content) {
@@ -3586,7 +3616,8 @@ function InfiniteCanvasPage() {
                     onPreviewChain={() => void previewChain()}
                     onOpenGenerationHistory={() => setGenerationHistoryOpen(true)}
                     onOpenStoryboard={() => setStoryboardOpen(true)}
-                    onOpenEditingStudio={() => navigate("/editing-studio")}
+                    onOpenEditingStudio={openEditingStudio}
+                    onArchiveToAssets={() => void saveCanvasMediaToAssets()}
                     onOpenPlugins={() => setPluginManagerOpen(true)}
                     onUndo={undoCanvas}
                     onRedo={redoCanvas}

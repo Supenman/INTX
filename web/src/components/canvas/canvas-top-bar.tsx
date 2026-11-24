@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Bot, Clapperboard, Download, History, Images, Menu, PanelLeftClose, PanelLeftOpen, Plus, Redo2, Scissors, Trash2, Undo2, Upload, Workflow } from "lucide-react";
+import { Archive, Bot, Clapperboard, Download, History, Images, Menu, PanelLeftClose, PanelLeftOpen, Plus, Redo2, Scissors, Trash2, Undo2, Upload, Workflow } from "lucide-react";
 import { Button, Dropdown, Modal, Tooltip } from "antd";
 import { useTranslation } from "react-i18next";
 
@@ -33,6 +33,7 @@ export function CanvasTopBar({
     onOpenGenerationHistory,
     onOpenStoryboard,
     onOpenEditingStudio,
+    onArchiveToAssets,
     onOpenPlugins,
     onUndo,
     onRedo,
@@ -63,6 +64,7 @@ export function CanvasTopBar({
     onOpenGenerationHistory: () => void;
     onOpenStoryboard: () => void;
     onOpenEditingStudio: () => void;
+    onArchiveToAssets: () => void;
     onOpenPlugins: () => void;
     onUndo: () => void;
     onRedo: () => void;
@@ -130,6 +132,7 @@ export function CanvasTopBar({
                                     children: [
                                         { key: "generation-history", icon: <History className="size-4" />, label: t("canvas.generationHistory.entry"), onClick: onOpenGenerationHistory },
                                         { key: "storyboard", icon: <Clapperboard className="size-4" />, label: t("canvas.storyboard.entry"), onClick: onOpenStoryboard },
+                                        { key: "archive-assets", icon: <Archive className="size-4" />, label: t("canvas.projectPage.archiveToAssets"), onClick: onArchiveToAssets },
                                         { key: "editing-studio", icon: <Scissors className="size-4" />, label: t("editingStudio.title"), onClick: onOpenEditingStudio },
                                     ],
                                 },

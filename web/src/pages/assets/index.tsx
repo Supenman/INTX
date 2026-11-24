@@ -1,9 +1,10 @@
 import { Copy, Download, PencilLine, Plus, Search, Trash2, Upload } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { App, Button, Card, Drawer, Empty, Form, Image, Input, Modal, Pagination, Select, Space, Tag, Typography } from "antd";
+import { App, Button, Card, Drawer, Form, Image, Input, Modal, Pagination, Select, Space, Tag, Typography } from "antd";
 import { useTranslation } from "react-i18next";
 
 import { PageHeader, PageShell } from "@/components/layout/page-header";
+import { EmptyState } from "@/components/layout/empty-state";
 import { useCopyText } from "@/hooks/use-copy-text";
 import { useSaveFile, useSaveNotice } from "@/hooks/use-save-file";
 import { formatBytes, readFileAsDataUrl } from "@/lib/image-utils";
@@ -291,13 +292,12 @@ export default function AssetsPage() {
                     </div>
 
                     {!visibleAssets.length ? (
-                        <div className="mt-5 flex min-h-[280px] flex-col items-center justify-center rounded-xl bg-[var(--surface-sunken)] px-6 py-16 text-center">
-                            <div className="flex size-11 items-center justify-center rounded-full bg-[var(--surface-card)] text-muted-foreground">
-                                <Search className="size-5" />
-                            </div>
-                            <p className="typ-heading mt-4">{hasFilter ? t("assets.empty") : t("assets.emptyAll")}</p>
-                            <p className="typ-caption mt-1.5 max-w-xs text-muted-foreground">{hasFilter ? t("assets.emptyHint") : t("assets.emptyAllHint")}</p>
-                        </div>
+                        <EmptyState
+                            icon={Search}
+                            title={hasFilter ? t("assets.empty") : t("assets.emptyAll")}
+                            description={hasFilter ? t("assets.emptyHint") : t("assets.emptyAllHint")}
+                            className="mt-5 py-16"
+                        />
                     ) : null}
 
                     {filteredAssets.length > pageSize ? (

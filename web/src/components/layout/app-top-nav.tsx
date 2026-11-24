@@ -1,4 +1,4 @@
-import { Bot, House, Plus, type LucideIcon } from "lucide-react";
+import { Bot, House, Plus, Search, type LucideIcon } from "lucide-react";
 import { Button } from "antd";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -8,14 +8,16 @@ import { AppConfigModal } from "@/components/layout/app-config-modal";
 import { UserStatusActions } from "@/components/layout/user-status-actions";
 import { isDesktopApp } from "@/lib/agent/agent-client";
 import { cn } from "@/lib/utils";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAgentStore } from "@/stores/use-agent-store";
+import { CommandPalette } from "@/components/layout/command-palette";
 
 export function AppTopNav() {
     const { t } = useTranslation();
-    const { pathname } = useLocation();
+    const { pathname, search } = useLocation();
     const navigate = useNavigate();
     const autoConnectRef = useRef(false);
+    const [paletteOpen, setPaletteOpen] = useState(false);
     const agentToken = useAgentStore((state) => state.token);
     const agentEnabled = useAgentStore((state) => state.enabled);
     const agentConnected = useAgentStore((state) => state.connected);
@@ -32,6 +34,18 @@ export function AppTopNav() {
         if (isDesktopApp()) void connectLocalAgent({ silent: true });
         else if (agentToken.trim()) void connectAgent({ silent: true });
     }, [agentConnected, agentEnabled, agentToken, connectAgent, connectLocalAgent]);
+
+    // ⌘K / Ctrl+K 呼出命令面板：首页、项目库、剪辑台、资产、任务、设置与最近项目都能从这里直达。
+    useEffect(() => {
+        const handler = (event: KeyboardEvent) => {
+            if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+                event.preventDefault();
+                setPaletteOpen((open) => !open);
+            }
+        };
+        window.addEventListener("keydown", handler);
+        return () => window.removeEventListener("keydown", handler);
+    }, []);
 
     return (
         <>
@@ -55,10 +69,20 @@ export function AppTopNav() {
                     </Button>
 
                     <nav className="mt-5 flex flex-col gap-1">
+                        <button
+                            type="button"
+                            onClick={() => setPaletteOpen(true)}
+                            className="flex h-10 items-center gap-3 rounded-lg px-3 text-sm text-muted-foreground transition hover:bg-[var(--surface-card-hover)] hover:text-foreground"
+                            aria-label={t("commandPalette.open")}
+                        >
+                            <Search className="size-4 shrink-0" />
+                            <span className="flex-1 truncate text-left">{t("commandPalette.search")}</span>
+                            <kbd className="shrink-0 rounded border border-border px-1 text-[11px] font-normal text-muted-foreground">⌘K</kbd>
+                        </button>
                         <SidebarLink to="/" icon={House} label={t("navigation.home")} active={pathname === "/"} />
                         {navigationTools.map((tool) => {
-                            const active = pathname === `/${tool.slug}` || pathname.startsWith(`/${tool.slug}/`);
-                            return <SidebarLink key={tool.slug} to={`/${tool.slug}`} icon={tool.icon} label={t(`navigation.${tool.slug}`)} active={active} />;
+                            const to = "to" in tool ? tool.to : `/${tool.slug}`;
+                            return <SidebarLink key={tool.slug} to={to} icon={tool.icon} label={t(`navigation.${tool.slug}`)} active={isNavigationToolActive(to, pathname, search)} />;
                         })}
                     </nav>
 
@@ -83,8 +107,21 @@ export function AppTopNav() {
                 </aside>
             ) : null}
             <AppConfigModal />
+            <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
         </>
     );
+}
+
+function isNavigationToolActive(to: string, pathname: string, search: string) {
+    const [basePath, query = ""] = to.split("?");
+    if (pathname !== basePath && !pathname.startsWith(`${basePath}/`)) return false;
+    if (!query) return true;
+    const wanted = new URLSearchParams(query).get("tab");
+    if (!wanted) return true;
+    const current = new URLSearchParams(search).get("tab");
+    // 设置页默认落在 channels：未带 tab 时「模型配置」也算激活。
+    if (wanted === "channels") return !current || current === wanted;
+    return current === wanted;
 }
 
 function SidebarLink({ to, icon: Icon, label, active }: { to: string; icon: LucideIcon; label: string; active: boolean }) {
