@@ -97,7 +97,7 @@ import { registerBuiltinNodes } from "@/components/canvas/nodes/builtin-nodes";
 import { CanvasPluginManagerModal } from "@/components/canvas/canvas-plugin-manager-modal";
 import { CanvasRefreshShell } from "@/components/canvas/canvas-refresh-shell";
 import { CanvasTopBar } from "@/components/canvas/canvas-top-bar";
-import { ConnectionCreateMenu, NodeCreateMenu, type PendingConnectionCreate } from "@/components/canvas/canvas-create-menus";
+import { ConnectionCreateMenu, NODE_CREATE_SHORTCUTS, NodeCreateMenu, type PendingConnectionCreate } from "@/components/canvas/canvas-create-menus";
 import {
     CanvasNodeType,
     type CanvasAssistantSession,
@@ -184,6 +184,9 @@ function measureFocusFrame(container: HTMLDivElement | null, nodeId: string) {
     const above = nodeRect && toolbarRect ? nodeRect.top - toolbarRect.top : 0;
     return { above, below, bottomInset: dockRect && below > 0 ? Math.max(0, container.getBoundingClientRect().bottom - dockRect.top) : 0 };
 }
+
+/** 由菜单同一份快捷键表反查「按键 → 节点类型」，键盘处理不再自己抄一遍。 */
+const NODE_CREATE_BY_SHORTCUT: Readonly<Record<string, CanvasNodeTypeId>> = Object.fromEntries(Object.entries(NODE_CREATE_SHORTCUTS).map(([type, key]) => [key, type as CanvasNodeTypeId]));
 
 function InfiniteCanvasPage() {
     const reducedMotion = useReducedMotion();
@@ -2124,12 +2127,24 @@ function InfiniteCanvasPage() {
                 setCropNodeId(null);
                 setMaskEditNodeId(null);
                 setPendingConnectionCreate(null);
+                return;
             }
+
+            // 单键新建节点。菜单开着时不处理：菜单自己有 ↑↓/Enter 的键盘模型，
+            // input 里打「t」不该在背后凭空多出一个节点。
+            if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+            if (nodeCreatePosition) return;
+            if (event.isComposing) return;
+            const createType = NODE_CREATE_BY_SHORTCUT[event.key.toUpperCase()];
+            if (!createType) return;
+            event.preventDefault();
+            setContextMenu(null);
+            createNode(createType);
         };
 
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [copySelectedNodes, deleteConnection, deleteNodes, groupSelection, message, pasteCopiedNodes, pasteSystemClipboard, redoCanvas, selectedConnectionId, setConnecting, t, undoCanvas, ungroupSelection]);
+    }, [copySelectedNodes, createNode, deleteConnection, deleteNodes, groupSelection, message, nodeCreatePosition, pasteCopiedNodes, pasteSystemClipboard, redoCanvas, selectedConnectionId, setConnecting, t, undoCanvas, ungroupSelection]);
 
     const handleConnectStart = useCallback(
         (event: ReactMouseEvent, nodeId: string, handleType: "source" | "target") => {

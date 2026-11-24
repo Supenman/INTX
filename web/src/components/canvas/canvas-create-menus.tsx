@@ -6,7 +6,6 @@ import { useTranslation } from "react-i18next";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { listNodeDefinitions, useNodeRegistryVersion } from "@/lib/canvas/node-registry";
-import { getNodeSpec } from "@/constant/canvas";
 import { CanvasNodeType, type ConnectionHandle, type Position } from "@/types/canvas";
 import type { AddNodeCommand } from "@/domain/tool/definition";
 import { resolveAddNodeMenuCommands } from "@/domain/tool/registry";
@@ -16,6 +15,20 @@ export type PendingConnectionCreate = {
     connection: ConnectionHandle;
     position: Position;
     quickAdd?: boolean;
+};
+
+/**
+ * 新建基础节点的单键快捷键。
+ *
+ * 放在这里而不是散落在键盘处理里：添加菜单要显示同样的键位提示，
+ * 两处读同一个常量才不会出现「菜单标了 T、按 T 没反应」。
+ * 只用无修饰键的单字母，避免和 Ctrl/Cmd 组合冲突；大小写按键盘事件归一。
+ */
+export const NODE_CREATE_SHORTCUTS: Readonly<Record<string, string>> = {
+    [CanvasNodeType.Text]: "T",
+    [CanvasNodeType.Image]: "I",
+    [CanvasNodeType.Video]: "V",
+    [CanvasNodeType.Audio]: "A",
 };
 
 export function ConnectionCreateMenu({
@@ -146,12 +159,14 @@ export function NodeCreateMenu({ position, dockAnchor, onCreate, onClose, onUplo
     const definitions = listNodeDefinitions().filter((def) => def.showInCreateMenu !== false);
     const inject: AddNodeCommand[] = definitions.map((def, i) => ({
         id: `node:${def.type}`,
-        label: getNodeSpec(def.type).title,
+        label: def.title,
         section: "source",
         defaultOrder: 10 + i,
         action: "add-node",
         payload: { kind: def.type },
         disabledReason: null,
+        // 快捷键与条目同源：改注册表的 shortcut 字段，菜单提示和键盘处理一起变。
+        shortcut: NODE_CREATE_SHORTCUTS[def.type],
     }));
     const ctx = buildToolContext({
         toolMode: "select", selectedCount: 0, nodeCount: 0, clipboardCount: 0,
@@ -180,13 +195,13 @@ export function NodeCreateMenu({ position, dockAnchor, onCreate, onClose, onUplo
     const items = nodeCommands.flatMap((cmd) => {
         const type = cmd.payload?.kind;
         if (!type) return [];
-        return [{ id: cmd.id, label: cmd.label, icon: definitions.find((def) => def.type === type)?.icon, run: () => onCreate(type) }];
+        return [{ id: cmd.id, label: cmd.label, icon: definitions.find((def) => def.type === type)?.icon, shortcut: cmd.shortcut, run: () => onCreate(type) }];
     });
-    items.push({ id: "storyboard", label: t("canvas.storyboard.entry"), icon: <Clapperboard className="size-4" />, run: onOpenStoryboard });
+    items.push({ id: "storyboard", label: t("canvas.storyboard.entry"), icon: <Clapperboard className="size-4" />, shortcut: undefined, run: onOpenStoryboard });
     const imports = [
-        { id: "upload", label: t("canvas.toolbar.upload"), icon: <Upload className="size-4" />, run: onUpload },
-        { id: "history", label: t("canvas.generationHistory.entry"), icon: <History className="size-4" />, run: onOpenHistory },
-        { id: "assets", label: t("canvas.assetPicker.open"), icon: <Images className="size-4" />, run: onOpenAssets },
+        { id: "upload", label: t("canvas.toolbar.upload"), icon: <Upload className="size-4" />, shortcut: undefined, run: onUpload },
+        { id: "history", label: t("canvas.generationHistory.entry"), icon: <History className="size-4" />, shortcut: undefined, run: onOpenHistory },
+        { id: "assets", label: t("canvas.assetPicker.open"), icon: <Images className="size-4" />, shortcut: undefined, run: onOpenAssets },
     ];
     const matches = (label: string) => label.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase());
     const sections = [
@@ -237,8 +252,11 @@ export function NodeCreateMenu({ position, dockAnchor, onCreate, onClose, onUplo
                 <div key={section.label} className="mt-1 border-t border-border pt-1">
                     <div className="px-2 py-1 text-xs" style={{ color: theme.node.muted }}>{section.label}</div>
                     {section.items.map((item) => (
-                        <button key={item.id} type="button" data-create-option className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-sm hover:bg-[var(--surface-card-hover)] focus-visible:bg-[var(--surface-card-hover)]" onClick={() => { closeMenu(); item.run(); }}>
-                            {item.icon}{item.label}
+                        <button key={item.id} type="button" data-create-option className="flex h-8 w-full items-center gap-2 rounded-[var(--r-sm)] px-2 text-left text-sm hover:bg-[var(--surface-card-hover)] focus-visible:bg-[var(--surface-card-hover)]" onClick={() => { closeMenu(); item.run(); }}>
+                            {item.icon}
+                            <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                            {/* 键位提示：让「菜单里有」和「按一下就出来」对得上。 */}
+                            {item.shortcut ? <kbd className="shrink-0 rounded-[var(--r-sm)] px-1 font-mono text-[length:var(--fs-label)]" style={{ background: theme.toolbar.activeBg, color: theme.node.muted }}>{item.shortcut}</kbd> : null}
                         </button>
                     ))}
                 </div>

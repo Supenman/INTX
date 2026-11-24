@@ -11,7 +11,7 @@
  *    这类通用产品才需要的可配置项。
  */
 
-export type ToolbarId = 'main' | 'selection' | 'node-hover' | 'add-node-menu' | 'node-context-menu';
+export type ToolbarId = 'main' | 'selection' | 'node-hover' | 'add-node-menu' | 'node-context-menu' | 'canvas-context-menu';
 
 export type ToolCategory = 'navigation' | 'edit' | 'layout' | 'selection' | 'node' | 'danger';
 
@@ -107,4 +107,21 @@ export interface AddNodeCommand {
   action: string;
   payload?: Readonly<Record<string, string>>;
   disabledReason: string | null;
+  /**
+   * 单键快捷键（大写字母）。只在画布获得焦点、且没有输入框聚焦时生效。
+   * 由节点注册表声明，添加菜单和快捷键处理读同一份来源，避免菜单里加了节点、
+   * 快捷键却没跟上。
+   */
+  shortcut?: string;
+}
+
+/** 空白处右键菜单条目。与节点右键菜单同构，但不依赖命中节点。 */
+export interface CanvasContextCommand {
+  id: string;
+  label: string;
+  labelKey?: string;
+  action: string;
+  danger: boolean;
+  disabled: boolean;
+  category: ToolCategory;
 }

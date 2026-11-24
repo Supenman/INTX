@@ -45,7 +45,8 @@ export function CanvasTextSettingsPopover({ config, onConfigChange, count, onCou
         };
     }, [open]);
 
-    const panel = open && buttonRect ? <TextSettingsPortal buttonRect={buttonRect} panelRef={panelRef} placement={placement} theme={theme} config={config} count={count} onConfigChange={onConfigChange} onCountChange={onCountChange} /> : null;
+    // 同 image/audio/video：只按 open 渲染，定位在 Portal 内部处理。
+    const panel = open ? <TextSettingsPortal buttonRect={buttonRect} panelRef={panelRef} placement={placement} theme={theme} config={config} count={count} onConfigChange={onConfigChange} onCountChange={onCountChange} /> : null;
 
     return (
         <>
@@ -60,7 +61,8 @@ export function CanvasTextSettingsPopover({ config, onConfigChange, count, onCou
 }
 
 function TextSettingsPortal({ buttonRect, panelRef, placement, theme, config, count, onConfigChange, onCountChange }: {
-    buttonRect: DOMRect;
+    /** 首帧可能还没测量到按钮位置；为 null 时先不渲染，等首次 syncPosition 即可。 */
+    buttonRect: DOMRect | null;
     panelRef: RefObject<HTMLDivElement | null>;
     placement: CanvasTextSettingsPopoverProps["placement"];
     theme: (typeof canvasThemes)[keyof typeof canvasThemes];
@@ -70,9 +72,12 @@ function TextSettingsPortal({ buttonRect, panelRef, placement, theme, config, co
     onCountChange?: (count: number) => void;
 }) {
     const { t } = useTranslation();
+    if (!buttonRect) return null;
     const width = Math.min(356, window.innerWidth - 24);
     const gap = 8;
     const margin = 12;
+    // 底部工具栏占位：向下展开时留出这段，避免面板盖住工具坞。
+    const dockInset = 88;
     const alignRight = placement?.endsWith("Right");
     const alignCenter = placement === "top" || placement === "bottom";
     const left = alignCenter ? buttonRect.left + buttonRect.width / 2 - width / 2 : alignRight ? buttonRect.right - width : buttonRect.left;
@@ -82,7 +87,7 @@ function TextSettingsPortal({ buttonRect, panelRef, placement, theme, config, co
         zIndex: 1200,
         width,
         left: Math.max(margin, Math.min(window.innerWidth - width - margin, left)),
-        ...(topPlacement ? { bottom: window.innerHeight - buttonRect.top + gap, maxHeight: Math.max(240, buttonRect.top - margin * 2) } : { top: buttonRect.bottom + gap, maxHeight: Math.max(240, window.innerHeight - buttonRect.bottom - margin * 2) }),
+        ...(topPlacement ? { bottom: window.innerHeight - buttonRect.top + gap, maxHeight: Math.max(220, buttonRect.top - gap - margin) } : { top: buttonRect.bottom + gap, maxHeight: Math.max(220, Math.min(window.innerHeight - buttonRect.bottom - gap - dockInset, buttonRect.top - gap - margin)) }),
         background: theme.toolbar.panel,
         borderRadius: 18,
         boxShadow: "0 18px 54px rgba(28, 25, 23, 0.16)",

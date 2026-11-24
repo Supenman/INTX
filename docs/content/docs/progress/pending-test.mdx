@@ -5,6 +5,18 @@ description: Implemented changes that still need manual verification
 
 # Pending Tests
 
+## Canvas creation entry points and node settings popover
+
+- Press `I` / `V` / `T` / `A` on an empty canvas to create an image, video, text or audio node. The new node appears at the canvas centre and is selected; other letters do nothing.
+- With the bottom `＋` create menu open, typing `t` or `i` in the search field only filters the list and must not create nodes behind it. The shortcuts work again once the menu closes.
+- Each base node in the create menu shows its `T` / `I` / `V` / `A` hint on the right, matching the keys that actually work.
+- Right-clicking empty canvas lists "Add node / Upload here / Insert from assets / Undo / Redo / Paste here". Undo and Redo are greyed out when unavailable but stay in the list.
+- Move through the context menu with ↑↓ and Home/End, run with Enter, close with Esc and return focus to the canvas. "Add node" opens the create menu.
+- Select an image node and click the parameter button in the generation panel (e.g. "Auto · 1:1 · 3"). The settings popover must appear directly above that button, left-aligned with it, not in the top-right corner of the canvas.
+- When the popover is taller than the available space it scrolls to the end, and the last "Count" row stays fully readable.
+- Zoom the canvas out to 25% and open the settings popover: it stays fully inside the viewport, sits beside the generation panel, and does not cover the prompt input or the generate button.
+- Change one setting, press Esc, and the focus returns to the parameter button; reopening shows the changed value.
+
 ## BeefTV 画布节点交互对齐
 
 - 在 25%、50%、100%、200% 缩放下检查节点标题字号保持稳定；非图片节点悬停/选中时长标题展开换行，离开后恢复截断；基础节点与插件节点都显示类型图标。

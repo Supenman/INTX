@@ -67,7 +67,9 @@ export function CanvasImageSettingsPopover({ config, onConfigChange, onOpenChang
         };
     }, [onOpenChange, open]);
 
-    const panel = open && buttonRect ? <ImageSettingsPortal buttonRect={buttonRect} panelRef={panelRef} placement={placement} theme={theme} config={config} onConfigChange={onConfigChange} /> : null;
+    // 位置由 Portal 内部按按钮实测矩形算；这里不要求 buttonRect 先就绪，
+    // 否则首帧 buttonRect 还是 null，面板要等下一次 setState 才出现。
+    const panel = open ? <ImageSettingsPortal buttonRect={buttonRect} panelRef={panelRef} placement={placement} theme={theme} config={config} onConfigChange={onConfigChange} /> : null;
 
     return (
         <>
@@ -89,31 +91,43 @@ function ImageSettingsPortal({
     config,
     onConfigChange,
 }: {
-    buttonRect: DOMRect;
+    /** 首帧可能还没测量到按钮位置；为 null 时先不渲染，等首次 syncPosition 即可。 */
+    buttonRect: DOMRect | null;
     panelRef: RefObject<HTMLDivElement | null>;
     placement: CanvasImageSettingsPopoverProps["placement"];
     theme: (typeof canvasThemes)[keyof typeof canvasThemes];
     config: AiConfig;
     onConfigChange: (key: keyof AiConfig, value: string) => void;
 }) {
+    // 浮层锚在参数按钮上，向上展开。按钮在生成面板底部，上方可用空间比下方多得多；
+    // 面板最高占到按钮上方到底部工具栏之间的整段，内容在这段里滚动，不压住生成面板。
+    if (!buttonRect) return null;
     const width = Math.min(356, window.innerWidth - 24);
     const gap = 8;
     const margin = 12;
+    const dockInset = 88;
     const alignRight = placement?.endsWith("Right");
     const alignCenter = placement === "top" || placement === "bottom";
-    const left = alignCenter ? buttonRect.left + buttonRect.width / 2 - width / 2 : alignRight ? buttonRect.right - width : buttonRect.left;
+    // 水平方向优先让浮层和按钮左边缘对齐；右侧放不下就贴右边，再不行才夹在窗口内。
+    // 之前按钮在面板右侧、浮层却按「窗口内夹取」落在最左边，看起来像飘到了画布角落。
+    const preferredLeft = alignCenter ? buttonRect.left + buttonRect.width / 2 - width / 2 : alignRight ? buttonRect.right - width : buttonRect.left;
+    const left = Math.max(margin, Math.min(window.innerWidth - width - margin, preferredLeft));
     const topPlacement = placement?.startsWith("top");
+    const spaceAbove = buttonRect.top - gap - margin;
+    const spaceBelow = window.innerHeight - buttonRect.bottom - gap - dockInset;
     const style = {
         position: "fixed",
         zIndex: 1200,
         width,
         left: Math.max(margin, Math.min(window.innerWidth - width - margin, left)),
-        ...(topPlacement ? { bottom: window.innerHeight - buttonRect.top + gap, maxHeight: Math.max(260, buttonRect.top - margin * 2) } : { top: buttonRect.bottom + gap, maxHeight: Math.max(260, window.innerHeight - buttonRect.bottom - margin * 2) }),
+        ...(topPlacement ? { bottom: window.innerHeight - buttonRect.top + gap, maxHeight: Math.max(220, spaceAbove) } : { top: buttonRect.bottom + gap, maxHeight: Math.max(220, Math.min(spaceBelow, spaceAbove)) }),
+        // 高度不够时先滚动内容，而不是把面板压扁到装不下最后几行。
         background: theme.toolbar.panel,
         borderRadius: 18,
         boxShadow: "0 18px 54px rgba(28, 25, 23, 0.16)",
         padding: 18,
         overflowY: "auto",
+        overscrollBehavior: "contain",
         color: theme.node.text,
     } as const;
 

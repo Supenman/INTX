@@ -10,7 +10,7 @@ import { useThemeStore } from "@/stores/use-theme-store";
 import type { ContextMenuState } from "@/types/canvas";
 import type { VideoFramePosition } from "@/lib/canvas/canvas-video-frame";
 import { buildToolContext } from "@/lib/canvas/tool-wiring";
-import { resolveNodeContextMenu } from "@/domain/tool/registry";
+import { resolveCanvasContextMenu, resolveNodeContextMenu } from "@/domain/tool/registry";
 
 /**
  * 节点右键菜单。显示哪些条目、什么顺序、谁该红，全部由声明式工具注册表解析，
@@ -101,16 +101,50 @@ export function CanvasBackgroundContextMenu({ menu, canPaste, canUndo, canRedo, 
     onPaste: () => void;
 }) {
     const { t } = useTranslation();
-    const run = (action: () => void) => () => { onClose(); action(); };
+    const ctx = buildToolContext({
+        toolMode: "select",
+        selectedCount: 0,
+        nodeCount: 0,
+        clipboardCount: canPaste ? 1 : 0,
+        canUndo,
+        canRedo,
+        demoMode: false,
+        node: null,
+    });
+    const commands = resolveCanvasContextMenu(ctx);
+    const iconOf: Record<string, ReactNode> = {
+        "canvas-add-node": <Plus className="size-4" />,
+        "canvas-upload-here": <Upload className="size-4" />,
+        "canvas-open-assets": <Images className="size-4" />,
+        "canvas-undo": <Undo2 className="size-4" />,
+        "canvas-redo": <Redo2 className="size-4" />,
+        "canvas-paste": <ClipboardPaste className="size-4" />,
+    };
+    const runOf: Record<string, () => void> = {
+        "canvas-add-node": onAdd,
+        "canvas-upload-here": onUpload,
+        "canvas-open-assets": onOpenAssets,
+        "canvas-undo": onUndo,
+        "canvas-redo": onRedo,
+        "canvas-paste": onPaste,
+    };
+    // 历史/剪贴板组前面插一条分组说明，其余条目连续排列。
+    let sectionPlaced = false;
     return (
         <CanvasContextMenuSurface menu={menu} onClose={onClose}>
-            <MenuButton icon={<Plus className="size-4" />} label={t("canvas.toolbar.addNode")} onClick={run(onAdd)} />
-            <MenuButton icon={<Upload className="size-4" />} label={t("canvas.contextMenu.uploadHere")} onClick={run(onUpload)} />
-            <MenuButton icon={<Images className="size-4" />} label={t("canvas.assetPicker.open")} onClick={run(onOpenAssets)} />
-            <div role="presentation" className="mt-1 border-t border-border px-3 pt-2 text-xs text-muted-foreground">{t("canvas.contextMenu.historyClipboard")}</div>
-            <MenuButton icon={<Undo2 className="size-4" />} label={t("canvas.undo")} onClick={run(onUndo)} disabled={!canUndo} />
-            <MenuButton icon={<Redo2 className="size-4" />} label={t("canvas.redo")} onClick={run(onRedo)} disabled={!canRedo} />
-            <MenuButton icon={<ClipboardPaste className="size-4" />} label={t("canvas.contextMenu.paste")} onClick={run(onPaste)} disabled={!canPaste} />
+            {commands.map((command) => {
+                const icon = iconOf[command.id];
+                const run = runOf[command.id];
+                if (!icon || !run) return null;
+                const startsHistory = command.id === "canvas-undo" && !sectionPlaced;
+                if (startsHistory) sectionPlaced = true;
+                return (
+                    <div key={command.id}>
+                        {startsHistory ? <div role="presentation" className="mt-1 border-t border-border px-3 pt-2 text-[length:var(--fs-caption)] text-muted-foreground">{t("canvas.contextMenu.historyClipboard")}</div> : null}
+                        <MenuButton icon={icon} label={command.labelKey ? t(command.labelKey) : command.label} onClick={() => { onClose(); run(); }} disabled={command.disabled} danger={command.danger} />
+                    </div>
+                );
+            })}
         </CanvasContextMenuSurface>
     );
 }

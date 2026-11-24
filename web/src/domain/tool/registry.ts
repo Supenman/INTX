@@ -1,6 +1,7 @@
 import { listNodeDefinitions } from '../node/registry';
 import type {
   AddNodeCommand,
+  CanvasContextCommand,
   ToolContext,
   ToolDefinition,
   ToolEntry,
@@ -212,6 +213,24 @@ export function resolveNodeContextMenu(ctx: ToolContext): ContextMenuCommand[] {
       labelKey: t.labelKey,
       action: t.action,
       payload: t.payload,
+      danger: Boolean(t.danger),
+      disabled: Boolean(t.disabled?.(ctx)),
+      category: t.category,
+    }));
+}
+
+/**
+ * 空白处右键菜单。以前这组命令直接写死在组件里，和注册表里同名的
+ * 撤销/重做/粘贴各有一份，改一处容易漏另一处；现在统一在这里解析。
+ */
+export function resolveCanvasContextMenu(ctx: ToolContext): CanvasContextCommand[] {
+  return getToolbarTools('canvas-context-menu')
+    .filter((t) => !t.applicable || t.applicable(ctx))
+    .map((t) => ({
+      id: t.id,
+      label: t.label,
+      labelKey: t.labelKey,
+      action: t.action,
       danger: Boolean(t.danger),
       disabled: Boolean(t.disabled?.(ctx)),
       category: t.category,

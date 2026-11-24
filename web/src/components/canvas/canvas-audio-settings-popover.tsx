@@ -46,7 +46,9 @@ export function CanvasAudioSettingsPopover({ config, onConfigChange, buttonClass
         };
     }, [open]);
 
-    const panel = open && buttonRect ? <AudioSettingsPortal buttonRect={buttonRect} panelRef={panelRef} placement={placement} theme={theme} config={config} onConfigChange={onConfigChange} /> : null;
+    // 位置由 Portal 内部按按钮实测矩形算；这里不要求 buttonRect 先就绪，
+    // 否则首帧 buttonRect 还是 null，面板要等下一次 setState 才出现。
+    const panel = open ? <AudioSettingsPortal buttonRect={buttonRect} panelRef={panelRef} placement={placement} theme={theme} config={config} onConfigChange={onConfigChange} /> : null;
 
     return (
         <>
@@ -70,16 +72,20 @@ function AudioSettingsPortal({
     config,
     onConfigChange,
 }: {
-    buttonRect: DOMRect;
+    /** 首帧可能还没测量到按钮位置；为 null 时先不渲染，等首次 syncPosition 即可。 */
+    buttonRect: DOMRect | null;
     panelRef: RefObject<HTMLDivElement | null>;
     placement: CanvasAudioSettingsPopoverProps["placement"];
     theme: (typeof canvasThemes)[keyof typeof canvasThemes];
     config: AiConfig;
     onConfigChange: (key: CanvasAudioSettingKey, value: string) => void;
 }) {
+    if (!buttonRect) return null;
     const width = Math.min(356, window.innerWidth - 24);
     const gap = 8;
     const margin = 12;
+    // 底部工具栏占位：向下展开时留出这段，避免面板盖住工具坞。
+    const dockInset = 88;
     const alignRight = placement?.endsWith("Right");
     const alignCenter = placement === "top" || placement === "bottom";
     const left = alignCenter ? buttonRect.left + buttonRect.width / 2 - width / 2 : alignRight ? buttonRect.right - width : buttonRect.left;
@@ -89,7 +95,7 @@ function AudioSettingsPortal({
         zIndex: 1200,
         width,
         left: Math.max(margin, Math.min(window.innerWidth - width - margin, left)),
-        ...(topPlacement ? { bottom: window.innerHeight - buttonRect.top + gap, maxHeight: Math.max(260, buttonRect.top - margin * 2) } : { top: buttonRect.bottom + gap, maxHeight: Math.max(260, window.innerHeight - buttonRect.bottom - margin * 2) }),
+        ...(topPlacement ? { bottom: window.innerHeight - buttonRect.top + gap, maxHeight: Math.max(220, buttonRect.top - gap - margin) } : { top: buttonRect.bottom + gap, maxHeight: Math.max(220, Math.min(window.innerHeight - buttonRect.bottom - gap - dockInset, buttonRect.top - gap - margin)) }),
         background: theme.toolbar.panel,
         borderRadius: 18,
         boxShadow: "0 18px 54px rgba(28, 25, 23, 0.16)",
