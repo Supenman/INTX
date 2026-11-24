@@ -4134,7 +4134,7 @@ function InfiniteCanvasPage() {
                 {isMiniMapOpen ? <Minimap nodes={nodes} viewport={viewport} viewportSize={size} onViewportChange={setViewport} /> : null}
 
                 <CanvasZoomControls
-                    canvasImages={nodes.filter((node) => node.type === CanvasNodeType.Image && Boolean(node.metadata?.content || node.metadata?.previewContent))}
+                    canvasImages={nodes.filter((node) => node.type === CanvasNodeType.Image && Boolean(node.metadata?.content || node.metadata?.images?.length))}
                     onFocusImage={focusNode}
                     scale={viewport.k}
                     onScaleChange={setZoomScale}
