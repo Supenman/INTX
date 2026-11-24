@@ -17,6 +17,7 @@ import {
 	ZERO_MEDIA_TIME,
 } from "@/lib/opencut/wasm";
 import { TIMELINE_DRAG_THRESHOLD_PX } from "@/lib/opencut/timeline/components/interaction";
+import { TIMELINE_CONTENT_TOP_PADDING_PX } from "@/lib/opencut/timeline/components/layout";
 import type { FrameRate } from "opencut-wasm";
 import { computeDropTarget } from "@/lib/opencut/timeline/components/drop-target";
 import { getMouseTimeFromClientX } from "@/lib/opencut/timeline/drag-utils";
@@ -40,6 +41,7 @@ export interface ViewportAdapter {
 	getTracksScrollEl: () => HTMLDivElement | null;
 	getTracksContainerEl: () => HTMLDivElement | null;
 	getHeaderEl: () => HTMLElement | null;
+	getTrackExtraHeight?: (track: TimelineTrack) => number;
 }
 
 export interface InputAdapter {
@@ -233,7 +235,7 @@ function resolveDropTarget({
 	return computeDropTarget({
 		elementType: movingElement.type,
 		mouseX: clientX - scrollRect.left + scrollContainer.scrollLeft,
-		mouseY: clientY - scrollRect.top + scrollContainer.scrollTop - headerHeight,
+		mouseY: clientY - scrollRect.top + scrollContainer.scrollTop - headerHeight - TIMELINE_CONTENT_TOP_PADDING_PX,
 		tracks,
 		playheadTime: snappedTime,
 		isExternalDrop: false,
@@ -243,6 +245,7 @@ function resolveDropTarget({
 		startTimeOverride: snappedTime,
 		excludeElementId: movingElement.id,
 		verticalDragDirection,
+		getTrackExtraHeight: viewport.getTrackExtraHeight,
 	});
 }
 

@@ -11,6 +11,7 @@ interface UseTimelineDragDropProps {
 	headerRef?: RefObject<HTMLElement | null>;
 	tracksScrollRef?: RefObject<HTMLDivElement | null>;
 	zoomLevel: number;
+	getTrackExtraHeight?: DragDropConfig["getTrackExtraHeight"];
 }
 
 export function useTimelineDragDrop({
@@ -18,6 +19,7 @@ export function useTimelineDragDrop({
 	headerRef,
 	tracksScrollRef,
 	zoomLevel,
+	getTrackExtraHeight,
 }: UseTimelineDragDropProps) {
 	const editor = useEditor();
 
@@ -26,6 +28,7 @@ export function useTimelineDragDrop({
 		getContainerEl: () => containerRef.current,
 		getHeaderEl: () => headerRef?.current ?? null,
 		getTracksScrollEl: () => tracksScrollRef?.current ?? null,
+		getTrackExtraHeight,
 		getActiveProjectFps: () => editor.project.getActive()?.settings.fps ?? null,
 		getActiveProjectId: () =>
 			editor.project.getActiveOrNull()?.metadata.id ?? null,

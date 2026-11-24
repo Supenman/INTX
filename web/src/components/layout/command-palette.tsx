@@ -2,11 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent a
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Modal, Input } from "antd";
-import { Bot, Clapperboard, FolderKanban, HardDrive, House, Images, ListChecks, Maximize2, Plus, Search, Settings2, type LucideIcon } from "lucide-react";
+import { BookOpen, Bot, Clapperboard, FolderKanban, HardDrive, House, Images, ListChecks, Maximize2, Plus, Search, Settings2, SlidersHorizontal, type LucideIcon } from "lucide-react";
 
 import { useAgentStore } from "@/stores/use-agent-store";
 import { useCanvasStore } from "@/stores/canvas/use-canvas-store";
 import { cn } from "@/lib/utils";
+import { isImeComposing } from "@/lib/keyboard-event";
 
 type CommandItem = {
     id: string;
@@ -37,9 +38,13 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
 
     const close = useCallback(() => {
         onClose();
+    }, [onClose]);
+
+    useEffect(() => {
+        if (open) return;
         setQuery("");
         setActiveIndex(0);
-    }, [onClose]);
+    }, [open]);
 
     const go = useCallback((to: string) => {
         navigate(to);
@@ -57,9 +62,11 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
             { id: "canvas", label: t("navigation.canvas"), icon: Maximize2, keywords: "canvas project huabu xiangmu", run: () => go("/canvas") },
             { id: "editing-studio", label: t("navigation.editing-studio"), icon: Clapperboard, keywords: "editing studio jianjitai", run: () => go("/editing-studio") },
             { id: "assets", label: t("navigation.assets"), icon: Images, keywords: "assets sucai zichan", run: () => go("/assets") },
+            { id: "skills", label: t("navigation.skills"), icon: BookOpen, keywords: "skills jineng", run: () => go("/skills") },
             { id: "tasks", label: t("navigation.tasks"), icon: ListChecks, keywords: "tasks renwu", run: () => go("/tasks") },
             { id: "config-channels", label: t("navigation.config-channels"), icon: Settings2, keywords: "model channel qudao moxing", run: () => go("/config?tab=channels") },
             { id: "config-storage", label: t("navigation.config-storage"), icon: HardDrive, keywords: "storage cunchu", run: () => go("/config?tab=local-storage") },
+            { id: "config-preferences", label: t("navigation.config-preferences"), icon: SlidersHorizontal, keywords: "preferences pianhao", run: () => go("/config?tab=preferences") },
             { id: "agent", label: t("commandPalette.toggleAgent"), icon: Bot, keywords: "agent zhineng", run: () => {
                 toggleAgent();
                 close();
@@ -95,6 +102,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     }, [activeIndex]);
 
     const onKeyDown = (event: ReactKeyboardEvent) => {
+        if (isImeComposing(event)) return;
         if (event.key === "ArrowDown") {
             event.preventDefault();
             setActiveIndex((index) => (results.length ? (index + 1) % results.length : 0));

@@ -18,6 +18,7 @@ import { AddTrackCommand, InsertElementCommand } from "@/lib/opencut/commands/ti
 import { BatchCommand } from "@/lib/opencut/commands";
 import type { Command } from "@/lib/opencut/commands/base-command";
 import { computeDropTarget } from "@/lib/opencut/timeline/components/drop-target";
+import { TIMELINE_CONTENT_TOP_PADDING_PX } from "@/lib/opencut/timeline/components/layout";
 import type { TimelineDragSource } from "@/lib/opencut/timeline/drag-source";
 import type {
 	TrackType,
@@ -39,6 +40,7 @@ export interface DragDropConfig {
 	getContainerEl: () => HTMLDivElement | null;
 	getHeaderEl: () => HTMLElement | null;
 	getTracksScrollEl: () => HTMLDivElement | null;
+	getTrackExtraHeight?: (track: TimelineTrack) => number;
 	getActiveProjectFps: () => FrameRate | null;
 	getActiveProjectId: () => string | null;
 	getSceneTracks: () => SceneTracks;
@@ -222,6 +224,7 @@ export class DragDropController {
 			pixelsPerSecond: BASE_TIMELINE_PIXELS_PER_SECOND,
 			zoomLevel: this.config.zoomLevel,
 			targetElementTypes,
+			getTrackExtraHeight: this.config.getTrackExtraHeight,
 		});
 
 		const fps = this.config.getActiveProjectFps();
@@ -311,7 +314,7 @@ export class DragDropController {
 
 		return {
 			mouseX: event.clientX - referenceRect.left + scrollLeft,
-			mouseY: event.clientY - referenceRect.top + scrollTop - headerHeight,
+			mouseY: event.clientY - referenceRect.top + scrollTop - headerHeight - TIMELINE_CONTENT_TOP_PADDING_PX,
 		};
 	}
 
@@ -556,6 +559,7 @@ export class DragDropController {
 						elementDuration: duration,
 						pixelsPerSecond: BASE_TIMELINE_PIXELS_PER_SECOND,
 						zoomLevel: this.config.zoomLevel,
+						getTrackExtraHeight: this.config.getTrackExtraHeight,
 					});
 
 					const trackType: TrackType =

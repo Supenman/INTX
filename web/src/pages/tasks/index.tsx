@@ -1,15 +1,18 @@
-import { App, Button, Drawer, Input, Segmented, Spin, Tag } from "antd";
+import { Button, Drawer, Input, Segmented, Select, Spin, Tag } from "antd";
 import dayjs from "dayjs";
-import { ClipboardList, Copy, Download, Search } from "lucide-react";
+import { ArrowUpRight, ClipboardList, Copy, Download, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Link, useSearchParams } from "react-router-dom";
 
 import { PageHeader, PageShell } from "@/components/layout/page-header";
-import type { Task } from "@/domain/task/model";
+import { EmptyState } from "@/components/layout/empty-state";
+import { TASK_KINDS, type Task, type TaskKind } from "@/domain/task/model";
 import { readTaskOutcome, type OutcomeReason } from "@/domain/task/outcome";
 import { useCopyText } from "@/hooks/use-copy-text";
 import { useSaveFile } from "@/hooks/use-save-file";
 import { loadTaskLog, useTaskLogStore } from "@/services/generation";
+import { useAssetStore } from "@/stores/use-asset-store";
 
 type Bucket = "all" | "running" | "succeeded" | "ended";
 
@@ -45,8 +48,16 @@ export default function TasksPage() {
     const hydrated = useTaskLogStore((state) => state.hydrated);
     const loadError = useTaskLogStore((state) => state.loadError);
     const [bucket, setBucket] = useState<Bucket>("all");
+    const [kind, setKind] = useState<TaskKind | "all">("all");
     const [keyword, setKeyword] = useState("");
-    const [selectedId, setSelectedId] = useState<string | null>(null);
+    const [searchParams, setSearchParams] = useSearchParams();
+    const selectedId = searchParams.get("task");
+    const setSelectedId = (id: string | null) => {
+        const next = new URLSearchParams(searchParams);
+        if (id) next.set("task", id);
+        else next.delete("task");
+        setSearchParams(next, { replace: true });
+    };
 
     useEffect(() => {
         void loadTaskLog();
@@ -62,11 +73,12 @@ export default function TasksPage() {
         const q = keyword.trim().toLowerCase();
         return tasks.filter((task) => {
             if (bucket !== "all" && bucketOf(task) !== bucket) return false;
+            if (kind !== "all" && task.kind !== kind) return false;
             if (!q) return true;
             const haystack = [task.params.prompt, task.params.model, task.id, task.upstreamRef ?? ""].join(" ").toLowerCase();
             return haystack.includes(q);
         });
-    }, [tasks, bucket, keyword]);
+    }, [tasks, bucket, kind, keyword]);
 
     const selected = useMemo(() => tasks.find((task) => task.id === selectedId) ?? null, [tasks, selectedId]);
 
@@ -89,19 +101,9 @@ export default function TasksPage() {
                 <PageHeader
                     title={t("tasks.title")}
                     description={t("tasks.description")}
-                    actions={
-                        <Input
-                            allowClear
-                            className="w-60"
-                            prefix={<Search className="size-4 text-muted-foreground" />}
-                            placeholder={t("tasks.search")}
-                            value={keyword}
-                            onChange={(event) => setKeyword(event.target.value)}
-                        />
-                    }
                 />
 
-                <div className="mt-4">
+                <div className="workspace-toolbar">
                     <Segmented<Bucket>
                         value={bucket}
                         onChange={(value) => setBucket(value)}
@@ -110,6 +112,24 @@ export default function TasksPage() {
                             label: `${t(`tasks.filter.${value}`)} ${counts[value]}`,
                         }))}
                     />
+                    <div className="flex w-full flex-wrap items-center gap-2 @min-[760px]/workspace:w-auto">
+                        <Input
+                            allowClear
+                            className="!w-auto min-w-36 flex-1 sm:!w-52"
+                            aria-label={t("tasks.search")}
+                            prefix={<Search className="size-4 text-muted-foreground" />}
+                            placeholder={t("tasks.search")}
+                            value={keyword}
+                            onChange={(event) => setKeyword(event.target.value)}
+                        />
+                        <Select<TaskKind | "all">
+                            aria-label={t("assets.type")}
+                            className="w-32"
+                            value={kind}
+                            onChange={setKind}
+                            options={[{ value: "all", label: t("tasks.allKinds") }, ...TASK_KINDS.map((value) => ({ value, label: t(`tasks.kind.${value}`) }))]}
+                        />
+                    </div>
                 </div>
 
                 <div className="mt-4 pb-6">
@@ -128,11 +148,12 @@ export default function TasksPage() {
                             {t("tasks.loading")}
                         </div>
                     ) : filtered.length === 0 ? (
-                        <div className="rounded-lg border border-dashed border-border px-4 py-16 text-center text-sm text-muted-foreground">
-                            <ClipboardList className="mx-auto mb-2 size-5" />
-                            <div className="text-foreground">{t(tasks.length === 0 ? "tasks.empty.none" : "tasks.empty.noMatch")}</div>
-                            <div className="mt-1">{t(tasks.length === 0 ? "tasks.empty.noneHint" : "tasks.empty.noMatchHint")}</div>
-                        </div>
+                        <EmptyState
+                            icon={ClipboardList}
+                            title={t(tasks.length === 0 ? "tasks.empty.none" : "tasks.empty.noMatch")}
+                            description={t(tasks.length === 0 ? "tasks.empty.noneHint" : "tasks.empty.noMatchHint")}
+                            action={tasks.length > 0 && <Button onClick={() => { setBucket("all"); setKind("all"); setKeyword(""); }}>{t("assets.clearFilters")}</Button>}
+                        />
                     ) : (
                         <div className="space-y-2">
                             {filtered.map((task) => {
@@ -143,7 +164,7 @@ export default function TasksPage() {
                                         key={task.id}
                                         type="button"
                                         onClick={() => setSelectedId(task.id)}
-                                        className="block w-full rounded-lg border border-border px-4 py-3 text-left transition hover:border-stone-300 hover:bg-stone-50/60 dark:hover:border-stone-700 dark:hover:bg-stone-900/40"
+                                        className="focus-ring block w-full rounded-xl border border-border bg-[var(--surface-card)] px-4 py-3 text-left transition hover:bg-[var(--surface-card-hover)]"
                                     >
                                         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
                                             <div className="min-w-0 flex-1">
@@ -155,6 +176,7 @@ export default function TasksPage() {
                                                     <span>·</span>
                                                     <span>{t(`tasks.status.${task.status}`)}</span>
                                                     {task.status === "running" && task.phase ? <span>· {t(`tasks.phase.${task.phase}`)}</span> : null}
+                                                    {task.status === "running" && task.upstreamProgress != null ? <span className="tabular-nums">· {Math.round(task.upstreamProgress * 100)}%</span> : null}
                                                 </div>
                                                 <div className="mt-1.5 truncate text-sm text-foreground">{task.params.prompt || "—"}</div>
                                                 <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
@@ -215,6 +237,7 @@ function TaskDetail({
     onExport: (task: Task) => void;
 }) {
     const { t } = useTranslation();
+    const assets = useAssetStore((state) => state.assets);
     const outcome = readTaskOutcome(task);
     const policy = outcome?.regenerate ?? null;
     const reason = outcome?.reason ?? null;
@@ -285,8 +308,23 @@ function TaskDetail({
 
             {task.resultAssetIds.length ? (
                 <div>
-                    <div className="text-xs text-muted-foreground">{t("tasks.detail.resultIds")}</div>
-                    <div className="mt-1 break-all font-mono text-xs text-muted-foreground">{task.resultAssetIds.join(", ")}</div>
+                    <div className="text-xs text-muted-foreground">{t("tasks.resultAssets")}</div>
+                    <ul className="mt-1 space-y-1">
+                        {task.resultAssetIds.map((id) => {
+                            const asset = assets.find((item) => item.id === id);
+                            return (
+                                <li key={id}>
+                                    {asset ? (
+                                        <Link to={`/assets?${new URLSearchParams({ asset: id })}`} className="flex items-center gap-2 rounded-md border border-border px-3 py-2 hover:bg-[var(--surface-card-hover)]">
+                                            <span className="min-w-0 flex-1 truncate">{asset.title}</span>
+                                            <span className="shrink-0 text-xs text-muted-foreground">{t(`assets.kinds.${asset.kind}`)}</span>
+                                            <ArrowUpRight aria-hidden className="size-3.5 shrink-0" />
+                                        </Link>
+                                    ) : <span className="break-all font-mono text-xs text-muted-foreground">{id}</span>}
+                                </li>
+                            );
+                        })}
+                    </ul>
                 </div>
             ) : null}
         </div>

@@ -101,7 +101,7 @@ export function DraggableItem({
 				>
 					<div
 						className={cn(
-							"relative flex h-auto w-full cursor-default flex-col gap-1 p-",
+							"relative flex h-auto w-full cursor-default flex-col gap-1",
 							className,
 						)}
 					>
@@ -117,9 +117,9 @@ export function DraggableItem({
 							onDragEnd={isDraggable ? handleDragEnd : undefined}
 						>
 							{preview}
-							{!isDragging && (
+							{!isDragging && onAddToTimeline && (
 								<PlusButton
-									className="opacity-0 group-hover:opacity-100"
+									className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
 									onClick={handleAddToTimeline}
 								/>
 							)}
@@ -148,6 +148,7 @@ export function DraggableItem({
 						type="button"
 						className={cn(
 							"flex h-8 w-full cursor-default items-center gap-3 px-1 outline-none",
+							onAddToTimeline && "pr-8",
 							isDraggable && "[&::-webkit-drag-ghost]:opacity-0",
 							className,
 						)}
@@ -162,6 +163,7 @@ export function DraggableItem({
 							{name}
 						</span>
 					</button>
+					{!isDragging && onAddToTimeline && <PlusButton className="!bottom-1.5 opacity-0 group-hover:opacity-100 focus-visible:opacity-100" onClick={handleAddToTimeline} />}
 				</div>
 			)}
 
@@ -184,10 +186,10 @@ export function DraggableItem({
 								<div className="size-full [&_img]:size-full [&_img]:rounded-none [&_img]:object-cover">
 									{preview}
 								</div>
-								{shouldShowPlusOnDrag && (
+								{shouldShowPlusOnDrag && onAddToTimeline && (
 									<PlusButton
 										onClick={handleAddToTimeline}
-										tooltipText="Add to timeline or drag to position"
+										tooltipText="添加到播放头位置，或拖到时间线"
 									/>
 								)}
 							</AspectRatio>
@@ -202,7 +204,7 @@ export function DraggableItem({
 function PlusButton({
 	className,
 	onClick,
-	tooltipText,
+	tooltipText = "添加到播放头位置",
 }: {
 	className?: string;
 	onClick?: () => void;
@@ -221,6 +223,7 @@ function PlusButton({
 				onClick?.();
 			}}
 			title={tooltipText}
+			aria-label={tooltipText}
 		>
 			<Plus />
 		</Button>

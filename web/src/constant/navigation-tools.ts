@@ -1,4 +1,15 @@
-import { BookOpen, Clapperboard, HardDrive, Images, ListChecks, Maximize2, Settings2 } from "lucide-react";
+import { BookOpen, Clapperboard, HardDrive, Images, ListChecks, Maximize2, Settings2, SlidersHorizontal } from "lucide-react";
+import type { ConfigTabKey } from "@/stores/use-config-store";
+
+const configSections = [
+    { slug: "config-channels", tabs: ["channels", "tasks", "local-proxy"], icon: Settings2 },
+    { slug: "config-storage", tabs: ["local-storage", "webdav"], icon: HardDrive },
+    { slug: "config-preferences", tabs: ["preferences"], icon: SlidersHorizontal },
+] as const satisfies ReadonlyArray<{ slug: string; tabs: readonly ConfigTabKey[]; icon: typeof Settings2 }>;
+
+export function configSectionForTab(tab: string | null) {
+    return configSections.find((section) => section.tabs.some((key) => key === tab)) ?? configSections[0];
+}
 
 /**
  * 侧栏一级导航。
@@ -27,16 +38,7 @@ export const navigationTools = [
         slug: "tasks",
         icon: ListChecks,
     },
-    {
-        slug: "config-channels",
-        icon: Settings2,
-        to: "/config?tab=channels",
-    },
-    {
-        slug: "config-storage",
-        icon: HardDrive,
-        to: "/config?tab=local-storage",
-    },
+    ...configSections.map(({ slug, icon, tabs }) => ({ slug, icon, to: `/config?tab=${tabs[0]}` })),
 ] as const;
 
 export type NavigationToolSlug = (typeof navigationTools)[number]["slug"];

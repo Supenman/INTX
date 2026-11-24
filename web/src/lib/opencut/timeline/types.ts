@@ -278,6 +278,7 @@ export interface ComputeDropTargetParams {
 	startTimeOverride?: MediaTime;
 	excludeElementId?: string;
 	targetElementTypes?: string[];
+	getTrackExtraHeight?: (track: TimelineTrack) => number;
 }
 
 export interface ClipboardItem {

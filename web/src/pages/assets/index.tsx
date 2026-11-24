@@ -1,7 +1,8 @@
 import { Copy, Download, PencilLine, Plus, Search, Trash2, Upload } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { App, Button, Card, Drawer, Form, Image, Input, Modal, Pagination, Select, Space, Tag, Typography } from "antd";
+import { App, Button, Card, Checkbox, Drawer, Form, Image, Input, Modal, Pagination, Select, Space, Tag, Typography } from "antd";
 import { useTranslation } from "react-i18next";
+import { useSearchParams } from "react-router-dom";
 
 import { PageHeader, PageShell } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/layout/empty-state";
@@ -28,10 +29,11 @@ type AssetFormValues = {
 type ImageDraft = ImageAsset["data"] | null;
 
 const kindOptions = ["all", "text", "image", "video"] as const;
+const sortOptions = ["recent", "oldest", "name"] as const;
 
 export default function AssetsPage() {
     const { message } = App.useApp();
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const copyText = useCopyText();
     const saveFileWithNotice = useSaveFile();
     const saveNotice = useSaveNotice();
@@ -46,12 +48,24 @@ export default function AssetsPage() {
     const removeAsset = useAssetStore((state) => state.removeAsset);
     const [keyword, setKeyword] = useState("");
     const [kindFilter, setKindFilter] = useState<AssetKind | "all">("all");
+    const [sortOrder, setSortOrder] = useState<(typeof sortOptions)[number]>("recent");
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
     const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
     const [isAssetOpen, setIsAssetOpen] = useState(false);
-    const [previewAsset, setPreviewAsset] = useState<Asset | null>(null);
-    const [deletingAsset, setDeletingAsset] = useState<Asset | null>(null);
+    const [searchParams, setSearchParams] = useSearchParams();
+    const previewAsset = assets.find((asset) => asset.id === searchParams.get("asset")) ?? null;
+    const setPreviewAsset = (asset: Asset | null) => {
+        const next = new URLSearchParams(searchParams);
+        if (asset) next.set("asset", asset.id);
+        else next.delete("asset");
+        setSearchParams(next, { replace: true });
+    };
+    const [deletingAssets, setDeletingAssets] = useState<Asset[]>([]);
+    const deleteInFlight = useRef(false);
+    const [deletePending, setDeletePending] = useState(false);
+    const [exportPending, setExportPending] = useState(false);
     const [formKind, setFormKind] = useState<AssetKind>("text");
     const [imageDraft, setImageDraft] = useState<ImageDraft>(null);
     const coverUrl = Form.useWatch("coverUrl", form) || "";
@@ -59,6 +73,12 @@ export default function AssetsPage() {
     const tags = Form.useWatch("tags", form) || [];
     const content = Form.useWatch("content", form) || "";
     const validAssets = useMemo(() => assets.filter((asset) => asset.kind === "text" || asset.kind === "image" || asset.kind === "video"), [assets]);
+    const kindCounts = useMemo(() => {
+        const counts = { all: validAssets.length, text: 0, image: 0, video: 0 };
+        for (const asset of validAssets) counts[asset.kind]++;
+        return counts;
+    }, [validAssets]);
+    const selectedAssets = validAssets.filter((asset) => selectedIds.has(asset.id));
 
     const filteredAssets = useMemo(() => {
         const query = keyword.trim().toLowerCase();
@@ -66,8 +86,12 @@ export default function AssetsPage() {
             if (kindFilter !== "all" && asset.kind !== kindFilter) return false;
             if (!query) return true;
             return assetSearchText(asset).includes(query);
+        }).sort((a, b) => {
+            if (sortOrder === "name") return a.title.localeCompare(b.title, i18n.resolvedLanguage);
+            const byDate = Date.parse(b.createdAt) - Date.parse(a.createdAt);
+            return sortOrder === "oldest" ? -byDate : byDate;
         });
-    }, [validAssets, keyword, kindFilter]);
+    }, [validAssets, keyword, kindFilter, sortOrder, i18n.resolvedLanguage]);
 
     const visibleAssets = useMemo(() => {
         const start = (page - 1) * pageSize;
@@ -75,6 +99,17 @@ export default function AssetsPage() {
     }, [filteredAssets, page, pageSize]);
 
     const hasFilter = Boolean(keyword.trim()) || kindFilter !== "all";
+    const allVisibleSelected = visibleAssets.length > 0 && visibleAssets.every((asset) => selectedIds.has(asset.id));
+    const setAssetsSelected = (items: Asset[], checked: boolean) => {
+        setSelectedIds((current) => {
+            const next = new Set(current);
+            for (const asset of items) {
+                if (checked) next.add(asset.id);
+                else next.delete(asset.id);
+            }
+            return next;
+        });
+    };
 
     useEffect(() => {
         const maxPage = Math.max(1, Math.ceil(filteredAssets.length / pageSize));
@@ -172,16 +207,20 @@ export default function AssetsPage() {
         }
     };
 
-    const exportAllAssets = async () => {
-        if (!validAssets.length) {
+    const exportAssetSelection = async (items: Asset[]) => {
+        if (exportPending) return;
+        if (!items.length) {
             message.warning(t("assets.noneToExport"));
             return;
         }
+        setExportPending(true);
         try {
-            saveNotice(await exportAssets(validAssets, t("assets.packageName")));
+            saveNotice(await exportAssets(items, t("assets.packageName")));
         } catch (error) {
             console.error(error);
             message.error(t("common.saveFailed"));
+        } finally {
+            setExportPending(false);
         }
     };
 
@@ -210,14 +249,23 @@ export default function AssetsPage() {
     };
 
     const confirmDelete = async () => {
-        if (!deletingAsset) return;
-        removeAsset(deletingAsset.id);
+        if (!deletingAssets.length || deleteInFlight.current) return;
+        deleteInFlight.current = true;
+        setDeletePending(true);
         try {
+            const existingIds = new Set(useAssetStore.getState().assets.map((asset) => asset.id));
+            for (const asset of deletingAssets) {
+                if (existingIds.has(asset.id)) removeAsset(asset.id);
+            }
             await useAssetStore.getState().confirmSave();
-            message.success(t("assets.deleted"));
-            setDeletingAsset(null);
+            message.success(deletingAssets.length === 1 ? t("assets.deleted") : t("assets.batchDeleted", { count: deletingAssets.length }));
+            setAssetsSelected(deletingAssets, false);
+            setDeletingAssets([]);
         } catch {
             message.error(t("assets.deleteSaveFailed"));
+        } finally {
+            deleteInFlight.current = false;
+            setDeletePending(false);
         }
     };
 
@@ -232,7 +280,7 @@ export default function AssetsPage() {
                         description={t("assets.description")}
                         actions={
                             <>
-                                <Button type="text" onClick={() => void exportAllAssets()}>
+                                <Button type="text" loading={exportPending} onClick={() => void exportAssetSelection(validAssets)}>
                                     {t("assets.export")}
                                 </Button>
                                 <Button type="text" onClick={() => assetInputRef.current?.click()}>
@@ -245,31 +293,31 @@ export default function AssetsPage() {
                         }
                     />
 
-                    <div className="mt-5 flex items-center justify-between gap-3">
+                    <div className="workspace-toolbar">
                         <div className="flex flex-wrap items-center gap-2">
                             <span className="typ-overline mr-1 text-muted-foreground">{t("assets.type")}</span>
                             {kindOptions.map((option) => (
-                                <Tag.CheckableTag
+                                <button
                                     key={option}
-                                    checked={kindFilter === option}
-                                    className={cn("prompt-filter-tag", kindFilter === option && "is-active")}
-                                    onChange={() => {
+                                    type="button"
+                                    aria-pressed={kindFilter === option}
+                                    className={cn("flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm hover:bg-[var(--surface-card-hover)]", kindFilter === option ? "bg-[var(--surface-card-hover)] font-medium text-foreground" : "text-muted-foreground")}
+                                    onClick={() => {
                                         setPage(1);
                                         setKindFilter(option);
                                     }}
                                 >
                                     {option === "all" ? t("common.all") : t(`assets.kinds.${option}`)}
-                                </Tag.CheckableTag>
+                                    <span className="text-xs tabular-nums text-muted-foreground">{kindCounts[option]}</span>
+                                </button>
                             ))}
                         </div>
 
-                        <div className="flex items-center gap-3">
-                            <div className="block">
-                                <SnapshotStorageStatus kind="assets" />
-                            </div>
+                        <div className="flex w-full flex-wrap items-center gap-2 @min-[760px]/workspace:w-auto">
                             <Input
                                 allowClear
-                                className="w-64"
+                                className="!w-auto min-w-36 flex-1 sm:!w-52"
+                                aria-label={t("assets.search")}
                                 prefix={<Search className="size-3.5 text-muted-foreground" />}
                                 value={keyword}
                                 placeholder={t("assets.search")}
@@ -277,30 +325,65 @@ export default function AssetsPage() {
                                     setPage(1);
                                     setKeyword(event.target.value);
                                 }}
-                                onPressEnter={(event) => {
+                            />
+                            <Select
+                                aria-label={t("assets.sortLabel")}
+                                className="w-32"
+                                value={sortOrder}
+                                options={sortOptions.map((value) => ({ value, label: t(`assets.sort.${value}`) }))}
+                                onChange={(value) => {
+                                    setSortOrder(value);
                                     setPage(1);
-                                    setKeyword((event.target as HTMLInputElement).value);
                                 }}
                             />
                         </div>
                     </div>
 
-                    <div className="mt-5 grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-4">
-                        {visibleAssets.map((asset) => (
-                            <AssetCard key={asset.id} asset={asset} onOpen={() => setPreviewAsset(asset)} onEdit={() => openEdit(asset)} onCopy={copyAssetText} onDownload={downloadImage} onDelete={() => setDeletingAsset(asset)} />
-                        ))}
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <Checkbox
+                                checked={allVisibleSelected}
+                                indeterminate={!allVisibleSelected && visibleAssets.some((asset) => selectedIds.has(asset.id))}
+                                disabled={!visibleAssets.length}
+                                onChange={(event) => setAssetsSelected(visibleAssets, event.target.checked)}
+                            >
+                                {t("assets.selectPage")}
+                            </Checkbox>
+                            <span className="text-xs text-muted-foreground">{t("assets.resultCount", { count: filteredAssets.length })}</span>
+                        </div>
+                        <SnapshotStorageStatus kind="assets" />
                     </div>
+
+                    {selectedAssets.length > 0 && (
+                        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-[var(--surface-card)] px-3 py-2">
+                            <span className="mr-auto text-sm font-medium" aria-live="polite">{t("assets.selectedCount", { count: selectedAssets.length })}</span>
+                            <Button size="small" type="text" onClick={() => setSelectedIds(new Set())}>{t("assets.clearSelection")}</Button>
+                            <Button size="small" loading={exportPending} onClick={() => void exportAssetSelection(selectedAssets)}>{t("assets.exportSelected")}</Button>
+                            <Button size="small" danger onClick={() => setDeletingAssets(selectedAssets)}>{t("assets.deleteSelected")}</Button>
+                        </div>
+                    )}
+
+                    {visibleAssets.length > 0 && <div className="mt-4 grid grid-cols-1 gap-4 @min-[480px]/workspace:grid-cols-2 @min-[720px]/workspace:grid-cols-3 @min-[960px]/workspace:grid-cols-4">
+                        {visibleAssets.map((asset) => (
+                            <AssetCard key={asset.id} asset={asset} selected={selectedIds.has(asset.id)} onSelect={(checked) => setAssetsSelected([asset], checked)} onOpen={() => setPreviewAsset(asset)} onEdit={() => openEdit(asset)} onCopy={copyAssetText} onDownload={downloadImage} onDelete={() => setDeletingAssets([asset])} />
+                        ))}
+                    </div>}
 
                     {!visibleAssets.length ? (
                         <EmptyState
                             icon={Search}
                             title={hasFilter ? t("assets.empty") : t("assets.emptyAll")}
                             description={hasFilter ? t("assets.emptyHint") : t("assets.emptyAllHint")}
-                            className="mt-5 py-16"
+                            action={hasFilter ? <Button onClick={() => {
+                                setKeyword("");
+                                setKindFilter("all");
+                                setPage(1);
+                            }}>{t("assets.clearFilters")}</Button> : <Button type="primary" onClick={openCreate}>{t("assets.add")}</Button>}
+                            className="mt-4"
                         />
                     ) : null}
 
-                    {filteredAssets.length > pageSize ? (
+                    {filteredAssets.length > 10 ? (
                         <div className="mt-5 flex justify-center">
                             <Pagination
                                 current={page}
@@ -428,14 +511,14 @@ export default function AssetsPage() {
 
             <input ref={assetInputRef} type="file" accept="application/zip,.zip" className="hidden" onChange={(event) => void importAssetZip(event.target.files?.[0])} />
 
-            <Modal destroyOnHidden title={t("assets.deleteTitle")} open={Boolean(deletingAsset)} onCancel={() => setDeletingAsset(null)} onOk={confirmDelete} okText={t("common.delete")} okButtonProps={{ danger: true }} cancelText={t("common.cancel")}>
-                {t("assets.deleteConfirm", { name: deletingAsset?.title })}
+            <Modal destroyOnHidden title={t("assets.deleteTitle")} open={deletingAssets.length > 0} onCancel={() => { if (!deleteInFlight.current) setDeletingAssets([]); }} onOk={confirmDelete} confirmLoading={deletePending} okText={t("common.delete")} okButtonProps={{ danger: true }} cancelText={t("common.cancel")}>
+                {deletingAssets.length > 1 ? t("assets.batchDeleteConfirm", { count: deletingAssets.length }) : t("assets.deleteConfirm", { name: deletingAssets[0]?.title })}
             </Modal>
         </PageShell>
     );
 }
 
-function AssetCard({ asset, onOpen, onEdit, onCopy, onDownload, onDelete }: { asset: Asset; onOpen: () => void; onEdit: () => void; onCopy: (asset: Asset) => void; onDownload: (asset: Asset) => void; onDelete: () => void }) {
+function AssetCard({ asset, selected, onSelect, onOpen, onEdit, onCopy, onDownload, onDelete }: { asset: Asset; selected: boolean; onSelect: (checked: boolean) => void; onOpen: () => void; onEdit: () => void; onCopy: (asset: Asset) => void; onDownload: (asset: Asset) => void; onDelete: () => void }) {
     const { t } = useTranslation();
     useSyncExternalStore(subscribeImagePreviews, getImagePreviewRevision);
     const cover = assetCoverUrl(asset);
@@ -443,10 +526,10 @@ function AssetCard({ asset, onOpen, onEdit, onCopy, onDownload, onDelete }: { as
     return (
         <Card
             hoverable
-            className="surface-card-interactive overflow-hidden"
+            className={cn("surface-card-interactive relative overflow-hidden", selected && "ring-2 ring-primary")}
             styles={{ body: { padding: 0 } }}
             cover={
-                <button type="button" className="block w-full text-left" onClick={onOpen}>
+                <button type="button" className="block w-full text-left" aria-label={asset.title} onClick={onOpen}>
                     {cover ? (
                         <img src={cover} alt={asset.title} className="aspect-[4/3] w-full object-cover" />
                     ) : (
@@ -455,6 +538,9 @@ function AssetCard({ asset, onOpen, onEdit, onCopy, onDownload, onDelete }: { as
                 </button>
             }
         >
+            <div className="absolute left-2 top-2 z-10 grid size-7 place-items-center rounded-md border border-border bg-card shadow-sm">
+                <Checkbox checked={selected} aria-label={t("assets.selectAsset", { name: asset.title })} onChange={(event) => onSelect(event.target.checked)} />
+            </div>
             <button type="button" className="block w-full text-left" onClick={onOpen}>
                 <div className="p-3.5">
                     <div className="flex items-start justify-between gap-3">
@@ -475,7 +561,7 @@ function AssetCard({ asset, onOpen, onEdit, onCopy, onDownload, onDelete }: { as
                     </div>
                 </div>
             </button>
-            <div className="flex items-center gap-1.5 border-t border-border/60 px-2.5 py-2">
+            <div className="flex flex-wrap items-center gap-1.5 border-t border-border/60 px-2.5 py-2">
                 <Button type="text" size="small" onClick={onOpen}>
                     {t("common.view")}
                 </Button>
@@ -490,9 +576,9 @@ function AssetCard({ asset, onOpen, onEdit, onCopy, onDownload, onDelete }: { as
                     </Button>
                 ) : null}
                 {asset.kind === "image" || asset.kind === "video" ? (
-                    <Button type="text" size="small" icon={<Download className="size-3.5" />} onClick={() => onDownload(asset)} />
+                    <Button type="text" size="small" aria-label={t("common.download")} icon={<Download className="size-3.5" />} onClick={() => onDownload(asset)} />
                 ) : null}
-                <Button type="text" size="small" danger className="ml-auto" icon={<Trash2 className="size-3.5" />} onClick={onDelete} />
+                <Button type="text" size="small" danger aria-label={t("common.delete")} className="ml-auto" icon={<Trash2 className="size-3.5" />} onClick={onDelete} />
             </div>
         </Card>
     );

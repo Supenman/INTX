@@ -1,8 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { TransitionTopIcon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
+import { useRef, useState } from "react";
 import {
 	Popover,
 	PopoverContent,
@@ -13,7 +11,6 @@ import { Label } from "@/lib/opencut/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/lib/opencut/components/ui/radio-group";
 import { Progress } from "@/lib/opencut/components/ui/progress";
 import { Checkbox } from "@/lib/opencut/components/ui/checkbox";
-import { cn } from "@/lib/opencut/utils/ui";
 import {
 	getExportMimeType,
 	getExportFileExtension,
@@ -47,15 +44,15 @@ function isExportQuality(value: string): value is ExportQuality {
 }
 
 export function ExportButton() {
-    const { message } = App.useApp();
 	const [isExportPopoverOpen, setIsExportPopoverOpen] = useState(false);
+	const [saving, setSaving] = useState(false);
 	const editor = useEditor();
 	const activeProject = useEditor((e) => e.project.getActiveOrNull());
 	const hasProject = !!activeProject;
 
 	const handlePopoverOpenChange = ({ open }: { open: boolean }) => {
 		if (!open) {
-			editor.project.cancelExport();
+			if (saving || editor.project.getExportState().isExporting) return;
 			editor.project.clearExportState();
 		}
 		setIsExportPopoverOpen(open);
@@ -67,40 +64,26 @@ export function ExportButton() {
 			onOpenChange={(open) => handlePopoverOpenChange({ open })}
 		>
 			<PopoverTrigger asChild>
-				<button
-					type="button"
-					className={cn(
-						"flex items-center gap-1.5 rounded-md bg-[#38BDF8] px-[0.12rem] py-[0.12rem] text-white",
-						hasProject ? "cursor-pointer" : "cursor-not-allowed opacity-50",
-					)}
-					onClick={hasProject ? () => setIsExportPopoverOpen(true) : undefined}
-					disabled={!hasProject}
-					onKeyDown={(event) => {
-						if (hasProject && (event.key === "Enter" || event.key === " ")) {
-							event.preventDefault();
-							setIsExportPopoverOpen(true);
-						}
-					}}
-				>
-					<div className="relative flex items-center gap-1.5 rounded-[0.6rem] bg-linear-270 from-[#2567EC] to-[#37B6F7] px-4 py-1 shadow-[0_1px_3px_0px_rgba(0,0,0,0.65)]">
-						<HugeiconsIcon icon={TransitionTopIcon} className="z-50 size-3.5" />
-						<span className="z-50 text-[0.875rem]">导出</span>
-						<div className="absolute top-0 left-0 z-10 flex size-full items-center justify-center rounded-[0.6rem] bg-linear-to-t from-white/0 to-white/50">
-							<div className="absolute top-[0.08rem] z-50 h-[calc(100%-2px)] w-[calc(100%-2px)] rounded-[0.6rem] bg-linear-270 from-[#2567EC] to-[#37B6F7]"></div>
-						</div>
-					</div>
-				</button>
+				<Button type="button" className="h-8 gap-2 px-3" disabled={!hasProject} aria-label="导出项目">
+					<Download className="size-4" />
+					导出
+				</Button>
 			</PopoverTrigger>
-			{hasProject && <ExportPopover onOpenChange={setIsExportPopoverOpen} />}
+			{hasProject && isExportPopoverOpen && <ExportPopover saving={saving} setSaving={setSaving} onOpenChange={setIsExportPopoverOpen} />}
 		</Popover>
 	);
 }
 
 function ExportPopover({
+	saving,
+	setSaving,
 	onOpenChange,
 }: {
+	saving: boolean;
+	setSaving: (saving: boolean) => void;
 	onOpenChange: (open: boolean) => void;
 }) {
+	const { message } = App.useApp();
 	const editor = useEditor();
 	const activeProject = useEditor((e) => e.project.getActive());
 	const exportState = useEditor((e) => e.project.getExportState());
@@ -114,35 +97,19 @@ function ExportPopover({
 	const [shouldIncludeAudio, setShouldIncludeAudio] = useState<boolean>(
 		DEFAULT_EXPORT_OPTIONS.includeAudio ?? true,
 	);
+	const [rendered, setRendered] = useState<{ blob: Blob; filename: string; width: number; height: number } | null>(null);
+	const [saveError, setSaveError] = useState("");
+	const saveInFlight = useRef(false);
 
-	const handleExport = async () => {
-		if (!activeProject) return;
-
-		const result = await editor.project.export({
-			options: {
-				format,
-				quality,
-				fps: activeProject.settings.fps,
-				includeAudio: shouldIncludeAudio,
-			},
-		});
-
-		if (result.cancelled) {
-			editor.project.clearExportState();
-			return;
-		}
-
-		if (result.success && result.buffer) {
-			const mimeType = getExportMimeType({ format });
-			const filename = `${activeProject.metadata.name}${getExportFileExtension({ format })}`;
-			const blob = new Blob([result.buffer], { type: mimeType });
+	const saveRenderedVideo = async ({ blob, filename, width, height }: NonNullable<typeof rendered>) => {
+		if (saveInFlight.current) return;
+		saveInFlight.current = true;
+		setSaving(true);
+		setSaveError("");
+		try {
 			const outcome = await saveFile(blob, filename);
-			if (outcome.status !== "saved") {
-				if (outcome.status === "failed") message.error("导出文件保存失败，请重试");
-				editor.project.clearExportState();
-				onOpenChange(false);
-				return;
-			}
+			if (outcome.status === "canceled") return;
+			if (outcome.status === "failed") throw new Error("文件保存失败，请重新选择保存位置。");
 			try {
 				const assets = useAssetStore.getState();
 				if (!assets.hydrated) await assets.load();
@@ -153,7 +120,7 @@ function ExportPopover({
 					coverUrl: "",
 					tags: [],
 					source: "OpenCut 剪辑台",
-					data: { url: media.url, storageKey: media.storageKey, width: activeProject.settings.canvasSize.width, height: activeProject.settings.canvasSize.height, bytes: media.bytes, mimeType: media.mimeType },
+					data: { url: media.url, storageKey: media.storageKey, width, height, bytes: media.bytes, mimeType: media.mimeType },
 				});
 				await assets.confirmSave();
 				message.success(`导出完成\n文件：${outcome.path || filename}\n已加入「我的资产」：${filename}`, 12);
@@ -161,8 +128,38 @@ function ExportPopover({
 				message.error(`文件已保存到：${outcome.path || filename}\n但未能加入「我的资产」：${error instanceof Error ? error.message : "请重试"}`, 12);
 			}
 
-			editor.project.clearExportState();
 			onOpenChange(false);
+		} catch (error) {
+			setSaveError(error instanceof Error ? error.message : "文件保存失败，请重试。");
+		} finally {
+			saveInFlight.current = false;
+			setSaving(false);
+		}
+	};
+
+	const handleExport = async () => {
+		if (!activeProject || editor.project.getExportState().isExporting || saveInFlight.current) return;
+		try {
+			const result = await editor.project.export({
+				options: { format, quality, fps: activeProject.settings.fps, includeAudio: shouldIncludeAudio },
+			});
+			if (result.cancelled) {
+				editor.project.clearExportState();
+				return;
+			}
+			if (!result.success) return;
+			if (!result.buffer) throw new Error("没有生成可保存的视频。");
+			const video = {
+				blob: new Blob([result.buffer], { type: getExportMimeType({ format }) }),
+				filename: `${activeProject.metadata.name}${getExportFileExtension({ format })}`,
+				...activeProject.settings.canvasSize,
+			};
+			setRendered(video);
+			editor.project.clearExportState();
+			await saveRenderedVideo(video);
+		} catch (error) {
+			editor.project.clearExportState();
+			message.error(error instanceof Error ? error.message : "导出失败，请重试。");
 		}
 	};
 
@@ -171,8 +168,15 @@ function ExportPopover({
 	};
 
 	return (
-		<PopoverContent className="bg-background mr-4 flex w-80 flex-col p-0">
-			{exportResult && !exportResult.success ? (
+		<PopoverContent align="end" className="bg-background mr-4 flex w-80 max-w-[calc(100vw-2rem)] flex-col p-0">
+			{rendered ? (
+				<div className="space-y-3 p-3">
+					<p role="status" className="text-sm font-medium">{saving ? "正在保存文件…" : "视频已生成，可以保存"}</p>
+					<p className="truncate text-xs text-muted-foreground" title={rendered.filename}>{rendered.filename}</p>
+					{saveError && <p role="alert" className="text-xs text-destructive">{saveError}</p>}
+					<Button className="w-full" disabled={saving} onClick={() => void saveRenderedVideo(rendered)}>保存视频</Button>
+				</div>
+			) : exportResult && !exportResult.success ? (
 				<ExportError
 					error={exportResult.error || "Unknown error occurred"}
 					onRetry={handleExport}

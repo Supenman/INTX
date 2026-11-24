@@ -25,6 +25,7 @@ export function CanvasTopBar({
     onDeleteProject,
     onExportProject,
     onImportImage,
+    onOpenAssetPicker,
     canSaveWorkflow,
     onSaveWorkflow,
     onInsertWorkflow,
@@ -56,6 +57,7 @@ export function CanvasTopBar({
     onDeleteProject: () => void;
     onExportProject: () => void;
     onImportImage: () => void;
+    onOpenAssetPicker: () => void;
     canSaveWorkflow: boolean;
     onSaveWorkflow: () => void;
     onInsertWorkflow: () => void;
@@ -74,6 +76,7 @@ export function CanvasTopBar({
 }) {
     const colorTheme = useThemeStore((state) => state.theme);
     const { t } = useTranslation();
+    const isApplePlatform = /Mac|iPhone|iPad/.test(navigator.platform);
     const theme = canvasThemes[colorTheme];
     const titleRef = useRef<HTMLDivElement>(null);
     const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -96,10 +99,10 @@ export function CanvasTopBar({
 
     return (
         <>
-            <div className="pointer-events-none absolute left-0 right-0 top-0 z-50 flex h-14 items-start justify-between gap-2 px-2 pt-2">
-                <div className="pointer-events-auto flex min-w-0 items-center gap-1 rounded-xl border px-1.5 py-1 shadow-sm backdrop-blur" style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text }}>
+            <div className="pointer-events-none absolute left-0 right-0 top-0 z-50 flex h-14 items-start justify-between gap-2 px-2 pt-2" style={{ background: `linear-gradient(to bottom, ${theme.canvas.background} 65%, transparent)` }}>
+                <div className="pointer-events-auto flex min-w-0 items-center gap-1 px-1.5 py-1" style={{ color: theme.node.text }}>
                     <Tooltip title={sidePanelOpen ? t("canvas.collapsePanel") : t("canvas.expandPanel")}>
-                        <button type="button" onClick={toggleSidePanel} aria-label={sidePanelOpen ? t("canvas.collapsePanel") : t("canvas.expandPanel")} className="grid size-8 place-items-center rounded-lg transition hover:bg-black/5 dark:hover:bg-white/10" style={{ color: theme.node.text }}>
+                        <button type="button" onClick={toggleSidePanel} aria-label={sidePanelOpen ? t("canvas.collapsePanel") : t("canvas.expandPanel")} className="grid size-8 shrink-0 place-items-center rounded-lg transition hover:bg-black/5 dark:hover:bg-white/10" style={{ color: theme.node.text }}>
                             {sidePanelOpen ? <PanelLeftClose className="size-4" /> : <PanelLeftOpen className="size-4" />}
                         </button>
                     </Tooltip>
@@ -122,6 +125,7 @@ export function CanvasTopBar({
                                     label: t("canvas.menuGroup.file"),
                                     children: [
                                         { key: "import", icon: <Upload className="size-4" />, label: t("canvas.importMedia"), onClick: onImportImage },
+                                        { key: "insert-assets", icon: <Images className="size-4" />, label: t("canvas.assetPicker.open"), onClick: onOpenAssetPicker },
                                         { key: "export", icon: <Download className="size-4" />, label: t("canvas.exportCurrent"), onClick: onExportProject },
                                         ...workflowItems,
                                     ],
@@ -141,8 +145,8 @@ export function CanvasTopBar({
                                     label: t("canvas.menuGroup.edit"),
                                     // 撤销/重做保留在此：主工具栏对应按钮可被偏好隐藏，这里是没有可见按钮时的兜底入口。
                                     children: [
-                                        { key: "undo", disabled: !canUndo, icon: <Undo2 className="size-4" />, label: <MenuLabel text={t("canvas.undo")} shortcut="⌘ Z" />, onClick: onUndo },
-                                        { key: "redo", disabled: !canRedo, icon: <Redo2 className="size-4" />, label: <MenuLabel text={t("canvas.redo")} shortcut="⌘ ⇧ Z / ⌘ Y" />, onClick: onRedo },
+                                        { key: "undo", disabled: !canUndo, icon: <Undo2 className="size-4" />, label: <MenuLabel text={t("canvas.undo")} shortcut={isApplePlatform ? "⌘ Z" : "Ctrl+Z"} />, onClick: onUndo },
+                                        { key: "redo", disabled: !canRedo, icon: <Redo2 className="size-4" />, label: <MenuLabel text={t("canvas.redo")} shortcut={isApplePlatform ? "⌘ ⇧ Z / ⌘ Y" : "Ctrl+Shift+Z / Ctrl+Y"} />, onClick: onRedo },
                                     ],
                                 },
                             ],
@@ -183,7 +187,7 @@ export function CanvasTopBar({
                     </div>
                 </div>
 
-                <div className="pointer-events-auto flex shrink-0 items-center gap-1 rounded-xl border p-1 shadow-sm backdrop-blur" style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text }}>
+                <div className="pointer-events-auto flex shrink-0 items-center gap-1 p-1" style={{ color: theme.node.text }}>
                     <Dropdown trigger={["click"]} menu={{ items: workflowItems }}>
                         <Button type="text" className="!h-8 !rounded-lg" aria-label={t("canvas.workflow.entry")} title={t("canvas.workflow.entry")} icon={<Workflow className="size-4" />}>
                             <span className="hidden @min-[600px]:inline">{t("canvas.workflow.entry")}</span>

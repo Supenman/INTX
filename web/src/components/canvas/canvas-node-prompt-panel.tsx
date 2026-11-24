@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowUp, LoaderCircle, Maximize2, Square } from "lucide-react";
+import { ArrowUp, LoaderCircle, Maximize2, RefreshCw, Square } from "lucide-react";
 import { Button, Modal, Tooltip } from "antd";
 import { useTranslation } from "react-i18next";
 
@@ -17,6 +17,7 @@ import { CanvasNodeType, type CanvasConnection, type CanvasGenerationMode, type 
 import type { CanvasResourceReference } from "@/lib/canvas/canvas-resource-references";
 import { buildNodeGenerationContext, nodeGenerationMode } from "./canvas-node-generation";
 import { CanvasNodeReferenceBar } from "./canvas-node-reference-bar";
+import { hasResumableImageTask, hasResumableVideoTask } from "@/lib/canvas/canvas-generation-helpers";
 
 export type CanvasNodeGenerationMode = CanvasGenerationMode;
 
@@ -27,6 +28,7 @@ type CanvasNodePromptPanelProps = {
     onConfigChange: (nodeId: string, patch: Partial<CanvasNodeData["metadata"]>) => void;
     onGenerate: (nodeId: string, mode: CanvasNodeGenerationMode, prompt: string) => void;
     onStop: (nodeId: string) => void;
+    onQueryTask: (node: CanvasNodeData) => void;
     mentionReferences?: CanvasResourceReference[];
     nodes: CanvasNodeData[];
     connections: CanvasConnection[];
@@ -35,12 +37,14 @@ type CanvasNodePromptPanelProps = {
     onFinishReferenceSelection?: () => void;
     connectedNodes?: CanvasNodeData[];
     onDisconnectReference?: (fromNodeId: string, toNodeId: string) => void;
+    onMoveReference?: (sourceId: string, targetId: string, delta: -1 | 1) => void;
+    onReplaceReference?: (sourceId: string, targetId: string, replacementId: string) => void;
     onStartReferenceSelection?: (nodeId: string) => void;
     onImageSettingsOpenChange?: (open: boolean) => void;
     modeOverride?: CanvasNodeGenerationMode; // Plugin nodes set their generation type through useBuiltinPanel.mode.
 };
 
-export function CanvasNodePromptPanel({ node, nodes, connections, selectingReferences = false, referencePromptUpdateId, onFinishReferenceSelection, isRunning, onPromptChange, onConfigChange, onGenerate, onStop, mentionReferences = [], connectedNodes = [], onDisconnectReference, onStartReferenceSelection, onImageSettingsOpenChange, modeOverride }: CanvasNodePromptPanelProps) {
+export function CanvasNodePromptPanel({ node, nodes, connections, selectingReferences = false, referencePromptUpdateId, onFinishReferenceSelection, isRunning, onPromptChange, onConfigChange, onGenerate, onStop, onQueryTask, mentionReferences = [], connectedNodes = [], onDisconnectReference, onMoveReference, onReplaceReference, onStartReferenceSelection, onImageSettingsOpenChange, modeOverride }: CanvasNodePromptPanelProps) {
     const { t } = useTranslation();
     const globalConfig = useEffectiveConfig();
     const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
@@ -49,6 +53,10 @@ export function CanvasNodePromptPanel({ node, nodes, connections, selectingRefer
     const config = buildNodeConfig(globalConfig, node, mode);
     const hasTextContent = node.type === CanvasNodeType.Text && Boolean(node.metadata?.content?.trim());
     const hasImageContent = node.type === CanvasNodeType.Image && Boolean(node.metadata?.content);
+    const canQueryImage = hasResumableImageTask(node);
+    const canQuery = canQueryImage || hasResumableVideoTask(node);
+    const retryBlocked = Boolean(node.metadata?.retryBlocked && !canQuery);
+    const waiting = isRunning || node.metadata?.status === "loading";
     const isEditingExistingContent = hasTextContent || hasImageContent;
     const [prompt, setPrompt] = useState(node.metadata?.composerContent ?? node.metadata?.prompt ?? "");
     const [expanded, setExpanded] = useState(false);
@@ -69,20 +77,25 @@ export function CanvasNodePromptPanel({ node, nodes, connections, selectingRefer
     // 文本模式与音频模式必须有提示词或上游文本，和 handleGenerateNode 的校验保持一致。
     const hasUpstreamText = connectedNodes.some((item) => item.type === CanvasNodeType.Text && Boolean(item.metadata?.content?.trim()));
     const workflow = mode === "image" || mode === "video" ? modelWorkflowOf(config, config.model) : undefined;
+    const frameRoles = new Map<number, "firstFrame" | "lastFrame">();
+    if (mode === "video") for (const field of workflow?.fields ?? []) {
+        if (field.frameRole && field.media === "image") frameRoles.set(field.imageIndex ?? 0, field.frameRole);
+    }
     const requiredMedia = workflow?.fields.filter((field) => field.media && (field.required || (field.array && (field.min ?? 0) > 0))) ?? [];
     const context = requiredMedia.length ? buildNodeGenerationContext(node.id, nodes, connections, "") : undefined;
     const imageIds = new Set(context?.referenceImages.map((image) => image.id));
-    if (mode === "image" && hasImageContent && globalConfig.nodeRegenerateBehavior !== "overwrite") imageIds.add(node.id);
+    if (mode === "image" && hasImageContent && globalConfig.nodeRegenerateBehavior !== "overwrite" && (!workflow || !imageIds.size)) imageIds.add(node.id);
     const inputStatus = requiredMedia.map((field) => {
         const actual = field.media === "image" ? imageIds.size : mode === "video" ? (field.media === "video" ? context?.videoCount : context?.audioCount) ?? 0 : 0;
         const needed = field.array ? Math.max(field.min ?? 0, field.required ? 1 : 0) : (field.media === "video" ? field.videoIndex ?? 0 : field.imageIndex ?? 0) + 1;
-        const label = field.media === "video" ? "参考视频" : field.media === "audio" ? "参考音频" : "参考图";
-        return { actual, needed, label };
+        const kind = field.media === "video" || field.media === "audio" ? field.media : "image";
+        return { actual, needed, kind, id: field.key };
     });
     const missingMedia = inputStatus.some(({ actual, needed }) => actual < needed);
-    const canSubmit = !selectingReferences && !missingMedia && (Boolean(prompt.trim()) || (mode === "image" || mode === "video" ? connectedNodes.length > 0 || (Boolean(workflow) && imageIds.size > 0) : hasUpstreamText));
+    const canSubmit = !selectingReferences && !retryBlocked && !canQuery && !waiting && !missingMedia && (Boolean(prompt.trim()) || (mode === "image" || mode === "video" ? connectedNodes.length > 0 || (Boolean(workflow) && imageIds.size > 0) : hasUpstreamText));
+    const actionLabel = t(isRunning ? "canvas.promptPanel.stopGeneration" : canQuery ? "canvas.nodeToolbar.queryVideoTask" : "canvas.promptPanel.generate");
     const submit = () => {
-        if (!canSubmit || isRunning) return;
+        if (!canSubmit) return;
         onGenerate(node.id, mode, prompt.trim());
     };
 
@@ -112,8 +125,24 @@ export function CanvasNodePromptPanel({ node, nodes, connections, selectingRefer
                 selecting={selectingReferences}
                 onFinishSelection={onFinishReferenceSelection}
                 onDisconnect={onDisconnectReference}
+                onMove={onMoveReference}
+                onReplace={onReplaceReference}
+                videoFrames={mode === "video" && !workflow && config.videoMode !== "reference"}
+                frameRoles={frameRoles}
                 onStartSelection={onStartReferenceSelection}
             />
+            {inputStatus.length > 0 && (
+                <div className="mb-2 space-y-1" role="status">
+                    <div className="flex flex-wrap gap-1.5">
+                        {inputStatus.map(({ id, kind, actual, needed }, index) => (
+                            <span key={`${id}:${index}`} className="rounded-md border px-2 py-0.5 text-xs tabular-nums" style={{ borderColor: theme.toolbar.border, color: actual < needed ? "var(--destructive)" : theme.node.muted }}>
+                                {t(`canvas.promptPanel.requiredMedia.${kind}`, { actual: Math.min(actual, needed), needed })}
+                            </span>
+                        ))}
+                    </div>
+                    {missingMedia && !canQuery && <p className="text-xs" style={{ color: theme.node.muted }}>{t("canvas.promptPanel.missingMedia")}</p>}
+                </div>
+            )}
             <CanvasPromptChipInput
                 value={prompt}
                 references={mentionReferences}
@@ -124,13 +153,7 @@ export function CanvasNodePromptPanel({ node, nodes, connections, selectingRefer
                 placeholder={t(`canvas.promptPanel.${mode === "image" && hasImageContent ? "editImage" : mode === "text" && hasTextContent ? "editText" : mode}`)}
             />
 
-            {inputStatus.length > 0 && (
-                <p role="status" className="mt-2 text-xs text-muted-foreground">
-                    {inputStatus.map(({ label, actual, needed }) => `${label} ${Math.min(actual, needed)}/${needed}`).join(" · ")}
-                    {missingMedia && " · 请连接缺少的素材"}
-                </p>
-            )}
-            <div className="mt-2 flex min-w-0 items-end justify-between gap-2">
+            <div className="mt-2 flex min-w-0 flex-wrap items-end justify-between gap-2 border-t pt-2" style={{ borderColor: theme.toolbar.border }}>
                 <div className="flex min-w-0 flex-wrap items-center gap-1">
                     {mode === "image" ? (
                         <>
@@ -163,11 +186,11 @@ export function CanvasNodePromptPanel({ node, nodes, connections, selectingRefer
                 </div>
                 <Button
                     type="primary"
-                    className="!h-9 !min-w-16 shrink-0 !rounded-full !px-3"
+                    className="!h-9 !min-w-16 ml-auto shrink-0 !rounded-full !px-3"
                     danger={isRunning}
-                    disabled={!isRunning && !canSubmit}
-                    onClick={() => (isRunning ? onStop(node.id) : submit())}
-                    aria-label={t(isRunning ? "canvas.promptPanel.stopGeneration" : "canvas.promptPanel.generate")}
+                    disabled={!isRunning && (canQuery ? selectingReferences : !canSubmit)}
+                    onClick={() => (isRunning ? onStop(node.id) : canQuery ? onQueryTask(node) : submit())}
+                    aria-label={actionLabel}
                 >
                     <span className="flex items-center gap-1.5">
                         {isRunning ? (
@@ -178,16 +201,22 @@ export function CanvasNodePromptPanel({ node, nodes, connections, selectingRefer
                             </>
                         ) : (
                             <>
-                                <ArrowUp className="size-4" />
-                                {t("canvas.promptPanel.generate")}
+                                {canQuery ? <RefreshCw className="size-4" /> : <ArrowUp className="size-4" />}
+                                {actionLabel}
                             </>
                         )}
                     </span>
                 </Button>
             </div>
+            {(waiting || canQuery || retryBlocked || node.metadata?.status === "error") && (
+                <div role="status" className="mt-2 space-y-1 text-xs" style={{ color: theme.node.muted }}>
+                    <p className="font-medium">{t(isRunning ? "canvas.node.generating" : canQueryImage ? "canvas.generationHistory.imageTaskPending" : canQuery ? "canvas.promptPanel.resumeVideo" : waiting ? "canvas.node.generating" : retryBlocked ? "canvas.node.retryBlockedHint" : "canvas.node.failed")}</p>
+                    {!waiting && node.metadata?.errorDetails && <p className="max-h-14 overflow-y-auto wrap-break-word" title={node.metadata.errorDetails}>{node.metadata.errorDetails}</p>}
+                </div>
+            )}
             <Modal title={t("canvas.promptPanel.editorTitle")} open={expanded} centered width={760} footer={null} onCancel={() => setExpanded(false)} destroyOnHidden>
                 <div data-canvas-no-zoom className="pt-2" onWheelCapture={(event) => event.stopPropagation()}>
-                    <CanvasNodeReferenceBar nodeId={node.id} nodes={nodes} connectedNodes={connectedNodes} onDisconnect={onDisconnectReference} onStartSelection={(nodeId) => { setExpanded(false); onStartReferenceSelection?.(nodeId); }} />
+                    <CanvasNodeReferenceBar nodeId={node.id} nodes={nodes} connectedNodes={connectedNodes} onDisconnect={onDisconnectReference} onMove={onMoveReference} onReplace={onReplaceReference} videoFrames={mode === "video" && !workflow && config.videoMode !== "reference"} frameRoles={frameRoles} onStartSelection={(nodeId) => { setExpanded(false); onStartReferenceSelection?.(nodeId); }} />
                     <CanvasPromptChipInput
                         value={prompt}
                         references={mentionReferences}

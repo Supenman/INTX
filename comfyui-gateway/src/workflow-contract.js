@@ -5,7 +5,10 @@ export function workflowContract(entry) {
     fields: Object.entries(entry.bindings || {}).map(([key, binding]) => {
       const original = entry.workflow?.[binding.node]?.inputs?.[binding.input];
       const value = binding.transform ? undefined : original;
-      return { key, from: binding.from || key, required: binding.required === true,
+      const input = String(binding.input || "").toLowerCase();
+      const frameRole = /^(first_frame|start_frame|start_image)$/.test(input) ? "firstFrame"
+        : /^(last_frame|end_frame|end_image)$/.test(input) ? "lastFrame" : undefined;
+      return { key, from: binding.from || key, required: binding.required === true, frameRole,
         media: binding.array
           ? binding.loadType === "video" || binding.from === "video" ? "video" : binding.loadType === "audio" || binding.from === "audio" ? "audio" : "image"
           : binding.imageIndex !== undefined || binding.from === "image" ? "image" : binding.from === "video" ? "video" : undefined,
@@ -15,6 +18,7 @@ export function workflowContract(entry) {
         transform: binding.transform };
     }),
     outputNodes: entry.outputNodes || [],
+    ...(entry.type === "image" ? { asyncImages: true } : {}),
   };
 }
 

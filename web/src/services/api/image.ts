@@ -2,7 +2,7 @@
 import i18n from "@/i18n";
 import { comfyWorkflowRequest } from "@/lib/comfy-workflow";
 import { imageEditFormData } from "./image-request-body";
-import { buildApiUrl, resolveModelRequestConfig, resolveModelScript, type AiConfig, type ModelChannel } from "@/stores/use-config-store";
+import { buildApiUrl, modelWorkflowOf, resolveModelRequestConfig, resolveModelScript, type AiConfig, type ModelChannel } from "@/stores/use-config-store";
 import { normalizePluginImages, runModelPlugin } from "./model-plugin";
 import { nanoid } from "nanoid";
 import { dataUrlToFile } from "@/lib/image-utils";
@@ -27,6 +27,7 @@ import { createModelScopeTransport } from "./modelscope-transport";
 import { readApiErrorMessage } from "./provider-errors";
 import { assertProviderOk, createProviderTransport, ProviderHttpError, ProviderTransportError, type ProviderResponse } from "./provider-transport";
 import { resolveImageCapabilities } from "@/domain/provider/imageCapabilities";
+import { isLocalGatewayUrl } from "@/lib/media-blob";
 
 const apiText = (key: string, options?: Record<string, unknown>) => i18n.t(`apiErrors.${key}`, options);
 
@@ -114,6 +115,75 @@ type GeminiPayload = {
 };
 type GeminiStreamState = { buffer: string; text: string; toolCalls: ResponseToolCall[]; error?: string };
 type RequestOptions = { signal?: AbortSignal };
+
+type ComfyImageTask = {
+    id: string;
+    object: "image";
+    status: "queued" | "running" | "completed" | "failed" | "cancelled";
+    error?: string | null;
+    outputs?: { url: string; nodeId?: string }[];
+};
+
+export class ComfyImageTaskFailed extends Error {}
+
+export function isLocalComfyImageWorkflow(config: AiConfig) {
+    const request = resolveModelRequestConfig(config, config.model || config.imageModel);
+    return Boolean(modelWorkflowOf(config, config.model)?.asyncImages && isLocalGatewayUrl(request.baseUrl));
+}
+
+export async function submitComfyImageTask(config: AiConfig, id: string, prompt: string, references: ReferenceImage[], signal: AbortSignal) {
+    const request = resolveModelRequestConfig(config, config.model || config.imageModel);
+    const workflow = comfyWorkflowRequest(config);
+    if (!workflow || !isLocalGatewayUrl(request.baseUrl)) throw new Error(apiText("requestFailed"));
+    const fields = { model: request.model, prompt: withSystemPrompt(request, references.length ? buildImageReferencePromptText(prompt, references) : prompt), n: 1, async: "true", task_id: id };
+    const files = await Promise.all(references.map(async (image) => dataUrlToFile({ ...image, dataUrl: await imageToDataUrl(image) })));
+    const response = await createProviderTransport(request.proxyMode).request({
+        method: "POST",
+        url: aiApiUrl(request, files.length ? "/images/edits" : "/images/generations"),
+        headers: aiHeaders(request, files.length ? undefined : "application/json"),
+        body: files.length ? imageEditFormData(config, fields, files) : JSON.stringify({ ...fields, ...workflow }),
+        timeoutMs: 60_000,
+        signal,
+    });
+    try {
+        await assertResponseOk(response, apiText("requestFailed"));
+    } catch (error) {
+        if ([400, 401, 403, 404, 422].includes(response.status)) throw new ComfyImageTaskFailed(error instanceof Error ? error.message : apiText("requestFailed"));
+        throw error;
+    }
+    const result = await response.json() as Partial<ComfyImageTask>;
+    if (result.object !== "image" || result.id !== id) throw new Error(i18n.t("canvas.generationHistory.asyncUnsupported"));
+}
+
+export async function waitForComfyImageTask(config: AiConfig, id: string, signal: AbortSignal) {
+    const request = resolveModelRequestConfig(config, config.model || config.imageModel);
+    if (!isLocalGatewayUrl(request.baseUrl)) throw new Error(apiText("requestFailed"));
+    const transport = createProviderTransport(request.proxyMode);
+    const url = aiApiUrl(request, `/tasks/${encodeURIComponent(id)}`);
+    const deadline = Date.now() + IMAGE_REQUEST_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+        signal.throwIfAborted();
+        const response = await transport.request({ method: "GET", url, headers: aiHeaders(request), timeoutMs: 30_000, signal });
+        if (response.status === 404) throw new ComfyImageTaskFailed(i18n.t("canvas.generationHistory.imageTaskMissing"));
+        await assertResponseOk(response, apiText("requestFailed"));
+        const task = await response.json() as ComfyImageTask;
+        if (task.object !== "image" || task.id !== id) throw new Error(apiText("requestFailed"));
+        if (task.status === "failed" || task.status === "cancelled") throw new ComfyImageTaskFailed(task.error || apiText("requestFailed"));
+        if (task.status === "completed") {
+            if (!task.outputs?.length) throw new ComfyImageTaskFailed(apiText("noImageReturned"));
+            const outputs = [];
+            for (const output of task.outputs) {
+                const file = new URL(output.url);
+                if (!file.pathname.startsWith("/files/")) throw new Error(apiText("requestFailed"));
+                const blob = await transport.blob({ method: "GET", url: new URL(file.pathname, url).href, headers: aiHeaders(request), timeoutMs: 60_000, signal });
+                outputs.push({ nodeId: output.nodeId, blob });
+            }
+            return outputs;
+        }
+        await new Promise<void>((resolve) => window.setTimeout(resolve, 1200));
+    }
+    throw new Error(i18n.t("canvas.generationHistory.imageTaskPending"));
+}
 
 const IMAGE_QUALITY_VALUES = ["low", "medium", "high", "xhigh", "max"];
 const DEFAULT_IMAGE_SHORT_SIDE = 1024;

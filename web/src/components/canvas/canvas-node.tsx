@@ -5,7 +5,7 @@ import { ChevronRight, Copy, Download, Group, Image as ImageIcon, Music2, Puzzle
 import { canvasThemes } from "@/lib/canvas-theme";
 import { colorGradeFilter } from "@/lib/canvas/color-grade";
 import { isBrokenVideoContent } from "@/lib/media-blob";
-import { hasResumableVideoTask } from "@/lib/canvas/canvas-generation-helpers";
+import { hasResumableImageTask, hasResumableVideoTask } from "@/lib/canvas/canvas-generation-helpers";
 import { formatBytes } from "@/lib/image-utils";
 import { pickImageSource } from "@/lib/image-thumbnail";
 import { previewUrlFor, subscribeImagePreviews, getImagePreviewRevision } from "@/services/image-storage";
@@ -510,11 +510,11 @@ function LoadingContent({ theme }: Pick<NodeContentRendererProps, "theme">) {
 
 function ErrorContent({ node, theme, onRetry }: Pick<NodeContentRendererProps, "node" | "theme" | "onRetry">) {
     const { t } = useTranslation();
-    const canQueryVideoTask = hasResumableVideoTask(node);
+    const canQueryTask = hasResumableImageTask(node) || hasResumableVideoTask(node);
     return (
         <div className="flex max-w-[260px] flex-col items-center gap-3 px-5 text-center">
             <div className="text-xs leading-5 text-red-300">{node.metadata?.errorDetails || t("canvas.node.failed")}</div>
-            {node.metadata?.retryBlocked && !canQueryVideoTask ? (
+            {node.metadata?.retryBlocked && !canQueryTask ? (
                 <span className="text-[11px] leading-4" style={{ color: theme.node.muted }}>
                     {t("canvas.node.retryBlockedHint")}
                 </span>
@@ -530,7 +530,7 @@ function ErrorContent({ node, theme, onRetry }: Pick<NodeContentRendererProps, "
                     onMouseDown={(event) => event.stopPropagation()}
                 >
                     <RefreshCw className="size-3.5" />
-                    {t(canQueryVideoTask ? "canvas.nodeToolbar.queryVideoTask" : "canvas.node.retry")}
+                    {t(canQueryTask ? "canvas.nodeToolbar.queryVideoTask" : "canvas.node.retry")}
                 </button>
             )}
         </div>

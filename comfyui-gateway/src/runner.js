@@ -306,7 +306,25 @@ export async function runImage({ entry, context, comfy, timeoutMs, pollIntervalM
     lastUsedSeed = result.usedSeed ?? lastUsedSeed;
     all.push(...result.files);
   }
-  return { promptId: lastPromptId, files: all.slice(0, count), usedSeed: lastUsedSeed };
+  const files = entry.inputContract
+    ? all.filter((file) => /^image\//i.test(file.mimeType)).sort((a, b) => entry.outputNodes.indexOf(a.nodeId) - entry.outputNodes.indexOf(b.nodeId))
+    : all.slice(0, count);
+  return { promptId: lastPromptId, files, usedSeed: lastUsedSeed };
+}
+
+export async function recoverImageOutputs(comfy, promptId, outputNodes) {
+  const history = await comfy.history(promptId);
+  const failure = historyError(history);
+  if (failure) throw new GenerationError(failure, { code: "comfy_execution_failed" });
+  if (!historyCompleted(history)) return null;
+  const files = [];
+  for (const file of collectOutputFiles(history)) {
+    if (!outputNodes.includes(file.nodeId)) continue;
+    const viewed = await comfy.view(file);
+    const mimeType = /^application\/octet-stream$/i.test(viewed.contentType) ? mimeFromFilename(file.filename) : viewed.contentType;
+    if (/^image\//i.test(mimeType)) files.push({ buffer: viewed.buffer, mimeType, filename: file.filename, nodeId: file.nodeId });
+  }
+  return files.sort((a, b) => outputNodes.indexOf(a.nodeId) - outputNodes.indexOf(b.nodeId));
 }
 
 export async function runVideo({ entry, context, comfy, timeoutMs, pollIntervalMs, signal, requestId, onProgress, logger, loraCatalog, modelAliasFor = null, loaderSpecs = MODEL_LOADER_SPECS, includePreviewOutputs = false }) {

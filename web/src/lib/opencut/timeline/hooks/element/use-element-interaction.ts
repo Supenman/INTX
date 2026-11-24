@@ -8,6 +8,7 @@ import {
 	ElementInteractionController,
 	type ElementInteractionDeps,
 	type ElementInteractionDepsRef,
+	type ViewportAdapter,
 } from "@/lib/opencut/timeline/controllers/element-interaction-controller";
 import type { SnapPoint } from "@/lib/opencut/timeline/snapping";
 
@@ -17,6 +18,7 @@ interface UseElementInteractionProps {
 	tracksScrollRef: RefObject<HTMLDivElement | null>;
 	headerRef?: RefObject<HTMLElement | null>;
 	snappingEnabled: boolean;
+	getTrackExtraHeight?: ViewportAdapter["getTrackExtraHeight"];
 	onSnapPointChange?: (snapPoint: SnapPoint | null) => void;
 }
 
@@ -26,6 +28,7 @@ export function useElementInteraction({
 	tracksScrollRef,
 	headerRef,
 	snappingEnabled,
+	getTrackExtraHeight,
 	onSnapPointChange,
 }: UseElementInteractionProps) {
 	const editor = useEditor();
@@ -38,6 +41,7 @@ export function useElementInteraction({
 			getTracksScrollEl: () => tracksScrollRef.current,
 			getTracksContainerEl: () => tracksContainerRef.current,
 			getHeaderEl: () => headerRef?.current ?? null,
+			getTrackExtraHeight,
 		},
 		input: {
 			isShiftHeld: () => isShiftHeldRef.current,

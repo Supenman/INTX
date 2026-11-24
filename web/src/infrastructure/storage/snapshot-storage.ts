@@ -18,9 +18,9 @@ const shape = (required: Record<string, Validator>, optional: Record<string, Val
   && (open || Object.keys(v).every((k) => Object.hasOwn(required, k) || Object.hasOwn(optional, k)));
 const status = oneOf('idle', 'success', 'loading', 'error');
 const nodeText = shape({ id, status, content: string }, { errorDetails: string });
-const nodeImage = shape({ id, status, content: string, naturalWidth: number, naturalHeight: number, bytes: number, mimeType: string }, { errorDetails: string, storageKey: string });
+const nodeImage = shape({ id, status, content: string, naturalWidth: number, naturalHeight: number, bytes: number, mimeType: string }, { errorDetails: string, storageKey: string, outputNodeId: string });
 const metadata = shape({}, {
-  ...Object.fromEntries(['content', 'composerContent', 'prompt', 'inputPrompt', 'retrySourceId', 'errorDetails', 'model', 'size', 'quality', 'background', 'primaryTextId', 'seconds', 'vquality', 'generateAudio', 'watermark', 'videoMode', 'audioVoice', 'audioFormat', 'audioSpeed', 'audioInstructions', 'primaryImageId', 'storageKey', 'mimeType', 'videoTaskId', 'groupId'].map((k) => [k, string])),
+  ...Object.fromEntries(['content', 'composerContent', 'prompt', 'inputPrompt', 'retrySourceId', 'errorDetails', 'model', 'size', 'quality', 'background', 'primaryTextId', 'seconds', 'vquality', 'generateAudio', 'watermark', 'videoMode', 'audioVoice', 'audioFormat', 'audioSpeed', 'audioInstructions', 'primaryImageId', 'storageKey', 'mimeType', 'imageTaskId', 'videoTaskId', 'groupId'].map((k) => [k, string])),
   ...Object.fromEntries(['fontSize', 'count', 'textCount', 'naturalWidth', 'naturalHeight', 'bytes', 'durationMs', 'timelineOrder', 'timelineStartSeconds', 'timelineTrimStartSeconds', 'timelineTrimEndSeconds'].map((k) => [k, number])),
   status, generationMode: oneOf('text', 'image', 'video', 'audio'), generationType: oneOf('generation', 'edit'),
   colorGrade: oneOf('original', 'warm', 'cool', 'monochrome', 'vivid', 'faded'),

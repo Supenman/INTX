@@ -27,6 +27,7 @@ export type CanvasColorGrade = "original" | "warm" | "cool" | "monochrome" | "vi
 
 export type CanvasNodeImage = {
     id: string;
+    outputNodeId?: string;
     status: CanvasNodeStatus;
     errorDetails?: string;
     content: string;
@@ -99,6 +100,7 @@ export type CanvasNodeMetadata = {
     timelineTrimStartSeconds?: number;
     timelineTrimEndSeconds?: number;
     colorGrade?: CanvasColorGrade;
+    imageTaskId?: string;
     videoTaskId?: string;
     videoTaskProvider?: "openai" | "gemini" | "runninghub";
     groupId?: string;
@@ -170,6 +172,12 @@ export type SelectionBox = {
 };
 
 export type ContextMenuState =
+    | {
+          type: "canvas";
+          x: number;
+          y: number;
+          position: Position;
+      }
     | {
           type: "node";
           x: number;

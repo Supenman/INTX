@@ -14,12 +14,13 @@ import { useThemeStore } from "@/stores/use-theme-store";
 
 type UserStatusActionsProps = {
     showConfig?: boolean;
+    stacked?: boolean;
     variant?: "default" | "canvas";
     onOpenShortcuts?: () => void;
     onOpenPlugins?: () => void;
 };
 
-export function UserStatusActions({ showConfig = true, variant = "default", onOpenShortcuts, onOpenPlugins }: UserStatusActionsProps) {
+export function UserStatusActions({ showConfig = true, stacked = false, variant = "default", onOpenShortcuts, onOpenPlugins }: UserStatusActionsProps) {
     const { i18n, t } = useTranslation();
     const theme = useThemeStore((state) => state.theme);
     const setTheme = useThemeStore((state) => state.setTheme);
@@ -35,7 +36,7 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
     const languageLabel = t("topNav.switchLanguage", { language: t(nextLocale === "zh-CN" ? "locale.zhCN" : "locale.enUS") });
 
     return (
-        <div className="inline-flex shrink-0 items-center gap-0.5">
+        <div className={cn("inline-flex shrink-0 items-center gap-0.5", stacked && "flex-col")}>
             {/* 资源：插件 / 文档 / 仓库 */}
             {onOpenPlugins ? (
                 <button type="button" className={naturalIconClass} style={iconStyle} onClick={onOpenPlugins} aria-label={t("topNav.plugins")} title={t("topNav.plugins")}>
@@ -43,7 +44,7 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
                 </button>
             ) : null}
             <GitHubLink className={cn("flex bg-transparent hover:bg-transparent dark:hover:bg-transparent", gitHubClassName)} style={gitHubStyle} />
-            <StatusDivider className="block" />
+            {!stacked && <StatusDivider className="block" />}
             {/* 外观：语言 / 主题 */}
             <Tooltip title={languageLabel} mouseEnterDelay={0.2}>
                 <button type="button" className={`${naturalIconClass} text-[11px] font-semibold tracking-tight`} style={iconStyle} onClick={() => void changeAppLocale(nextLocale)} aria-label={languageLabel}>
@@ -51,7 +52,7 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
                 </button>
             </Tooltip>
             <AnimatedThemeToggler theme={theme} onThemeChange={setTheme} className={naturalIconClass} style={iconStyle} aria-label={t(theme === "dark" ? "topNav.lightTheme" : "topNav.darkTheme")} title={t(theme === "dark" ? "topNav.lightTheme" : "topNav.darkTheme")} />
-            <StatusDivider />
+            {!stacked && <StatusDivider />}
             {/* 应用：配置 / 版本 / 快捷键 */}
             {showConfig ? (
                 <button type="button" className={naturalIconClass} style={iconStyle} onClick={() => openConfigDialog(false)} aria-label={t("navigation.config")} title={t("navigation.config")}>

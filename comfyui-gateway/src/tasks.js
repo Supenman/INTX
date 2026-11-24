@@ -12,7 +12,7 @@ function publicTask(task) {
   if (!task) return null;
   return {
     id: task.id,
-    object: "video",
+    object: task.object || "video",
     status: task.status,
     progress: task.progress,
     phase: task.phase || null,
@@ -27,6 +27,7 @@ function publicTask(task) {
     mimeType: task.mimeType || null,
     bytes: task.bytes || 0,
     error: task.error || null,
+    ...(task.object === "image" ? { outputs: task.outputs || [], recoveryPending: Boolean(task.recoveryPending) } : {}),
   };
 }
 
@@ -46,22 +47,24 @@ export function createTaskStore({ dataDir, logger, retentionDays = 0, maxTasks =
   }
 
   async function removeOutput(task) {
-    if (!task?.file) return false;
-    const resolved = path.resolve(task.file);
     const root = path.resolve(outputDir);
-    if (!resolved.startsWith(`${root}${path.sep}`)) return false;
-    try {
-      await fsp.unlink(resolved);
-      return true;
-    } catch (error) {
-      if (error?.code !== "ENOENT") logger?.warn?.(`删除输出文件失败：${error.message}`);
-      return false;
+    let removed = false;
+    for (const file of [task?.file, ...(task?.outputs || []).map((item) => item.file)].filter(Boolean)) {
+      const resolved = path.resolve(file);
+      if (!resolved.startsWith(`${root}${path.sep}`)) continue;
+      try {
+        await fsp.unlink(resolved);
+        removed = true;
+      } catch (error) {
+        if (error?.code !== "ENOENT") logger?.warn?.(`删除输出文件失败：${error.message}`);
+      }
     }
+    return removed;
   }
 
   // 只清理终态任务；retentionDays / maxTasks 为 0 时保持现有行为，不删除任何记录。
   async function cleanup({ retentionDays: days = retentionDays, maxTasks: limit = maxTasks } = {}) {
-    const terminal = [...tasks.values()].filter((task) => ["completed", "failed", "cancelled"].includes(task.status));
+    const terminal = [...tasks.values()].filter((task) => !task.recoveryPending && ["completed", "failed", "cancelled"].includes(task.status));
     const cutoff = days > 0 ? Date.now() - days * 86400000 : null;
     const drop = new Set();
     for (const task of terminal) {
@@ -82,20 +85,15 @@ export function createTaskStore({ dataDir, logger, retentionDays = 0, maxTasks =
     return { removed: drop.size, filesDeleted };
   }
 
-  function persistNow() {
+  function persistNow({ required = false } = {}) {
     if (persistTimer) {
       clearTimeout(persistTimer);
       persistTimer = null;
     }
     const payload = { version: 1, updatedAt: nowIso(), tasks: [...tasks.values()].map(publicTask) };
-    persistQueue = persistQueue.then(async () => {
-      try {
-        await writeJsonAtomic(file, payload);
-      } catch (error) {
-        logger?.warn?.(`保存任务失败：${error.message}`);
-      }
-    });
-    return persistQueue;
+    const write = persistQueue.then(() => writeJsonAtomic(file, payload));
+    persistQueue = write.catch((error) => logger?.warn?.(`保存任务失败：${error.message}`));
+    return required ? write : persistQueue;
   }
 
   function schedulePersist() {
@@ -115,6 +113,18 @@ export function createTaskStore({ dataDir, logger, retentionDays = 0, maxTasks =
       for (const item of raw.tasks || []) {
         if (!item?.id) continue;
         const task = { ...item };
+        if (task.object === "image") {
+          if (["running", "cancelling", "queued"].includes(task.status)) {
+            task.status = "failed";
+            task.recoveryPending = Boolean(task.promptId) && item.status !== "cancelling";
+            task.error = "网关在任务完成前重启";
+          } else if (task.status === "completed" && (!task.outputs?.length || !task.outputs.every((output) => output.file && fs.existsSync(output.file)))) {
+            task.status = "failed";
+            task.error = "图片输出文件不存在";
+          }
+          tasks.set(task.id, task);
+          continue;
+        }
         // 旧版本任务记录没存 file；按 task id 在输出目录里找回，避免把已完成任务误判失败。
         if (!task.file) {
           const candidate = path.join(outputDir, `${task.id}.mp4`);
@@ -154,10 +164,10 @@ export function createTaskStore({ dataDir, logger, retentionDays = 0, maxTasks =
     return [...tasks.values()].map(publicTask).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
   }
 
-  function create({ model, request = {} } = {}) {
+  function create({ id = randomId("task_"), model, request = {}, object = "video" } = {}) {
     const task = {
-      id: randomId("task_"),
-      object: "video",
+      id,
+      object,
       status: "queued",
       progress: 0,
       phase: null,
@@ -203,9 +213,11 @@ export function createTaskStore({ dataDir, logger, retentionDays = 0, maxTasks =
           const progress = typeof event === "number" ? event : event?.progress;
           if (Number.isFinite(progress)) task.progress = Math.max(task.progress || 0, progress);
           if (event?.phase) task.phase = String(event.phase);
-          if (event?.promptId) task.promptId = event.promptId;
+          const newPrompt = event?.promptId && task.promptId !== event.promptId;
+          if (newPrompt) task.promptId = event.promptId;
           task.updatedAt = nowIso();
-          schedulePersist();
+          if (newPrompt && task.object === "image") void persistNow();
+          else schedulePersist();
         },
         controller.signal,
       );
@@ -215,6 +227,8 @@ export function createTaskStore({ dataDir, logger, retentionDays = 0, maxTasks =
       } else if (task._cancelled) {
         task.status = "cancelled";
         task.error = "任务已取消";
+      } else if (task.object === "image") {
+        await finishImage(task, result.files, result.promptId);
       } else {
         const saved = await saveOutput(task.id, result.buffer, result.ext || "mp4");
         task.status = "completed";
@@ -248,6 +262,23 @@ export function createTaskStore({ dataDir, logger, retentionDays = 0, maxTasks =
     const target = path.join(outputDir, filename);
     await fsp.writeFile(target, buffer);
     return { file: target, url: fileUrl(filename), bytes: buffer.length };
+  }
+
+  async function finishImage(task, files, promptId) {
+    if (!files?.length) throw new Error("ComfyUI 没有返回选定的图片输出");
+    const outputs = [];
+    try {
+      for (const [index, file] of files.entries()) {
+        const ext = path.extname(file.filename || "").slice(1) || "png";
+        const saved = await saveOutput(`${task.id}-${index + 1}`, file.buffer, ext);
+        outputs.push({ ...saved, nodeId: file.nodeId, mimeType: file.mimeType });
+      }
+    } catch (error) {
+      await removeOutput({ outputs });
+      throw error;
+    }
+    Object.assign(task, { outputs, status: "completed", progress: 1, promptId, error: null, recoveryPending: false, completedAt: nowIso(), updatedAt: nowIso() });
+    await persistNow();
   }
 
   async function cancel(id, comfy) {
@@ -314,5 +345,5 @@ export function createTaskStore({ dataDir, logger, retentionDays = 0, maxTasks =
     return resolved.startsWith(`${root}${path.sep}`) && fs.existsSync(resolved) ? resolved : null;
   }
 
-  return { load, create, enqueue, get, list, cancel, cancelInFlight, contentPath, publicTask, saveOutput, persistNow, cleanup };
+  return { load, create, enqueue, get, list, cancel, cancelInFlight, contentPath, publicTask, saveOutput, finishImage, persistNow, cleanup };
 }

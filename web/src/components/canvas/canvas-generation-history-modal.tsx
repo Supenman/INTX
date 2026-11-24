@@ -1,95 +1,68 @@
-import { Modal, Tag } from "antd";
-import dayjs from "dayjs";
-import { ImageOff, History } from "lucide-react";
-import { useEffect, useMemo } from "react";
+import { Button, Modal, Tag } from "antd";
+import { Archive, Crosshair, Eye, History, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import type { InsertAssetPayload } from "@/components/canvas/asset-picker-modal";
-import { loadTaskLog, useTaskLogStore } from "@/services/generation";
-import { assetCoverUrl, useAssetStore, type Asset } from "@/stores/use-asset-store";
+import { EmptyState } from "@/components/layout/empty-state";
+import { previewUrlFor } from "@/services/image-storage";
+import { CanvasNodeType, type CanvasNodeData } from "@/types/canvas";
 
-/**
- * 画布侧的「生成历史」：把任务台账里成功且产物还在素材库的结果直接插回画布。
- *
- * 只读台账，不重发、不查单；选择后走画布已有的资产插入链路（同一套节点创建逻辑）。
- */
-export function CanvasGenerationHistoryModal({ open, onClose, onInsert }: { open: boolean; onClose: () => void; onInsert: (payload: InsertAssetPayload) => void }) {
+type Props = {
+    nodes: CanvasNodeData[];
+    onClose: () => void;
+    onLocate: (node: CanvasNodeData) => void;
+    onPreview: (node: CanvasNodeData, imageId?: string) => void;
+    onInsert: (node: CanvasNodeData, imageId?: string) => void;
+    onArchive: (node: CanvasNodeData, imageId?: string) => void;
+};
+
+export function CanvasGenerationHistoryModal({ nodes, onClose, onLocate, onPreview, onInsert, onArchive }: Props) {
     const { t } = useTranslation();
-    const tasks = useTaskLogStore((state) => state.tasks);
-    const assets = useAssetStore((state) => state.assets);
-
-    useEffect(() => {
-        if (!open) return;
-        void loadTaskLog();
-        void useAssetStore.getState().load();
-    }, [open]);
-
-    const groups = useMemo(() => {
-        const byId = new Map(assets.map((asset) => [asset.id, asset]));
-        return tasks
-            .map((task) => ({
-                task,
-                items: task.resultAssetIds
-                    .map((id) => byId.get(id))
-                    .filter((asset): asset is Asset => asset !== undefined && (asset.kind === "image" || asset.kind === "video")),
-            }))
-            .filter((group) => group.items.length > 0)
-            .slice(0, 30);
-    }, [tasks, assets]);
-
-    const payloadOf = (taskPrompt: string, asset: Asset): InsertAssetPayload => {
-        const title = asset.title || taskPrompt.slice(0, 24);
-        if (asset.kind === "video") {
-            const data = asset.data as { url: string; storageKey?: string; width?: number; height?: number };
-            return { kind: "video", url: data.url, title, storageKey: data.storageKey, width: data.width, height: data.height };
-        }
-        const data = asset.data as { dataUrl?: string; storageKey?: string };
-        return { kind: "image", dataUrl: data.dataUrl || assetCoverUrl(asset), title, storageKey: data.storageKey };
-    };
+    const history = nodes.filter(({ metadata }) => metadata && (
+        metadata.inputPrompt !== undefined || metadata.retrySourceId || metadata.generationType || metadata.videoTaskId
+    )).reverse();
 
     return (
-        <Modal title={t("canvas.generationHistory.title")} open={open} onCancel={onClose} footer={null} width={780} destroyOnHidden>
+        <Modal title={t("canvas.generationHistory.title")} open onCancel={onClose} footer={null} width={780}>
             <p className="mb-3 text-xs text-muted-foreground">{t("canvas.generationHistory.description")}</p>
-            {groups.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-border px-4 py-14 text-center text-sm text-muted-foreground">
-                    <History className="mx-auto mb-2 size-5" />
-                    <div>{t("canvas.generationHistory.empty")}</div>
-                    <div className="mt-1 text-xs">{t("canvas.generationHistory.emptyHint")}</div>
-                </div>
+            {!history.length ? (
+                <EmptyState icon={History} title={t("canvas.generationHistory.empty")} description={t("canvas.generationHistory.emptyHint")} />
             ) : (
-                <div className="thin-scrollbar max-h-[60vh] space-y-4 overflow-y-auto pr-1">
-                    {groups.map(({ task, items }) => (
-                        <section key={task.id} className="rounded-lg border border-border p-3">
-                            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                                <Tag className="m-0">{t(`tasks.kind.${task.kind}`, { defaultValue: task.kind })}</Tag>
-                                <span className="truncate">{task.params.model || "—"}</span>
-                                <span>·</span>
-                                <span>{dayjs(task.createdAt).format("MM-DD HH:mm")}</span>
-                                <span>·</span>
-                                <span>{t("tasks.detail.results")} {items.length}</span>
-                            </div>
-                            <div className="mt-1 truncate text-sm text-foreground">{task.params.prompt || "—"}</div>
-                            <div className="mt-2 flex flex-wrap gap-2">
-                                {items.map((asset) => {
-                                    const cover = asset.kind === "image" ? assetCoverUrl(asset) : assetCoverUrl(asset);
-                                    return (
-                                        <button
-                                            key={asset.id}
-                                            type="button"
-                                            title={t("canvas.generationHistory.insert")}
-                                            className="group relative size-20 overflow-hidden rounded-md border border-border bg-muted transition hover:bg-[var(--surface-card-hover)]"
-                                            onClick={() => {
-                                                onInsert(payloadOf(task.params.prompt, asset));
-                                                onClose();
-                                            }}
-                                        >
-                                            {cover ? <img src={cover} alt={asset.title} className="size-full object-cover" /> : <ImageOff className="absolute inset-0 m-auto size-5 text-muted-foreground" />}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </section>
-                    ))}
+                <div className="thin-scrollbar max-h-[60vh] space-y-3 overflow-y-auto pr-1">
+                    {history.map((node) => {
+                        const images = node.type === CanvasNodeType.Image ? node.metadata?.images?.filter((image) => image.status === "success" && image.content) ?? [] : [];
+                        const results = images.length
+                            ? images.map((image) => ({ id: image.id, src: previewUrlFor(image.storageKey) || image.content, outputNodeId: image.outputNodeId }))
+                            : node.metadata?.content && node.metadata.status !== "loading" ? [{ id: undefined, src: previewUrlFor(node.metadata.storageKey) || node.metadata.content, outputNodeId: undefined }] : [];
+                        const media = node.type === CanvasNodeType.Image || node.type === CanvasNodeType.Video;
+                        const status = node.metadata?.status === "success" ? "succeeded" : node.metadata?.status === "loading" ? "running" : "failed";
+                        return (
+                            <section key={node.id} className="space-y-2 rounded-lg border border-border p-3">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <Tag className="m-0">{t(`canvas.nodeTypes.${node.type}`, { defaultValue: node.type })}</Tag>
+                                    {node.metadata?.status && node.metadata.status !== "idle" && <span className="text-xs text-muted-foreground">{t(`tasks.status.${status}`)}</span>}
+                                    <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{node.metadata?.model}</span>
+                                    <Button size="small" type="text" icon={<Crosshair className="size-4" />} onClick={() => onLocate(node)}>{t("canvas.generationHistory.locate")}</Button>
+                                </div>
+                                <p className="line-clamp-2 text-sm">{node.metadata?.prompt || node.title}</p>
+                                {node.metadata?.errorDetails && <p className="line-clamp-2 text-xs text-destructive">{node.metadata.errorDetails}</p>}
+                                {media && results.length > 0 && (
+                                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                        {results.map(({ id, src, outputNodeId }) => (
+                                            <div key={id ?? node.id} className="flex items-center gap-2 rounded-md border border-border p-2">
+                                                {node.type === CanvasNodeType.Image ? <img src={src} alt="" className="size-12 shrink-0 rounded object-cover" /> : <video src={src} preload="metadata" muted className="size-12 shrink-0 rounded object-cover" />}
+                                                <div className="flex flex-wrap gap-1">
+                                                    {outputNodeId && <span className="w-full px-1 text-xs text-muted-foreground">{t("canvas.generationHistory.outputNode", { id: outputNodeId })}</span>}
+                                                    <Button size="small" type="text" icon={<Eye className="size-4" />} onClick={() => onPreview(node, id)}>{t("common.view")}</Button>
+                                                    <Button size="small" type="text" icon={<Plus className="size-4" />} onClick={() => onInsert(node, id)}>{t("canvas.generationHistory.insert")}</Button>
+                                                    <Button size="small" type="text" icon={<Archive className="size-4" />} onClick={() => onArchive(node, id)}>{t("canvas.nodeToolbar.saveAsset")}</Button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </section>
+                        );
+                    })}
                 </div>
             )}
         </Modal>

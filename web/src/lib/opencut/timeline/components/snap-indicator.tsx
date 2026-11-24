@@ -1,6 +1,7 @@
 "use client";
 
 import { useSnapIndicatorPosition } from "@/lib/opencut/timeline/hooks/use-snap-indicator-position";
+import { useTranslation } from "react-i18next";
 import type { SnapPoint } from "@/lib/opencut/timeline/snapping";
 import {
 	getCenteredLineLeft,
@@ -22,6 +23,7 @@ export function SnapIndicator({
 	timelineRef,
 	tracksScrollRef,
 }: SnapIndicatorProps) {
+	const { t } = useTranslation();
 	const { leftPosition, topPosition, height } = useSnapIndicatorPosition({
 		snapPoint,
 		zoomLevel,
@@ -44,7 +46,10 @@ export function SnapIndicator({
 				zIndex: TIMELINE_LAYERS.snapIndicator,
 			}}
 		>
-			<div className={"bg-primary/40 h-full w-0.5 opacity-80"} />
+			<div className="bg-primary/65 h-full w-0.5" />
+			<span className="absolute left-1 top-0 whitespace-nowrap rounded bg-primary px-1.5 py-0.5 text-xs text-primary-foreground">
+				{t(`editingStudio.timeline.snap.${snapPoint.type}`)}
+			</span>
 		</div>
 	);
 }

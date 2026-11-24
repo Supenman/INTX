@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import localforage from "localforage";
-import { App, Button, Checkbox, Input, Modal, Spin } from "antd";
-import { ArrowLeft, Check, Clapperboard, Import, Image as ImageIcon, Pencil, Video, X } from "lucide-react";
+import { App, Button, Checkbox, Input, Modal, Segmented, Spin } from "antd";
+import { ArrowLeft, Check, Clapperboard, Import, Image as ImageIcon, Pencil, Search, Video, X } from "lucide-react";
 import { Toaster } from "sonner";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -25,13 +25,14 @@ import { processMediaAssets } from "@/lib/opencut/media/processing";
 import { storageService } from "@/lib/opencut/services/storage/service";
 import { getImageBlob } from "@/services/image-storage";
 import { getMediaBlob } from "@/services/file-storage";
-import { useAssetStore, type Asset } from "@/stores/use-asset-store";
+import { assetCoverUrl, useAssetStore, type Asset } from "@/stores/use-asset-store";
 import { SnapshotStorageStatus } from "@/components/layout/snapshot-storage-status";
 import { TooltipProvider } from "@/lib/opencut/components/ui/tooltip";
 import "./editor.css";
 
 const projectStore = localforage.createInstance({ name: "intx-editing-studio", storeName: "project" });
 type LocalMediaAsset = Exclude<Asset, { kind: "text" }>;
+const libraryKinds = ["all", "image", "video"] as const;
 
 export default function EditingStudioPage() {
     const { t } = useTranslation();
@@ -74,12 +75,17 @@ function EditorWorkspace() {
     const editor = useEditor();
     const activeProject = useEditor((state) => state.project.getActive());
     const libraryAssets = useAssetStore((state) => state.assets);
+    const editorAssets = useEditor((state) => state.media.getAssets());
     const [libraryOpen, setLibraryOpen] = useState(false);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
+    const [libraryQuery, setLibraryQuery] = useState("");
+    const [libraryKind, setLibraryKind] = useState<(typeof libraryKinds)[number]>("all");
+    const [canvasOnly, setCanvasOnly] = useState(false);
     const [importing, setImporting] = useState(false);
+    const importInFlight = useRef(false);
     const [renaming, setRenaming] = useState(false);
     const [projectName, setProjectName] = useState(activeProject?.metadata.name || "");
-    const importedSourceIds = useMemo(() => new Set(editor.media.getAssets().map((asset) => asset.sourceAssetId).filter((id): id is string => Boolean(id))), [editor, libraryOpen, importing, editor.media.getAssets().length]);
+    const importedSourceIds = useMemo(() => new Set(editorAssets.map((asset) => asset.sourceAssetId).filter((id): id is string => Boolean(id))), [editorAssets]);
     const mediaAssets = useMemo(() => libraryAssets.filter((asset): asset is LocalMediaAsset => asset.kind === "image" || asset.kind === "video"), [libraryAssets]);
     // 从画布进入时把该画布的素材置顶，避免在整库列表里翻找。
     const orderedAssets = useMemo(() => {
@@ -89,6 +95,24 @@ function EditorWorkspace() {
     }, [fromCanvasId, mediaAssets]);
     const fromCanvasCount = useMemo(() => orderedAssets.filter((asset) => asset.metadata?.canvasProjectId === fromCanvasId).length, [fromCanvasId, orderedAssets]);
     const fromCanvasTitle = searchParams.get("title") || "";
+    const visibleLibraryAssets = useMemo(() => {
+        const query = libraryQuery.trim().toLowerCase();
+        return orderedAssets.filter((asset) => (
+            (libraryKind === "all" || libraryKind === asset.kind)
+            && (!canvasOnly || asset.metadata?.canvasProjectId === fromCanvasId)
+            && (!query || [asset.title, ...(asset.tags || [])].join(" ").toLowerCase().includes(query))
+        ));
+    }, [canvasOnly, fromCanvasId, libraryKind, libraryQuery, orderedAssets]);
+    const chosenAssets = mediaAssets.filter((asset) => selectedIds.includes(asset.id) && !importedSourceIds.has(asset.id));
+
+    const closeLibrary = () => {
+        if (importInFlight.current) return;
+        setLibraryOpen(false);
+        setSelectedIds([]);
+        setLibraryQuery("");
+        setLibraryKind("all");
+        setCanvasOnly(false);
+    };
 
     const saveProjectName = async () => {
         const name = projectName.trim();
@@ -103,15 +127,16 @@ function EditorWorkspace() {
     };
 
     const importSelected = async () => {
-        if (!activeProject) return;
+        if (!activeProject || importInFlight.current || !chosenAssets.length) return;
+        importInFlight.current = true;
         setImporting(true);
-        const chosen = mediaAssets.filter((asset) => selectedIds.includes(asset.id) && !importedSourceIds.has(asset.id));
         let imported = 0;
+        let completed = false;
         try {
-            for (const asset of chosen) {
-                const blob = asset.kind === "image"
-                    ? asset.data.storageKey ? await getImageBlob(asset.data.storageKey) : await (await fetch(asset.data.dataUrl)).blob()
-                    : asset.data.storageKey ? await getMediaBlob(asset.data.storageKey) : await (await fetch(asset.data.url)).blob();
+            for (const asset of chosenAssets) {
+                const url = asset.kind === "image" ? asset.data.dataUrl : asset.data.url;
+                const key = asset.data.storageKey;
+                const blob = key ? await (asset.kind === "image" ? getImageBlob(key) : getMediaBlob(key)) : await readLibraryBlob(url);
                 if (!blob) throw new Error(t("editingStudio.assetMissing", { name: asset.title }));
                 const mimeType = blob.type || asset.data.mimeType || (asset.kind === "image" ? "image/png" : "video/mp4");
                 const extension = mimeType.split("/")[1]?.split(";")[0] || (asset.kind === "image" ? "png" : "mp4");
@@ -121,57 +146,81 @@ function EditorWorkspace() {
                 const saved = await editor.media.addMediaAsset({ projectId: activeProject.metadata.id, asset: { ...processed, sourceAssetId: asset.id } });
                 if (!saved) throw new Error(t("editingStudio.assetImportFailed", { name: asset.title }));
                 imported += 1;
+                setSelectedIds((ids) => ids.filter((id) => id !== asset.id));
             }
-            setSelectedIds([]);
-            setLibraryOpen(false);
-            if (imported) message.success(t("editingStudio.importSuccess", { count: imported }));
+            completed = true;
         } catch (error) {
             message.error(error instanceof Error ? error.message : t("editingStudio.assetImportFailedGeneric"));
         } finally {
+            importInFlight.current = false;
             setImporting(false);
+            if (completed) closeLibrary();
+            if (imported) message.success(t("editingStudio.importSuccess", { count: imported }));
         }
     };
 
     return (
         <TooltipProvider>
-        <div className="opencut-editor flex h-full min-h-0 flex-col overflow-hidden bg-background text-foreground">
-            <header className="flex h-12 shrink-0 items-center justify-between border-b border-border px-3">
-                <div className="flex min-w-0 items-center gap-3">
-                    <Button type="text" icon={<ArrowLeft className="size-4" />} onClick={() => navigate(fromCanvasId ? `/canvas/${fromCanvasId}` : "/canvas")}>{t(fromCanvasId ? "editingStudio.backToCanvas" : "editingStudio.back")}</Button>
+        <div className="opencut-editor @container flex h-full min-h-0 flex-col overflow-hidden bg-background text-foreground">
+            <header className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border/70 px-3">
+                <div className="flex min-w-0 items-center gap-2">
+                    <Button type="text" className="shrink-0" aria-label={t(fromCanvasId ? "editingStudio.backToCanvas" : "editingStudio.back")} title={t(fromCanvasId ? "editingStudio.backToCanvas" : "editingStudio.back")} icon={<ArrowLeft className="size-4" />} onClick={() => navigate(fromCanvasId ? `/canvas/${fromCanvasId}` : "/canvas")}>
+                        <span className="hidden @min-[640px]:inline">{t(fromCanvasId ? "editingStudio.backToCanvas" : "editingStudio.back")}</span>
+                    </Button>
                     <div className="flex min-w-0 items-center gap-2 border-l border-border pl-3 text-sm font-medium"><Clapperboard className="size-4 shrink-0" />{renaming ? <><Input size="small" autoFocus value={projectName} onChange={(event) => setProjectName(event.target.value)} onPressEnter={() => void saveProjectName()} className="w-48" /><Button type="text" size="small" icon={<Check className="size-4" />} onClick={() => void saveProjectName()} /><Button type="text" size="small" icon={<X className="size-4" />} onClick={() => { setProjectName(activeProject?.metadata.name || ""); setRenaming(false); }} /></> : <><span className="truncate">{activeProject?.metadata.name || t("editingStudio.title")}</span><Button type="text" size="small" aria-label={t("editingStudio.renameProject")} icon={<Pencil className="size-3.5" />} onClick={() => { setProjectName(activeProject?.metadata.name || ""); setRenaming(true); }} /></>}</div>
                 </div>
-                <div className="flex items-center gap-2">
-                    <Button icon={<Import className="size-4" />} onClick={() => setLibraryOpen(true)}>{t("editingStudio.importFromLibrary")}</Button>
+                <div className="flex shrink-0 items-center gap-2">
+                    <Button aria-label={t("editingStudio.importFromLibrary")} title={t("editingStudio.importFromLibrary")} icon={<Import className="size-4" />} onClick={() => setLibraryOpen(true)}>
+                        <span className="hidden @min-[640px]:inline">{t("editingStudio.importFromLibrary")}</span>
+                    </Button>
                     <ExportButton />
                 </div>
             </header>
             <div className="min-h-0 flex-1">
                 <EditorLayout />
             </div>
-            <Modal title={t("editingStudio.libraryTitle")} open={libraryOpen} onCancel={() => setLibraryOpen(false)} onOk={() => void importSelected()} okText={t("editingStudio.importSelected")} cancelText={t("common.cancel")} confirmLoading={importing}>
+            <Modal title={t("editingStudio.libraryTitle")} width={660} open={libraryOpen} onCancel={closeLibrary} onOk={() => void importSelected()} okText={`${t("editingStudio.importSelected")} (${chosenAssets.length})`} cancelText={t("common.cancel")} confirmLoading={importing} okButtonProps={{ disabled: !chosenAssets.length }} cancelButtonProps={{ disabled: importing }} closable={!importing}>
                 <p className="mb-3 text-sm text-muted-foreground">{t("editingStudio.libraryHint")}</p>
                 {fromCanvasId ? (
                     <p className="mb-3 text-xs text-muted-foreground">
                         {fromCanvasCount ? t("editingStudio.libraryFromCanvas", { count: fromCanvasCount, title: fromCanvasTitle || t("editingStudio.fromCanvasFallback") }) : t("editingStudio.libraryFromCanvasEmpty", { title: fromCanvasTitle || t("editingStudio.fromCanvasFallback") })}
                     </p>
                 ) : null}
-                <div className="max-h-[55vh] overflow-y-auto divide-y divide-border">
-                    {orderedAssets.map((asset) => {
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                    <Input className="!w-auto min-w-40 flex-1" allowClear value={libraryQuery} aria-label={t("assets.search")} placeholder={t("assets.search")} prefix={<Search className="size-4 text-muted-foreground" />} onChange={(event) => setLibraryQuery(event.target.value)} />
+                    <Segmented<(typeof libraryKinds)[number]> value={libraryKind} onChange={setLibraryKind} options={libraryKinds.map((value) => ({ value, label: t(value === "all" ? "common.all" : `assets.kinds.${value}`) }))} />
+                    {fromCanvasCount > 0 && <Checkbox checked={canvasOnly} onChange={(event) => setCanvasOnly(event.target.checked)}>{t("editingStudio.thisCanvasOnly")}</Checkbox>}
+                </div>
+                <div className="max-h-[48vh] divide-y divide-border overflow-y-auto">
+                    {visibleLibraryAssets.map((asset) => {
                         const alreadyImported = importedSourceIds.has(asset.id);
-                        return <label key={asset.id} className="flex cursor-pointer items-center gap-3 py-2.5">
-                            <Checkbox disabled={alreadyImported} checked={alreadyImported || selectedIds.includes(asset.id)} onChange={(event) => setSelectedIds((ids) => event.target.checked ? [...ids, asset.id] : ids.filter((id) => id !== asset.id))} />
-                            {asset.kind === "image" ? <ImageIcon className="size-4 shrink-0 text-muted-foreground" /> : <Video className="size-4 shrink-0 text-muted-foreground" />}
-                            <span className="min-w-0 flex-1 truncate text-sm">{asset.title}</span>
-                            <span className="text-xs text-muted-foreground">{alreadyImported ? t("editingStudio.imported") : t(`assets.kinds.${asset.kind}`)}</span>
-                        </label>;
+                        const cover = assetCoverUrl(asset);
+                        const Icon = asset.kind === "image" ? ImageIcon : Video;
+                        return (
+                            <Checkbox key={asset.id} className="!m-0 flex w-full items-center gap-2 py-2 [&>span:last-child]:min-w-0 [&>span:last-child]:flex-1" disabled={importing || alreadyImported} checked={alreadyImported || selectedIds.includes(asset.id)} onChange={(event) => setSelectedIds((ids) => event.target.checked ? [...ids, asset.id] : ids.filter((id) => id !== asset.id))}>
+                                <span className="flex min-w-0 items-center gap-3">
+                                    <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-md bg-[var(--surface-sunken)] text-muted-foreground">
+                                        {cover ? <img src={cover} alt="" className="size-full object-cover" /> : <Icon aria-hidden className="size-4" />}
+                                    </span>
+                                    <span className="min-w-0 flex-1 truncate text-sm">{asset.title}</span>
+                                    <span className="shrink-0 text-xs text-muted-foreground">{alreadyImported ? t("editingStudio.imported") : t(`assets.kinds.${asset.kind}`)}</span>
+                                </span>
+                            </Checkbox>
+                        );
                     })}
-                    {!orderedAssets.length && <p className="py-8 text-center text-sm text-muted-foreground">{t("editingStudio.emptyLibrary")}</p>}
+                    {!visibleLibraryAssets.length && <p className="py-8 text-center text-sm text-muted-foreground">{t(orderedAssets.length ? "assets.empty" : "editingStudio.emptyLibrary")}</p>}
                 </div>
             </Modal>
             <Toaster position="bottom-right" />
         </div>
         </TooltipProvider>
     );
+}
+
+async function readLibraryBlob(url: string) {
+    if (!url) return null;
+    const response = await fetch(url);
+    return response.ok ? response.blob() : null;
 }
 
 function EditorLayout() {

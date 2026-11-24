@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { App, Button, Modal, Select } from "antd";
-import { Download, FileUp, Folder, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { App, Button, Input, Modal, Select } from "antd";
+import { Download, FileUp, Folder, Plus, RotateCcw, Search, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { useSaveNotice } from "@/hooks/use-save-file";
@@ -40,12 +40,16 @@ export default function CanvasPage() {
     const selectedIds = useCanvasUiStore((state) => state.selectedProjectIds);
     const setDeleteIds = useCanvasUiStore((state) => state.setDeleteProjectIds);
     const [folderFilter, setFolderFilter] = useState<string>();
+    const [keyword, setKeyword] = useState("");
     const [batchFolder, setBatchFolder] = useState<string[]>([]);
     const [showTrash, setShowTrash] = useState(false);
     const folderNames = useMemo(() => [...new Set(projects.map((project) => project.folder?.trim()).filter((folder): folder is string => Boolean(folder)))].sort((a, b) => a.localeCompare(b)), [projects]);
     const trashProjects = useMemo(() => deletedProjects.filter((item) => item.project), [deletedProjects]);
     const unavailableTrashCount = deletedProjects.length - trashProjects.length;
-    const visibleProjects = folderFilter ? projects.filter((project) => project.folder === folderFilter) : projects;
+    const visibleProjects = useMemo(() => {
+        const query = keyword.trim().toLowerCase();
+        return projects.filter((project) => (!folderFilter || project.folder === folderFilter) && (!query || [project.title, project.folder].some((value) => value?.toLowerCase().includes(query))));
+    }, [folderFilter, keyword, projects]);
     const visibleSelectedIds = selectedIds.filter((id) => visibleProjects.some((project) => project.id === id));
     const moveSelectedToFolder = async (folder?: string) => {
         if (!visibleSelectedIds.length) return;
@@ -183,11 +187,9 @@ export default function CanvasPage() {
                         }
                     />
 
-                    <div className="mt-3">
-                        <SnapshotStorageStatus kind="projects" />
-                    </div>
-
-                    {!showTrash && projects.length ? <div className="mt-4 flex flex-wrap items-center gap-2">
+                    <div className="workspace-toolbar">
+                    {!showTrash && projects.length ? <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        <Input allowClear aria-label={t("canvas.projectSearch")} placeholder={t("canvas.projectSearch")} className="!w-48" prefix={<Search className="size-4 text-muted-foreground" />} value={keyword} onChange={(event) => setKeyword(event.target.value)} />
                         <Select
                             aria-label={t("canvas.folderFilter")}
                             className="min-w-44"
@@ -212,44 +214,44 @@ export default function CanvasPage() {
                             suffixIcon={<Folder className="size-4" />}
                         /> : null}
                     </div> : null}
+                        <div className="ml-auto min-w-0"><SnapshotStorageStatus kind="projects" /></div>
+                    </div>
 
                     {!hydrated ? (
-                        <section className="mt-4 flex min-h-[360px] items-center justify-center rounded-xl bg-[var(--surface-sunken)]">
+                        <section className="surface-card mt-4 flex min-h-64 items-center justify-center">
                             <SnapshotStorageStatus kind="projects" />
                         </section>
                     ) : showTrash ? (
                         <>
                             {unavailableTrashCount ? <p className="mt-4 text-xs text-muted-foreground">{t("canvas.trash.unavailable", { count: unavailableTrashCount })}</p> : null}
-                            {trashProjects.length ? <div className="mt-4 grid grid-cols-2 gap-4 xl:grid-cols-3">
+                            {trashProjects.length ? <div className="mt-4 grid grid-cols-1 gap-4 @min-[480px]/workspace:grid-cols-2 @min-[760px]/workspace:grid-cols-3">
                                 {trashProjects.map((item) => <article key={item.id} className="surface-card-interactive flex min-h-40 flex-col justify-between p-4">
                                     <div>
                                         <h2 className="typ-heading line-clamp-1">{item.project!.title}</h2>
                                         <p className="typ-caption mt-2 text-muted-foreground">{t("canvas.project.stats", { nodes: item.project!.nodes.length, connections: item.project!.connections.length })}</p>
                                         <p className="typ-caption mt-1 text-muted-foreground">{t("canvas.trash.deletedAt", { date: new Date(item.deletedAt).toLocaleString() })}</p>
                                     </div>
-                                    <div className="mt-5 flex justify-end gap-2">
+                                    <div className="mt-5 flex flex-wrap justify-end gap-2">
                                         <Button icon={<RotateCcw className="size-4" />} onClick={() => void restoreProject(item.id)}>{t("canvas.trash.restore")}</Button>
                                         <Button danger icon={<Trash2 className="size-4" />} onClick={() => permanentlyDeleteProject(item.id, item.project!.title)}>{t("canvas.trash.permanentDelete")}</Button>
                                     </div>
                                 </article>)}
-                            </div> : <section className="mt-4 flex min-h-[240px] items-center justify-center rounded-xl bg-[var(--surface-sunken)] px-6 text-center text-sm text-muted-foreground">{t("canvas.trash.empty")}</section>}
+                            </div> : <EmptyState icon={Trash2} title={t("canvas.trash.empty")} className="mt-4" />}
                         </>
                     ) : visibleProjects.length ? (
-                        <div className="mt-4 grid grid-cols-2 gap-4 xl:grid-cols-3">
+                        <div className="mt-4 grid grid-cols-1 gap-4 @min-[480px]/workspace:grid-cols-2 @min-[760px]/workspace:grid-cols-3">
                             {visibleProjects.map((project) => (
                                 <CanvasProjectCard key={project.id} project={project} folderNames={folderNames} />
                             ))}
                         </div>
                     ) : projects.length ? (
-                        <section className="mt-4 flex min-h-[240px] items-center justify-center rounded-xl bg-[var(--surface-sunken)] px-6 text-center text-sm text-muted-foreground">
-                            {t("canvas.emptyFolder")}
-                        </section>
+                        <EmptyState icon={keyword.trim() ? Search : Folder} title={t(keyword.trim() ? "canvas.projectNoResults" : "canvas.emptyFolder")} className="mt-4" action={<Button onClick={() => { setKeyword(""); setFolderFilter(undefined); }}>{t("assets.clearFilters")}</Button>} />
                     ) : (
                         <EmptyState
                             icon={Plus}
                             title={t("canvas.empty")}
                             description={t("canvas.emptyDescription")}
-                            className="mt-4 min-h-[360px]"
+                            className="mt-4"
                             action={
                                 <Button type="primary" icon={<Plus className="size-4" />} onClick={createAndEnter}>
                                     {t("canvas.create")}

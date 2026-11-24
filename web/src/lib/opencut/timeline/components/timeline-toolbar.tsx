@@ -19,6 +19,10 @@ import { TIMELINE_ZOOM_MAX } from "@/lib/opencut/timeline/scale";
 import { sliderToZoom, zoomToSlider } from "@/lib/opencut/timeline/zoom-utils";
 import { ScenesView } from "@/lib/opencut/components/editor/scenes-view";
 import { type TActionWithOptionalArgs, invokeAction } from "@/lib/opencut/actions";
+import { useKeybindingsStore } from "@/lib/opencut/actions/keybindings-store";
+import { getPlatformSpecialKey } from "@/lib/opencut/utils/platform";
+import { ScanLine } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import {
 	canToggleSourceAudio,
 	getSourceAudioActionLabel,
@@ -31,7 +35,6 @@ import { ScrollArea } from "@/lib/opencut/components/ui/scroll-area";
 import {
 	Bookmark02Icon,
 	Delete02Icon,
-	SnowIcon,
 	ScissorIcon,
 	MagnetIcon,
 	SearchAddIcon,
@@ -68,8 +71,8 @@ export function TimelineToolbar({
 	};
 
 	return (
-		<ScrollArea className="scrollbar-hidden">
-			<div className="flex h-10 items-center justify-between border-b px-2 py-1">
+		<ScrollArea className="shrink-0 overflow-x-auto overflow-y-hidden">
+			<div className="flex h-10 w-max min-w-full items-center justify-between gap-3 border-b px-2 py-1">
 				<ToolbarLeftSection />
 
 				<SceneSelector />
@@ -86,6 +89,7 @@ export function TimelineToolbar({
 }
 
 function ToolbarLeftSection() {
+	const { t } = useTranslation();
 	const editor = useEditor();
 	const mediaAssets = useEditor((currentEditor) =>
 		currentEditor.media.getAssets(),
@@ -145,18 +149,21 @@ function ToolbarLeftSection() {
 				<ToolbarButton
 					icon={<HugeiconsIcon icon={ScissorIcon} />}
 					tooltip="拆分片段"
+					action="split"
 					onClick={({ event }) => handleAction({ action: "split", event })}
 				/>
 
 				<ToolbarButton
 					icon={<HugeiconsIcon icon={AlignLeftIcon} />}
 					tooltip="拆分左侧"
+					action="split-left"
 					onClick={({ event }) => handleAction({ action: "split-left", event })}
 				/>
 
 				<ToolbarButton
 					icon={<HugeiconsIcon icon={AlignRightIcon} />}
 					tooltip="拆分右侧"
+					action="split-right"
 					onClick={({ event }) =>
 						handleAction({ action: "split-right", event })
 					}
@@ -178,21 +185,18 @@ function ToolbarLeftSection() {
 				<ToolbarButton
 					icon={<HugeiconsIcon icon={Copy01Icon} />}
 					tooltip="复制片段"
+					action="duplicate-selected"
+					disabled={!selectedElements.length}
 					onClick={({ event }) =>
 						handleAction({ action: "duplicate-selected", event })
 					}
 				/>
 
 				<ToolbarButton
-					icon={<HugeiconsIcon icon={SnowIcon} />}
-					tooltip="定格画面（即将推出）"
-					disabled={true}
-					onClick={({ event: _event }) => {}}
-				/>
-
-				<ToolbarButton
 					icon={<HugeiconsIcon icon={Delete02Icon} />}
 					tooltip="删除片段"
+					action="delete-selected"
+					disabled={!selectedElements.length}
 					onClick={({ event }) =>
 						handleAction({ action: "delete-selected", event })
 					}
@@ -241,6 +245,7 @@ function ToolbarLeftSection() {
 					/>
 				</GraphEditorPopover>
 			</TooltipProvider>
+			{selectedElements.length > 1 && <span className="ml-2 whitespace-nowrap text-xs text-muted-foreground">{t("editingStudio.timeline.clips", { count: selectedElements.length })}</span>}
 		</div>
 	);
 }
@@ -286,14 +291,15 @@ function ToolbarRightSection({
 				<ToolbarButton
 					icon={<HugeiconsIcon icon={MagnetIcon} />}
 					isActive={snappingEnabled}
-					tooltip="Auto snapping"
+					tooltip={snappingEnabled ? "关闭自动吸附" : "启用自动吸附"}
+					action="toggle-snapping"
 					onClick={() => toggleSnapping()}
 				/>
 
 				<ToolbarButton
 					icon={<OcRippleIcon size={24} className="scale-110" />}
 					isActive={rippleEditingEnabled}
-					tooltip="Ripple editing"
+					tooltip={rippleEditingEnabled ? "关闭波纹编辑" : "启用波纹编辑"}
 					onClick={() => toggleRippleEditing()}
 				/>
 			</TooltipProvider>
@@ -301,15 +307,18 @@ function ToolbarRightSection({
 			<div className="bg-border mx-1 h-6 w-px" />
 
 			<div className="flex items-center gap-1">
+				<ToolbarButton icon={<ScanLine />} tooltip="缩放至全片可见" onClick={() => onZoomChange(minZoom)} />
 				<Button
 					variant="text"
 					size="icon"
+					aria-label="缩小时间线"
 					onClick={() => onZoom({ direction: "out" })}
 				>
 					<HugeiconsIcon icon={SearchMinusIcon} />
 				</Button>
 				<Slider
 					className="w-28"
+					aria-label="时间线缩放"
 					value={[zoomToSlider({ zoomLevel, minZoom })]}
 					onValueChange={(values) =>
 						onZoomChange(sliderToZoom({ sliderPosition: values[0], minZoom }))
@@ -321,6 +330,7 @@ function ToolbarRightSection({
 				<Button
 					variant="text"
 					size="icon"
+					aria-label="放大时间线"
 					onClick={() => onZoom({ direction: "in" })}
 				>
 					<HugeiconsIcon icon={SearchAddIcon} />
@@ -333,6 +343,7 @@ function ToolbarRightSection({
 function ToolbarButton({
 	icon,
 	tooltip,
+	action,
 	onClick,
 	disabled,
 	isActive,
@@ -340,16 +351,27 @@ function ToolbarButton({
 }: {
 	icon: React.ReactNode;
 	tooltip: string;
+	action?: TActionWithOptionalArgs;
 	onClick?: ({ event }: { event: React.MouseEvent }) => void;
 	disabled?: boolean;
 	isActive?: boolean;
 	buttonWrapper?: (button: React.ReactElement) => React.ReactElement;
 }) {
+	const keybindings = useKeybindingsStore((state) => state.keybindings);
+	const shortcuts = action
+		? [...keybindings]
+				.filter(([, mapped]) => mapped === action)
+				.map(([key]) => key.split("+").map((part) => (
+					part === "ctrl" ? getPlatformSpecialKey() : part.charAt(0).toUpperCase() + part.slice(1)
+				)).join("+"))
+		: [];
 	const button = (
 		<Button
 			variant={isActive ? "secondary" : "text"}
 			size="icon"
 			disabled={disabled}
+			aria-label={tooltip}
+			aria-pressed={isActive}
 			onClick={onClick ? (event) => onClick({ event }) : undefined}
 			className={cn(
 				"rounded-sm",
@@ -370,7 +392,7 @@ function ToolbarButton({
 	return (
 		<Tooltip delayDuration={200}>
 			<TooltipTrigger asChild>{trigger}</TooltipTrigger>
-			<TooltipContent>{tooltip}</TooltipContent>
+			<TooltipContent>{tooltip}{shortcuts.length > 0 ? ` · ${shortcuts.join(" / ")}` : ""}</TooltipContent>
 		</Tooltip>
 	);
 }

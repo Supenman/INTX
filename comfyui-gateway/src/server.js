@@ -34,7 +34,7 @@ import { createFreeWorkflowStore, applyFreeFields, applyFreeInputs, normalizeFre
 import { classifyFreeWorkflowOutputs, freeWorkflowNodeTitles, freeWorkflowOutputOrder } from "./free-workflow-outputs.js";
 import { applyMossLayoutPrompt } from "./layout-prompt.js";
 import { assertMossTierAvailable, legacyMossTarget, MOSS_MODEL_ID } from "./moss-tier.js";
-import { runImage, runVideo, runWorkflow } from "./runner.js";
+import { recoverImageOutputs, runImage, runVideo, runWorkflow } from "./runner.js";
 import { ensureSourceAudio, extractVideoFrame, extractVideoFrames, fitViggleSourceCanvas, flattenViggleReferences, padSourceForSegment, planViggleSegments, runViggleLongVideo, scoreVideoFrames } from "./viggle-long.js";
 import { mediaPixelSize } from "./media-size.js";
 import { resolveVariantFallback } from "./variant-fallback.js";
@@ -647,8 +647,39 @@ export async function createGatewayApp(overrides = {}) {
   swapChain.load();
   const taskResponse = (req, task) => {
     const data = tasks.publicTask(task);
-    return { ...data, url: data.url ? absoluteTaskUrl(config, req, data.url) : null };
+    return {
+      ...data,
+      url: data.url ? absoluteTaskUrl(config, req, data.url) : null,
+      ...(data.object === "image" ? { outputs: data.outputs.map(({ url, nodeId, mimeType }) => ({ url: absoluteTaskUrl(config, req, url), nodeId, mimeType })) } : {}),
+    };
   };
+  async function queueImageTask(req, res, entry, context) {
+    if (!entry.inputContract || String(req.body?.async) !== "true") return false;
+    const id = String(req.body?.task_id || "");
+    if (id && !/^image_[A-Za-z0-9_-]{21}$/.test(id)) throw new HttpError("图片任务 ID 无效", { status: 400, code: "invalid_task_id" });
+    const existing = id ? tasks.get(id) : null;
+    if (existing) {
+      if (existing.object !== "image" || existing.model !== entry.id) throw new HttpError("任务 ID 已被使用", { status: 409, code: "task_id_conflict" });
+      res.status(202).json(taskResponse(req, existing));
+      return true;
+    }
+    const task = tasks.create({ id: id || undefined, model: entry.id, object: "image", request: { outputNodes: entry.outputNodes } });
+    try {
+      await tasks.persistNow({ required: true });
+    } catch {
+      task.status = "failed";
+      task.error = "无法保存图片任务，工作流未提交";
+      await tasks.persistNow();
+      throw new HttpError(task.error, { status: 500, code: "task_save_failed" });
+    }
+    tasks.enqueue(task, (_task, onProgress, signal) => runImage({
+      entry, context, comfy, timeoutMs: config.requestTimeoutMs, pollIntervalMs: config.pollIntervalMs,
+      signal, requestId: req.id, onProgress, logger, loraCatalog: setup.loraNames(),
+      modelAliasFor: setup.modelAliasFor, loaderSpecs: setup.modelLoaderSpecs?.(),
+    }));
+    res.status(202).json(taskResponse(req, task));
+    return true;
+  }
   const freeWorkflows = createFreeWorkflowStore({
     dataDir: config.dataDir,
     comfyWorkflowsDir: config.comfyWorkflowsDir,
@@ -2058,6 +2089,7 @@ export async function createGatewayApp(overrides = {}) {
       presets: entry.presets,
     });
     if (entry.id.startsWith("image-moss-")) applyMossLayoutPrompt(context);
+    if (await queueImageTask(req, res, entry, context)) return;
     const abort = abortOnDisconnect(req, res, registerActiveRequest);
     let result;
     try {
@@ -2498,6 +2530,7 @@ export async function createGatewayApp(overrides = {}) {
       presets: entry.presets,
     });
     if (entry.id.startsWith("image-moss-")) applyMossLayoutPrompt(context);
+    if (await queueImageTask(req, res, resolvedEntry, context)) return;
     const abort = abortOnDisconnect(req, res, registerActiveRequest);
     let result;
     try {
@@ -3771,10 +3804,43 @@ export async function createGatewayApp(overrides = {}) {
     res.json(await swapChain.resume(req.params.id));
   });
 
-  app.get("/v1/tasks/:id", (req, res) => {
+  const imageRecoveries = new Map();
+  async function refreshInterruptedImageTask(task) {
+    let pending = imageRecoveries.get(task.id);
+    if (pending) return pending;
+    pending = (async () => {
+      try {
+        const readOutputs = () => recoverImageOutputs(comfy, task.promptId, task.request?.outputNodes || []);
+        let files = await readOutputs();
+        if (!files) {
+          const queue = await comfy.queue();
+          if ([...(queue.queue_running || []), ...(queue.queue_pending || [])].some((item) => item[1] === task.promptId)) return;
+          // The task may have completed while the queue request was in flight.
+          files = await readOutputs();
+        }
+        if (files?.length) {
+          await tasks.finishImage(task, files, task.promptId);
+          return;
+        }
+        task.error = files ? "ComfyUI 没有返回选定的图片输出" : "ComfyUI 中找不到原图片任务";
+      } catch (error) {
+        if (error?.code !== "comfy_execution_failed") throw error;
+        task.error = error.message;
+      }
+      task.recoveryPending = false;
+      task.completedAt = new Date().toISOString();
+      await tasks.persistNow();
+    })().finally(() => imageRecoveries.delete(task.id));
+    imageRecoveries.set(task.id, pending);
+    return pending;
+  }
+
+  app.get("/v1/tasks/:id", async (req, res) => {
     const task = tasks.get(req.params.id);
     if (!task) throw new HttpError("任务不存在", { status: 404, code: "task_not_found" });
-    res.json(taskResponse(req, task));
+    if (task.object === "image" && task.recoveryPending) await refreshInterruptedImageTask(task);
+    const response = taskResponse(req, task);
+    res.json(task.recoveryPending ? { ...response, status: "running", error: null } : response);
   });
   app.post("/v1/tasks/:id/cancel", async (req, res) => {
     const task = tasks.get(req.params.id);

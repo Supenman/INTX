@@ -7,6 +7,7 @@ export type ComfyWorkflowContract = {
         from: string;
         required?: boolean;
         media?: string;
+        frameRole?: "firstFrame" | "lastFrame";
         array?: boolean;
         imageIndex?: number;
         videoIndex?: number;
@@ -17,4 +18,5 @@ export type ComfyWorkflowContract = {
         transform?: string;
     }>;
     outputNodes: string[];
+    asyncImages?: boolean;
 };

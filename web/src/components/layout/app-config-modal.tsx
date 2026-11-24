@@ -52,12 +52,13 @@ function createWebdavDomainProgress(): Record<AppSyncDomainKey, WebdavDomainProg
     );
 }
 
-export function AppConfigPanel({ showDoneButton = false, initialTab = "channels", onTabChange }: { showDoneButton?: boolean; initialTab?: ConfigTabKey; onTabChange?: (tab: ConfigTabKey) => void }) {
+export function AppConfigPanel({ showDoneButton = false, initialTab = "channels", visibleTabs, onTabChange }: { showDoneButton?: boolean; initialTab?: ConfigTabKey; visibleTabs?: readonly ConfigTabKey[]; onTabChange?: (tab: ConfigTabKey) => void }) {
     const { message } = App.useApp();
     const { i18n, t } = useTranslation();
     const saveNotice = useSaveNotice();
     const configInputRef = useRef<HTMLInputElement>(null);
-    const [activeTab, setActiveTab] = useState<ConfigTabKey>(initialTab);
+    const [localTab, setLocalTab] = useState<ConfigTabKey>(initialTab);
+    const activeTab = onTabChange ? initialTab : localTab;
     const [editingChannelId, setEditingChannelId] = useState("");
     const [testingWebdav, setTestingWebdav] = useState(false);
     const [syncingWebdav, setSyncingWebdav] = useState(false);
@@ -74,7 +75,7 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
     const editingChannel = config.channels.find((channel) => channel.id === editingChannelId) || null;
     const locale = i18n.resolvedLanguage as AppLocale;
     const imageResolutionOptions = mediaScaleOptions.map((value) => ({ value, label: value === "auto" ? t("settingsPanels.common.auto") : value.toUpperCase() }));
-    useEffect(() => setActiveTab(initialTab), [initialTab]);
+    useEffect(() => setLocalTab(initialTab), [initialTab]);
 
     const saveConfig = (nextConfig: AiConfig) => {
         (Object.keys(nextConfig) as Array<keyof AiConfig>).forEach((key) => updateConfig(key, nextConfig[key]));
@@ -171,7 +172,7 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
 
     return (
         <>
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
+            {(!visibleTabs || visibleTabs.includes("channels")) && <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
                 <div className="text-xs text-muted-foreground">{t("config.fileSecurity")}</div>
                 <div className="flex gap-2">
                     <Button icon={<Upload className="size-4" />} onClick={() => configInputRef.current?.click()}>
@@ -182,16 +183,17 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
                     </Button>
                     <input ref={configInputRef} type="file" accept="application/json,.json" className="hidden" onChange={(event) => event.target.files?.[0] && void loadConfigFile(event.target.files[0])} />
                 </div>
-            </div>
+            </div>}
             <Tabs
                 activeKey={activeTab}
                 /* 空间不足时 antd 只会裁掉末尾并塞进「更多」，改用下拉模式保证每个标签都能点到 */
                 more={{ icon: <Ellipsis className="size-4" /> }}
+                renderTabBar={visibleTabs?.length === 1 ? () => <></> : undefined}
                 className="config-tabs"
                 onChange={(key) => {
                     const nextTab = key as ConfigTabKey;
-                    setActiveTab(nextTab);
-                    onTabChange?.(nextTab);
+                    if (onTabChange) onTabChange(nextTab);
+                    else setLocalTab(nextTab);
                 }}
                 items={[
                     {
@@ -361,7 +363,7 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
                         label: t("config.tabs.localStorage"),
                         children: <ConfigLocalStorage active={activeTab === "local-storage"} />,
                     },
-                ]}
+                ].filter((item) => !visibleTabs || visibleTabs.some((key) => key === item.key))}
             />
             {showDoneButton ? (
                 <div className="mt-4 flex justify-end">

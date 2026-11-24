@@ -25,6 +25,7 @@ export function placeCanvasSubgraph(graph: CanvasSubgraph, center: Position, pas
     const ids = new Map(graph.nodes.map((node) => [node.id, `${node.type}-${nanoid()}`]));
     const nodes = graph.nodes.map((node) => {
         const metadata = node.metadata ? { ...node.metadata } : undefined;
+        if (metadata?.imageTaskId) delete metadata.imageTaskId;
         if (metadata?.groupId) metadata.groupId = ids.get(metadata.groupId);
         if (metadata && !pasteClipboard) {
             delete metadata.videoTaskId;

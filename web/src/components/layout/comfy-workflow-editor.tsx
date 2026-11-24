@@ -57,6 +57,11 @@ export function ComfyWorkflowEditor({ id, open, onClose, onSaved }: { id: string
             ...nodeOptions.filter((node) => !recommended.has(node.value)),
         ];
     }, [nodes, nodeOptions]);
+    const unboundImageLoaders = nodeOptions.filter(({ value }) => {
+        const node = nodes.find((item) => item.id === value);
+        return /^LoadImage/i.test(node?.classType || "") && node?.inputs?.includes("image")
+            && !Object.values(bindings).some((binding) => binding.node === value && binding.input === "image");
+    });
 
     // 选中节点后，输入下拉只列该节点的实际输入，避免手填出错。
     const inputOptionsFor = (nodeId: string) => {
@@ -101,7 +106,11 @@ export function ComfyWorkflowEditor({ id, open, onClose, onSaved }: { id: string
                     <p className="text-sm">自动识别仅提供建议。请确认输入位置与结果输出；未修改的参数沿用工作流原值。</p>
                     <div className="space-y-1">
                         <label className="text-sm">结果输出节点（保存图片或视频的节点）</label>
-                        <Select className="w-full" value={outputNodes[0]} options={outputOptions} placeholder="请选择结果输出节点" onChange={(value) => setOutputNodes([value])} />
+                        {detail.type === "image" ? (
+                            <Select mode="multiple" className="w-full" value={outputNodes} options={outputOptions} placeholder="选择一个或多个图片输出节点" onChange={setOutputNodes} />
+                        ) : (
+                            <Select className="w-full" value={outputNodes[0]} options={outputOptions} placeholder="请选择结果输出节点" onChange={(value) => setOutputNodes([value])} />
+                        )}
                     </div>
                     {!!detail.availability?.problems?.length && (
                         <Alert type={detail.availability.checking ? "info" : "warning"} showIcon message="ComfyUI 依赖检查" description={
@@ -121,8 +130,24 @@ export function ComfyWorkflowEditor({ id, open, onClose, onSaved }: { id: string
                                 onSelect={(value) => patchBinding(String(value), { from: bindingSource(String(value)), ...(/^image2?$/.test(String(value)) ? { imageIndex: value === "image2" ? 1 : 0 } : {}) })}
                             />
                         </div>
+                        {unboundImageLoaders.length > 0 && (
+                            <div className="space-y-1">
+                                <Select<string>
+                                    className="w-full"
+                                    aria-label="绑定读取图片节点"
+                                    value={undefined}
+                                    placeholder="绑定未绑定的读取图片节点"
+                                    options={unboundImageLoaders}
+                                    showSearch
+                                    optionFilterProp="label"
+                                    onSelect={(node) => patchBinding(`loadImage_${node}`, { node, input: "image", from: "image", imageIndex: 0, required: true })}
+                                />
+                                <p className="text-xs text-muted-foreground">可以让多个读取图片节点复用同一张画布参考图。按实际用途设置各节点的参考图序号。</p>
+                            </div>
+                        )}
                         {Object.keys(bindings).map((key) => {
                             const binding = bindings[key];
+                            const isImage = (binding.from === "image" || binding.imageIndex !== undefined) && !binding.array;
                             return (
                                 <div key={key} className="space-y-1 rounded-lg border border-[var(--border-color)] p-3">
                                     <div className="flex items-center justify-between">
@@ -150,7 +175,17 @@ export function ComfyWorkflowEditor({ id, open, onClose, onSaved }: { id: string
                                             { value: "int", label: "整数" }, { value: "float", label: "小数" },
                                         ]} />
                                         {binding.transform?.startsWith("secondsToFrames") && <InputNumber aria-label="换算帧率" placeholder="换算帧率" value={typeof binding.fps === "number" ? binding.fps : null} onChange={(fps) => patchBinding(key, { fps: fps ?? undefined })} />}
-                                        {(binding.from === "image" || binding.imageIndex !== undefined) && !binding.array && <Checkbox checked={binding.asLink === true} onChange={(event) => patchBinding(key, { asLink: event.target.checked })}>图片节点连线</Checkbox>}
+                                        {isImage && (
+                                            <>
+                                                <label className="flex items-center gap-2 text-sm">
+                                                    参考图序号
+                                                    <InputNumber size="small" className="!w-20" min={1} precision={0} value={(binding.imageIndex ?? 0) + 1} onChange={(value) => {
+                                                        if (value !== null && value >= 1) patchBinding(key, { imageIndex: value - 1 });
+                                                    }} />
+                                                </label>
+                                                <Checkbox checked={binding.asLink === true} onChange={(event) => patchBinding(key, { asLink: event.target.checked })}>图片节点连线</Checkbox>
+                                            </>
+                                        )}
                                         <Checkbox checked={binding.required === true} onChange={(event) => patchBinding(key, { required: event.target.checked })}>必填</Checkbox>
                                     </div>
                                     <div className="flex gap-2">

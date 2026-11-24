@@ -1,4 +1,5 @@
-import { Check, Download, Pencil, Trash2, X } from "lucide-react";
+import { Check, Download, FolderKanban, Pencil, Trash2, X } from "lucide-react";
+import { useEffect, useSyncExternalStore } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { App, Button, Input, Select } from "antd";
 import { useTranslation } from "react-i18next";
@@ -9,6 +10,24 @@ import { useCanvasUiStore } from "@/stores/canvas/use-canvas-ui-store";
 import { exportCanvasProjects } from "@/lib/canvas/canvas-export";
 import { hasAgentUrlBootstrap } from "@/lib/agent/agent-url-bootstrap";
 import { cn } from "@/lib/utils";
+import { ensureImagePreview, getImagePreviewRevision, previewUrlFor, subscribeImagePreviews } from "@/services/image-storage";
+import { CanvasNodeType } from "@/types/canvas";
+
+export function CanvasProjectPreview({ project }: { project: CanvasProject }) {
+    useSyncExternalStore(subscribeImagePreviews, getImagePreviewRevision);
+    const cover = project.nodes.find((node) => node.type === CanvasNodeType.Image && (node.metadata?.storageKey || node.metadata?.content))?.metadata;
+    const storageKey = cover?.storageKey;
+    useEffect(() => {
+        if (storageKey) void ensureImagePreview(storageKey).catch(() => {});
+    }, [storageKey]);
+    const src = previewUrlFor(storageKey) || (cover?.content?.startsWith("image:") ? undefined : cover?.content);
+
+    return (
+        <div className="grid aspect-[16/9] w-full place-items-center overflow-hidden rounded-lg bg-[var(--surface-sunken)] text-muted-foreground">
+            {src ? <img src={src} alt="" loading="lazy" className="size-full object-cover" /> : <FolderKanban aria-hidden className="size-6" />}
+        </div>
+    );
+}
 
 export function CanvasProjectCard({ project, folderNames }: { project: CanvasProject; folderNames: string[] }) {
     const { message } = App.useApp();
@@ -53,6 +72,7 @@ export function CanvasProjectCard({ project, folderNames }: { project: CanvasPro
             )}
             onClick={() => !editing && open()}
         >
+            <div className="mb-3"><CanvasProjectPreview project={project} /></div>
             <div className="flex items-start gap-3">
                 <input
                     type="checkbox"
@@ -78,7 +98,7 @@ export function CanvasProjectCard({ project, folderNames }: { project: CanvasPro
                     </button>
                 )}
             </div>
-            <div className="mt-6 flex items-end justify-between gap-3">
+            <div className="mt-4 flex flex-wrap items-end justify-between gap-2">
                 <div className="min-w-0 space-y-2">
                     <p className="typ-caption text-muted-foreground">{t("canvas.project.updated", { date: new Date(project.updatedAt).toLocaleString(i18n.resolvedLanguage, { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) })}</p>
                     <Select

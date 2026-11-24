@@ -1,6 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import type { ReactNode } from "react";
-import { BetweenHorizontalStart, GalleryHorizontalEnd, GalleryHorizontal, Group, Music2, Plus, Trash2, Ungroup } from "lucide-react";
+import { createPortal } from "react-dom";
+import { BetweenHorizontalStart, ClipboardPaste, Copy, GalleryHorizontalEnd, GalleryHorizontal, Group, History, Images, Music2, Plus, Trash2, Ungroup } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { canvasThemes } from "@/lib/canvas-theme";
@@ -14,31 +15,22 @@ import { resolveNodeContextMenu } from "@/domain/tool/registry";
  * 节点右键菜单。显示哪些条目、什么顺序、谁该红，全部由声明式工具注册表解析，
  * 组件只保留「id → 图标 / 点击行为」的渲染映射（图标是 ReactNode，不能进 domain）。
  */
-export function CanvasNodeContextMenu({ menu, canCaptureVideoFrame, canExtractAudio, canGroup, canUngroup, onClose, onCaptureVideoFrame, onExtractAudio, onDuplicate, onGroup, onUngroup, onDelete }: { menu: ContextMenuState; canCaptureVideoFrame: boolean; canExtractAudio?: boolean; canGroup?: boolean; canUngroup?: boolean; onClose: () => void; onCaptureVideoFrame: (position: VideoFramePosition) => void; onExtractAudio?: () => void; onDuplicate: () => void; onGroup?: () => void; onUngroup?: () => void; onDelete: () => void }) {
+export function CanvasNodeContextMenu({ menu, selectedCount, canCaptureVideoFrame, canExtractAudio, canGroup, canUngroup, onClose, onCaptureVideoFrame, onExtractAudio, onDuplicate, onCopySelection, onGroup, onUngroup, onDelete }: { menu: Exclude<ContextMenuState, { type: "canvas" }>; selectedCount: number; canCaptureVideoFrame: boolean; canExtractAudio?: boolean; canGroup?: boolean; canUngroup?: boolean; onClose: () => void; onCaptureVideoFrame: (position: VideoFramePosition) => void; onExtractAudio?: () => void; onDuplicate: () => void; onCopySelection: () => void; onGroup?: () => void; onUngroup?: () => void; onDelete: () => void }) {
     const { t } = useTranslation();
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
-
-    useEffect(() => {
-        const close = (event: PointerEvent) => {
-            const target = event.target;
-            if (target instanceof Element && target.closest(".ant-popover")) return;
-            onClose();
-        };
-        window.addEventListener("pointerdown", close);
-        return () => window.removeEventListener("pointerdown", close);
-    }, [onClose]);
+    const multiple = menu.type === "node" && selectedCount > 1;
 
     const ctx = buildToolContext({
         toolMode: "select",
-        selectedCount: menu.type === "node" ? 1 : 0,
+        selectedCount: menu.type === "node" ? selectedCount : 0,
         nodeCount: 0,
         clipboardCount: 0,
         canUndo: false,
         canRedo: false,
         demoMode: false,
         contextNodeId: menu.type === "node" ? menu.nodeId : null,
-        canCaptureVideoFrame,
-        canExtractAudio: Boolean(canExtractAudio),
+        canCaptureVideoFrame: !multiple && canCaptureVideoFrame,
+        canExtractAudio: !multiple && Boolean(canExtractAudio),
         canGroup: Boolean(canGroup),
         canUngroup: Boolean(canUngroup),
     });
@@ -70,12 +62,12 @@ export function CanvasNodeContextMenu({ menu, canCaptureVideoFrame, canExtractAu
     let separatorPlaced = false;
 
     return (
-        <div
-            className="fixed z-[80] min-w-44 overflow-hidden rounded-xl border py-1 shadow-2xl"
-            style={{ left: menu.x, top: menu.y, background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text }}
-            onPointerDown={(event) => event.stopPropagation()}
-        >
+        <CanvasContextMenuSurface menu={menu} onClose={onClose}>
+            {multiple && <div className="px-3 py-1.5 text-xs" style={{ color: theme.node.muted }}>{t("canvas.node.nodeCount", { count: selectedCount })}</div>}
             {commands.map((command) => {
+                if (multiple && command.id === "ctx-duplicate") {
+                    return <MenuButton key={command.id} icon={<Copy className="size-4" />} label={t("canvas.contextMenu.copySelection")} onClick={() => { onClose(); onCopySelection(); }} />;
+                }
                 const run = runOf[command.id];
                 const icon = iconOf[command.id];
                 if (!run || !icon) return null;
@@ -86,11 +78,56 @@ export function CanvasNodeContextMenu({ menu, canCaptureVideoFrame, canExtractAu
                 return (
                     <div key={command.id}>
                         {needsSeparator ? <div className="my-1 border-t" style={{ borderColor: theme.toolbar.border }} /> : null}
-                        <MenuButton icon={icon} label={t(command.labelKey ?? command.label)} onClick={run} danger={command.danger} />
+                        <MenuButton icon={icon} label={multiple && command.id === "ctx-delete" ? t("canvas.contextMenu.deleteSelection") : t(command.labelKey ?? command.label)} onClick={() => { onClose(); run(); }} danger={command.danger} />
                     </div>
                 );
             })}
-        </div>
+        </CanvasContextMenuSurface>
+    );
+}
+
+export function CanvasBackgroundContextMenu({ menu, canPaste, onClose, onAdd, onOpenAssets, onOpenHistory, onPaste }: { menu: Extract<ContextMenuState, { type: "canvas" }>; canPaste: boolean; onClose: () => void; onAdd: () => void; onOpenAssets: () => void; onOpenHistory: () => void; onPaste: () => void }) {
+    const { t } = useTranslation();
+    const run = (action: () => void) => () => { onClose(); action(); };
+    return (
+        <CanvasContextMenuSurface menu={menu} onClose={onClose}>
+            <MenuButton icon={<Plus className="size-4" />} label={t("canvas.toolbar.addNode")} onClick={run(onAdd)} />
+            <MenuButton icon={<Images className="size-4" />} label={t("canvas.assetPicker.open")} onClick={run(onOpenAssets)} />
+            <MenuButton icon={<History className="size-4" />} label={t("canvas.generationHistory.entry")} onClick={run(onOpenHistory)} />
+            {canPaste && <MenuButton icon={<ClipboardPaste className="size-4" />} label={t("canvas.contextMenu.paste")} onClick={run(onPaste)} />}
+        </CanvasContextMenuSurface>
+    );
+}
+
+function CanvasContextMenuSurface({ menu, onClose, children }: { menu: ContextMenuState; onClose: () => void; children: ReactNode }) {
+    const theme = canvasThemes[useThemeStore((state) => state.theme)];
+    const ref = useRef<HTMLDivElement>(null);
+    useLayoutEffect(() => {
+        const place = () => {
+            const element = ref.current;
+            if (!element) return;
+            element.style.left = `${Math.max(8, Math.min(menu.x, window.innerWidth - element.offsetWidth - 8))}px`;
+            element.style.top = `${Math.max(8, Math.min(menu.y, window.innerHeight - element.offsetHeight - 8))}px`;
+        };
+        place();
+        window.addEventListener("resize", place);
+        return () => window.removeEventListener("resize", place);
+    }, [menu.x, menu.y, children]);
+
+    useEffect(() => {
+        const closeOutside = (event: PointerEvent) => {
+            if (event.target instanceof Node && !ref.current?.contains(event.target)) onClose();
+        };
+        window.addEventListener("pointerdown", closeOutside);
+        return () => window.removeEventListener("pointerdown", closeOutside);
+    }, [onClose]);
+    return createPortal(
+        <div ref={ref} data-canvas-no-zoom className="fixed z-[80] max-h-[calc(100dvh-1rem)] min-w-44 overflow-y-auto rounded-xl border py-1 shadow-2xl"
+            style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text }}
+            onPointerDown={(event) => event.stopPropagation()}>
+            {children}
+        </div>,
+        document.body,
     );
 }
 
@@ -98,7 +135,7 @@ function MenuButton({ icon, label, onClick, danger = false }: { icon: ReactNode;
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
 
     return (
-        <button type="button" className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors hover:opacity-80" style={{ color: danger ? "#f87171" : theme.node.text }} onClick={onClick}>
+        <button type="button" className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors hover:bg-[var(--surface-card-hover)]" style={{ color: danger ? "var(--destructive)" : theme.node.text }} onClick={onClick}>
             {icon}
             <span>{label}</span>
         </button>

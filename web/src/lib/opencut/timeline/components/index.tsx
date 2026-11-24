@@ -189,14 +189,15 @@ export function Timeline() {
 	});
 
 	const expandedElementIds = useTimelineStore((s) => s.expandedElementIds);
+	const getTrackExtraHeight = useCallback((track: TimelineTrack) => computeTrackExpansionHeight({ track, expandedElementIds }), [expandedElementIds]);
 
 	const getTrackExpansionHeight = useCallback(
 		(trackIndex: number) => {
 			const track = tracks[trackIndex];
 			if (!track) return 0;
-			return computeTrackExpansionHeight({ track, expandedElementIds });
+			return getTrackExtraHeight(track);
 		},
-		[tracks, expandedElementIds],
+		[tracks, getTrackExtraHeight],
 	);
 
 	// Stable refs so the wheel listener never goes stale
@@ -306,6 +307,7 @@ export function Timeline() {
 		tracksContainerRef,
 		tracksScrollRef,
 		snappingEnabled,
+		getTrackExtraHeight,
 		onSnapPointChange: handleSnapPointChange,
 	});
 	const isElementDragging = dragView.kind === "dragging";
@@ -334,6 +336,7 @@ export function Timeline() {
 		containerRef: tracksContainerRef,
 		tracksScrollRef,
 		zoomLevel,
+		getTrackExtraHeight,
 	});
 
 	const {
@@ -461,12 +464,17 @@ export function Timeline() {
 					<DragLine
 						dropTarget={dropTarget}
 						tracks={tracks}
+						getExtraHeight={getTrackExpansionHeight}
+						tracksScrollRef={tracksScrollRef}
 						isVisible={isDragOver && !dropTarget?.targetElement}
 						headerHeight={timelineHeaderHeight}
 					/>
 					<DragLine
 						dropTarget={isElementDragging ? dragView.dropTarget : null}
 						tracks={tracks}
+						getExtraHeight={getTrackExpansionHeight}
+						tracksScrollRef={tracksScrollRef}
+						movingCount={dragView.kind === "dragging" ? dragView.memberTimeOffsets.size : undefined}
 						isVisible={isElementDragging}
 						headerHeight={timelineHeaderHeight}
 					/>

@@ -10,6 +10,7 @@ const RUNTIME_KEYS = [
     "status",
     "errorDetails",
     "retryBlocked",
+    "imageTaskId",
     "videoTaskId",
     "videoTaskProvider",
     "primaryImageId",

@@ -22,6 +22,16 @@ export function buildNodeMentionReferences(node: CanvasNodeData, nodes: CanvasNo
     return labelResourceNodes(getMentionResourceNodes(node.id, nodes, connections), true);
 }
 
+export function remapReferenceLabels(prompt: string, before: CanvasResourceReference[], after: CanvasResourceReference[], replacement?: { from: string; to: string }) {
+    const nextLabels = new Map(after.map((reference) => [reference.nodeId, reference.label]));
+    const labels = new Map(before.map((reference) => [
+        reference.label,
+        nextLabels.get(replacement && reference.nodeId === replacement.from ? replacement.to : reference.nodeId) ?? "",
+    ]));
+    const tokens = [...labels.keys()].sort((a, b) => b.length - a.length).map((label) => label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+    return tokens.length ? prompt.replace(new RegExp(tokens.join("|"), "g"), (label) => labels.get(label) ?? label) : prompt;
+}
+
 export function buildCanvasResourceReferences(nodes: CanvasNodeData[]) {
     return labelResourceNodes(nodes, true);
 }

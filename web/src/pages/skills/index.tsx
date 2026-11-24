@@ -12,11 +12,11 @@ export default function SkillsPage() {
     const endpoint = useAgentStore((state) => state.url.trim().replace(/\/$/, ""));
     const token = useAgentStore((state) => state.token);
     return (
-        <PageShell width="full">
-            <div className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-col px-6 py-6">
+        <PageShell>
+            <main className="flex min-h-0 flex-1 flex-col">
                 <PageHeader title={t("skillCenter.title")} description={t("skillCenter.description")} />
                 <AgentSkillManagerView theme={theme} endpoint={endpoint} token={token} connected={connected} fullPage />
-            </div>
+            </main>
         </PageShell>
     );
 }
