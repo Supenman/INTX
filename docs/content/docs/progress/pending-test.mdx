@@ -45,7 +45,6 @@ description: Implemented changes that still need manual verification
 - 图片请求仍使用现有同步接口，本轮未新增图片任务重启恢复协议；视频重启后的恢复以及本地保存失败后的取回仍待验证。
 - 自动检查：前端 897 个单测、网关 6 个回归用例通过；对生图参数接线做过破坏性自检（断开时用例失败，恢复后通过）。独立 Chrome 测试页完成真实组件的参数编辑、输出选择及模拟网关发布；五个页面在 1280 / 1440 / 1920 无横向溢出。Vite 构建通过（本机需将根路径盘符规范化）；全局类型、令牌与结构门禁仍有本轮未修改的剪辑台等文件问题，不记为全绿。
 
-
 ## In-app updater (pending signing setup + Windows desktop acceptance)
 
 - 前置：按 `UPDATE-MECHANISM-REFERENCE.md` 发布清单做完——仓库公开、生成签名密钥并填入 `updater.pubkey`、签名打包、发 GitHub Release 上传 `latest.json` 与 `.sig`。
@@ -73,6 +72,7 @@ description: Implemented changes that still need manual verification
 - 存在可用工作流时：打开画布模型选择器，应出现「本地 ComfyUI」渠道及对应模型，直接选中即可生成一张图，画布显示结果。
 - 重扫不应重复创建渠道或模型，也不应改动已配置的云端渠道；可用工作流变空时，内置渠道应自动消失。
 - 退出 INTX 后 8190 端口应释放（网关被回收）；若 8190 已被用户自建网关占用，INTX 应接管不重复拉起、退出也不关它。
+- `/v1/models` 请求偶发失败（可临时让 8190 的 models 接口报错模拟）时，内置「本地 ComfyUI」渠道不应被删除，应保留上次状态，仅提示层不更新。
 - 说明：资源下载器、自动安装自定义节点不在本轮范围；工作流缺依赖时只展示缺失项，不自动补齐。
 
 ## Creative workspace home (Windows desktop acceptance pending)
@@ -245,7 +245,6 @@ On a real device, with three nodes of different widths:
 5. Select a group as a whole and align: the group box and the nodes inside must move together.
 6. Align twice: the second click changes nothing and adds no undo entry.
 
-
 ## Native save-as (M2.5 item 3, awaiting real-device verification)
 
 - On desktop, exporting canvas projects / selected projects / side-panel nodes, exporting all assets, downloading a single asset, downloading node images or a batch, exporting task diagnostics, and exporting settings should all open the system Save dialog with the correct default name and extension — not silently drop the file into the download folder as before.
@@ -256,7 +255,6 @@ On a real device, with three nodes of different widths:
 - The browser dev channel (`vite dev`) still downloads directly without the system dialog.
 - Automated: `cargo check` passes (dialog and fs plugins registered; capabilities grant only `dialog:allow-save` and `fs:allow-write-file`); `vitest run src` is 758/758 green (6 new cases in `lib/runtime/save-file.test.ts` covering cancel, write failure, data-URL decoding, and filename sanitising); tsc reports 0 errors; `vite build` passes.
 - **Not verified**: dialog behaviour in a real Windows window, the read-only directory error message, and file placement from an installed build.
-
 
 The current release needs manual verification in these areas:
 

@@ -74,8 +74,9 @@ export function ConfigComfyUI() {
 
                 const models = await fetchGatewayModels()
                     .then((list) => list.map((model) => ({ name: model.id, capability: toCapability(model.metadata?.type), label: model.metadata?.label, workflow: model.metadata?.workflow })))
-                    // 模型列表拿不到不算致命：设置页仍可展示工作流与缺失项。
-                    .catch(() => []);
+                    // 拉取失败返回 null，与「确实没有可用模型（[]）」区分：
+                    // 否则一次请求抖动就会把内置渠道误删。失败时保留渠道、只不更新。
+                    .catch(() => null);
 
                 // 拿到确定性结果：网关确实是通的，重置重试计数。
                 gatewayRetry.current = 0;
@@ -91,8 +92,8 @@ export function ConfigComfyUI() {
                 else if ((statusResult.counts?.available || 0) === 0) setPhase("readyEmpty");
                 else setPhase("ready");
 
-                // 只有拿到确定性结果才同步渠道，避免扫描中把渠道清空。
-                if (!scanning && comfyReachable) {
+                // 只有拿到确定性结果才同步渠道：扫描未定或模型列表请求失败都保持现状。
+                if (!scanning && comfyReachable && models !== null) {
                     syncLocalComfyChannel(models);
                     setLastSyncedCount(models.length);
                 }
