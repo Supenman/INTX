@@ -1,11 +1,14 @@
 import type { ReactNode } from "react";
-import { Compass, Focus, HelpCircle } from "lucide-react";
+import { Compass, Focus, HelpCircle, Images } from "lucide-react";
 import { useState } from "react";
-import { Button, Modal, Tooltip } from "antd";
+import { Button, Modal, Popover, Tooltip } from "antd";
 import { useTranslation } from "react-i18next";
 
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
+import { CanvasAssetsTab } from "./canvas-side-panel";
+import type { InsertAssetPayload } from "./asset-picker-modal";
+import type { CanvasNodeData } from "@/types/canvas";
 
 type CanvasZoomControlsProps = {
     scale: number;
@@ -13,10 +16,16 @@ type CanvasZoomControlsProps = {
     onReset: () => void;
     isMiniMapOpen: boolean;
     onToggleMiniMap: () => void;
+    onOpenAssets: () => void;
+    onInsertAsset: (payload: InsertAssetPayload) => void;
+    canvasImages: CanvasNodeData[];
+    onFocusImage: (id: string) => void;
 };
 
-export function CanvasZoomControls({ scale, onScaleChange, onReset, isMiniMapOpen, onToggleMiniMap }: CanvasZoomControlsProps) {
+export function CanvasZoomControls({ scale, onScaleChange, onReset, isMiniMapOpen, onToggleMiniMap, onOpenAssets, onInsertAsset, canvasImages, onFocusImage }: CanvasZoomControlsProps) {
     const [shortcutsOpen, setShortcutsOpen] = useState(false);
+    const [assetsOpen, setAssetsOpen] = useState(false);
+    const [showCanvasImages, setShowCanvasImages] = useState(false);
     const { t } = useTranslation();
     const colorTheme = useThemeStore((state) => state.theme);
     const theme = canvasThemes[colorTheme];
@@ -26,6 +35,33 @@ export function CanvasZoomControls({ scale, onScaleChange, onReset, isMiniMapOpe
     return (
         <div className="absolute bottom-5 left-5 z-50" onMouseDown={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
             <div className="flex h-14 items-center gap-1 rounded-xl border px-2 shadow-lg backdrop-blur" style={dockStyle}>
+                <Popover trigger="click" placement="topLeft" open={assetsOpen} onOpenChange={setAssetsOpen} destroyOnHidden content={
+                    <div className="flex h-[min(52dvh,390px)] w-[min(320px,calc(100vw-56px))] flex-col">
+                        <div className="flex items-center justify-between gap-2 pb-2 pl-3">
+                            <div className="flex min-w-0 items-center gap-1">
+                                <Button size="small" type={showCanvasImages ? "text" : "default"} aria-pressed={!showCanvasImages} onClick={() => setShowCanvasImages(false)}>{t("canvas.sidePanel.assets")}</Button>
+                                <Button size="small" type={showCanvasImages ? "default" : "text"} aria-pressed={showCanvasImages} onClick={() => setShowCanvasImages(true)}>{t("canvas.projectPage.canvasImage")}</Button>
+                            </div>
+                            {!showCanvasImages && <Button type="text" size="small" onClick={() => { setAssetsOpen(false); onOpenAssets(); }}>{t("canvas.assetPicker.title")}</Button>}
+                        </div>
+                        <div className="min-h-0 flex-1">
+                            {showCanvasImages ? (
+                                <div className="thin-scrollbar h-full overflow-auto">
+                                    {canvasImages.map((node) => (
+                                        <button key={node.id} type="button" className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-[var(--surface-card-hover)]"
+                                            onClick={() => { setAssetsOpen(false); onFocusImage(node.id); }}>
+                                            <Focus aria-hidden className="size-4 shrink-0" />
+                                            <span className="truncate">{node.title || t("canvas.node.untitled")}</span>
+                                        </button>
+                                    ))}
+                                    {!canvasImages.length && <p className="px-2 py-4 text-sm text-muted-foreground">{t("canvas.projectPage.noImageToSave")}</p>}
+                                </div>
+                            ) : <CanvasAssetsTab theme={theme} onInsert={onInsertAsset} />}
+                        </div>
+                    </div>
+                }>
+                    <Button type="text" className="!h-8 !w-8 !min-w-8 !p-0" style={assetsOpen ? activeStyle : { color: theme.toolbar.item }} icon={<Images className="size-4" />} aria-expanded={assetsOpen} aria-label={t("canvas.sidePanel.assets")} title={t("canvas.sidePanel.assets")} />
+                </Popover>
                 <Tooltip title={isMiniMapOpen ? t("canvas.miniMapClose") : t("canvas.miniMapOpen")}>
                     <Button
                         type="text"

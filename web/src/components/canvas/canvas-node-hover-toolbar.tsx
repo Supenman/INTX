@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { App, Modal, Segmented, Tooltip } from "antd";
 import { Download, Ellipsis, FolderPlus, Image as ImageIcon, Info, Minus, Music2, Plus, RefreshCw, SlidersHorizontal, Trash2, Ungroup, Upload, Video } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -23,7 +23,7 @@ type CanvasNodeHoverToolbarProps = {
     panelNodeId: string | null;
     viewport: ViewportTransform;
     onKeep: (nodeId: string) => void;
-    onLeave: () => void;
+    onLeave: (nodeId: string) => void;
     onInfo: (node: CanvasNodeData) => void;
     onDecreaseFont: (node: CanvasNodeData) => void;
     onIncreaseFont: (node: CanvasNodeData) => void;
@@ -102,6 +102,8 @@ export function CanvasNodeHoverToolbar({
     const [draftImageToolIds, setDraftImageToolIds] = useState<ImageQuickToolId[]>(defaultImageQuickToolIds);
     const [draftShowImageToolLabels, setDraftShowImageToolLabels] = useState(false);
     const [imageToolSettingsOpen, setImageToolSettingsOpen] = useState(false);
+    const toolbarRef = useRef<HTMLDivElement>(null);
+    const updatePlacementRef = useRef<() => void>(() => {});
     const { message } = App.useApp();
     const { t } = useTranslation();
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
@@ -125,9 +127,79 @@ export function CanvasNodeHoverToolbar({
         setImageToolSettingsOpen(false);
     }, [node?.id]);
 
+    useLayoutEffect(() => {
+        if (!node) return;
+        const toolbar = toolbarRef.current;
+        const container = toolbar?.parentElement;
+        const nodeElement = container?.querySelector<HTMLElement>(`[data-node-id="${CSS.escape(node.id)}"]`);
+        if (!toolbar || !container || !nodeElement) return;
+
+        const update = () => {
+            const containerRect = container.getBoundingClientRect();
+            const nodeRect = nodeElement.getBoundingClientRect();
+            const toolbarWidth = toolbar.offsetWidth;
+            const toolbarHeight = toolbar.offsetHeight;
+            const preferredLeft = nodeRect.left - containerRect.left + nodeRect.width / 2;
+            const canFit = toolbarWidth <= containerRect.width - 16;
+            const left = canFit
+                ? Math.min(Math.max(preferredLeft, toolbarWidth / 2 + 8), containerRect.width - toolbarWidth / 2 - 8)
+                : containerRect.width / 2;
+            const preferredTop = nodeRect.top - containerRect.top - 8;
+            let top = Math.max(toolbarHeight + 8, Math.min(preferredTop, containerRect.height - 8));
+            let placedLeft = left;
+            const panels = [
+                panelNodeId ? container.querySelector<HTMLElement>(`[data-node-panel="${CSS.escape(panelNodeId)}"]`) : null,
+                document.querySelector<HTMLElement>("[data-node-settings-panel]"),
+            ].filter((panel): panel is HTMLElement => Boolean(panel));
+            for (const panel of panels) {
+                const panelRect = panel.getBoundingClientRect();
+                const panelLeft = panelRect.left - containerRect.left;
+                const panelRight = panelRect.right - containerRect.left;
+                const panelTop = panelRect.top - containerRect.top;
+                const panelBottom = panelRect.bottom - containerRect.top;
+                const overlaps = placedLeft + toolbarWidth / 2 > panelLeft && placedLeft - toolbarWidth / 2 < panelRight && top > panelTop && top - toolbarHeight < panelBottom;
+                if (overlaps) {
+                    if (panelLeft - toolbarWidth >= 16) placedLeft = panelLeft - toolbarWidth / 2 - 8;
+                    else if (containerRect.width - panelRight - toolbarWidth >= 16) placedLeft = panelRight + toolbarWidth / 2 + 8;
+                    else if (panelTop - toolbarHeight >= 16) top = panelTop - 8;
+                    else if (containerRect.height - panelBottom - toolbarHeight >= 16) top = panelBottom + toolbarHeight + 8;
+                }
+            }
+            toolbar.style.left = `${placedLeft}px`;
+            toolbar.style.top = `${top}px`;
+        };
+
+        updatePlacementRef.current = update;
+        update();
+        const observer = new ResizeObserver(update);
+        observer.observe(toolbar);
+        observer.observe(container);
+        const observePanels = () => {
+            if (panelNodeId) {
+                const panel = container.querySelector<HTMLElement>(`[data-node-panel="${CSS.escape(panelNodeId)}"]`);
+                if (panel) observer.observe(panel);
+            }
+            document.querySelectorAll<HTMLElement>("[data-node-settings-panel]").forEach((panel) => observer.observe(panel));
+            update();
+        };
+        const mutationObserver = new MutationObserver(observePanels);
+        mutationObserver.observe(document.body, { childList: true, subtree: true });
+        observePanels();
+        window.addEventListener("resize", update);
+        return () => {
+            observer.disconnect();
+            mutationObserver.disconnect();
+            window.removeEventListener("resize", update);
+            updatePlacementRef.current = () => {};
+        };
+    }, [node?.id, panelNodeId]);
+
+    useLayoutEffect(() => {
+        updatePlacementRef.current();
+    }, [node?.position.x, node?.position.y, node?.width, node?.height, panelNodeId, viewport.k, viewport.x, viewport.y]);
+
     if (!node) return null;
 
-    const activeNode = node;
     const toolCtx = buildToolContext({
         toolMode: "select",
         selectedCount: 1,
@@ -148,6 +220,7 @@ export function CanvasNodeHoverToolbar({
     const hasVideo = isVideo && Boolean(node.metadata?.content) && !brokenVideo;
     const hasAudio = isAudio && Boolean(node.metadata?.content);
     const isText = node.type === CanvasNodeType.Text;
+
     // 已收单/需先确认的失败不给重试入口：点一下就是新提交一单（见 lib/canvas/task-retry-guard.ts）。
     const canRetry = node.metadata?.status === "error" && !node.metadata?.retryBlocked && !(isVideo && Boolean(node.metadata?.videoTaskId) && !hasVideo);
     const canQueryVideoTask = isVideo && Boolean(node.metadata?.videoTaskId) && !hasVideo && node.metadata?.status !== "loading";
@@ -163,7 +236,6 @@ export function CanvasNodeHoverToolbar({
     const imageTools = buildImageToolbarTools(node, { onUpload, onToggleFreeResize, onMaskEdit, onCrop, onSplit, onUpscale, onSuperResolve, onAngle, onPreset, onViewImage, onCopyPrompt: copyImagePrompt, onReversePrompt });
 
     function openImageToolSettings() {
-        onKeep(activeNode.id);
         setDraftImageToolIds(quickImageToolIds);
         setDraftShowImageToolLabels(showImageToolLabels);
         setImageToolSettingsOpen(true);
@@ -194,12 +266,17 @@ export function CanvasNodeHoverToolbar({
         ...(isAudio ? [{ id: "uploadAudio", title: t(hasAudio ? "canvas.nodeToolbar.replaceAudio" : "canvas.nodeToolbar.uploadAudio"), label: t(hasAudio ? "canvas.nodeToolbar.replaceAudio" : "canvas.nodeToolbar.uploadAudio"), icon: <Music2 className="size-4" />, onClick: () => onUpload(node) }] : []),
         ...(hasImage ? imageTools.map((tool) => ({ id: tool.id, title: tool.title, label: tool.label, icon: tool.icon, active: tool.active, onClick: tool.onClick })) : []),
     ];
-    const toolbarTools = hasImage ? [...baseToolbarTools, ...nodeToolbarTools].filter((tool) => quickImageToolIdSet.has(tool.id as ImageQuickToolId)) : [...baseToolbarTools, ...nodeToolbarTools, ...extraTools];
+    const toolbarTools = hasImage
+        ? [...baseToolbarTools, ...nodeToolbarTools].filter((tool) => {
+              const quickToolId = tool.id === "node-info" ? "info" : tool.id === "node-delete" ? "delete" : tool.id;
+              // Keep the universal duplicate action alongside the image toolbar's configurable tools.
+              return tool.id === "node-duplicate" || quickImageToolIdSet.has(quickToolId as ImageQuickToolId);
+          })
+        : [...baseToolbarTools, ...nodeToolbarTools, ...extraTools];
     const selectableImageToolbarTools = [...baseToolbarTools, ...nodeToolbarTools].filter((tool) => tool.id !== "retry") as ImageToolbarSettingsTool[];
 
     const closeImageToolSettings = () => {
         setImageToolSettingsOpen(false);
-        onLeave();
     };
 
     const setDraftImageToolVisible = (id: ImageQuickToolId, visible: boolean) => {
@@ -222,19 +299,22 @@ export function CanvasNodeHoverToolbar({
     return (
         <>
             <div
-                className="absolute z-[70] flex h-12 -translate-x-1/2 -translate-y-full items-center overflow-visible rounded-xl border text-sm shadow-md"
+                ref={toolbarRef}
+                className="absolute z-[70] flex h-10 -translate-x-1/2 -translate-y-full items-center overflow-visible rounded-xl border text-sm shadow-md"
                 data-node-toolbar={node.id}
                 style={{
                     left, top,
                     background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text,
                     "--node-toolbar-hover": theme.toolbar.itemHover, "--node-toolbar-active": theme.toolbar.activeBg,
                 } as CSSProperties}
-                onMouseEnter={() => onKeep(node.id)}
-                onMouseLeave={() => {
-                    if (!imageToolSettingsOpen) onLeave();
-                }}
                 onMouseDown={(event) => event.stopPropagation()}
                 onPointerDown={(event) => event.stopPropagation()}
+                onMouseEnter={() => onKeep(node.id)}
+                onMouseLeave={() => onLeave(node.id)}
+                onFocus={() => onKeep(node.id)}
+                onBlur={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget)) onLeave(node.id);
+                }}
             >
                 {isBuiltinNodeType(node.type) && node.type !== CanvasNodeType.Group && !getNodeDefinition(node.type)?.hidePanel && (
                     <ToolbarAction
@@ -345,7 +425,7 @@ function ToolbarAction({ title, label, icon, onClick, showLabel, pressed, active
     const hasText = showLabel && Boolean(label);
     return (
         <Tooltip title={title} placement="top" mouseEnterDelay={0.2} color="#ffffff" styles={{ root: { color: "#242529", boxShadow: "0 8px 24px rgba(15,23,42,.16)", fontSize: 13, fontWeight: 500 } }}>
-            <button type="button" className={`group relative flex h-12 items-center whitespace-nowrap px-1.5 ${danger ? "text-destructive" : ""}`} onClick={onClick} aria-label={title} aria-pressed={pressed}>
+            <button type="button" className={`group relative flex h-10 items-center whitespace-nowrap px-1.5 ${danger ? "text-destructive" : ""}`} onClick={onClick} aria-label={title} aria-pressed={pressed}>
                 <span className={`flex h-9 items-center ${hasText ? "gap-2 px-2.5" : "justify-center px-2"} rounded-lg transition ${active ? "bg-[var(--node-toolbar-active)]" : "group-hover:bg-[var(--node-toolbar-hover)]"}`}>
                     {icon ?? null}
                     {hasText ? <span>{label}</span> : null}

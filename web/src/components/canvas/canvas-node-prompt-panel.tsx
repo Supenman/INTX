@@ -161,14 +161,10 @@ export function CanvasNodePromptPanel({ node, nodes, connections, selectingRefer
                 />
             </div>
 
-            {/* 参数区纵向分组：模型独占一行（它最长、最常改），参数与生成按钮同一行。 */}
-            <div className="mt-2 space-y-1.5">
-                <div className="flex min-w-0 items-center gap-1.5">
-                    {/* 模型选择器对四种模式只是能力不同，统一一处渲染，避免分支漂移。 */}
-                    <ModelPicker config={config} value={config.model} onChange={(model) => onConfigChange(node.id, { model })} capability={mode} onMissingConfig={() => openConfigDialog(true)} className="min-w-0 flex-1 max-w-none" />
-                </div>
-                <div className="flex min-w-0 items-center gap-1.5 border-t pt-1.5" style={{ borderColor: theme.toolbar.border }}>
-                    <div className="flex min-w-0 flex-wrap items-center gap-1">
+            <div className="mt-2 flex min-w-0 flex-wrap items-center gap-1.5">
+                <ModelPicker config={config} value={config.model} onChange={(model) => onConfigChange(node.id, { model })} capability={mode} onMissingConfig={() => openConfigDialog(true)} className="min-w-0 max-w-[240px] grow basis-32" />
+                <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1.5">
+                    <div className="min-w-0">
                         {mode === "image" ? (
                             modelWorkflowOf(config, config.model) ? <CanvasWorkflowSettings config={config} onChange={(workflowValues) => onConfigChange(node.id, { workflowValues })} /> : <CanvasImageSettingsPopover
                                 config={config}

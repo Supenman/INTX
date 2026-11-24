@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { motion, useReducedMotion } from "motion/react";
-import { BetweenHorizontalStart, ClipboardPaste, Copy, GalleryHorizontalEnd, GalleryHorizontal, Group, History, Images, Music2, Plus, Trash2, Ungroup } from "lucide-react";
+import { BetweenHorizontalStart, ClipboardPaste, Copy, GalleryHorizontalEnd, GalleryHorizontal, Group, Images, Music2, Plus, Redo2, Trash2, Undo2, Ungroup, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { canvasThemes } from "@/lib/canvas-theme";
@@ -87,15 +87,30 @@ export function CanvasNodeContextMenu({ menu, selectedCount, canCaptureVideoFram
     );
 }
 
-export function CanvasBackgroundContextMenu({ menu, canPaste, onClose, onAdd, onOpenAssets, onOpenHistory, onPaste }: { menu: Extract<ContextMenuState, { type: "canvas" }>; canPaste: boolean; onClose: () => void; onAdd: () => void; onOpenAssets: () => void; onOpenHistory: () => void; onPaste: () => void }) {
+export function CanvasBackgroundContextMenu({ menu, canPaste, canUndo, canRedo, onClose, onAdd, onOpenAssets, onUpload, onUndo, onRedo, onPaste }: {
+    menu: Extract<ContextMenuState, { type: "canvas" }>;
+    canPaste: boolean;
+    canUndo: boolean;
+    canRedo: boolean;
+    onClose: () => void;
+    onAdd: () => void;
+    onOpenAssets: () => void;
+    onUpload: () => void;
+    onUndo: () => void;
+    onRedo: () => void;
+    onPaste: () => void;
+}) {
     const { t } = useTranslation();
     const run = (action: () => void) => () => { onClose(); action(); };
     return (
         <CanvasContextMenuSurface menu={menu} onClose={onClose}>
             <MenuButton icon={<Plus className="size-4" />} label={t("canvas.toolbar.addNode")} onClick={run(onAdd)} />
+            <MenuButton icon={<Upload className="size-4" />} label={t("canvas.contextMenu.uploadHere")} onClick={run(onUpload)} />
             <MenuButton icon={<Images className="size-4" />} label={t("canvas.assetPicker.open")} onClick={run(onOpenAssets)} />
-            <MenuButton icon={<History className="size-4" />} label={t("canvas.generationHistory.entry")} onClick={run(onOpenHistory)} />
-            {canPaste && <MenuButton icon={<ClipboardPaste className="size-4" />} label={t("canvas.contextMenu.paste")} onClick={run(onPaste)} />}
+            <div role="presentation" className="mt-1 border-t border-border px-3 pt-2 text-xs text-muted-foreground">{t("canvas.contextMenu.historyClipboard")}</div>
+            <MenuButton icon={<Undo2 className="size-4" />} label={t("canvas.undo")} onClick={run(onUndo)} disabled={!canUndo} />
+            <MenuButton icon={<Redo2 className="size-4" />} label={t("canvas.redo")} onClick={run(onRedo)} disabled={!canRedo} />
+            <MenuButton icon={<ClipboardPaste className="size-4" />} label={t("canvas.contextMenu.paste")} onClick={run(onPaste)} disabled={!canPaste} />
         </CanvasContextMenuSurface>
     );
 }
@@ -145,7 +160,7 @@ function CanvasContextMenuSurface({ menu, onClose, children }: { menu: ContextMe
                 if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
                 event.preventDefault();
                 event.stopPropagation();
-                const items = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'));
+                const items = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:enabled'));
                 if (!items.length) return;
                 const current = items.findIndex((item) => item === document.activeElement);
                 let next = 0;
@@ -161,11 +176,11 @@ function CanvasContextMenuSurface({ menu, onClose, children }: { menu: ContextMe
     );
 }
 
-function MenuButton({ icon, label, onClick, danger = false }: { icon: ReactNode; label: string; onClick?: () => void; danger?: boolean }) {
+function MenuButton({ icon, label, onClick, danger = false, disabled = false }: { icon: ReactNode; label: string; onClick?: () => void; danger?: boolean; disabled?: boolean }) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
 
     return (
-        <button type="button" role="menuitem" tabIndex={-1} className="focus-ring flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-[var(--surface-card-hover)] focus-visible:bg-[var(--surface-card-hover)] motion-safe:transition-colors" style={{ color: danger ? "var(--destructive)" : theme.node.text }} onClick={onClick}>
+        <button type="button" role="menuitem" tabIndex={-1} disabled={disabled} className="focus-ring flex w-full items-center gap-2 px-3 py-2 text-left text-xs enabled:hover:bg-[var(--surface-card-hover)] focus-visible:bg-[var(--surface-card-hover)] disabled:opacity-40 motion-safe:transition-colors" style={{ color: danger ? "var(--destructive)" : theme.node.text }} onClick={onClick}>
             {icon}
             <span>{label}</span>
         </button>

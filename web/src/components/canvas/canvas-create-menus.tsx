@@ -1,5 +1,6 @@
-import { useEffect, useRef } from "react";
-import { ImageIcon, List, Music2, Video, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { motion, useReducedMotion } from "motion/react";
+import { Clapperboard, History, ImageIcon, Images, List, Music2, Search, Upload, Video, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { canvasThemes } from "@/lib/canvas-theme";
@@ -14,34 +15,75 @@ import { buildToolContext } from "@/lib/canvas/tool-wiring";
 export type PendingConnectionCreate = {
     connection: ConnectionHandle;
     position: Position;
+    quickAdd?: boolean;
 };
 
 export function ConnectionCreateMenu({
-    pending,
-    scale = 1,
+    position,
+    fromInput,
     onCreate,
     onClose,
 }: {
-    pending: PendingConnectionCreate;
-    scale?: number;
+    position: Position;
+    fromInput: boolean;
     onCreate: (type: CanvasNodeType.Image | CanvasNodeType.Text | CanvasNodeType.Video | CanvasNodeType.Audio) => void;
     onClose: () => void;
 }) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const { t } = useTranslation();
+    const menuRef = useRef<HTMLDivElement>(null);
+    const previousFocusRef = useRef<HTMLElement | null>(null);
+    useEffect(() => {
+        previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        menuRef.current?.querySelector<HTMLButtonElement>("[data-connection-create-option]")?.focus({ preventScroll: true });
+    }, []);
+    const closeAndRestoreFocus = () => {
+        onClose();
+        requestAnimationFrame(() => {
+            const target = previousFocusRef.current?.isConnected ? previousFocusRef.current : document.querySelector<HTMLElement>("[data-canvas-root]");
+            target?.focus({ preventScroll: true });
+        });
+    };
+    useEffect(() => {
+        const handlePointerDown = (event: PointerEvent) => {
+            if (menuRef.current && !menuRef.current.contains(event.target as Node)) onClose();
+        };
+        document.addEventListener("pointerdown", handlePointerDown, true);
+        return () => document.removeEventListener("pointerdown", handlePointerDown, true);
+    }, [onClose]);
     return (
         <div
-            className="absolute z-[120] w-[240px] rounded-2xl border p-2 shadow-2xl backdrop-blur"
+            ref={menuRef}
+            className="absolute z-[120] max-h-[calc(100%-16px)] w-60 max-w-[calc(100%-16px)] overflow-y-auto rounded-2xl border p-2 shadow-2xl backdrop-blur"
             data-connection-create-menu
-            style={{ left: pending.position.x, top: pending.position.y, transform: `scale(${1 / scale})`, transformOrigin: "top left", background: theme.node.panel, borderColor: theme.node.stroke, color: theme.node.text }}
+            role="dialog"
+            tabIndex={-1}
+            aria-label={t(fromInput ? "canvas.createMenu.beforeNode" : "canvas.createMenu.fromNode")}
+            style={{ left: `clamp(8px, ${position.x}px, calc(100% - 248px))`, top: `clamp(8px, ${position.y}px, calc(100% - 260px))`, background: theme.node.panel, borderColor: theme.node.stroke, color: theme.node.text }}
             onMouseDown={(event) => event.stopPropagation()}
             onPointerDown={(event) => event.stopPropagation()}
+            onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    closeAndRestoreFocus();
+                    return;
+                }
+                if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+                const options = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("[data-connection-create-option]"));
+                if (!options.length) return;
+                event.preventDefault();
+                event.stopPropagation();
+                const current = options.indexOf(document.activeElement as HTMLButtonElement);
+                const next = event.key === "Home" ? 0 : event.key === "End" ? options.length - 1 : event.key === "ArrowDown" ? (current + 1) % options.length : current <= 0 ? options.length - 1 : current - 1;
+                options[next].focus();
+            }}
         >
             <div className="mb-1.5 flex items-center justify-between px-1">
                 <span className="text-sm font-medium" style={{ color: theme.node.muted }}>
-                    {t("canvas.createMenu.fromNode")}
+                    {t(fromInput ? "canvas.createMenu.beforeNode" : "canvas.createMenu.fromNode")}
                 </span>
-                <button type="button" className="grid size-7 place-items-center rounded-lg text-base opacity-55 transition hover:bg-white/10 hover:opacity-100" onClick={onClose} aria-label={t("canvas.createMenu.close")}>
+                <button type="button" className="grid size-7 place-items-center rounded-lg text-base opacity-55 transition hover:bg-white/10 hover:opacity-100" onClick={closeAndRestoreFocus} aria-label={t("canvas.createMenu.close")}>
                     ×
                 </button>
             </div>
@@ -59,7 +101,8 @@ export function ConnectionCreateOption({ theme, icon, title, description, onClic
     return (
         <button
             type="button"
-            className="flex h-12 w-full cursor-pointer items-center gap-2.5 rounded-xl px-2 text-left transition"
+            data-connection-create-option
+            className="flex h-12 w-full cursor-pointer items-center gap-2.5 rounded-xl px-2 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--workspace-accent)]"
             style={{ color: theme.node.text }}
             onClick={onClick}
             onMouseEnter={(event) => (event.currentTarget.style.background = theme.node.fill)}
@@ -80,11 +123,24 @@ export function ConnectionCreateOption({ theme, icon, title, description, onClic
     );
 }
 
-export function NodeCreateMenu({ position, onCreate, onClose }: { position: Position; onCreate: (type: string) => void; onClose: () => void }) {
+export function NodeCreateMenu({ position, dockAnchor, onCreate, onClose, onUpload, onOpenAssets, onOpenHistory, onOpenStoryboard }: {
+    position: Position;
+    dockAnchor?: boolean;
+    onCreate: (type: string) => void;
+    onClose: () => void;
+    onUpload: () => void;
+    onOpenAssets: () => void;
+    onOpenHistory: () => void;
+    onOpenStoryboard: () => void;
+}) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const { t } = useTranslation();
     useNodeRegistryVersion();
     const menuRef = useRef<HTMLDivElement>(null);
+    const searchRef = useRef<HTMLInputElement>(null);
+    const previousFocusRef = useRef<HTMLElement | null>(null);
+    const [query, setQuery] = useState("");
+    const reducedMotion = useReducedMotion();
     // 节点条目统一由工具注册表解析产出：注入生产画布节点（lib 注册表），
     // 与 domain 内置节点解耦。以后在注册表里加画布动作，菜单无需改代码。
     const definitions = listNodeDefinitions().filter((def) => def.showInCreateMenu !== false);
@@ -104,56 +160,90 @@ export function NodeCreateMenu({ position, onCreate, onClose }: { position: Posi
     // 只渲染能创建节点的条目；画布动作（粘贴 / 整理）在当前菜单无 dispatch，暂不显示。
     const nodeCommands = resolveAddNodeMenuCommands(ctx, inject).filter((cmd) => cmd.action === "add-node");
     useEffect(() => {
-        menuRef.current?.focus({ preventScroll: true });
+        previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        searchRef.current?.focus({ preventScroll: true });
     }, []);
+    const closeMenu = useCallback(() => {
+        onClose();
+        const returnTarget = previousFocusRef.current?.isConnected ? previousFocusRef.current : document.querySelector<HTMLElement>("[data-canvas-root]");
+        returnTarget?.focus({ preventScroll: true });
+    }, [onClose]);
     // Close automatically when clicking outside the menu.
     useEffect(() => {
         const handlePointerDown = (event: PointerEvent) => {
             if (event.target instanceof Element && event.target.closest('[data-toolbar-id="tool-add-node"]')) return;
-            if (menuRef.current && !menuRef.current.contains(event.target as Node)) onClose();
+            if (menuRef.current && !menuRef.current.contains(event.target as Node)) closeMenu();
         };
         document.addEventListener("pointerdown", handlePointerDown, true);
         return () => document.removeEventListener("pointerdown", handlePointerDown, true);
-    }, [onClose]);
+    }, [closeMenu]);
+    const items = nodeCommands.flatMap((cmd) => {
+        const type = cmd.payload?.kind;
+        if (!type) return [];
+        return [{ id: cmd.id, label: cmd.label, icon: definitions.find((def) => def.type === type)?.icon, run: () => onCreate(type) }];
+    });
+    items.push({ id: "storyboard", label: t("canvas.storyboard.entry"), icon: <Clapperboard className="size-4" />, run: onOpenStoryboard });
+    const imports = [
+        { id: "upload", label: t("canvas.toolbar.upload"), icon: <Upload className="size-4" />, run: onUpload },
+        { id: "history", label: t("canvas.generationHistory.entry"), icon: <History className="size-4" />, run: onOpenHistory },
+        { id: "assets", label: t("canvas.assetPicker.open"), icon: <Images className="size-4" />, run: onOpenAssets },
+    ];
+    const matches = (label: string) => label.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase());
+    const sections = [
+        { label: t("canvas.createMenu.nodes"), items: items.filter((item) => matches(item.label)) },
+        { label: t("canvas.createMenu.resources"), items: imports.filter((item) => matches(item.label)) },
+    ];
     return (
-        <div
+        <motion.div
             ref={menuRef}
+            initial={reducedMotion ? false : { opacity: 0, y: 5 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.14, ease: "easeOut" }}
             role="dialog"
-            aria-label={t("canvas.createMenu.select")}
+            aria-label={t("canvas.toolbar.addNode")}
             tabIndex={-1}
             className="thin-scrollbar absolute z-[90] w-60 max-w-[calc(100%-1rem)] overflow-y-auto rounded-xl border p-2 shadow-xl outline-none"
             data-canvas-no-zoom
-            style={{ left: position.x, top: position.y, maxHeight: `calc(100% - ${position.y + 8}px)`, background: theme.node.panel, borderColor: theme.node.stroke, color: theme.node.text }}
+            style={{ left: position.x, ...(dockAnchor ? { bottom: position.y } : { top: position.y }), maxHeight: `calc(100% - ${position.y + 8}px)`, background: theme.node.panel, borderColor: theme.node.stroke, color: theme.node.text }}
             onPointerDown={(event) => event.stopPropagation()}
             onKeyDown={(event) => {
-                if (event.key !== "Escape") return;
+                if (event.key === "Escape") {
+                    event.stopPropagation();
+                    closeMenu();
+                    return;
+                }
+                if (!["ArrowDown", "ArrowUp", "Home", "End", "Enter"].includes(event.key) || event.nativeEvent.isComposing) return;
+                if ((event.key === "Home" || event.key === "End") && event.target === searchRef.current) return;
+                const options = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("[data-create-option]"));
+                if (!options.length) return;
+                const current = options.findIndex((option) => option === document.activeElement);
+                if (event.key === "Enter" && event.target !== searchRef.current) return;
+                event.preventDefault();
                 event.stopPropagation();
-                onClose();
+                if (event.key === "Enter") options[0].click();
+                else if (event.key === "ArrowDown") options[(current + 1) % options.length].focus();
+                else if (event.key === "ArrowUp") options[current <= 0 ? options.length - 1 : current - 1].focus();
+                else options[event.key === "Home" ? 0 : options.length - 1].focus();
             }}
         >
             <div className="mb-1.5 flex items-center justify-between px-1">
-                <span className="text-sm font-medium" style={{ color: theme.node.muted }}>
-                    {t("canvas.createMenu.select")}
-                </span>
-                <button type="button" className="grid size-7 place-items-center rounded-lg opacity-55 transition hover:opacity-100" onClick={onClose} aria-label={t("canvas.createMenu.close")}>
+                <Search aria-hidden className="mr-2 size-4 shrink-0" />
+                <input ref={searchRef} className="min-w-0 flex-1 bg-transparent text-sm outline-none" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("canvas.createMenu.search")} aria-label={t("canvas.createMenu.search")} />
+                <button type="button" className="grid size-7 place-items-center rounded-lg opacity-55 transition hover:opacity-100" onClick={closeMenu} aria-label={t("canvas.createMenu.close")}>
                     <X className="size-4" />
                 </button>
             </div>
-            <div className="grid gap-0.5">
-                {nodeCommands.map((cmd) => {
-                    const def = definitions.find((d) => d.type === cmd.payload?.kind);
-                    return (
-                        <ConnectionCreateOption
-                            key={cmd.id}
-                            theme={theme}
-                            icon={def?.icon}
-                            title={cmd.label}
-                            description={def?.description}
-                            onClick={() => onCreate(cmd.payload?.kind ?? "")}
-                        />
-                    );
-                })}
-            </div>
-        </div>
+            {sections.map((section) => section.items.length > 0 && (
+                <div key={section.label} className="mt-1 border-t border-border pt-1">
+                    <div className="px-2 py-1 text-xs" style={{ color: theme.node.muted }}>{section.label}</div>
+                    {section.items.map((item) => (
+                        <button key={item.id} type="button" data-create-option className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-sm hover:bg-[var(--surface-card-hover)] focus-visible:bg-[var(--surface-card-hover)]" onClick={() => { closeMenu(); item.run(); }}>
+                            {item.icon}{item.label}
+                        </button>
+                    ))}
+                </div>
+            ))}
+            {sections.every((section) => !section.items.length) && <p className="px-2 py-3 text-sm" style={{ color: theme.node.muted }}>{t("canvas.createMenu.noResults")}</p>}
+        </motion.div>
     );
 }

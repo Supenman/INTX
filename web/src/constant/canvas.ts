@@ -11,28 +11,28 @@ type CanvasNodeSpec = {
 };
 
 export const NODE_DEFAULT_SIZE = {
-    [CanvasNodeType.Image]: { width: 340, height: 240, get title() { return i18n.t("canvas.nodeTypes.image"); } },
-    [CanvasNodeType.Text]: { width: 340, height: 240, get title() { return i18n.t("canvas.nodeTypes.text"); } },
-    [CanvasNodeType.Video]: { width: 420, height: 236, get title() { return i18n.t("canvas.nodeTypes.video"); } },
-    [CanvasNodeType.Audio]: { width: 340, height: 120, get title() { return i18n.t("canvas.nodeTypes.audio"); } },
+    [CanvasNodeType.Image]: { width: 720, height: 405, get title() { return i18n.t("canvas.nodeTypes.image"); } },
+    [CanvasNodeType.Text]: { width: 350, height: 350, get title() { return i18n.t("canvas.nodeTypes.text"); } },
+    [CanvasNodeType.Video]: { width: 720, height: 405, get title() { return i18n.t("canvas.nodeTypes.video"); } },
+    [CanvasNodeType.Audio]: { width: 320, height: 320, get title() { return i18n.t("canvas.nodeTypes.audio"); } },
     [CanvasNodeType.Group]: { width: 760, height: 480, get title() { return i18n.t("canvas.nodeTypes.group"); } },
 } satisfies Record<CanvasNodeType, { width: number; height: number; title: string }>;
 
 export const NODE_SPECS = {
     [CanvasNodeType.Image]: {
-        width: 340, height: 240, get title() { return NODE_DEFAULT_SIZE[CanvasNodeType.Image].title; },
+        width: 720, height: 405, get title() { return NODE_DEFAULT_SIZE[CanvasNodeType.Image].title; },
         metadata: { content: "", status: "idle" },
     },
     [CanvasNodeType.Text]: {
-        width: 340, height: 240, get title() { return NODE_DEFAULT_SIZE[CanvasNodeType.Text].title; },
+        width: 350, height: 350, get title() { return NODE_DEFAULT_SIZE[CanvasNodeType.Text].title; },
         metadata: { content: "", status: "idle", fontSize: 14 },
     },
     [CanvasNodeType.Video]: {
-        width: 420, height: 236, get title() { return NODE_DEFAULT_SIZE[CanvasNodeType.Video].title; },
+        width: 720, height: 405, get title() { return NODE_DEFAULT_SIZE[CanvasNodeType.Video].title; },
         metadata: { content: "", status: "idle" },
     },
     [CanvasNodeType.Audio]: {
-        width: 340, height: 120, get title() { return NODE_DEFAULT_SIZE[CanvasNodeType.Audio].title; },
+        width: 320, height: 320, get title() { return NODE_DEFAULT_SIZE[CanvasNodeType.Audio].title; },
         metadata: { content: "", status: "idle" },
     },
     [CanvasNodeType.Group]: {

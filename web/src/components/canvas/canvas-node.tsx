@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactNode } from "react";
-import { ChevronRight, Copy, Download, Group, Image as ImageIcon, Music2, Puzzle, RefreshCw, Star, Trash2, Video } from "lucide-react";
+import { AlertCircle, ChevronRight, Copy, Download, FileText, Group, Image as ImageIcon, Music2, Pencil, Play, Plus, Puzzle, RefreshCw, Star, Trash2, Video } from "lucide-react";
 
 import { canvasThemes } from "@/lib/canvas-theme";
 import { colorGradeFilter } from "@/lib/canvas/color-grade";
@@ -20,6 +20,7 @@ import { useTranslation } from "react-i18next";
 
 type ResizeCorner = "top-left" | "top-right" | "bottom-left" | "bottom-right";
 const selectionBlue = "#2f80ff";
+const nodeTitleIcons: Partial<Record<CanvasNodeData["type"], typeof ImageIcon>> = { [CanvasNodeType.Image]: ImageIcon, [CanvasNodeType.Video]: Video, [CanvasNodeType.Text]: FileText, [CanvasNodeType.Audio]: Music2, [CanvasNodeType.Group]: Group };
 
 type CanvasNodeProps = {
     data: CanvasNodeData;
@@ -149,7 +150,11 @@ export const CanvasNode = React.memo(function CanvasNode({
     // Transparent nodes such as SVGs blend into the canvas while retaining outlines for selected or related states.
     const transparentBg = Boolean(definition?.transparentBackground);
     const isActive = isConnectionTarget || isSelected || isFocusRelated;
-    const imageBorderColor = isActive ? selectionBlue : isRelated ? theme.node.muted : "transparent";
+    const TitleIcon = nodeTitleIcons[data.type];
+    const hasTitleIcon = Boolean(TitleIcon || definition?.icon);
+    const expandedTitle = data.type !== CanvasNodeType.Image && (isActive || hovered || isEditingTitle);
+    const titleHeaderWidth = expandedTitle ? Math.max(160, Math.min(320, data.width * scale)) : Math.min(240, Math.max(112, data.width * scale));
+    const imageBorderColor = isActive ? theme.node.activeStroke : isRelated ? theme.node.muted : "transparent";
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const titleInputRef = useRef<HTMLInputElement>(null);
     const resizeRef = useRef({
@@ -227,8 +232,9 @@ export const CanvasNode = React.memo(function CanvasNode({
 
             const dx = (event.clientX - resizeRef.current.startX) / scale;
             const dy = (event.clientY - resizeRef.current.startY) / scale;
-            const minWidth = 220;
-            const minHeight = 160;
+            const isMediaNode = data.type === CanvasNodeType.Image || data.type === CanvasNodeType.Video;
+            const minWidth = isMediaNode ? 420 : 220;
+            const minHeight = isMediaNode ? 236 : 160;
             const startRight = resizeRef.current.startLeft + resizeRef.current.startWidth;
             const startBottom = resizeRef.current.startTop + resizeRef.current.startHeight;
             const fromLeft = resizeRef.current.corner.includes("left");
@@ -304,7 +310,6 @@ export const CanvasNode = React.memo(function CanvasNode({
                 transform: `translate(${data.position.x}px, ${data.position.y}px)`,
                 width: data.width,
                 height: data.height,
-                transition: "box-shadow 200ms ease",
                 contain: "layout style",
             }}
             onMouseEnter={() => {
@@ -316,7 +321,7 @@ export const CanvasNode = React.memo(function CanvasNode({
                 onHoverEnd(data.id);
             }}
             onMouseDownCapture={(event) => {
-                if (!referenceSelectionState) onSelectCapture?.(event, data.id);
+                if (!referenceSelectionState && !(event.target instanceof Element && event.target.closest("[data-canvas-node-control]"))) onSelectCapture?.(event, data.id);
             }}
             onContextMenu={(event) => {
                 if (referenceSelectionState) event.preventDefault();
@@ -324,8 +329,8 @@ export const CanvasNode = React.memo(function CanvasNode({
             }}
         >
             {data.metadata?.versionLabel && onOpenVersions ? <button type="button" data-version-badge={data.metadata.versionLabel} title={`${t("canvas.node.versionBadge", { label: data.metadata.versionLabel })}${data.metadata.versionPrimary ? ` · ${t("canvas.node.versionBadgePrimary")}` : ""} · ${t("canvas.node.openVersions")}`} className="absolute left-2 top-2 z-[66] rounded-full border px-2 py-1 text-xs font-medium shadow-sm" style={{ background: data.metadata.versionPrimary ? theme.toolbar.activeBg : theme.toolbar.panel, borderColor: data.metadata.versionPrimary ? theme.node.activeStroke : theme.toolbar.border, color: data.metadata.versionPrimary ? theme.node.activeStroke : theme.node.text }} onMouseDown={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); onOpenVersions(data); }}>{data.metadata.versionLabel}</button> : null}
-            {(!referenceSelectionState || referenceSelectionState === "target") && (isSelected || hovered || isEditingTitle) && (
-                <div className="absolute left-3 top-[-28px] z-[65] max-w-[calc(100%-24px)]" onMouseDown={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
+            {(!referenceSelectionState || referenceSelectionState === "target") && (hasTitleIcon || isSelected || hovered || isEditingTitle) && (
+                <div data-canvas-node-control className="absolute bottom-full left-1 z-[65] mb-1" style={{ width: titleHeaderWidth, transform: `scale(${1 / Math.max(scale, 0.05)})`, transformOrigin: "left bottom" }} onMouseDown={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
                     {isEditingTitle ? (
                         <input
                             ref={titleInputRef}
@@ -346,28 +351,33 @@ export const CanvasNode = React.memo(function CanvasNode({
                     ) : (
                         <button
                             type="button"
-                            className="block max-w-full truncate border-b border-dashed border-transparent px-0 py-0.5 text-left text-xs font-medium opacity-75 transition hover:border-current hover:opacity-100"
-                            style={{ color: theme.node.text }}
+                            className="group/title flex max-w-full items-center gap-1.5 border-b border-dashed border-transparent text-left text-sm leading-5 motion-safe:transition-colors hover:border-current"
+                            style={{ color: isActive || hovered ? theme.node.text : theme.node.muted }}
                             title={t("canvas.node.renameHint")}
-                            onDoubleClick={(event) => {
+                            onClick={(event) => {
                                 event.stopPropagation();
+                                if (data.type === CanvasNodeType.Image && event.detail !== 0 && !(event.target instanceof Element && event.target.closest(".canvas-node-title-edit-icon"))) return;
                                 setIsEditingTitle(true);
                             }}
+                            onDoubleClick={data.type === CanvasNodeType.Image ? (event) => { event.stopPropagation(); setIsEditingTitle(true); } : undefined}
                         >
-                            {data.title || t("canvas.node.untitled")}
+                            {TitleIcon ? <TitleIcon aria-hidden className="size-3.5 shrink-0" /> : null}
+                            {!TitleIcon && definition?.icon ? <span aria-hidden className="grid size-3.5 shrink-0 place-items-center [&_svg]:size-3.5">{definition.icon}</span> : null}
+                            <span className={expandedTitle ? "min-w-0 flex-1 whitespace-normal wrap-break-word" : "min-w-0 flex-1 truncate"}>{data.title || t("canvas.node.untitled")}</span>
+                            <Pencil aria-hidden className={`canvas-node-title-edit-icon size-3 shrink-0 group-focus-visible/title:opacity-100 group-hover/title:opacity-100 ${isSelected ? "opacity-60" : "opacity-0"}`} />
                         </button>
                     )}
                 </div>
             )}
 
             <div
-                className="relative h-full w-full overflow-visible rounded-[var(--r-lg)] border"
+                className="relative h-full w-full overflow-visible rounded-[var(--r-lg)] border motion-safe:transition-[border-color,box-shadow] motion-safe:duration-150"
                 style={{
                     background: isGroup ? "transparent" : hasImageContent || hasVideoContent || transparentBg ? "transparent" : theme.node.fill,
                     // 静止/媒体节点用透明描边占位：选中时只换颜色不换宽度，避免边界跳动。
-                    borderColor: isGroup ? (isGroupDropTarget || isActive ? selectionBlue : theme.node.stroke) : hasImageContent ? imageBorderColor : isActive ? selectionBlue : isRelated ? theme.node.muted : transparentBg ? "transparent" : theme.node.stroke,
+                    borderColor: isGroup ? (isGroupDropTarget ? selectionBlue : isActive ? theme.node.activeStroke : theme.node.stroke) : hasImageContent ? imageBorderColor : isActive ? theme.node.activeStroke : isRelated ? theme.node.muted : transparentBg || (hasTitleIcon && !hovered) ? "transparent" : theme.node.stroke,
                     borderStyle: isGroup ? "dashed" : "solid",
-                    boxShadow: isGroupDropTarget ? `0 0 0 2px ${selectionBlue}66, inset 0 0 0 999px ${selectionBlue}10` : isActive ? `0 0 0 1px ${selectionBlue}55, ${theme.node.hoverShadow}` : isRelated ? `0 0 0 1px ${theme.node.muted}55, ${theme.node.hoverShadow}` : hasImageContent || transparentBg ? undefined : theme.node.shadow,
+                    boxShadow: isGroupDropTarget ? `0 0 0 2px ${selectionBlue}66, inset 0 0 0 999px ${selectionBlue}10` : isActive ? `0 0 0 1px ${theme.node.activeStroke}55, ${theme.node.hoverShadow}` : isRelated ? `0 0 0 1px ${theme.node.muted}55, ${theme.node.hoverShadow}` : hasImageContent || transparentBg ? undefined : theme.node.shadow,
                 }}
                 onMouseDown={(event) => {
                     if (!referenceSelectionState) onMouseDown(event, data.id);
@@ -431,7 +441,7 @@ export const CanvasNode = React.memo(function CanvasNode({
 
                 {showImageInfo && hasImageContent ? <ImageInfoBar node={data} /> : null}
 
-                {!isGroup && !hasImageContent && !hasVideoContent && !hasAudioContent ? <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12" style={{ background: `linear-gradient(to top, ${theme.canvas.background}66, transparent)` }} /> : null}
+                {!isGroup && !hasTitleIcon && !hasImageContent && !hasVideoContent && !hasAudioContent ? <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12" style={{ background: `linear-gradient(to top, ${theme.canvas.background}66, transparent)` }} /> : null}
 
                 {referenceSelectionState && (referenceSelectionState !== "available" || hovered) ? (
                     <div className="pointer-events-none absolute inset-0 z-[60] grid place-items-center rounded-[inherit]" style={{ background: `color-mix(in srgb, ${theme.canvas.background} ${referenceSelectionState === "target" ? 78 : referenceSelectionState === "disabled" ? 60 : 34}%, transparent)`, boxShadow: referenceSelectionState === "available" ? `inset 0 0 0 2px ${selectionBlue}` : undefined }}>
@@ -445,8 +455,8 @@ export const CanvasNode = React.memo(function CanvasNode({
                 {!referenceSelectionState ? <ResizeHandle corner="bottom-right" onMouseDown={handleResizeMouseDown} /> : null}
             </div>
 
-            {!referenceSelectionState && !isGroup ? <ConnectionHandleDot side="left" visible={hovered || isSelected || isConnecting} onMouseDown={(event) => onConnectStart(event, data.id, "target")} /> : null}
-            {!referenceSelectionState && (definition?.hasSourceHandle ?? true) ? <ConnectionHandleDot side="right" visible={hovered || isSelected || isConnecting} onMouseDown={(event) => onConnectStart(event, data.id, "source")} /> : null}
+            {!referenceSelectionState && !isGroup ? <ConnectionHandleDot side="left" scale={scale} visible={hovered || isSelected || isConnecting} onMouseDown={(event) => onConnectStart(event, data.id, "target")} /> : null}
+            {!referenceSelectionState && (definition?.hasSourceHandle ?? true) ? <ConnectionHandleDot side="right" scale={scale} visible={hovered || isSelected || isConnecting} onMouseDown={(event) => onConnectStart(event, data.id, "source")} /> : null}
 
             {/* Counter-scale the panel so its on-screen size stays constant while the canvas zooms. */}
             {showPanel && !isGroup && renderPanel ? (
@@ -459,8 +469,28 @@ export const CanvasNode = React.memo(function CanvasNode({
 });
 
 function NodeContent(props: NodeContentRendererProps) {
+    const { t } = useTranslation();
     if (props.isBatchRoot && props.node.type === CanvasNodeType.Image) return <ImageNodeContent {...props} />;
     if (props.node.type === CanvasNodeType.Text && props.node.metadata?.texts?.length && (props.node.metadata.status !== "error" || props.node.metadata.texts.some((text) => text.content))) return <TextContent {...props} />;
+    const mediaType = [CanvasNodeType.Image, CanvasNodeType.Video, CanvasNodeType.Audio].includes(props.node.type as CanvasNodeType) ? props.node.type as CanvasNodeType.Image | CanvasNodeType.Video | CanvasNodeType.Audio : null;
+    const hasRetainedMedia = mediaType === CanvasNodeType.Image
+        ? Boolean(props.node.metadata?.content || props.node.metadata?.images?.some((image) => image.content))
+        : Boolean(mediaType && props.node.metadata?.content);
+    if (props.node.metadata?.status === "error" && mediaType && hasRetainedMedia) {
+        const Renderer = nodeContentRenderers[mediaType];
+        return Renderer ? (
+            <div className="relative h-full w-full">
+                <Renderer {...props} />
+                <div className="pointer-events-none absolute left-2 top-2 z-20 flex items-center gap-1 rounded-full px-2 py-0.5" style={{ background: "color-mix(in oklch, var(--destructive) 20%, transparent)", color: "var(--destructive)" }} role="status">
+                    <AlertCircle aria-hidden className="size-3" />
+                    <span className="text-[10px] font-medium leading-none">{t("canvas.node.failed")}</span>
+                </div>
+                <div className="absolute inset-x-3 bottom-3 z-30 rounded-xl border p-2.5 shadow-lg backdrop-blur-md" style={{ background: props.theme.toolbar.panel, borderColor: "var(--destructive)", color: props.theme.node.text }}>
+                    <ErrorContent node={props.node} theme={props.theme} onRetry={props.onRetry} />
+                </div>
+            </div>
+        ) : null;
+    }
     if (props.node.metadata?.status === "loading") return <LoadingContent theme={props.theme} />;
     if (props.node.metadata?.status === "error") return <ErrorContent node={props.node} theme={props.theme} onRetry={props.onRetry} />;
 
@@ -514,7 +544,7 @@ function ErrorContent({ node, theme, onRetry }: Pick<NodeContentRendererProps, "
     const canQueryTask = hasResumableImageTask(node) || hasResumableVideoTask(node);
     return (
         <div className="flex max-w-[260px] flex-col items-center gap-3 px-5 text-center">
-            <div className="text-xs leading-5 text-red-300">{node.metadata?.errorDetails || t("canvas.node.failed")}</div>
+            <div role="alert" className="text-xs leading-5 text-red-300">{node.metadata?.errorDetails || t("canvas.node.failed")}</div>
             {node.metadata?.retryBlocked && !canQueryTask ? (
                 <span className="text-[11px] leading-4" style={{ color: theme.node.muted }}>
                     {t("canvas.node.retryBlockedHint")}
@@ -593,8 +623,12 @@ function TextContent({ node, theme, isEditingContent, textareaRef, mentionRefere
                 ) : primaryText ? (
                     <TextSlotStatus text={primaryText} />
                 ) : (
-                    <div className="p-4 font-mono" style={{ color: theme.node.placeholder }}>
-                        {t("canvas.node.editText")}
+                    <div role="img" aria-label={t("canvas.node.editText")} className="flex h-full w-full flex-col overflow-hidden px-6 pb-4 pt-5" style={{ color: theme.node.text }}>
+                        <div className="flex flex-1 items-center justify-center">
+                            <div className="flex flex-col items-center gap-1.5 opacity-30 lg:-translate-y-8" aria-hidden>
+                                {[0, 1, 2, 3].map((line) => <span key={line} className="h-1 w-14 rounded-full" style={{ background: theme.node.text }} />)}
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>
@@ -702,11 +736,8 @@ function ImageNodeContent(props: NodeContentRendererProps) {
 function EmptyImageContent({ theme }: NodeContentRendererProps) {
     const { t } = useTranslation();
     return (
-        <div className="flex h-full w-full flex-col items-center justify-center gap-3" style={{ color: theme.node.placeholder }}>
-            <div className="flex size-14 items-center justify-center rounded-2xl" style={{ background: theme.toolbar.activeBg }}>
-                <ImageIcon className="size-7 opacity-60" />
-            </div>
-            <span className="text-xs">{t("canvas.node.emptyImage")}</span>
+        <div role="img" aria-label={t("canvas.node.emptyImage")} className="grid h-full w-full place-items-center" style={{ color: theme.node.muted }}>
+            <ImageIcon aria-hidden className="size-14 opacity-30" strokeWidth={1.35} />
         </div>
     );
 }
@@ -716,24 +747,28 @@ function VideoNodeContent({ node, theme }: NodeContentRendererProps) {
     const [playbackFailed, setPlaybackFailed] = useState(false);
     useEffect(() => setPlaybackFailed(false), [node.metadata?.content]);
     const broken = isBrokenVideoContent(node.metadata);
-    if (!node.metadata?.content || broken || playbackFailed)
+    if (!node.metadata?.content && !broken) return (
+        <div role="img" aria-label={t("canvas.node.emptyVideo")} className="grid h-full w-full place-items-center" style={{ color: theme.node.muted }}>
+            <Play aria-hidden className="size-14 fill-current opacity-30" strokeWidth={1.2} />
+        </div>
+    );
+    if (broken || playbackFailed)
         return (
-            <div className="flex h-full w-full flex-col items-center justify-center gap-3 px-4 text-center" style={{ color: broken || playbackFailed ? theme.node.activeStroke : theme.node.placeholder }}>
+            <div className="flex h-full w-full flex-col items-center justify-center gap-3 px-4 text-center" style={{ color: theme.node.activeStroke }}>
                 <Video className="size-7 opacity-60" />
-                <span className="text-xs">{broken || playbackFailed ? t("canvas.node.videoLoadFailed") : t("canvas.node.emptyVideo")}</span>
+                <span className="text-xs">{t("canvas.node.videoLoadFailed")}</span>
                 {broken ? <span className="text-[10px] opacity-70">{t("canvas.node.videoRetryHint")}</span> : null}
             </div>
         );
-    return <video src={node.metadata.content} controls className="h-full w-full rounded-[var(--r-lg)] bg-black object-contain" style={{ filter: colorGradeFilter(node.metadata.colorGrade) }} data-canvas-video={node.id} data-canvas-no-zoom onError={() => setPlaybackFailed(true)} />;
+    return <video src={node.metadata?.content} controls className="h-full w-full rounded-[var(--r-lg)] bg-black object-contain" style={{ filter: colorGradeFilter(node.metadata?.colorGrade) }} data-canvas-video={node.id} data-canvas-no-zoom onError={() => setPlaybackFailed(true)} />;
 }
 
 function AudioNodeContent({ node, theme }: NodeContentRendererProps) {
     const { t } = useTranslation();
     if (!node.metadata?.content)
         return (
-            <div className="flex h-full w-full flex-col items-center justify-center gap-2" style={{ color: theme.node.placeholder }}>
-                <Music2 className="size-7 opacity-60" />
-                <span className="text-xs">{t("canvas.node.emptyAudio")}</span>
+            <div role="img" aria-label={t("canvas.node.emptyAudio")} className="grid h-full w-full place-items-center" style={{ color: theme.node.muted }}>
+                <Music2 aria-hidden className="size-14 opacity-30" strokeWidth={1.25} />
             </div>
         );
     return (
@@ -993,18 +1028,59 @@ function ResizeHandle({ corner, onMouseDown }: { corner: ResizeCorner; onMouseDo
     return <div className={`absolute z-50 size-7 ${positionClass}`} onMouseDown={(event) => onMouseDown(event, corner)} />;
 }
 
-function ConnectionHandleDot({ side, visible, onMouseDown }: { side: "left" | "right"; visible: boolean; onMouseDown: (event: React.MouseEvent) => void }) {
+function ConnectionHandleDot({ side, scale, visible, onMouseDown }: { side: "left" | "right"; scale: number; visible: boolean; onMouseDown: (event: React.MouseEvent) => void }) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
+    const { t } = useTranslation();
+    const handleRef = useRef<HTMLSpanElement>(null);
+    const [railHovered, setRailHovered] = useState(false);
+    const inverseScale = 1 / Math.max(scale, 0.05);
+    const railSize = 80;
+    const handleSize = Math.max(20, 8 * inverseScale);
+    const restingRailWidth = Math.max(28, Math.ceil(15 + handleSize / 2 + 3));
+    const sideOffset = side === "left" ? 25 : -25;
+    const resetHandle = () => {
+        if (handleRef.current) handleRef.current.style.transform = `translate(${sideOffset}px, 0) scale(1)`;
+    };
+    const updateHandle = (event: React.MouseEvent<HTMLButtonElement>) => {
+        const bounds = event.currentTarget.getBoundingClientRect();
+        const followLimit = 30;
+        const centerX = side === "left" ? bounds.right - railSize * scale / 2 : bounds.left + railSize * scale / 2;
+        const deltaX = event.clientX - centerX;
+        const deltaY = event.clientY - (bounds.top + bounds.height / 2);
+        const limitedX = Math.max(-followLimit, Math.min(followLimit, deltaX));
+        const limitedY = Math.max(-followLimit, Math.min(followLimit, deltaY));
+        const offsetX = limitedX * inverseScale;
+        const offsetY = limitedY * inverseScale;
+        const focus = 1 + Math.max(0, 1 - Math.hypot(limitedX, limitedY) / followLimit) * 0.1;
+        if (handleRef.current) handleRef.current.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${focus})`;
+    };
 
     return (
-        <div
-            className={`absolute top-1/2 z-30 flex size-12 -translate-y-1/2 cursor-crosshair items-center justify-center transition-opacity duration-150 ${
-                side === "left" ? "-left-6" : "-right-6"
-            } ${visible ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"}`}
+        <button
+            type="button"
+            data-canvas-node-control
+            data-canvas-connection-rail={side}
+            className={`group/port absolute top-1/2 z-30 flex -translate-y-1/2 items-center justify-center rounded-full border-0 bg-transparent p-0 outline-none motion-safe:transition-[width,opacity] motion-safe:duration-150 ${visible || railHovered ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"}`}
+            style={{ width: railHovered ? railSize : restingRailWidth, height: `min(100%, ${railSize}px)`, cursor: "crosshair", ...(side === "left" ? { right: "100%" } : { left: "100%" }) }}
+            onMouseEnter={(event) => { setRailHovered(true); updateHandle(event); }}
+            onMouseMove={updateHandle}
+            onMouseLeave={() => { setRailHovered(false); resetHandle(); }}
             onMouseDown={onMouseDown}
+            onFocus={() => setRailHovered(true)}
+            onBlur={() => { setRailHovered(false); resetHandle(); }}
+            aria-label={t("canvas.toolbar.addNode")}
+            title={t("canvas.toolbar.addNode")}
         >
-            <div className="size-3 rounded-full border-2 transition-all hover:scale-125" style={{ background: theme.node.panel, borderColor: theme.node.muted }} />
-        </div>
+            <span
+                ref={handleRef}
+                className="absolute top-1/2 block motion-safe:transition-transform motion-safe:duration-75 group-hover/port:brightness-125 group-focus-visible/port:brightness-125"
+                style={{ display: visible || railHovered ? undefined : "none", left: side === "left" ? `calc(100% - ${railSize / 2}px)` : railSize / 2, width: handleSize, height: handleSize, marginLeft: -handleSize / 2, marginTop: -handleSize / 2, transform: `translate(${sideOffset}px, 0) scale(1)` }}
+            >
+                <span className="grid size-full place-items-center rounded-full border" style={{ background: theme.node.panel, borderColor: theme.node.activeStroke, color: theme.node.activeStroke }}>
+                    <Plus aria-hidden className="size-3" />
+                </span>
+            </span>
+        </button>
     );
 }
 

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Archive, Bot, Clapperboard, Download, History, Images, Menu, PanelLeftClose, PanelLeftOpen, Plus, Redo2, Scissors, Trash2, Undo2, Upload, Workflow } from "lucide-react";
-import { Button, Dropdown, Modal, Tooltip } from "antd";
+import { Archive, Bot, Clapperboard, Download, Ellipsis, History, Home, Images, Menu, PanelLeftClose, PanelLeftOpen, Plus, Redo2, Scissors, Trash2, Undo2, Upload, Workflow } from "lucide-react";
+import { Button, Dropdown, Modal, Popover, Tooltip } from "antd";
 import { useTranslation } from "react-i18next";
 
 import { UserStatusActions } from "@/components/layout/user-status-actions";
@@ -115,6 +115,7 @@ export function CanvasTopBar({
                                     type: "group",
                                     label: t("canvas.menuGroup.project"),
                                     children: [
+                                        { key: "home", icon: <Home className="size-4" />, label: t("navigation.home"), onClick: onHome },
                                         { key: "projects", icon: <Images className="size-4" />, label: t("canvas.projects"), onClick: onProjects },
                                         { key: "new", icon: <Plus className="size-4" />, label: t("canvas.create"), onClick: onCreateProject },
                                         { key: "delete", danger: true, icon: <Trash2 className="size-4" />, label: t("canvas.deleteCurrent"), onClick: onDeleteProject },
@@ -127,14 +128,12 @@ export function CanvasTopBar({
                                         { key: "import", icon: <Upload className="size-4" />, label: t("canvas.importMedia"), onClick: onImportImage },
                                         { key: "insert-assets", icon: <Images className="size-4" />, label: t("canvas.assetPicker.open"), onClick: onOpenAssetPicker },
                                         { key: "export", icon: <Download className="size-4" />, label: t("canvas.exportCurrent"), onClick: onExportProject },
-                                        ...workflowItems,
                                     ],
                                 },
                                 {
                                     type: "group",
                                     label: t("canvas.menuGroup.produce"),
                                     children: [
-                                        { key: "generation-history", icon: <History className="size-4" />, label: t("canvas.generationHistory.entry"), onClick: onOpenGenerationHistory },
                                         { key: "storyboard", icon: <Clapperboard className="size-4" />, label: t("canvas.storyboard.entry"), onClick: onOpenStoryboard },
                                         { key: "archive-assets", icon: <Archive className="size-4" />, label: t("canvas.projectPage.archiveToAssets"), onClick: onArchiveToAssets },
                                         { key: "editing-studio", icon: <Scissors className="size-4" />, label: t("editingStudio.title"), onClick: onOpenEditingStudio },
@@ -208,7 +207,9 @@ export function CanvasTopBar({
                     <Tooltip title={t("canvas.generationHistory.entry")}>
                         <Button type="text" className="!h-8 !w-8 !min-w-8 !rounded-lg !p-0" aria-label={t("canvas.generationHistory.entry")} icon={<History className="size-4" />} onClick={onOpenGenerationHistory} />
                     </Tooltip>
-                    <UserStatusActions variant="canvas" onOpenShortcuts={() => setShortcutsOpen(true)} onOpenPlugins={onOpenPlugins} />
+                    <Popover trigger="click" placement="bottomRight" content={<UserStatusActions variant="canvas" onOpenShortcuts={() => setShortcutsOpen(true)} onOpenPlugins={onOpenPlugins} />}>
+                        <Button type="text" className="!h-8 !w-8 !min-w-8 !p-0" icon={<Ellipsis className="size-4" />} aria-label={t("canvas.imageTools.more")} title={t("canvas.imageTools.more")} />
+                    </Popover>
                 </div>
             </div>
             <Modal destroyOnHidden title={t("canvas.shortcuts")} open={shortcutsOpen} onCancel={() => setShortcutsOpen(false)} footer={null} centered>

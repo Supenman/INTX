@@ -20,7 +20,7 @@ function initialWidth() {
 
 function initialOpen() {
     if (typeof window === "undefined") return true;
-    return localStorage.getItem(OPEN_KEY) !== "0";
+    return localStorage.getItem(OPEN_KEY) === "1";
 }
 
 function initialNodeView(): CanvasNodeViewMode {

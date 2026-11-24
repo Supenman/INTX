@@ -1,7 +1,7 @@
 import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode, RefObject } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, Segmented, Switch } from "antd";
-import { CircleDot, Eraser, Grid2x2, Group, Hand, Image as ImageIcon, Info, SlidersHorizontal, LocateFixed, Moon, MousePointer2, Music2, Palette, Plus, Puzzle, Redo2, Square, Sun, Trash2, Type, Undo2, Upload, Video } from "lucide-react";
+import { CircleDot, Eraser, Grid2x2, Group, Hand, Info, SlidersHorizontal, LocateFixed, Moon, MousePointer2, Palette, Plus, Puzzle, Redo2, Square, Sun, Trash2, Undo2 } from "lucide-react";
 
 import { canvasThemes, type CanvasBackgroundMode, type CanvasColorTheme, type CanvasTheme } from "@/lib/canvas-theme";
 import { buildToolContext, toolView } from "@/lib/canvas/tool-wiring";
@@ -23,15 +23,10 @@ export function CanvasToolbar({
     showImageInfo,
     addMenuActive,
     onOpenCreateMenu,
-    onAddImage,
-    onAddVideo,
-    onAddAudio,
-    onAddText,
     onAddGroup,
     onAddExtensionNode,
     onUndo,
     onRedo,
-    onUpload,
     onDelete,
     onClear,
     onCanvasToolChange,
@@ -46,16 +41,11 @@ export function CanvasToolbar({
     backgroundMode: CanvasBackgroundMode;
     showImageInfo: boolean;
     addMenuActive: boolean;
-    onOpenCreateMenu: () => void;
-    onAddImage: () => void;
-    onAddVideo: () => void;
-    onAddAudio: () => void;
-    onAddText: () => void;
+    onOpenCreateMenu: (event: ReactMouseEvent<HTMLElement>) => void;
     onAddGroup: () => void;
     onAddExtensionNode: (type: string) => void;
     onUndo: () => void;
     onRedo: () => void;
-    onUpload: () => void;
     onDelete: () => void;
     onClear: () => void;
     onCanvasToolChange: (tool: "select" | "pan") => void;
@@ -109,13 +99,10 @@ export function CanvasToolbar({
     }, [extensionsOpen, appearanceOpen]);
 
     return (
-        <div ref={rootRef} className="pointer-events-none absolute bottom-4 left-1/2 z-50 flex max-w-[calc(100%-2rem)] -translate-x-1/2 justify-center @max-[700px]:bottom-20" data-canvas-bottom-toolbar>
+        <div ref={rootRef} className="pointer-events-none absolute bottom-4 left-1/2 z-50 flex max-w-[calc(100%-2rem)] -translate-x-1/2 justify-center @max-[1040px]:bottom-20" data-canvas-bottom-toolbar>
             {tip ? <DockTip label={tip} x={tipX} theme={theme} /> : null}
             <div ref={wrapRef} className="thin-scrollbar pointer-events-auto flex h-12 max-w-full items-center gap-0.5 overflow-x-auto rounded-2xl border px-1.5 shadow-md backdrop-blur [&>*]:shrink-0" style={dockStyle}>
-                {visibleIds.has("tool-upload") ? <ToolbarButton id="tool-upload" label={t("canvas.toolbar.upload")} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onUpload}>
-                    <Upload className="size-4" />
-                </ToolbarButton> : null}
-                <ToolbarButton id="tool-add-node" label={t("canvas.toolbar.addNode")} active={addMenuActive} hovered={hovered} activeStyle={activeStyle} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={() => onOpenCreateMenu()}>
+                <ToolbarButton id="tool-add-node" label={t("canvas.toolbar.addNode")} active={addMenuActive} hovered={hovered} activeStyle={activeStyle} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onOpenCreateMenu}>
                     <Plus className="size-4.5" />
                 </ToolbarButton>
                 <ToolbarButton id={`tool-${canvasTool}`} label={t(`canvas.toolbar.${canvasTool}`)} active hovered={hovered} activeStyle={activeStyle} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={() => onCanvasToolChange(canvasTool === "select" ? "pan" : "select")}>
@@ -131,18 +118,6 @@ export function CanvasToolbar({
                     <LocateFixed className="size-4.5" />
                 </ToolbarButton> : null}
                 <Divider theme={theme} />
-                {visibleIds.has("tool-text") ? <ToolbarButton id="tool-text" label={t("canvas.toolbar.text")} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddText}>
-                    <Type className="size-4.5" />
-                </ToolbarButton> : null}
-                {visibleIds.has("tool-image") ? <ToolbarButton id="tool-image" label={t("canvas.toolbar.image")} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddImage}>
-                    <ImageIcon className="size-4.5" />
-                </ToolbarButton> : null}
-                {visibleIds.has("tool-video") ? <ToolbarButton id="tool-video" label={t("canvas.toolbar.video")} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddVideo}>
-                    <Video className="size-4.5" />
-                </ToolbarButton> : null}
-                {visibleIds.has("tool-audio") ? <ToolbarButton id="tool-audio" label={t("canvas.toolbar.audio")} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddAudio}>
-                    <Music2 className="size-4.5" />
-                </ToolbarButton> : null}
                 {visibleIds.has("tool-group") ? <ToolbarButton id="tool-group" label={t("canvas.toolbar.group")} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddGroup}>
                     <Group className="size-4.5" />
                 </ToolbarButton> : null}
@@ -203,6 +178,13 @@ export function CanvasToolbar({
                 <div
                     className="thin-scrollbar pointer-events-auto absolute bottom-[72px] z-30 max-h-[50vh] w-[240px] -translate-x-1/2 overflow-y-auto rounded-xl border p-2 shadow-xl backdrop-blur"
                     style={{ left: extPanelX || "50%", background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.toolbar.item }}
+                    onKeyDown={(event) => {
+                        if (event.key !== "Escape") return;
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setExtensionsOpen(false);
+                        rootRef.current?.querySelector<HTMLButtonElement>('[data-toolbar-id="tool-extensions"]')?.focus({ preventScroll: true });
+                    }}
                 >
                     <div className="px-1.5 pb-1.5 text-[11px] font-medium opacity-50">{t("canvas.toolbar.extensions")}</div>
                     <div className="grid gap-0.5">
@@ -210,7 +192,7 @@ export function CanvasToolbar({
                             <button
                                 key={def.type}
                                 type="button"
-                                className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm transition"
+                                className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--workspace-accent)]"
                                 style={{ color: theme.toolbar.item }}
                                 onMouseEnter={(event) => (event.currentTarget.style.background = theme.toolbar.itemHover)}
                                 onMouseLeave={(event) => (event.currentTarget.style.background = "transparent")}
@@ -233,6 +215,13 @@ export function CanvasToolbar({
                 <div
                     className="pointer-events-auto absolute bottom-[72px] z-30 w-[248px] -translate-x-1/2 rounded-xl border p-2.5 shadow-xl backdrop-blur"
                     style={{ left: panelX || "50%", background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.toolbar.item }}
+                    onKeyDown={(event) => {
+                        if (event.key !== "Escape") return;
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setAppearanceOpen(false);
+                        rootRef.current?.querySelector<HTMLButtonElement>('[data-toolbar-id="tool-style"]')?.focus({ preventScroll: true });
+                    }}
                 >
                     <div className="px-1 pb-2 text-sm font-medium opacity-65">{t("canvas.toolbar.appearance")}</div>
                     <div className="px-1 pb-1.5 text-[11px] font-medium opacity-50">{t("canvas.toolbar.themeMode")}</div>
@@ -348,9 +337,11 @@ function ToolbarButton({
             type="text"
             aria-label={label}
             data-toolbar-id={id}
+            aria-expanded={id === "tool-add-node" ? Boolean(active) : undefined}
+            aria-haspopup={id === "tool-add-node" ? "dialog" : undefined}
             className={showLabel ? "!h-8 !px-2 text-xs font-medium" : "!h-8 !w-8 !min-w-8 !p-0"}
             disabled={disabled}
-            style={active ? activeStyle : hovered === id && !disabled ? hoverStyle : { color: danger ? "#f87171" : theme.toolbar.item, opacity: disabled ? 0.35 : 1 }}
+            style={active ? activeStyle : id === "tool-add-node" ? { background: theme.node.text, color: theme.node.panel } : hovered === id && !disabled ? hoverStyle : { color: danger ? "#f87171" : theme.toolbar.item, opacity: disabled ? 0.35 : 1 }}
             icon={children}
             onMouseEnter={(event) => {
                 onHover(id);
@@ -402,13 +393,8 @@ function toolLabel(id: string, t: (key: string) => string) {
     if (id === "tool-undo") return t("canvas.undo");
     if (id === "tool-redo") return t("canvas.redo");
     if (id === "tool-focus") return t("canvas.toolbar.focus");
-    if (id === "tool-text") return t("canvas.toolbar.text");
-    if (id === "tool-image") return t("canvas.toolbar.image");
-    if (id === "tool-video") return t("canvas.toolbar.video");
-    if (id === "tool-audio") return t("canvas.toolbar.audio");
     if (id === "tool-group") return t("canvas.toolbar.group");
     if (id === "tool-extensions") return t("canvas.toolbar.extensions");
-    if (id === "tool-upload") return t("canvas.toolbar.upload");
     if (id === "tool-add-node") return t("canvas.toolbar.addNode");
     if (id === "tool-style") return t("canvas.toolbar.appearance");
     if (id === "tool-delete") return t("canvas.deleteSelected");

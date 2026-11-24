@@ -35,6 +35,7 @@ export function ConnectionPath({
                 d={pathD}
                 stroke="transparent"
                 strokeWidth="16"
+                vectorEffect="non-scaling-stroke"
                 fill="none"
                 style={{ cursor: "pointer", pointerEvents: "stroke" }}
                 onClick={(event) => {
@@ -50,12 +51,17 @@ export function ConnectionPath({
             <path
                 d={pathD}
                 stroke={active ? theme.node.activeStroke : theme.node.muted}
-                strokeWidth={active ? 3 : 2}
-                strokeOpacity={active ? 1 : 0.82}
+                strokeWidth={active ? 2.8 : 1.5}
+                vectorEffect="non-scaling-stroke"
+                strokeOpacity={active ? 0.95 : 0.62}
                 fill="none"
+                strokeLinecap="round"
+                strokeLinejoin="round"
                 className="motion-safe:transition-[stroke,stroke-width,stroke-opacity] motion-safe:duration-150"
                 style={{ filter: active ? `drop-shadow(0 0 8px ${theme.node.activeStroke}66)` : undefined, pointerEvents: "none" }}
             />
+            <circle cx={startX} cy={startY} r={active ? 3.5 : 2} fill={active ? theme.node.activeStroke : theme.node.muted} fillOpacity={active ? 0.9 : 0.56} vectorEffect="non-scaling-stroke" style={{ pointerEvents: "none" }} />
+            <circle cx={endX} cy={endY} r={active ? 3.5 : 2} fill={active ? theme.node.activeStroke : theme.node.muted} fillOpacity={active ? 0.9 : 0.56} vectorEffect="non-scaling-stroke" style={{ pointerEvents: "none" }} />
         </g>
     );
 }
@@ -75,5 +81,5 @@ export function ActiveConnectionPath({ node, handle, mouseWorld, target }: { nod
     const distance = Math.abs(snappedEndX - snappedStartX);
     const pathD = `M ${snappedStartX} ${snappedStartY} C ${snappedStartX + distance * 0.5} ${snappedStartY}, ${snappedEndX - distance * 0.5} ${snappedEndY}, ${snappedEndX} ${snappedEndY}`;
 
-    return <path d={pathD} stroke={theme.node.activeStroke} strokeWidth={target ? 3 : 2} fill="none" strokeDasharray={target ? undefined : "5,5"} className="motion-safe:transition-[stroke-width] motion-safe:duration-150" />;
+    return <path d={pathD} stroke={theme.node.activeStroke} strokeWidth={target ? 2.8 : 1.8} vectorEffect="non-scaling-stroke" fill="none" strokeDasharray={target ? undefined : "5,5"} className="motion-safe:transition-[stroke-width] motion-safe:duration-150" />;
 }
