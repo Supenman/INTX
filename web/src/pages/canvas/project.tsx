@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import type { ChangeEvent as ReactChangeEvent, DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Group, Video } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -192,6 +192,8 @@ function InfiniteCanvasPage() {
     const nodeRegistryVersion = useNodeRegistryVersion((state) => state.version);
     const params = useParams<{ id: string }>();
     const navigate = useNavigate();
+    const { state: locationState, pathname, search, hash } = useLocation();
+    const homeAgentPrompt: unknown = locationState?.homeAgentPrompt;
     const [searchParams] = useSearchParams();
     const projectId = params.id || "";
     const localAgentConnected = useAgentStore((state) => state.connected);
@@ -574,6 +576,14 @@ function InfiniteCanvasPage() {
         // Resume once after the current canvas is restored, not on later config identity changes.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [projectLoaded]);
+
+    useEffect(() => {
+        if (!projectLoaded || typeof homeAgentPrompt !== "string" || !homeAgentPrompt.trim()) return;
+        const agent = useAgentStore.getState();
+        agent.setAgentState({ prompt: homeAgentPrompt, canvasReferences: [], activeTab: agent.connected ? "chat" : "setup" });
+        openAgentPanel();
+        navigate({ pathname, search, hash }, { replace: true, state: null });
+    }, [hash, homeAgentPrompt, navigate, openAgentPanel, pathname, projectLoaded, search]);
 
     useEffect(() => {
         if (!projectLoaded || !["new", "recent", "choose"].includes(searchParams.get("mode") || "")) return;

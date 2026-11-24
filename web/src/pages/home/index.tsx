@@ -1,13 +1,12 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { BookOpen, Bot, Clapperboard, FolderKanban, Images, ListChecks, Plus, ArrowRight, type LucideIcon } from "lucide-react";
+import { ArrowRight, BookOpen, Clapperboard, FolderKanban, Images, ListChecks, Plus, type LucideIcon } from "lucide-react";
 
 import { SnapshotStorageStatus } from "@/components/layout/snapshot-storage-status";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/layout/empty-state";
 import { CanvasProjectPreview } from "@/components/canvas/canvas-project-card";
-import { useAgentStore } from "@/stores/use-agent-store";
 import { useCanvasStore, type CanvasProject } from "@/stores/canvas/use-canvas-store";
 
 export default function HomePage() {
@@ -16,23 +15,32 @@ export default function HomePage() {
     const hydrated = useCanvasStore((state) => state.hydrated);
     const projects = useCanvasStore((state) => state.projects);
     const createProject = useCanvasStore((state) => state.createProject);
-    const toggleAgentPanel = useAgentStore((state) => state.togglePanel);
-    const recentProjects = useMemo(
-        () => [...projects].sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt)).slice(0, 4),
+    const [agentPrompt, setAgentPrompt] = useState("");
+    const [targetProjectId, setTargetProjectId] = useState("");
+    const sortedProjects = useMemo(
+        () => [...projects].sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt)),
         [projects],
     );
+    const recentProjects = sortedProjects.slice(0, 4);
+    const targetAvailable = !targetProjectId || projects.some((project) => project.id === targetProjectId);
+    const newProject = () => createProject(t("canvas.defaultTitle", { count: projects.length + 1 }));
     const createCanvas = () => {
         if (!hydrated) return;
-        const id = createProject(t("canvas.defaultTitle", { count: projects.length + 1 }));
-        navigate(`/canvas/${id}`);
+        navigate(`/canvas/${newProject()}`);
+    };
+    const startCreation = () => {
+        const prompt = agentPrompt.trim();
+        if (!hydrated || !prompt || !targetAvailable) return;
+        const projectId = targetProjectId || newProject();
+        navigate(`/canvas/${projectId}`, { state: { homeAgentPrompt: prompt } });
     };
     const shortcuts: Array<{ label: string; icon: LucideIcon; action: () => void }> = [
+        { label: t("home.blankCanvas"), icon: Plus, action: createCanvas },
         { label: t("home.shortcuts.projects"), icon: FolderKanban, action: () => navigate("/canvas") },
         { label: t("home.shortcuts.editingStudio"), icon: Clapperboard, action: () => navigate("/editing-studio") },
         { label: t("home.shortcuts.assets"), icon: Images, action: () => navigate("/assets") },
         { label: t("home.shortcuts.skills"), icon: BookOpen, action: () => navigate("/skills") },
         { label: t("home.shortcuts.tasks"), icon: ListChecks, action: () => navigate("/tasks") },
-        { label: t("home.shortcuts.agent"), icon: Bot, action: toggleAgentPanel },
     ];
 
     return (
@@ -40,19 +48,34 @@ export default function HomePage() {
             <main className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-10">
                 <PageHeader title={t("home.title")} description={t("home.description")} actions={<SnapshotStorageStatus kind="projects" />} />
 
-                <button
-                    type="button"
-                    disabled={!hydrated}
-                    onClick={createCanvas}
-                    className="group focus-ring relative mt-4 flex min-h-44 w-full flex-col items-center justify-center overflow-hidden rounded-xl border border-border bg-[var(--surface-card)] px-4 text-center transition hover:bg-[var(--surface-card-hover)] disabled:cursor-wait disabled:opacity-60"
-                    style={{ backgroundImage: "radial-gradient(color-mix(in oklch, var(--muted-foreground) 22%, transparent) 1px, transparent 1.5px)", backgroundSize: "20px 20px" }}
-                >
-                    <span className="flex h-12 w-20 items-center justify-center rounded-2xl bg-foreground text-background shadow-sm motion-safe:transition-transform motion-safe:group-hover:scale-105">
-                        <Plus className="size-7" />
-                    </span>
-                    <span className="mt-3 text-sm font-semibold">{t("home.newCanvas")}</span>
-                    <span className="mt-1 text-xs text-muted-foreground">{t("home.newCanvasHint")}</span>
-                </button>
+                <section className="mt-4 rounded-2xl border border-border bg-[var(--surface-card)] px-4 py-7 sm:px-8 sm:py-9" aria-labelledby="home-agent-title">
+                    <form className="mx-auto max-w-3xl" onSubmit={(event) => { event.preventDefault(); startCreation(); }}>
+                        <h2 id="home-agent-title" className="mb-3 text-xl font-semibold">{t("home.agentHeading")}</h2>
+                        <textarea
+                            aria-labelledby="home-agent-title"
+                            className="focus-ring block w-full resize-y rounded-xl border border-border bg-background px-4 py-3 text-sm leading-relaxed placeholder:text-muted-foreground"
+                            rows={4}
+                            value={agentPrompt}
+                            placeholder={t("home.agentPlaceholder")}
+                            onChange={(event) => setAgentPrompt(event.target.value)}
+                        />
+                        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                            <label className="flex min-w-0 max-w-full items-center gap-2 text-sm text-muted-foreground">
+                                <FolderKanban aria-hidden className="size-4 shrink-0" />
+                                <span className="shrink-0">{t("home.targetProject")}</span>
+                                <select className="focus-ring min-w-0 max-w-48 rounded-lg border border-border bg-background px-2 py-1.5 text-foreground" value={targetProjectId} disabled={!hydrated} onChange={(event) => setTargetProjectId(event.target.value)}>
+                                    <option value="">{t("home.newCanvasShort")}</option>
+                                    {!targetAvailable && <option value={targetProjectId} disabled>{t("home.projectUnavailable")}</option>}
+                                    {sortedProjects.map((project) => <option key={project.id} value={project.id}>{project.title || t("canvas.project.untitled")}</option>)}
+                                </select>
+                            </label>
+                            <button type="submit" disabled={!hydrated || !agentPrompt.trim() || !targetAvailable} className="focus-ring inline-flex items-center gap-2 rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-40 motion-safe:transition-opacity">
+                                {t("home.continueWithAgent")}
+                                <ArrowRight aria-hidden className="size-4" />
+                            </button>
+                        </div>
+                    </form>
+                </section>
 
                 <section className="mt-7" aria-labelledby="home-shortcuts-title">
                     <h2 id="home-shortcuts-title" className="sr-only">{t("home.quickActions")}</h2>
