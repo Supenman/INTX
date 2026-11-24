@@ -46,8 +46,8 @@ export function SnapIndicator({
 				zIndex: TIMELINE_LAYERS.snapIndicator,
 			}}
 		>
-			<div className="bg-primary/65 h-full w-0.5" />
-			<span className="absolute left-1 top-0 whitespace-nowrap rounded bg-primary px-1.5 py-0.5 text-xs text-primary-foreground">
+			<div className="h-full w-0 border-l-2 border-dashed border-primary/80" />
+			<span className="absolute left-1 top-0 whitespace-nowrap rounded border border-primary/50 bg-background px-1.5 py-0.5 text-xs text-foreground shadow-sm">
 				{t(`editingStudio.timeline.snap.${snapPoint.type}`)}
 			</span>
 		</div>

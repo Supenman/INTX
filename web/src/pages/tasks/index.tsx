@@ -1,7 +1,7 @@
 import { Button, Drawer, Input, Segmented, Select, Spin, Tag } from "antd";
 import dayjs from "dayjs";
 import { ArrowUpRight, ClipboardList, Copy, Download, Search } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router-dom";
 
@@ -50,6 +50,8 @@ export default function TasksPage() {
     const [bucket, setBucket] = useState<Bucket>("all");
     const [kind, setKind] = useState<TaskKind | "all">("all");
     const [keyword, setKeyword] = useState("");
+    const [closingTask, setClosingTask] = useState<Task | null>(null);
+    const detailTriggerRef = useRef<HTMLButtonElement | null>(null);
     const [searchParams, setSearchParams] = useSearchParams();
     const selectedId = searchParams.get("task");
     const setSelectedId = (id: string | null) => {
@@ -81,6 +83,7 @@ export default function TasksPage() {
     }, [tasks, bucket, kind, keyword]);
 
     const selected = useMemo(() => tasks.find((task) => task.id === selectedId) ?? null, [tasks, selectedId]);
+    const detailTask = selected ?? closingTask;
 
     const exportDiagnostics = (task: Task) => {
         const { revision: _revision, ...value } = task as Task & { revision?: number };
@@ -96,7 +99,7 @@ export default function TasksPage() {
     const reasonText = (reason: OutcomeReason) => t(`tasks.reason.${reason}`, { defaultValue: reason });
 
     return (
-        <PageShell>
+        <PageShell wide>
             <main className="min-h-0 flex-1 overflow-y-auto">
                 <PageHeader
                     title={t("tasks.title")}
@@ -163,8 +166,11 @@ export default function TasksPage() {
                                     <button
                                         key={task.id}
                                         type="button"
-                                        onClick={() => setSelectedId(task.id)}
-                                        className="focus-ring block w-full rounded-xl border border-border bg-[var(--surface-card)] px-4 py-3 text-left transition hover:bg-[var(--surface-card-hover)]"
+                                        onClick={(event) => {
+                                            detailTriggerRef.current = event.currentTarget;
+                                            setSelectedId(task.id);
+                                        }}
+                                        className="focus-ring block w-full rounded-xl border border-border bg-[var(--surface-card)] px-4 py-3 text-left hover:bg-[var(--surface-card-hover)] focus-visible:bg-[var(--surface-card-hover)] motion-safe:transition-colors"
                                     >
                                         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
                                             <div className="min-w-0 flex-1">
@@ -210,17 +216,25 @@ export default function TasksPage() {
                 </div>
             </main>
 
-            {selected ? (
-                <Drawer
-                    open
-                    size="large"
-                    onClose={() => setSelectedId(null)}
-                    title={`${t(`tasks.kind.${selected.kind}`, { defaultValue: selected.kind })} · ${t(`tasks.status.${selected.status}`)}`}
-                    destroyOnHidden
-                >
-                    <TaskDetail task={selected} reasonText={reasonText} onCopy={copyText} onExport={exportDiagnostics} />
-                </Drawer>
-            ) : null}
+            <Drawer
+                open={Boolean(selected)}
+                size="large"
+                onClose={() => {
+                    setClosingTask(selected);
+                    setSelectedId(null);
+                }}
+                afterOpenChange={(open) => {
+                    if (open) return;
+                    setClosingTask(null);
+                    const trigger = detailTriggerRef.current;
+                    detailTriggerRef.current = null;
+                    if (trigger?.isConnected) trigger.focus({ preventScroll: true });
+                }}
+                title={detailTask && `${t(`tasks.kind.${detailTask.kind}`, { defaultValue: detailTask.kind })} · ${t(`tasks.status.${detailTask.status}`)}`}
+                destroyOnHidden
+            >
+                {detailTask && <TaskDetail task={detailTask} reasonText={reasonText} onCopy={copyText} onExport={exportDiagnostics} />}
+            </Drawer>
         </PageShell>
     );
 }

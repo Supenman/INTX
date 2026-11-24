@@ -36,7 +36,7 @@ export function CanvasGenerationHistoryModal({ nodes, onClose, onLocate, onPrevi
                         const media = node.type === CanvasNodeType.Image || node.type === CanvasNodeType.Video;
                         const status = node.metadata?.status === "success" ? "succeeded" : node.metadata?.status === "loading" ? "running" : "failed";
                         return (
-                            <section key={node.id} className="space-y-2 rounded-lg border border-border p-3">
+                            <section key={node.id} className="space-y-2 rounded-xl border border-border bg-[var(--surface-card)] p-3">
                                 <div className="flex flex-wrap items-center gap-2">
                                     <Tag className="m-0">{t(`canvas.nodeTypes.${node.type}`, { defaultValue: node.type })}</Tag>
                                     {node.metadata?.status && node.metadata.status !== "idle" && <span className="text-xs text-muted-foreground">{t(`tasks.status.${status}`)}</span>}
@@ -48,7 +48,7 @@ export function CanvasGenerationHistoryModal({ nodes, onClose, onLocate, onPrevi
                                 {media && results.length > 0 && (
                                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                                         {results.map(({ id, src, outputNodeId }) => (
-                                            <div key={id ?? node.id} className="flex items-center gap-2 rounded-md border border-border p-2">
+                                            <div key={id ?? node.id} className="flex items-center gap-2 rounded-lg border border-border p-2 focus-within:bg-[var(--surface-card-hover)] hover:bg-[var(--surface-card-hover)] motion-safe:transition-colors">
                                                 {node.type === CanvasNodeType.Image ? <img src={src} alt="" className="size-12 shrink-0 rounded object-cover" /> : <video src={src} preload="metadata" muted className="size-12 shrink-0 rounded object-cover" />}
                                                 <div className="flex flex-wrap gap-1">
                                                     {outputNodeId && <span className="w-full px-1 text-xs text-muted-foreground">{t("canvas.generationHistory.outputNode", { id: outputNodeId })}</span>}

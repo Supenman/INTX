@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Modal, Input } from "antd";
+import { Modal, Input, type InputRef } from "antd";
 import { BookOpen, Bot, Clapperboard, FolderKanban, HardDrive, House, Images, ListChecks, Maximize2, Plus, Search, Settings2, SlidersHorizontal, type LucideIcon } from "lucide-react";
 
 import { useAgentStore } from "@/stores/use-agent-store";
@@ -30,6 +30,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     const navigate = useNavigate();
     const [query, setQuery] = useState("");
     const [activeIndex, setActiveIndex] = useState(0);
+    const inputRef = useRef<InputRef>(null);
     const listRef = useRef<HTMLDivElement>(null);
     const projects = useCanvasStore((state) => state.projects);
     const hydrated = useCanvasStore((state) => state.hydrated);
@@ -40,11 +41,14 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
         onClose();
     }, [onClose]);
 
-    useEffect(() => {
-        if (open) return;
-        setQuery("");
-        setActiveIndex(0);
-    }, [open]);
+    const afterOpenChange = (visible: boolean) => {
+        if (visible) {
+            inputRef.current?.focus({ preventScroll: true });
+        } else {
+            setQuery("");
+            setActiveIndex(0);
+        }
+    };
 
     const go = useCallback((to: string) => {
         navigate(to);
@@ -118,11 +122,32 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
         }
     };
 
+    const onResultKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+        if (isImeComposing(event) || (event.key !== "ArrowDown" && event.key !== "ArrowUp")) return;
+        const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("button[data-index]"));
+        const index = buttons.findIndex((button) => button === document.activeElement);
+        if (index < 0) return;
+        event.preventDefault();
+        const direction = event.key === "ArrowDown" ? 1 : -1;
+        buttons[(index + direction + buttons.length) % buttons.length]?.focus();
+    };
+
     return (
-        <Modal open={open} onCancel={close} footer={null} closable={false} width={560} styles={{ body: { padding: 0 } }} destroyOnHidden>
+        <Modal
+            open={open}
+            onCancel={close}
+            afterOpenChange={afterOpenChange}
+            aria-label={t("commandPalette.open")}
+            focusable={{ focusTriggerAfterClose: true }}
+            footer={null}
+            closable={false}
+            width={560}
+            styles={{ body: { padding: 0 } }}
+            destroyOnHidden
+        >
             <div className="border-b border-border p-3" onKeyDown={onKeyDown}>
                 <Input
-                    autoFocus
+                    ref={inputRef}
                     variant="borderless"
                     prefix={<Search className="size-4 text-muted-foreground" />}
                     placeholder={t("commandPalette.placeholder")}
@@ -130,7 +155,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
                     onChange={(event) => setQuery(event.target.value)}
                 />
             </div>
-            <div ref={listRef} className="max-h-[50vh] overflow-y-auto p-2">
+            <div ref={listRef} onKeyDown={onResultKeyDown} className="max-h-[50vh] overflow-y-auto overscroll-contain p-2">
                 {results.length ? results.map((item, index) => {
                     const Icon = item.icon;
                     return (
@@ -139,9 +164,10 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
                             type="button"
                             data-index={index}
                             onMouseEnter={() => setActiveIndex(index)}
+                            onFocus={() => setActiveIndex(index)}
                             onClick={item.run}
                             className={cn(
-                                "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition",
+                                "focus-ring flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm motion-safe:transition-colors",
                                 index === activeIndex ? "bg-[var(--surface-card-hover)] text-foreground" : "text-muted-foreground",
                             )}
                         >

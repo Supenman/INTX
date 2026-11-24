@@ -56,6 +56,8 @@ export default function AssetsPage() {
     const [isAssetOpen, setIsAssetOpen] = useState(false);
     const [searchParams, setSearchParams] = useSearchParams();
     const previewAsset = assets.find((asset) => asset.id === searchParams.get("asset")) ?? null;
+    const [closingPreviewAsset, setClosingPreviewAsset] = useState<Asset | null>(null);
+    const previewTriggerRef = useRef<HTMLElement | null>(null);
     const setPreviewAsset = (asset: Asset | null) => {
         const next = new URLSearchParams(searchParams);
         if (asset) next.set("asset", asset.id);
@@ -272,7 +274,7 @@ export default function AssetsPage() {
     if (!hydrated) return <main className="flex h-full items-center justify-center bg-background text-foreground"><SnapshotStorageStatus kind="assets" /></main>;
 
     return (
-        <PageShell>
+        <PageShell wide>
             <main className="min-h-0 flex-1 overflow-y-auto">
                 <div>
                     <PageHeader
@@ -293,7 +295,7 @@ export default function AssetsPage() {
                         }
                     />
 
-                    <div className="workspace-toolbar">
+                    <div className="workspace-toolbar" role="group" aria-label={t("assets.type")}>
                         <div className="flex flex-wrap items-center gap-2">
                             <span className="typ-overline mr-1 text-muted-foreground">{t("assets.type")}</span>
                             {kindOptions.map((option) => (
@@ -301,7 +303,7 @@ export default function AssetsPage() {
                                     key={option}
                                     type="button"
                                     aria-pressed={kindFilter === option}
-                                    className={cn("flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm hover:bg-[var(--surface-card-hover)]", kindFilter === option ? "bg-[var(--surface-card-hover)] font-medium text-foreground" : "text-muted-foreground")}
+                                    className={cn("focus-ring flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm hover:bg-[var(--surface-card-hover)] motion-safe:transition-colors", kindFilter === option ? "bg-[var(--surface-card-hover)] font-medium text-foreground" : "text-muted-foreground")}
                                     onClick={() => {
                                         setPage(1);
                                         setKindFilter(option);
@@ -363,9 +365,12 @@ export default function AssetsPage() {
                         </div>
                     )}
 
-                    {visibleAssets.length > 0 && <div className="mt-4 grid grid-cols-1 gap-4 @min-[480px]/workspace:grid-cols-2 @min-[720px]/workspace:grid-cols-3 @min-[960px]/workspace:grid-cols-4">
+                    {visibleAssets.length > 0 && <div className="mt-4 grid grid-cols-[repeat(auto-fill,minmax(min(100%,14rem),1fr))] gap-4">
                         {visibleAssets.map((asset) => (
-                            <AssetCard key={asset.id} asset={asset} selected={selectedIds.has(asset.id)} onSelect={(checked) => setAssetsSelected([asset], checked)} onOpen={() => setPreviewAsset(asset)} onEdit={() => openEdit(asset)} onCopy={copyAssetText} onDownload={downloadImage} onDelete={() => setDeletingAssets([asset])} />
+                            <AssetCard key={asset.id} asset={asset} selected={selectedIds.has(asset.id)} onSelect={(checked) => setAssetsSelected([asset], checked)} onOpen={(trigger) => {
+                                previewTriggerRef.current = trigger;
+                                setPreviewAsset(asset);
+                            }} onEdit={() => openEdit(asset)} onCopy={copyAssetText} onDownload={downloadImage} onDelete={() => setDeletingAssets([asset])} />
                         ))}
                     </div>}
 
@@ -507,7 +512,15 @@ export default function AssetsPage() {
                 />
             </Modal>
 
-            <AssetDrawer asset={previewAsset} onClose={() => setPreviewAsset(null)} onCopy={copyAssetText} onDownload={downloadImage} />
+            <AssetDrawer asset={previewAsset ?? closingPreviewAsset} open={Boolean(previewAsset)} onClose={() => {
+                setClosingPreviewAsset(previewAsset);
+                setPreviewAsset(null);
+            }} onClosed={() => {
+                setClosingPreviewAsset(null);
+                const trigger = previewTriggerRef.current;
+                previewTriggerRef.current = null;
+                if (trigger?.isConnected) trigger.focus({ preventScroll: true });
+            }} onCopy={copyAssetText} onDownload={downloadImage} />
 
             <input ref={assetInputRef} type="file" accept="application/zip,.zip" className="hidden" onChange={(event) => void importAssetZip(event.target.files?.[0])} />
 
@@ -518,7 +531,7 @@ export default function AssetsPage() {
     );
 }
 
-function AssetCard({ asset, selected, onSelect, onOpen, onEdit, onCopy, onDownload, onDelete }: { asset: Asset; selected: boolean; onSelect: (checked: boolean) => void; onOpen: () => void; onEdit: () => void; onCopy: (asset: Asset) => void; onDownload: (asset: Asset) => void; onDelete: () => void }) {
+function AssetCard({ asset, selected, onSelect, onOpen, onEdit, onCopy, onDownload, onDelete }: { asset: Asset; selected: boolean; onSelect: (checked: boolean) => void; onOpen: (trigger: HTMLElement) => void; onEdit: () => void; onCopy: (asset: Asset) => void; onDownload: (asset: Asset) => void; onDelete: () => void }) {
     const { t } = useTranslation();
     useSyncExternalStore(subscribeImagePreviews, getImagePreviewRevision);
     const cover = assetCoverUrl(asset);
@@ -529,9 +542,9 @@ function AssetCard({ asset, selected, onSelect, onOpen, onEdit, onCopy, onDownlo
             className={cn("surface-card-interactive relative overflow-hidden", selected && "ring-2 ring-primary")}
             styles={{ body: { padding: 0 } }}
             cover={
-                <button type="button" className="block w-full text-left" aria-label={asset.title} onClick={onOpen}>
+                <button type="button" className="focus-ring block w-full text-left" aria-label={asset.title} onClick={(event) => onOpen(event.currentTarget)}>
                     {cover ? (
-                        <img src={cover} alt={asset.title} className="aspect-[4/3] w-full object-cover" />
+                        <img src={cover} alt="" loading="lazy" className="aspect-[4/3] w-full object-cover" />
                     ) : (
                         <div className="line-clamp-5 aspect-[4/3] overflow-hidden bg-[var(--surface-sunken)] p-4 text-xs leading-5 break-words whitespace-pre-wrap text-muted-foreground">{asset.kind === "text" ? asset.data.content : t("assets.noCover")}</div>
                     )}
@@ -541,7 +554,7 @@ function AssetCard({ asset, selected, onSelect, onOpen, onEdit, onCopy, onDownlo
             <div className="absolute left-2 top-2 z-10 grid size-7 place-items-center rounded-md border border-border bg-card shadow-sm">
                 <Checkbox checked={selected} aria-label={t("assets.selectAsset", { name: asset.title })} onChange={(event) => onSelect(event.target.checked)} />
             </div>
-            <button type="button" className="block w-full text-left" onClick={onOpen}>
+            <button type="button" className="focus-ring block w-full text-left" onClick={(event) => onOpen(event.currentTarget)}>
                 <div className="p-3.5">
                     <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
@@ -562,7 +575,7 @@ function AssetCard({ asset, selected, onSelect, onOpen, onEdit, onCopy, onDownlo
                 </div>
             </button>
             <div className="flex flex-wrap items-center gap-1.5 border-t border-border/60 px-2.5 py-2">
-                <Button type="text" size="small" onClick={onOpen}>
+                <Button type="text" size="small" onClick={(event) => onOpen(event.currentTarget)}>
                     {t("common.view")}
                 </Button>
                 {asset.kind !== "video" ? (
@@ -584,12 +597,12 @@ function AssetCard({ asset, selected, onSelect, onOpen, onEdit, onCopy, onDownlo
     );
 }
 
-function AssetDrawer({ asset, onClose, onCopy, onDownload }: { asset: Asset | null; onClose: () => void; onCopy: (asset: Asset) => void; onDownload: (asset: Asset) => void }) {
+function AssetDrawer({ asset, open, onClose, onClosed, onCopy, onDownload }: { asset: Asset | null; open: boolean; onClose: () => void; onClosed: () => void; onCopy: (asset: Asset) => void; onDownload: (asset: Asset) => void }) {
     const { t } = useTranslation();
     useSyncExternalStore(subscribeImagePreviews, getImagePreviewRevision);
     const cover = asset ? asset.coverUrl || (asset.kind === "image" ? asset.data.dataUrl : "") : "";
     return (
-        <Drawer title={t("assets.details")} open={Boolean(asset)} size="large" onClose={onClose}>
+        <Drawer title={t("assets.details")} open={open} size="large" onClose={onClose} afterOpenChange={(visible) => { if (!visible) onClosed(); }} destroyOnHidden>
             {asset ? (
                 <div className="space-y-5">
                     {cover ? (
@@ -615,7 +628,7 @@ function AssetDrawer({ asset, onClose, onCopy, onDownload }: { asset: Asset | nu
                         {asset.kind === "text" ? (
                             <Typography.Paragraph className="mt-2 whitespace-pre-wrap">{asset.data.content}</Typography.Paragraph>
                         ) : asset.kind === "video" ? (
-                            <video src={asset.data.url} controls className="mt-2 aspect-video w-full rounded-lg bg-black" />
+                            <video src={asset.data.url} controls ref={(element) => { if (!open) element?.pause(); }} className="mt-2 aspect-video w-full rounded-lg bg-black" />
                         ) : (
                             <Typography.Text className="mt-2 block">
                                 {asset.data.width}x{asset.data.height} · {formatBytes(asset.data.bytes)} · {asset.data.mimeType}

@@ -25,10 +25,10 @@ export function PageHeader({
 }
 
 /** 响应式布局取工作区内容宽度，侧栏折叠后卡片可使用腾出的空间。 */
-export function PageShell({ children }: { children: ReactNode }) {
+export function PageShell({ children, wide = false }: { children: ReactNode; wide?: boolean }) {
     return (
         <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background text-foreground">
-            <div className="@container/workspace mx-auto flex h-full min-h-0 w-full max-w-6xl flex-col px-4 py-5 sm:px-6">{children}</div>
+            <div className={`@container/workspace mx-auto flex h-full min-h-0 w-full flex-col px-4 py-5 sm:px-6 ${wide ? "lg:px-10" : "max-w-6xl"}`}>{children}</div>
         </div>
     );
 }

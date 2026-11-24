@@ -72,7 +72,7 @@ export default {
     },
     apiErrors: { runningHubChannel: "RunningHub 渠道地址无效，请在配置里选择 RunningHub 格式", runningHubVideoModel: "当前 RunningHub 渠道支持 Vidu Q2 Pro Fast 图生视频", runningHubUpload: "RunningHub 参考图上传失败", runningHubSingleImage: "RunningHub Vidu 图生视频需要且只支持一张参考图", requestFailed: "请求失败", requestCanceled: "请求已取消", baseUrlRequired: "请先配置 Base URL", apiKeyRequired: "请先配置 API Key", authenticationFailed: "鉴权失败，请检查 API Key、套餐权限或模型权限", rateLimited: "请求被限流或额度不足，请稍后重试", notFound: "接口地址不存在（404），请检查 Base URL 和模型选择", badGateway: "网关错误（502），接口服务暂时不可用，请稍后重试", serviceBusy: "服务繁忙（503），请稍后重试", httpFailed: "请求失败（HTTP {{status}}），请检查 Base URL 和 API Key 是否正确", htmlError: "服务返回了 HTML 错误页面（{{preview}}）", imageTimeout: "生图请求超时，接口长时间没有返回，请稍后重试或更换渠道", audioModelRequired: "请先配置音频模型", audioGenerationFailed: "音频生成失败", scriptNoAudio: "模型调用脚本没有返回音频", geminiAudioUnsupported: "Gemini 调用格式暂不支持音频生成，请使用 OpenAI 格式渠道", invalidImageSizeFormat: "图像尺寸格式不支持，请使用 auto、9:16 或 1024x1024", positiveImageRatio: "图像比例必须是正数，例如 9:16", imageRatioLimit: "图像宽高比不能超过 3:1，请调整尺寸", positiveImageDimensions: "图像尺寸必须是正整数，例如 1024x1024", imageDimensionStep: "图像尺寸的宽高必须是 16 的倍数，请调整尺寸", imageEdgeLimit: "图像尺寸最长边不能超过 3840px，请调整尺寸", imagePixelLimit: "图像总像素需在 655360 到 8294400 之间，请调整尺寸", unknownImageResponse: "接口返回了未知格式的数据（字段：{{fields}}），请检查模型或接口兼容性", noImageReturned: "接口没有返回图片，请检查提示词是否触发安全审核或模型是否支持该操作", geminiRejected: "Gemini 拒绝了本次请求：{{reason}}", geminiNoImage: "Gemini 接口没有返回图片", maskModelUnsupported: "蒙版编辑暂不支持该模型，请使用其他渠道", noContent: "没有返回内容", modelReadFailed: "读取模型失败", videoTimeout: "等待视频结果超时，原任务可能仍在运行。请获取任务状态。", pluginVideoExpired: "插件视频任务已失效，请重新生成", scriptNoVideo: "模型调用脚本没有返回视频", noPlayableVideo: "视频接口没有返回可播放的视频", noVideoTaskId: "视频接口没有返回任务 ID", videoTaskCreateFailed: "视频任务创建失败", videoGenerationFailed: "视频生成失败", videoTaskQueryFailed: "视频任务查询失败", videoPromptRequired: "请输入视频提示词，或连接参考图片/视频/音频", referenceImageReadFailed: "参考图读取失败，请换一张图片或重新上传", invalidReferenceVideo: "参考视频必须是公网 URL、资产 ID，或本地已保存的视频", invalidReferenceAudio: "参考音频必须是公网 URL、资产 ID，或本地已保存的音频", videoModelRequired: "请先配置视频模型", geminiVideoUnsupported: "Gemini 调用格式暂不支持视频生成，请使用 OpenAI 格式渠道", noVideoTask: "接口没有返回视频任务", videoSaveFailed: "视频已生成，但无法保存到本地", videoDownloadFailed: "视频下载失败", localAssetReadFailed: "读取本地资产失败" },
     assets: {
-        title: "我的资产",
+        title: "资产",
         description: "收藏常用文本和图片，按类型、标题和标签快速查找。",
         search: "搜索标题、内容、标签或来源",
         type: "类型",
@@ -279,7 +279,7 @@ export default {
         expandPanel: "展开面板",
         home: "主页",
         docs: "文档",
-        projects: "我的画布",
+        projects: "项目",
         deleteCurrent: "删除当前画布",
         // 顶栏这条实际是「选图片/视频/音频并在画布上建节点」，和资产库无关。
         // 原来叫「导入资产」，与资产页那条（导入 zip 进资产库）同名不同义。
@@ -335,7 +335,7 @@ export default {
             filter: { image: "图片", video: "视频", text: "文本", audio: "音频", group: "分组" },
         },
         assetPicker: { open: "从资产库插入", title: "选择资产", insertSelected: "插入所选", selected: "已选 {{count}} 项", insertFailed: "无法插入所选素材，请确认素材文件可用后重试。", search: "搜索资产", empty: "没有资产" },
-        contextMenu: { copySelection: "复制选中节点", deleteSelection: "删除选中节点", paste: "粘贴到此处" },
+        contextMenu: { label: "画布右键菜单", copySelection: "复制选中节点", deleteSelection: "删除选中节点", paste: "粘贴到此处" },
         imageTools: { copyPrompt: "复制提示词", copyPromptTitle: "复制生成该图片的提示词", reversePrompt: "反推提示词", reversePromptTitle: "创建反推提示词的文本节点", replace: "替换图片", locked: "锁比例", free: "自由比例", lockTitle: "切换为等比缩放", freeTitle: "切换为自由比例", mask: "局部编辑", maskTitle: "添加蒙版遮罩后局部修改", crop: "裁剪", cropTitle: "裁剪并生成新节点", split: "切图", splitTitle: "按行列切分图片", upscale: "放大", upscaleTitle: "放大图片分辨率", superResolve: "超分", superResolveTitle: "AI 超分", angle: "多角度", angleTitle: "生成角度", preset: "预设", presetTitle: "基于这张图生成三视图、分镜或多机位", view: "查看大图", viewTitle: "查看图片详情", more: "更多", configure: "配置快捷工具", customize: "自定义工具栏", showLabels: "显示按钮文字", description: "选择你想在图片节点编辑栏中使用的快捷工具。", preview: "节点预览", imageNode: "图片节点", quickTools: "快捷工具" },
         nodeToolbar: { noPrompt: "暂无可复制的提示词", prompt: "提示词", imageCount: "{{count}} 张", infoTitle: "查看节点信息", info: "信息", retryTitle: "重新生成", queryVideoTask: "获取任务状态", queryVideoTaskTitle: "使用任务 ID 查询视频生成状态", videoTaskId: "任务 ID", saveAsset: "存资产", downloadAudio: "下载音频", downloadVideo: "下载视频", downloadImage: "下载图片", editTextTitle: "编辑文本", editText: "编辑文字", decreaseFont: "减小字号", increaseFont: "增大字号", zoomOut: "缩小", zoomIn: "放大", uploadImage: "上传图片", replaceVideo: "替换视频", uploadVideo: "上传视频", replaceAudio: "替换音频", uploadAudio: "上传音频", nodeInfo: "节点信息", name: "名称", type: "类型", size: "尺寸", position: "位置", status: "状态", imageGroup: "图片组", imageSize: "图片大小", alignLeft: "左对齐", alignCenterX: "水平居中", alignRight: "右对齐", alignTop: "顶对齐", alignCenterY: "垂直居中", alignBottom: "底对齐", distributeHorizontal: "水平等距", distributeVertical: "垂直等距", alignGroupTitle: "对齐与分布", group: "打组", groupTitle: "用组节点包住选中节点", ungroup: "解散组", ungroupTitle: "取消节点分组" },
         referenceLabels: { video: "参考视频", audio: "参考音频", text: "文本 {{index}}", imagePreview: "引用图片预览" },
@@ -421,11 +421,11 @@ export default {
     },
     navigation: {
         home: "首页",
-        canvas: "我的画布",
+        canvas: "项目",
         "editing-studio": "剪辑台",
         image: "生图工作台",
         video: "视频创作台",
-        assets: "我的资产",
+        assets: "资产",
         skills: "技能",
         tasks: "任务中心",
         config: "配置",
@@ -439,7 +439,7 @@ export default {
         newCanvas: "新建画布创作",
         newCanvasHint: "创建一张空白画布，开始组织想法与素材",
         quickActions: "快速入口",
-        shortcuts: { canvas: "自由画布", projects: "项目库", editingStudio: "剪辑台", assets: "我的资产", skills: "技能中心", tasks: "任务中心", agent: "INTX Agent" },
+        shortcuts: { canvas: "自由画布", projects: "项目", editingStudio: "剪辑台", assets: "资产", skills: "技能中心", tasks: "任务中心", agent: "INTX Agent" },
         recentProjects: "最近项目",
         viewAllProjects: "查看全部",
         newCanvasShort: "新建项目",
@@ -447,6 +447,7 @@ export default {
         emptyProjectsHint: "新建画布后会显示在这里。",
     },
     editingStudio: {
+        importProgress: "正在导入素材 · {{done}} / {{total}}",
         timeline: { newTrack: "新轨道", thisTrack: "当前轨道", clips: "{{count}} 个片段", snap: { "element-start": "吸附到片段起点", "element-end": "吸附到片段终点", playhead: "吸附到播放头", bookmark: "吸附到书签", keyframe: "吸附到关键帧" } },
         thisCanvasOnly: "仅当前画布",
         title: "INTX 剪辑台", loading: "正在打开剪辑台…", loadFailed: "剪辑台项目加载失败：{{message}}", back: "返回画布", renameProject: "重命名剪辑项目", projectRenamed: "剪辑项目已重命名", renameFailed: "重命名失败，请重试。", importFromLibrary: "从素材库导入", libraryTitle: "从 INTX 素材库导入", libraryHint: "选择图片或视频素材，导入后可拖到下方时间线编辑。原素材仍保留在 INTX 素材库。", importSelected: "导入所选", imported: "已导入", emptyLibrary: "素材库中还没有图片或视频", assetMissing: "找不到素材文件：{{name}}", assetImportFailed: "导入素材失败：{{name}}", assetImportFailedGeneric: "素材导入失败，请重试。", importSuccess: "已导入 {{count}} 个素材", backToCanvas: "返回画布", libraryFromCanvas: "已为「{{title}}」置顶 {{count}} 个素材", libraryFromCanvasEmpty: "「{{title}}」还没有归档的素材，先回画布用「归档到资产库」。", fromCanvasFallback: "当前画布",

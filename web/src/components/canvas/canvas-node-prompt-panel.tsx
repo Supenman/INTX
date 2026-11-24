@@ -195,7 +195,7 @@ export function CanvasNodePromptPanel({ node, nodes, connections, selectingRefer
                     <span className="flex items-center gap-1.5">
                         {isRunning ? (
                             <>
-                                <LoaderCircle className="size-4 animate-spin" />
+                                <LoaderCircle aria-hidden className="size-4 motion-safe:animate-spin" />
                                 <Square className="size-3.5 fill-current" />
                                 <span className="text-xs font-medium">{t("canvas.promptPanel.stop")}</span>
                             </>
@@ -209,9 +209,9 @@ export function CanvasNodePromptPanel({ node, nodes, connections, selectingRefer
                 </Button>
             </div>
             {(waiting || canQuery || retryBlocked || node.metadata?.status === "error") && (
-                <div role="status" className="mt-2 space-y-1 text-xs" style={{ color: theme.node.muted }}>
+                <div role="status" className="mt-2 space-y-1 rounded-lg border border-border bg-[var(--surface-sunken)] px-2.5 py-2 text-xs" style={{ color: theme.node.muted }}>
                     <p className="font-medium">{t(isRunning ? "canvas.node.generating" : canQueryImage ? "canvas.generationHistory.imageTaskPending" : canQuery ? "canvas.promptPanel.resumeVideo" : waiting ? "canvas.node.generating" : retryBlocked ? "canvas.node.retryBlockedHint" : "canvas.node.failed")}</p>
-                    {!waiting && node.metadata?.errorDetails && <p className="max-h-14 overflow-y-auto wrap-break-word" title={node.metadata.errorDetails}>{node.metadata.errorDetails}</p>}
+                    {!waiting && node.metadata?.errorDetails && <p className="max-h-14 overflow-y-auto wrap-break-word text-destructive" title={node.metadata.errorDetails}>{node.metadata.errorDetails}</p>}
                 </div>
             )}
             <Modal title={t("canvas.promptPanel.editorTitle")} open={expanded} centered width={760} footer={null} onCancel={() => setExpanded(false)} destroyOnHidden>

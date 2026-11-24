@@ -1,5 +1,6 @@
-import { Bot, House, PanelLeftClose, PanelLeftOpen, Plus, Search, type LucideIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, House, Plus, type LucideIcon } from "lucide-react";
 import { Button } from "antd";
+import { motion, useReducedMotion } from "motion/react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
@@ -32,12 +33,8 @@ export function AppTopNav() {
     const agentConnected = useAgentStore((state) => state.connected);
     const connectAgent = useAgentStore((state) => state.connectAgent);
     const connectLocalAgent = useAgentStore((state) => state.connectLocalAgent);
-    const togglePanel = useAgentStore((state) => state.togglePanel);
-    const panelOpen = useAgentStore((state) => state.panelOpen);
-    const commandShortcut = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl+K";
     const hideSidebar = /^\/canvas\/[^/]+/.test(pathname) || pathname === "/editing-studio";
     const sidebarLabel = t(collapsed ? "topNav.expandSidebar" : "topNav.collapseSidebar");
-    const itemLayout = collapsed ? "justify-center" : "gap-3 px-3";
     const toggleSidebar = () => {
         setCollapsed(!collapsed);
         try {
@@ -70,7 +67,7 @@ export function AppTopNav() {
     return (
         <>
             {!hideSidebar ? (
-                <aside className={cn("z-30 flex h-full shrink-0 flex-col overflow-y-auto border-r border-border/70 bg-[var(--surface-card)] py-4", collapsed ? "w-16 px-2" : "w-60 px-3")}>
+                <aside className={cn("z-30 flex h-full shrink-0 flex-col overflow-x-hidden overflow-y-auto border-r border-border/70 bg-[var(--surface-card)] py-4 motion-safe:transition-[width,padding] motion-safe:duration-200 motion-safe:ease-out [&_:focus-visible]:outline-2 [&_:focus-visible]:-outline-offset-2 [&_:focus-visible]:outline-current", collapsed ? "w-[4.5rem] px-2.5" : "w-60 px-3")}>
                     <div className={cn("flex h-10 shrink-0 items-center", collapsed ? "justify-center" : "justify-between px-2")}>
                         {!collapsed && <Link to="/" className="flex items-center gap-2 text-foreground transition hover:opacity-75">
                             <span
@@ -79,15 +76,15 @@ export function AppTopNav() {
                             />
                             <span className="text-base font-semibold tracking-tight">INTX</span>
                         </Link>}
-                        <button type="button" title={sidebarLabel} aria-label={sidebarLabel} onClick={toggleSidebar} className="grid size-8 place-items-center rounded-lg text-muted-foreground hover:bg-[var(--surface-card-hover)] hover:text-foreground">
-                            {collapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
+                        <button type="button" title={sidebarLabel} aria-label={sidebarLabel} aria-expanded={!collapsed} aria-controls="workspace-navigation" onClick={toggleSidebar} className="grid size-8 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-[var(--surface-card-hover)] hover:text-foreground">
+                            {collapsed ? <ChevronRight aria-hidden className="size-4" /> : <ChevronLeft aria-hidden className="size-4" />}
                         </button>
                     </div>
 
                     <Button
-                        type="primary"
+                        type="text"
                         icon={<Plus className="size-4" />}
-                        className={cn("!mt-5 !h-10 shrink-0 !font-medium", !collapsed && "!justify-start")}
+                        className={cn("!mt-3 !h-9 !w-full shrink-0 !bg-[color-mix(in_srgb,var(--foreground)_15%,var(--surface-card))] !font-medium !text-foreground hover:!bg-[color-mix(in_srgb,var(--foreground)_20%,var(--surface-card))]", !collapsed && "!justify-start")}
                         aria-label={t("home.newCanvas")}
                         title={collapsed ? t("home.newCanvas") : undefined}
                         onClick={() => navigate("/canvas?mode=new")}
@@ -95,20 +92,7 @@ export function AppTopNav() {
                         {!collapsed && t("home.newCanvas")}
                     </Button>
 
-                    <nav className="mt-5 flex shrink-0 flex-col gap-1 pb-3">
-                        <button
-                            type="button"
-                            onClick={() => setPaletteOpen(true)}
-                            className={cn("flex h-10 items-center rounded-lg text-sm text-muted-foreground transition hover:bg-[var(--surface-card-hover)] hover:text-foreground", itemLayout)}
-                            aria-label={t("commandPalette.open")}
-                            title={collapsed ? `${t("commandPalette.search")} (${commandShortcut})` : undefined}
-                        >
-                            <Search className="size-4 shrink-0" />
-                            {!collapsed && <>
-                                <span className="flex-1 truncate text-left">{t("commandPalette.search")}</span>
-                                <kbd className="shrink-0 rounded border border-border px-1 text-[11px] font-normal text-muted-foreground">{commandShortcut}</kbd>
-                            </>}
-                        </button>
+                    <nav id="workspace-navigation" className="mt-4 flex shrink-0 flex-col gap-1 pb-3">
                         <SidebarLink to="/" icon={House} label={t("navigation.home")} active={pathname === "/"} collapsed={collapsed} />
                         {navigationTools.map((tool) => {
                             const to = "to" in tool ? tool.to : `/${tool.slug}`;
@@ -116,26 +100,9 @@ export function AppTopNav() {
                         })}
                     </nav>
 
-                    <div className="mt-auto shrink-0 border-t border-border/70 pt-3">
-                        <button
-                            type="button"
-                            onClick={togglePanel}
-                            className={cn(
-                                "relative flex h-10 w-full items-center rounded-lg text-sm transition hover:bg-[var(--surface-card-hover)]",
-                                itemLayout,
-                                panelOpen && "bg-[var(--surface-card-hover)]",
-                            )}
-                            aria-label={t(panelOpen ? "topNav.closeAgent" : "topNav.openAgent")}
-                            title={collapsed ? "INTX Agent" : undefined}
-                        >
-                            <Bot className="size-4" />
-                            {!collapsed && <span className="flex-1 text-left">INTX Agent</span>}
-                            <span aria-label={agentConnected ? t("agent.status.connected") : t("agent.status.disconnected")} className={cn("size-2 rounded-full", collapsed && "absolute right-2 top-2", agentConnected ? "bg-emerald-500" : "bg-muted-foreground/40")} />
-                        </button>
-                        <div className={cn("mt-3 flex px-2", collapsed && "justify-center")}>
-                            <UserStatusActions showConfig={false} stacked={collapsed} />
-                        </div>
-                    </div>
+                    <footer className={cn("mt-auto flex shrink-0 border-t border-border/70 pt-2", collapsed ? "justify-center" : "px-2")}>
+                        <UserStatusActions showConfig={false} stacked={collapsed} />
+                    </footer>
                 </aside>
             ) : null}
             <AppConfigModal />
@@ -156,6 +123,7 @@ function isNavigationToolActive(to: string, pathname: string, search: string) {
 }
 
 function SidebarLink({ to, icon: Icon, label, active, collapsed }: { to: string; icon: LucideIcon; label: string; active: boolean; collapsed: boolean }) {
+    const reduceMotion = useReducedMotion();
     return (
         <Link
             to={to}
@@ -163,12 +131,22 @@ function SidebarLink({ to, icon: Icon, label, active, collapsed }: { to: string;
             aria-label={collapsed ? label : undefined}
             title={collapsed ? label : undefined}
             className={cn(
-                "flex h-10 items-center rounded-lg text-sm transition",
+                "relative isolate flex h-9 items-center rounded-lg text-sm motion-safe:transition-colors",
                 collapsed ? "justify-center" : "gap-3 px-3",
-                active ? "bg-[var(--surface-card-hover)] font-medium text-foreground" : "text-muted-foreground hover:bg-[var(--surface-card-hover)] hover:text-foreground",
+                active
+                    ? "font-medium text-foreground"
+                    : "text-muted-foreground hover:bg-[color-mix(in_srgb,var(--foreground)_7%,var(--surface-card))] hover:text-foreground focus-visible:bg-[color-mix(in_srgb,var(--foreground)_7%,var(--surface-card))] active:bg-[color-mix(in_srgb,var(--foreground)_10%,var(--surface-card))]",
             )}
         >
-            <Icon className="size-4 shrink-0" />
+            {active && (
+                <motion.span
+                    aria-hidden
+                    layoutId={reduceMotion ? undefined : "intx-sidebar-current-page"}
+                    transition={{ type: "spring", stiffness: 420, damping: 36 }}
+                    className="pointer-events-none absolute inset-0 -z-10 rounded-[inherit] bg-[color-mix(in_srgb,var(--foreground)_5%,var(--surface-card))]"
+                />
+            )}
+            <Icon aria-hidden className="size-4 shrink-0" />
             {!collapsed && <span className="truncate">{label}</span>}
         </Link>
     );

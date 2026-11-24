@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import localforage from "localforage";
-import { App, Button, Checkbox, Input, Modal, Segmented, Spin } from "antd";
+import { App, Button, Checkbox, Input, Modal, Segmented, Spin, type InputRef } from "antd";
 import { ArrowLeft, Check, Clapperboard, Import, Image as ImageIcon, Pencil, Search, Video, X } from "lucide-react";
 import { Toaster } from "sonner";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -81,8 +81,10 @@ function EditorWorkspace() {
     const [libraryQuery, setLibraryQuery] = useState("");
     const [libraryKind, setLibraryKind] = useState<(typeof libraryKinds)[number]>("all");
     const [canvasOnly, setCanvasOnly] = useState(false);
-    const [importing, setImporting] = useState(false);
+    const [importProgress, setImportProgress] = useState<{ done: number; total: number } | null>(null);
+    const importing = importProgress !== null;
     const importInFlight = useRef(false);
+    const librarySearchRef = useRef<InputRef>(null);
     const [renaming, setRenaming] = useState(false);
     const [projectName, setProjectName] = useState(activeProject?.metadata.name || "");
     const importedSourceIds = useMemo(() => new Set(editorAssets.map((asset) => asset.sourceAssetId).filter((id): id is string => Boolean(id))), [editorAssets]);
@@ -108,6 +110,13 @@ function EditorWorkspace() {
     const closeLibrary = () => {
         if (importInFlight.current) return;
         setLibraryOpen(false);
+    };
+
+    const afterLibraryOpenChange = (open: boolean) => {
+        if (open) {
+            librarySearchRef.current?.focus({ preventScroll: true });
+            return;
+        }
         setSelectedIds([]);
         setLibraryQuery("");
         setLibraryKind("all");
@@ -129,7 +138,7 @@ function EditorWorkspace() {
     const importSelected = async () => {
         if (!activeProject || importInFlight.current || !chosenAssets.length) return;
         importInFlight.current = true;
-        setImporting(true);
+        setImportProgress({ done: 0, total: chosenAssets.length });
         let imported = 0;
         let completed = false;
         try {
@@ -146,6 +155,7 @@ function EditorWorkspace() {
                 const saved = await editor.media.addMediaAsset({ projectId: activeProject.metadata.id, asset: { ...processed, sourceAssetId: asset.id } });
                 if (!saved) throw new Error(t("editingStudio.assetImportFailed", { name: asset.title }));
                 imported += 1;
+                setImportProgress({ done: imported, total: chosenAssets.length });
                 setSelectedIds((ids) => ids.filter((id) => id !== asset.id));
             }
             completed = true;
@@ -153,7 +163,7 @@ function EditorWorkspace() {
             message.error(error instanceof Error ? error.message : t("editingStudio.assetImportFailedGeneric"));
         } finally {
             importInFlight.current = false;
-            setImporting(false);
+            setImportProgress(null);
             if (completed) closeLibrary();
             if (imported) message.success(t("editingStudio.importSuccess", { count: imported }));
         }
@@ -179,25 +189,26 @@ function EditorWorkspace() {
             <div className="min-h-0 flex-1">
                 <EditorLayout />
             </div>
-            <Modal title={t("editingStudio.libraryTitle")} width={660} open={libraryOpen} onCancel={closeLibrary} onOk={() => void importSelected()} okText={`${t("editingStudio.importSelected")} (${chosenAssets.length})`} cancelText={t("common.cancel")} confirmLoading={importing} okButtonProps={{ disabled: !chosenAssets.length }} cancelButtonProps={{ disabled: importing }} closable={!importing}>
+            <Modal title={t("editingStudio.libraryTitle")} width={660} open={libraryOpen} afterOpenChange={afterLibraryOpenChange} onCancel={closeLibrary} onOk={() => void importSelected()} okText={`${t("editingStudio.importSelected")} (${chosenAssets.length})`} cancelText={t("common.cancel")} confirmLoading={importing} okButtonProps={{ disabled: !chosenAssets.length }} cancelButtonProps={{ disabled: importing }} closable={!importing} keyboard={!importing} mask={{ closable: !importing }}>
                 <p className="mb-3 text-sm text-muted-foreground">{t("editingStudio.libraryHint")}</p>
+                {importProgress && <p role="status" className="mb-3 rounded-md bg-[var(--surface-sunken)] px-3 py-2 text-sm">{t("editingStudio.importProgress", importProgress)}</p>}
                 {fromCanvasId ? (
                     <p className="mb-3 text-xs text-muted-foreground">
                         {fromCanvasCount ? t("editingStudio.libraryFromCanvas", { count: fromCanvasCount, title: fromCanvasTitle || t("editingStudio.fromCanvasFallback") }) : t("editingStudio.libraryFromCanvasEmpty", { title: fromCanvasTitle || t("editingStudio.fromCanvasFallback") })}
                     </p>
                 ) : null}
                 <div className="mb-3 flex flex-wrap items-center gap-2">
-                    <Input className="!w-auto min-w-40 flex-1" allowClear value={libraryQuery} aria-label={t("assets.search")} placeholder={t("assets.search")} prefix={<Search className="size-4 text-muted-foreground" />} onChange={(event) => setLibraryQuery(event.target.value)} />
-                    <Segmented<(typeof libraryKinds)[number]> value={libraryKind} onChange={setLibraryKind} options={libraryKinds.map((value) => ({ value, label: t(value === "all" ? "common.all" : `assets.kinds.${value}`) }))} />
-                    {fromCanvasCount > 0 && <Checkbox checked={canvasOnly} onChange={(event) => setCanvasOnly(event.target.checked)}>{t("editingStudio.thisCanvasOnly")}</Checkbox>}
+                    <Input ref={librarySearchRef} className="!w-auto min-w-40 flex-1" disabled={importing} allowClear value={libraryQuery} aria-label={t("assets.search")} placeholder={t("assets.search")} prefix={<Search className="size-4 text-muted-foreground" />} onChange={(event) => setLibraryQuery(event.target.value)} />
+                    <Segmented<(typeof libraryKinds)[number]> disabled={importing} value={libraryKind} onChange={setLibraryKind} options={libraryKinds.map((value) => ({ value, label: t(value === "all" ? "common.all" : `assets.kinds.${value}`) }))} />
+                    {fromCanvasCount > 0 && <Checkbox disabled={importing} checked={canvasOnly} onChange={(event) => setCanvasOnly(event.target.checked)}>{t("editingStudio.thisCanvasOnly")}</Checkbox>}
                 </div>
-                <div className="max-h-[48vh] divide-y divide-border overflow-y-auto">
+                <div aria-busy={importing} className="max-h-[48vh] divide-y divide-border overflow-y-auto overscroll-contain">
                     {visibleLibraryAssets.map((asset) => {
                         const alreadyImported = importedSourceIds.has(asset.id);
                         const cover = assetCoverUrl(asset);
                         const Icon = asset.kind === "image" ? ImageIcon : Video;
                         return (
-                            <Checkbox key={asset.id} className="!m-0 flex w-full items-center gap-2 py-2 [&>span:last-child]:min-w-0 [&>span:last-child]:flex-1" disabled={importing || alreadyImported} checked={alreadyImported || selectedIds.includes(asset.id)} onChange={(event) => setSelectedIds((ids) => event.target.checked ? [...ids, asset.id] : ids.filter((id) => id !== asset.id))}>
+                            <Checkbox key={asset.id} className="!m-0 flex w-full items-center gap-2 rounded-md px-2 py-2 focus-within:bg-[var(--surface-card-hover)] hover:bg-[var(--surface-card-hover)] [&>span:last-child]:min-w-0 [&>span:last-child]:flex-1" disabled={importing || alreadyImported} checked={alreadyImported || selectedIds.includes(asset.id)} onChange={(event) => setSelectedIds((ids) => event.target.checked ? [...ids, asset.id] : ids.filter((id) => id !== asset.id))}>
                                 <span className="flex min-w-0 items-center gap-3">
                                     <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-md bg-[var(--surface-sunken)] text-muted-foreground">
                                         {cover ? <img src={cover} alt="" className="size-full object-cover" /> : <Icon aria-hidden className="size-4" />}

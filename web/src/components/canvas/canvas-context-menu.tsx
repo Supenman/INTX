@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { motion, useReducedMotion } from "motion/react";
 import { BetweenHorizontalStart, ClipboardPaste, Copy, GalleryHorizontalEnd, GalleryHorizontal, Group, History, Images, Music2, Plus, Trash2, Ungroup } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -100,8 +101,15 @@ export function CanvasBackgroundContextMenu({ menu, canPaste, onClose, onAdd, on
 }
 
 function CanvasContextMenuSurface({ menu, onClose, children }: { menu: ContextMenuState; onClose: () => void; children: ReactNode }) {
+    const { t } = useTranslation();
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const ref = useRef<HTMLDivElement>(null);
+    const previousFocus = useRef<HTMLElement | null>(null);
+    const reduceMotion = useReducedMotion();
+    useLayoutEffect(() => {
+        previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        ref.current?.focus({ preventScroll: true });
+    }, []);
     useLayoutEffect(() => {
         const place = () => {
             const element = ref.current;
@@ -122,11 +130,33 @@ function CanvasContextMenuSurface({ menu, onClose, children }: { menu: ContextMe
         return () => window.removeEventListener("pointerdown", closeOutside);
     }, [onClose]);
     return createPortal(
-        <div ref={ref} data-canvas-no-zoom className="fixed z-[80] max-h-[calc(100dvh-1rem)] min-w-44 overflow-y-auto rounded-xl border py-1 shadow-2xl"
+        <motion.div ref={ref} role="menu" aria-label={t("canvas.contextMenu.label")} tabIndex={-1}
+            initial={reduceMotion ? false : { opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.14 }}
+            data-canvas-no-zoom className="fixed z-[80] max-h-[calc(100dvh-1rem)] min-w-44 origin-top-left overflow-y-auto rounded-xl border py-1 shadow-2xl"
             style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text }}
+            onKeyDown={(event) => {
+                if (event.key === "Escape" || event.key === "Tab") {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onClose();
+                    previousFocus.current?.focus({ preventScroll: true });
+                    return;
+                }
+                if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+                event.preventDefault();
+                event.stopPropagation();
+                const items = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'));
+                if (!items.length) return;
+                const current = items.findIndex((item) => item === document.activeElement);
+                let next = 0;
+                if (event.key === "End") next = items.length - 1;
+                if (event.key === "ArrowDown") next = (current + 1) % items.length;
+                if (event.key === "ArrowUp") next = current <= 0 ? items.length - 1 : current - 1;
+                items[next]?.focus();
+            }}
             onPointerDown={(event) => event.stopPropagation()}>
             {children}
-        </div>,
+        </motion.div>,
         document.body,
     );
 }
@@ -135,7 +165,7 @@ function MenuButton({ icon, label, onClick, danger = false }: { icon: ReactNode;
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
 
     return (
-        <button type="button" className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors hover:bg-[var(--surface-card-hover)]" style={{ color: danger ? "var(--destructive)" : theme.node.text }} onClick={onClick}>
+        <button type="button" role="menuitem" tabIndex={-1} className="focus-ring flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-[var(--surface-card-hover)] focus-visible:bg-[var(--surface-card-hover)] motion-safe:transition-colors" style={{ color: danger ? "var(--destructive)" : theme.node.text }} onClick={onClick}>
             {icon}
             <span>{label}</span>
         </button>

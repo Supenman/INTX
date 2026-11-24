@@ -72,7 +72,7 @@ export default {
     },
     apiErrors: { runningHubChannel: "Invalid RunningHub channel URL. Select the RunningHub format in settings.", runningHubVideoModel: "This RunningHub channel supports Vidu Q2 Pro Fast image-to-video.", runningHubUpload: "RunningHub reference image upload failed", runningHubSingleImage: "RunningHub Vidu image-to-video requires exactly one reference image", requestFailed: "Request failed", requestCanceled: "Request canceled", baseUrlRequired: "Configure the Base URL first", apiKeyRequired: "Configure the API key first", authenticationFailed: "Authentication failed. Check the API key, plan permissions, and model permissions.", rateLimited: "The request was rate-limited or the quota is insufficient. Try again later.", notFound: "The endpoint was not found (404). Check the Base URL and selected model.", badGateway: "Gateway error (502). The API service is temporarily unavailable.", serviceBusy: "Service unavailable (503). Try again later.", httpFailed: "Request failed (HTTP {{status}}). Check the Base URL and API key.", htmlError: "The service returned an HTML error page ({{preview}})", imageTimeout: "The image request timed out. The endpoint did not respond in time; retry later or switch channels.", audioModelRequired: "Configure an audio model first", audioGenerationFailed: "Audio generation failed", scriptNoAudio: "The model request script did not return audio", geminiAudioUnsupported: "The Gemini API format does not support audio generation. Use an OpenAI-format provider.", invalidImageSizeFormat: "Unsupported image size. Use auto, 9:16, or 1024x1024.", positiveImageRatio: "The image ratio must use positive numbers, such as 9:16.", imageRatioLimit: "The image aspect ratio cannot exceed 3:1. Adjust the dimensions.", positiveImageDimensions: "Image dimensions must be positive integers, such as 1024x1024.", imageDimensionStep: "Image width and height must be multiples of 16.", imageEdgeLimit: "The longest image edge cannot exceed 3840px.", imagePixelLimit: "The total image pixel count must be between 655360 and 8294400.", unknownImageResponse: "The API returned data in an unknown format (fields: {{fields}}). Check model or API compatibility.", noImageReturned: "The API did not return an image. The prompt may have triggered safety review or the model may not support this operation.", geminiRejected: "Gemini rejected the request: {{reason}}", geminiNoImage: "The Gemini API did not return an image", maskModelUnsupported: "This model does not support mask editing. Use another provider.", noContent: "No content returned", modelReadFailed: "Failed to load models", videoTimeout: "Timed out waiting for the video. The original task may still be running. Check its status.", pluginVideoExpired: "The plugin video task has expired. Generate it again.", scriptNoVideo: "The model request script did not return a video", noPlayableVideo: "The video API did not return a playable video", noVideoTaskId: "The video API did not return a task ID", videoTaskCreateFailed: "Failed to create video task", videoGenerationFailed: "Video generation failed", videoTaskQueryFailed: "Failed to query video task", videoPromptRequired: "Enter a video prompt or connect a reference image, video, or audio asset", referenceImageReadFailed: "Failed to read the reference image. Choose another image or upload it again.", invalidReferenceVideo: "A reference video must be a public URL, asset ID, or locally saved video", invalidReferenceAudio: "Reference audio must be a public URL, asset ID, or locally saved audio file", videoModelRequired: "Configure a video model first", geminiVideoUnsupported: "The Gemini API format does not support video generation. Use an OpenAI-format provider.", noVideoTask: "The API did not return a video task", videoSaveFailed: "The video was generated but could not be saved locally", videoDownloadFailed: "Failed to download video", localAssetReadFailed: "Failed to read local asset" },
     assets: {
-        title: "My Assets",
+        title: "Assets",
         description: "Save frequently used text and images, then find them quickly by type, title, or tag.",
         search: "Search titles, content, tags, or sources",
         type: "Type",
@@ -279,7 +279,7 @@ export default {
         expandPanel: "Expand panel",
         home: "Home",
         docs: "Documentation",
-        projects: "My Canvases",
+        projects: "Projects",
         deleteCurrent: "Delete current canvas",
         // This menu item actually picks image/video/audio and creates canvas nodes;
         // it has nothing to do with the asset library. It used to share the label
@@ -336,7 +336,7 @@ export default {
             filter: { image: "Image", video: "Video", text: "Text", audio: "Audio", group: "Group" },
         },
         assetPicker: { open: "Insert from asset library", title: "Select assets", insertSelected: "Insert selected", selected: "{{count}} selected", insertFailed: "Could not insert the selected assets. Check that the files are available and try again.", search: "Search assets", empty: "No assets" },
-        contextMenu: { copySelection: "Copy selected nodes", deleteSelection: "Delete selected nodes", paste: "Paste here" },
+        contextMenu: { label: "Canvas context menu", copySelection: "Copy selected nodes", deleteSelection: "Delete selected nodes", paste: "Paste here" },
         imageTools: { copyPrompt: "Copy prompt", copyPromptTitle: "Copy the prompt used to generate this image", reversePrompt: "Reverse prompt", reversePromptTitle: "Create a text node to infer the prompt", replace: "Replace image", locked: "Lock ratio", free: "Free ratio", lockTitle: "Switch to proportional scaling", freeTitle: "Switch to free resizing", mask: "Local edit", maskTitle: "Paint a mask and edit the selected area", crop: "Crop", cropTitle: "Crop into a new node", split: "Split", splitTitle: "Split the image by rows and columns", upscale: "Upscale", upscaleTitle: "Increase image resolution", superResolve: "Super resolution", superResolveTitle: "AI super resolution", angle: "Multi-angle", angleTitle: "Generate another angle", preset: "Presets", presetTitle: "Generate three-view sheets, a storyboard or multi-camera shots from this image", view: "View image", viewTitle: "View image details", more: "More", configure: "Configure quick tools", customize: "Customize toolbar", showLabels: "Show button labels", description: "Choose the quick tools shown in the image-node toolbar.", preview: "Node preview", imageNode: "Image node", quickTools: "Quick tools" },
         nodeToolbar: { noPrompt: "No prompt to copy", prompt: "Prompt", imageCount: "{{count}} images", infoTitle: "View node information", info: "Info", retryTitle: "Generate again", queryVideoTask: "Get task status", queryVideoTaskTitle: "Query video generation status by task ID", videoTaskId: "Task ID", saveAsset: "Save asset", downloadAudio: "Download audio", downloadVideo: "Download video", downloadImage: "Download image", editTextTitle: "Edit text", editText: "Edit text", decreaseFont: "Decrease font size", increaseFont: "Increase font size", zoomOut: "Smaller", zoomIn: "Larger", uploadImage: "Upload image", replaceVideo: "Replace video", uploadVideo: "Upload video", replaceAudio: "Replace audio", uploadAudio: "Upload audio", nodeInfo: "Node information", name: "Name", type: "Type", size: "Size", position: "Position", status: "Status", imageGroup: "Image group", imageSize: "Image size", alignLeft: "Align left", alignCenterX: "Align center", alignRight: "Align right", alignTop: "Align top", alignCenterY: "Align middle", alignBottom: "Align bottom", distributeHorizontal: "Distribute horizontally", distributeVertical: "Distribute vertically", alignGroupTitle: "Align & distribute", group: "Group", groupTitle: "Wrap selected nodes in a group", ungroup: "Ungroup", ungroupTitle: "Remove grouping from selected nodes" },
         referenceLabels: { video: "Reference videos", audio: "Reference audio", text: "Text {{index}}", imagePreview: "Referenced image preview" },
@@ -422,11 +422,11 @@ export default {
     },
     navigation: {
         home: "Home",
-        canvas: "My Canvases",
+        canvas: "Projects",
         "editing-studio": "Editing Studio",
         image: "Image Studio",
         video: "Video Studio",
-        assets: "My Assets",
+        assets: "Assets",
         skills: "Skills",
         tasks: "Tasks",
         config: "Settings",
@@ -440,7 +440,7 @@ export default {
         newCanvas: "Create a canvas",
         newCanvasHint: "Start with a blank canvas for your ideas and media",
         quickActions: "Quick access",
-        shortcuts: { canvas: "Free canvas", projects: "Projects", editingStudio: "Editing studio", assets: "My assets", skills: "Skills", tasks: "Tasks", agent: "INTX Agent" },
+        shortcuts: { canvas: "Free canvas", projects: "Projects", editingStudio: "Editing studio", assets: "Assets", skills: "Skills", tasks: "Tasks", agent: "INTX Agent" },
         recentProjects: "Recent projects",
         viewAllProjects: "View all",
         newCanvasShort: "New project",
@@ -448,6 +448,7 @@ export default {
         emptyProjectsHint: "New canvases will appear here.",
     },
     editingStudio: {
+        importProgress: "Importing assets · {{done}} / {{total}}",
         timeline: { newTrack: "New track", thisTrack: "Current track", clips: "{{count}} clips", snap: { "element-start": "Snapped to clip start", "element-end": "Snapped to clip end", playhead: "Snapped to playhead", bookmark: "Snapped to bookmark", keyframe: "Snapped to keyframe" } },
         thisCanvasOnly: "This canvas only",
         title: "INTX Editing Studio", loading: "Opening the editing studio…", loadFailed: "Failed to load the editing project: {{message}}", back: "Back to canvas", renameProject: "Rename editing project", projectRenamed: "Editing project renamed", renameFailed: "Rename failed. Try again.", importFromLibrary: "Import from library", libraryTitle: "Import from INTX Assets", libraryHint: "Choose images or videos, then drag them to the timeline. The original assets remain in INTX.", importSelected: "Import selected", imported: "Imported", emptyLibrary: "No images or videos in the asset library yet", assetMissing: "Could not find media file: {{name}}", assetImportFailed: "Failed to import media: {{name}}", assetImportFailedGeneric: "Media import failed. Try again.", importSuccess: "Imported {{count}} assets", backToCanvas: "Back to canvas", libraryFromCanvas: "{{count}} assets from “{{title}}” listed first", libraryFromCanvasEmpty: "“{{title}}” has no archived assets yet — use “Archive to assets” on the canvas first.", fromCanvasFallback: "current canvas",

@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 
 import { AppConfigPanel } from "@/components/layout/app-config-modal";
 import { ConfigComfyUI } from "@/components/layout/config-comfyui";
-import { PageHeader, PageShell } from "@/components/layout/page-header";
+import { PageHeader } from "@/components/layout/page-header";
 import { runtime } from "@/lib/runtime/capabilities";
 import { configSectionForTab } from "@/constant/navigation-tools";
 import type { ConfigTabKey } from "@/stores/use-config-store";
@@ -24,11 +24,11 @@ export default function ConfigPage() {
     };
 
     return (
-        <PageShell>
-            <main className="min-h-0 flex-1 overflow-y-auto">
-                <div className="pb-6">
+        <div className="@container/workspace flex h-full min-w-0 flex-col overflow-hidden bg-background text-foreground">
+            <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6 lg:px-10">
+                <div className="min-w-0 pb-6">
                     <PageHeader title={t(`navigation.${section.slug}`)} description={t(`config.sectionDescription.${section.slug}`)} />
-                    <div className="surface-card mt-5 p-5">
+                    <div className="mt-5 min-w-0">
                         <AppConfigPanel initialTab={tab} visibleTabs={section.tabs} onTabChange={handleTabChange} />
                     </div>
                     {runtime === "desktop" && (
@@ -38,6 +38,6 @@ export default function ConfigPage() {
                     )}
                 </div>
             </main>
-        </PageShell>
+        </div>
     );
 }

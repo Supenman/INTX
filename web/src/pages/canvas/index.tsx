@@ -140,7 +140,7 @@ export default function CanvasPage() {
             <main className="min-h-0 flex-1 overflow-y-auto">
                 <div className="pb-4">
                     <PageHeader
-                        title={t("canvas.title")}
+                        title={t("navigation.canvas")}
                         description={t("canvas.description")}
                         actions={
                             <>

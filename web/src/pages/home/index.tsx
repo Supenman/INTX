@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { BookOpen, Bot, Clapperboard, FolderKanban, Images, ListChecks, Plus, ArrowRight, type LucideIcon } from "lucide-react";
 
 import { SnapshotStorageStatus } from "@/components/layout/snapshot-storage-status";
-import { PageHeader, PageShell } from "@/components/layout/page-header";
+import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/layout/empty-state";
 import { CanvasProjectPreview } from "@/components/canvas/canvas-project-card";
 import { useAgentStore } from "@/stores/use-agent-store";
@@ -36,8 +36,8 @@ export default function HomePage() {
     ];
 
     return (
-        <PageShell>
-            <main className="min-h-0 flex-1 overflow-y-auto pb-4">
+        <div className="@container/workspace flex h-full min-w-0 flex-col overflow-hidden bg-background text-foreground">
+            <main className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-10">
                 <PageHeader title={t("home.title")} description={t("home.description")} actions={<SnapshotStorageStatus kind="projects" />} />
 
                 <button
@@ -47,7 +47,7 @@ export default function HomePage() {
                     className="group focus-ring relative mt-4 flex min-h-44 w-full flex-col items-center justify-center overflow-hidden rounded-xl border border-border bg-[var(--surface-card)] px-4 text-center transition hover:bg-[var(--surface-card-hover)] disabled:cursor-wait disabled:opacity-60"
                     style={{ backgroundImage: "radial-gradient(color-mix(in oklch, var(--muted-foreground) 22%, transparent) 1px, transparent 1.5px)", backgroundSize: "20px 20px" }}
                 >
-                    <span className="flex size-14 items-center justify-center rounded-2xl bg-foreground text-background shadow-sm transition-transform group-hover:scale-105">
+                    <span className="flex h-12 w-20 items-center justify-center rounded-2xl bg-foreground text-background shadow-sm motion-safe:transition-transform motion-safe:group-hover:scale-105">
                         <Plus className="size-7" />
                     </span>
                     <span className="mt-3 text-sm font-semibold">{t("home.newCanvas")}</span>
@@ -56,15 +56,17 @@ export default function HomePage() {
 
                 <section className="mt-7" aria-labelledby="home-shortcuts-title">
                     <h2 id="home-shortcuts-title" className="sr-only">{t("home.quickActions")}</h2>
-                    <div className="grid grid-cols-1 gap-3 @min-[420px]/workspace:grid-cols-2 @min-[680px]/workspace:grid-cols-3">
+                    <div className="grid grid-cols-2 gap-3 @min-[420px]/workspace:grid-cols-3 @min-[720px]/workspace:grid-cols-6">
                         {shortcuts.map(({ label, icon: Icon, action }) => (
                             <button
                                 key={label}
                                 type="button"
                                 onClick={action}
-                                className="group focus-ring flex min-h-14 items-center gap-3 rounded-xl border border-border bg-[var(--surface-card)] px-4 text-left text-sm transition hover:bg-[var(--surface-card-hover)]"
+                                className="group focus-ring flex min-w-0 flex-col items-center gap-2 rounded-xl p-1 text-center text-sm"
                             >
-                                <Icon className="size-4 shrink-0 text-muted-foreground group-hover:text-foreground" />
+                                <span className="grid h-14 w-full max-w-24 place-items-center rounded-2xl bg-[var(--surface-card)] text-muted-foreground group-hover:bg-[var(--surface-card-hover)] group-hover:text-foreground motion-safe:transition-colors">
+                                    <Icon aria-hidden className="size-5" />
+                                </span>
                                 <span>{label}</span>
                             </button>
                         ))}
@@ -81,7 +83,7 @@ export default function HomePage() {
                     {!hydrated ? (
                         <div aria-busy="true" className="min-h-28 rounded-xl bg-[var(--surface-sunken)]" />
                     ) : recentProjects.length ? (
-                        <div className="grid grid-cols-1 gap-4 @min-[480px]/workspace:grid-cols-2 @min-[960px]/workspace:grid-cols-4">
+                        <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,16rem),1fr))] gap-4">
                             {recentProjects.map((project) => <RecentProject key={project.id} project={project} locale={i18n.resolvedLanguage || "zh-CN"} />)}
                         </div>
                     ) : (
@@ -89,16 +91,18 @@ export default function HomePage() {
                     )}
                 </section>
             </main>
-        </PageShell>
+        </div>
     );
 }
 
 function RecentProject({ project, locale }: { project: CanvasProject; locale: string }) {
     const { t } = useTranslation();
     return (
-        <Link to={`/canvas/${project.id}`} className="group focus-ring min-w-0 rounded-xl border border-border bg-[var(--surface-card)] p-3 text-left transition hover:bg-[var(--surface-card-hover)]">
-            <CanvasProjectPreview project={project} />
-            <span className="mt-2 flex items-center gap-2">
+        <Link to={`/canvas/${project.id}`} className="group focus-ring flex min-w-0 items-center gap-3 rounded-2xl border border-border bg-[var(--surface-card)] p-1.5 pr-3 text-left hover:bg-[var(--surface-card-hover)] motion-safe:transition-colors">
+            <div className="w-24 shrink-0">
+                <CanvasProjectPreview project={project} />
+            </div>
+            <span className="flex min-w-0 flex-1 items-center gap-2">
                 <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-semibold text-foreground">{project.title}</span>
                     <span className="typ-caption mt-1 block text-muted-foreground">

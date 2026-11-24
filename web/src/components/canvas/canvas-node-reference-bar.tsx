@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { getNodeDefinition } from "@/lib/canvas/node-registry";
 import { buildCanvasResourceReferences, getGroupResourceNodes } from "@/lib/canvas/canvas-resource-references";
+import { cn } from "@/lib/utils";
 import { getImagePreviewRevision, previewUrlFor, subscribeImagePreviews } from "@/services/image-storage";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { CanvasNodeType, type CanvasNodeData } from "@/types/canvas";
@@ -26,7 +27,7 @@ export function CanvasNodeReferenceBar({ nodeId, nodes, connectedNodes, actions,
                 {references.length > 0 && <span>{t("canvas.references.count", { count: references.length })}</span>}
                 <div className="ml-auto flex items-center gap-1">
                     {onStartSelection && (
-                        <button type="button" className="inline-flex items-center gap-1 rounded-md px-2 py-1 transition hover:opacity-70" style={{ color: theme.node.text }} aria-pressed={Boolean(selecting)} onClick={selecting ? onFinishSelection : () => onStartSelection(nodeId)}>
+                        <button type="button" className={cn("focus-ring inline-flex items-center gap-1 rounded-md border border-transparent px-2 py-1 hover:bg-[var(--surface-card-hover)] motion-safe:transition-colors", selecting && "border-primary/50 bg-primary/10")} style={{ color: theme.node.text }} aria-pressed={Boolean(selecting)} onClick={selecting ? onFinishSelection : () => onStartSelection(nodeId)}>
                             <Link2 className="size-3.5" />
                             {t(selecting ? "canvas.references.finish" : "canvas.references.add")}
                         </button>
@@ -34,7 +35,7 @@ export function CanvasNodeReferenceBar({ nodeId, nodes, connectedNodes, actions,
                     {actions}
                 </div>
             </div>
-            {selecting ? <p role="status" className="mb-2 text-xs" style={{ color: theme.node.muted }}>{t("canvas.references.selectingHint")}</p> : null}
+            {selecting ? <p role="status" className="mb-2 rounded-md border border-primary/30 bg-primary/5 px-2 py-1.5 text-xs" style={{ color: theme.node.text }}>{t("canvas.references.selectingHint")}</p> : null}
             {references.length > 0 && (
                 <div className="thin-scrollbar flex min-h-12 gap-2 overflow-x-auto pb-1">
                     {references.map(({ node, sourceNodeId, index, first }) => {
@@ -74,12 +75,12 @@ function ReferenceItem({ node, frame, controls, onRemove }: { node: CanvasNodeDa
     const Icon = resource?.kind === "image" || node.type === CanvasNodeType.Image ? ImageIcon : resource?.kind === "video" || node.type === CanvasNodeType.Video ? Video : resource?.kind === "audio" || node.type === CanvasNodeType.Audio ? Music2 : resource?.kind === "text" || node.type === CanvasNodeType.Text ? FileText : Puzzle;
     return (
         <Popover placement="topLeft" trigger={["hover", "focus"]} mouseEnterDelay={0.15} content={<div data-canvas-no-zoom onPointerDown={(event) => event.stopPropagation()}><ReferencePreview node={node} content={content} />{controls}</div>}>
-            <div tabIndex={0} aria-label={frame ? `${frame} · ${node.title}` : node.title} className="group relative grid size-12 shrink-0 place-items-center rounded-xl border" style={{ background: theme.toolbar.activeBg, borderColor: theme.toolbar.border }}>
+            <div tabIndex={0} aria-label={frame ? `${frame} · ${node.title}` : node.title} className="group focus-ring relative grid size-12 shrink-0 place-items-center rounded-xl border" style={{ background: theme.toolbar.activeBg, borderColor: theme.toolbar.border }}>
                 <span className="grid size-full place-items-center overflow-hidden rounded-[inherit]">
                     {(resource?.kind === "image" || node.type === CanvasNodeType.Image) && thumbnail ? <img src={thumbnail} alt="" className="size-full object-cover" /> : (resource?.kind === "video" || node.type === CanvasNodeType.Video) && content ? <video src={content} className="size-full object-cover" muted /> : <Icon className="size-4 opacity-65" />}
                 </span>
                 {frame && <span className="absolute inset-x-0 bottom-0 truncate rounded-b-xl px-1 text-center typ-micro" style={{ background: theme.toolbar.panel }}>{frame}</span>}
-                <button type="button" className="absolute right-0 top-0 grid size-5 place-items-center rounded-full border opacity-0 shadow-sm transition-opacity group-hover:opacity-100 focus-visible:opacity-100" style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border }} aria-label={t("canvas.references.disconnect")} title={t("canvas.references.disconnect")} onMouseDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); onRemove(); }}><X className="size-3" /></button>
+                <button type="button" className="focus-ring absolute right-0 top-0 grid size-5 place-items-center rounded-full border opacity-0 shadow-sm group-hover:opacity-100 group-focus-within:opacity-100 motion-safe:transition-opacity" style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border }} aria-label={t("canvas.references.disconnect")} title={t("canvas.references.disconnect")} onMouseDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); onRemove(); }}><X className="size-3" /></button>
             </div>
         </Popover>
     );
