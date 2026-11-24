@@ -47,7 +47,9 @@ export function ModelPicker({ config, value, onChange, capability, className, fu
         >
             <SelectTrigger
                 className={cn(
-                    "canvas-composer-model-picker h-8 w-fit max-w-full gap-2 rounded-full border border-input bg-transparent px-3 text-sm font-normal shadow-sm transition-colors",
+                    // 画布内选择器与相邻参数控件保持同一视觉层级：方块圆角、填充底、无描边。
+                    // 药丸 + 描边会在面板里显得比参数控件更"重要"，抢走生成按钮的焦点。
+                    "canvas-composer-model-picker h-8 w-fit max-w-full gap-2 rounded-[var(--r-md)] border border-transparent bg-[var(--surface-card-hover)] px-2.5 text-[length:var(--fs-body)] font-normal transition-colors",
                     fullWidth ? "w-full min-w-0 justify-start" : "min-w-[9rem] justify-start",
                     "data-[state=open]:border-ring data-[state=open]:ring-2 data-[state=open]:ring-ring/20",
                     className,

@@ -25,6 +25,10 @@ export const canvasThemes = {
             text: "#111827",
             muted: "#4b5563",
             faint: "#9ca3af",
+            // 节点静止/悬停阴影：静态卡片只用一层浅影，选中时才加深，
+            // 否则整屏节点都带重阴影，画布看起来发灰。
+            shadow: "0 6px 18px rgba(15,23,42,.08)",
+            hoverShadow: "0 10px 24px rgba(15,23,42,.12)",
         },
         toolbar: {
             panel: "rgba(255,255,255,.94)",
@@ -54,6 +58,9 @@ export const canvasThemes = {
             text: "#ededed",
             muted: "#a3a3a3",
             faint: "#666666",
+            // 暗色下阴影几乎不可见，改用更深的投影叠加提亮，保证卡片边缘可辨。
+            shadow: "0 6px 18px rgba(0,0,0,.36)",
+            hoverShadow: "0 10px 26px rgba(0,0,0,.46)",
         },
         toolbar: {
             panel: "rgba(20,20,20,.97)",

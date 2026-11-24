@@ -361,12 +361,13 @@ export const CanvasNode = React.memo(function CanvasNode({
             )}
 
             <div
-                className="relative h-full w-full overflow-visible rounded-3xl border-2"
+                className="relative h-full w-full overflow-visible rounded-[var(--r-lg)] border"
                 style={{
                     background: isGroup ? "transparent" : hasImageContent || hasVideoContent || transparentBg ? "transparent" : theme.node.fill,
+                    // 静止/媒体节点用透明描边占位：选中时只换颜色不换宽度，避免边界跳动。
                     borderColor: isGroup ? (isGroupDropTarget || isActive ? selectionBlue : theme.node.stroke) : hasImageContent ? imageBorderColor : isActive ? selectionBlue : isRelated ? theme.node.muted : transparentBg ? "transparent" : theme.node.stroke,
                     borderStyle: isGroup ? "dashed" : "solid",
-                    boxShadow: isGroupDropTarget ? `0 0 0 2px ${selectionBlue}66, inset 0 0 0 999px ${selectionBlue}10` : isActive ? `0 0 0 1px ${selectionBlue}55` : isRelated ? `0 0 0 1px ${theme.node.muted}55, 0 18px 48px rgba(0,0,0,.14)` : undefined,
+                    boxShadow: isGroupDropTarget ? `0 0 0 2px ${selectionBlue}66, inset 0 0 0 999px ${selectionBlue}10` : isActive ? `0 0 0 1px ${selectionBlue}55, ${theme.node.hoverShadow}` : isRelated ? `0 0 0 1px ${theme.node.muted}55, ${theme.node.hoverShadow}` : hasImageContent || transparentBg ? undefined : theme.node.shadow,
                 }}
                 onMouseDown={(event) => {
                     if (!referenceSelectionState) onMouseDown(event, data.id);
@@ -567,7 +568,7 @@ function TextContent({ node, theme, isEditingContent, textareaRef, mentionRefere
                       .filter((text) => text.id !== primaryTextId)
                       .map((text, index) => <ExpandedTextCard key={text.id} node={node} text={text} index={index} onSetPrimary={() => onSetBatchPrimary?.(text.id)} />)
                 : null}
-            <div className="flex h-full w-full flex-col overflow-hidden rounded-3xl">
+            <div className="flex h-full w-full flex-col overflow-hidden rounded-[var(--r-lg)]">
                 {isEditingContent ? (
                     <CanvasResourceMentionTextarea
                         ref={textareaRef}
@@ -631,7 +632,7 @@ function ExpandedTextCard({ node, text, index, onSetPrimary }: { node: CanvasNod
 
     return (
         <div
-            className="absolute z-20 overflow-hidden rounded-3xl border shadow-[0_18px_50px_rgba(15,23,42,.14)]"
+            className="absolute z-20 overflow-hidden rounded-[var(--r-lg)] border shadow-[var(--shadow-lg)]"
             style={
                 {
                     left: x,
@@ -723,7 +724,7 @@ function VideoNodeContent({ node, theme }: NodeContentRendererProps) {
                 {broken ? <span className="text-[10px] opacity-70">{t("canvas.node.videoRetryHint")}</span> : null}
             </div>
         );
-    return <video src={node.metadata.content} controls className="h-full w-full rounded-[18px] bg-black object-contain" style={{ filter: colorGradeFilter(node.metadata.colorGrade) }} data-canvas-video={node.id} data-canvas-no-zoom onError={() => setPlaybackFailed(true)} />;
+    return <video src={node.metadata.content} controls className="h-full w-full rounded-[var(--r-lg)] bg-black object-contain" style={{ filter: colorGradeFilter(node.metadata.colorGrade) }} data-canvas-video={node.id} data-canvas-no-zoom onError={() => setPlaybackFailed(true)} />;
 }
 
 function AudioNodeContent({ node, theme }: NodeContentRendererProps) {
@@ -798,7 +799,7 @@ function ImageContent({
                       .filter((image) => image.id !== primaryImageId)
                       .map((image, index) => <ExpandedImageCard key={image.id} node={node} image={image} index={index} scale={scale} onView={() => onViewBatchImage?.(image.id)} onSetPrimary={() => onSetBatchPrimary?.(image.id)} onDuplicate={() => onDuplicateBatchImage?.(image.id)} onDownload={() => onDownloadBatchImage?.(image.id)} onRetry={() => onRetryBatchImage?.(image.id)} onDelete={() => onDeleteBatchImage?.(image.id)} />)
                 : null}
-            <div className="h-full w-full overflow-hidden rounded-3xl">
+            <div className="h-full w-full overflow-hidden rounded-[var(--r-lg)]">
                 {primaryContent ? (
                     <img
                         src={primarySource}
@@ -867,7 +868,7 @@ function ExpandedImageCard({ node, image, index, scale, onView, onSetPrimary, on
 
     return (
         <div
-            className={`absolute z-20 overflow-hidden rounded-3xl ${image.content ? "" : "border shadow-[0_18px_50px_rgba(15,23,42,.18)]"}`}
+            className={`absolute z-20 overflow-hidden rounded-[var(--r-lg)] ${image.content ? "" : "border shadow-[var(--shadow-lg)]"}`}
             style={
                 {
                     left: x,

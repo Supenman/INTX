@@ -107,7 +107,7 @@ export function CanvasNodePromptPanel({ node, nodes, connections, selectingRefer
         <div
             data-canvas-no-zoom
             data-canvas-prompt-panel
-            className="rounded-2xl border p-3.5 shadow-xl backdrop-blur"
+            className="rounded-[var(--r-lg)] border p-3.5 shadow-[var(--shadow-lg)] backdrop-blur"
             style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text }}
             onMouseDown={(event) => event.stopPropagation()}
             onPointerDown={(event) => event.stopPropagation()}
@@ -134,82 +134,85 @@ export function CanvasNodePromptPanel({ node, nodes, connections, selectingRefer
             {inputStatus.length > 0 && (
                 <div className="mb-2 space-y-1" role="status">
                     <div className="flex flex-wrap gap-1.5">
-                        {inputStatus.map(({ id, kind, actual, needed }, index) => (
-                            <span key={`${id}:${index}`} className="rounded-md border px-2 py-0.5 text-xs tabular-nums" style={{ borderColor: theme.toolbar.border, color: actual < needed ? "var(--destructive)" : theme.node.muted }}>
-                                {t(`canvas.promptPanel.requiredMedia.${kind}`, { actual: Math.min(actual, needed), needed })}
-                            </span>
-                        ))}
+                        {/* 摘要 chip 用填充底而非描边：描边看起来像告警，而这里多数情况是"够用"的正常状态。 */}
+                        {inputStatus.map(({ id, kind, actual, needed }, index) => {
+                            const short = actual < needed;
+                            return (
+                                <span key={`${id}:${index}`} className="inline-flex h-6 items-center gap-1 rounded-[var(--r-sm)] px-2 tabular-nums text-[length:var(--fs-label)]" style={{ background: theme.toolbar.activeBg, color: short ? "var(--destructive)" : theme.node.muted }}>
+                                    {t(`canvas.promptPanel.requiredMedia.${kind}`, { actual: Math.min(actual, needed), needed })}
+                                </span>
+                            );
+                        })}
                     </div>
-                    {missingMedia && !canQuery && <p className="text-xs" style={{ color: theme.node.muted }}>{t("canvas.promptPanel.missingMedia")}</p>}
+                    {missingMedia && !canQuery && <p className="text-[length:var(--fs-caption)]" style={{ color: theme.node.muted }}>{t("canvas.promptPanel.missingMedia")}</p>}
                 </div>
             )}
-            <CanvasPromptChipInput
-                value={prompt}
-                references={mentionReferences}
-                onChange={updatePrompt}
-                onSubmit={submit}
-                className="thin-scrollbar h-[var(--intx-panel-composer,10rem)] w-full cursor-text resize-none rounded-xl px-3 py-2.5 text-sm leading-5 outline-none"
-                style={{ background: "transparent", color: theme.node.text }}
-                placeholder={t(`canvas.promptPanel.${mode === "image" && hasImageContent ? "editImage" : mode === "text" && hasTextContent ? "editText" : mode}`)}
-            />
+            {/* 输入区独立成块：BeefTV 的 composer 用一块填充底把「写提示词」和「调参数」分开，
+                这里沿用同样层次，让用户一眼看出哪块是输入、哪块是设置。 */}
+            <div className="rounded-[var(--r-md)]" style={{ background: theme.toolbar.activeBg }}>
+                <CanvasPromptChipInput
+                    value={prompt}
+                    references={mentionReferences}
+                    onChange={updatePrompt}
+                    onSubmit={submit}
+                    className="thin-scrollbar h-[var(--intx-panel-composer,10rem)] w-full cursor-text resize-none rounded-[var(--r-md)] px-3 py-2.5 text-[length:var(--fs-body)] leading-6 outline-none"
+                    style={{ background: "transparent", color: theme.node.text }}
+                    placeholder={t(`canvas.promptPanel.${mode === "image" && hasImageContent ? "editImage" : mode === "text" && hasTextContent ? "editText" : mode}`)}
+                />
+            </div>
 
-            <div className="mt-2 flex min-w-0 flex-wrap items-end justify-between gap-2 border-t pt-2" style={{ borderColor: theme.toolbar.border }}>
-                <div className="flex min-w-0 flex-wrap items-center gap-1">
-                    {mode === "image" ? (
-                        <>
-                            <ModelPicker config={config} value={config.model} onChange={(model) => onConfigChange(node.id, { model })} capability="image" onMissingConfig={() => openConfigDialog(true)} className="max-w-[190px]" />
-                            {modelWorkflowOf(config, config.model) ? <CanvasWorkflowSettings config={config} onChange={(workflowValues) => onConfigChange(node.id, { workflowValues })} /> : <CanvasImageSettingsPopover
+            {/* 参数区纵向分组：模型独占一行（它最长、最常改），参数与生成按钮同一行。 */}
+            <div className="mt-2 space-y-1.5">
+                <div className="flex min-w-0 items-center gap-1.5">
+                    {/* 模型选择器对四种模式只是能力不同，统一一处渲染，避免分支漂移。 */}
+                    <ModelPicker config={config} value={config.model} onChange={(model) => onConfigChange(node.id, { model })} capability={mode} onMissingConfig={() => openConfigDialog(true)} className="min-w-0 flex-1 max-w-none" />
+                </div>
+                <div className="flex min-w-0 items-center gap-1.5 border-t pt-1.5" style={{ borderColor: theme.toolbar.border }}>
+                    <div className="flex min-w-0 flex-wrap items-center gap-1">
+                        {mode === "image" ? (
+                            modelWorkflowOf(config, config.model) ? <CanvasWorkflowSettings config={config} onChange={(workflowValues) => onConfigChange(node.id, { workflowValues })} /> : <CanvasImageSettingsPopover
                                 config={config}
                                 placement="topLeft"
-                                buttonClassName="!h-9 !max-w-[170px] !justify-start !rounded-full !px-3"
+                                buttonClassName="!h-[var(--control-h-sm)] !max-w-[170px] !justify-start !rounded-[var(--r-md)] !px-2.5"
                                 onConfigChange={(key, value) => onConfigChange(node.id, key === "count" ? { count: Number(value) || 1 } : { [key]: value })}
                                 onMissingConfig={() => openConfigDialog(true)}
                                 onOpenChange={onImageSettingsOpenChange}
-                            />}
-                        </>
-                    ) : mode === "video" ? (
-                        <>
-                            <ModelPicker config={config} value={config.model} onChange={(model) => onConfigChange(node.id, { model })} capability="video" onMissingConfig={() => openConfigDialog(true)} className="max-w-[190px]" />
-                            {modelWorkflowOf(config, config.model) ? <CanvasWorkflowSettings config={config} onChange={(workflowValues) => onConfigChange(node.id, { workflowValues })} /> : <CanvasVideoSettingsPopover config={config} buttonClassName="!h-9 !max-w-[220px] !justify-start !rounded-full !px-3" onConfigChange={(key, value) => onConfigChange(node.id, videoConfigPatch(key, value))} />}
-                        </>
-                    ) : mode === "audio" ? (
-                        <>
-                            <ModelPicker config={config} value={config.model} onChange={(model) => onConfigChange(node.id, { model })} capability="audio" onMissingConfig={() => openConfigDialog(true)} className="max-w-[190px]" />
-                            <CanvasAudioSettingsPopover config={config} buttonClassName="!h-9 !max-w-[170px] !justify-start !rounded-full !px-3" onConfigChange={(key, value) => onConfigChange(node.id, audioConfigPatch(key, value))} />
-                        </>
-                    ) : (
-                        <>
-                            <ModelPicker config={config} value={config.model} onChange={(model) => onConfigChange(node.id, { model })} capability="text" onMissingConfig={() => openConfigDialog(true)} className="max-w-[190px]" />
-                            <CanvasTextSettingsPopover config={config} count={node.metadata?.textCount || 1} onConfigChange={(_, value) => onConfigChange(node.id, { reasoningEffort: value })} onCountChange={(textCount) => onConfigChange(node.id, { textCount })} />
-                        </>
-                    )}
-                </div>
-                <Button
-                    type="primary"
-                    className="!h-9 !min-w-16 ml-auto shrink-0 !rounded-full !px-3"
-                    danger={isRunning}
-                    disabled={!isRunning && (canQuery ? selectingReferences : !canSubmit)}
-                    onClick={() => (isRunning ? onStop(node.id) : canQuery ? onQueryTask(node) : submit())}
-                    aria-label={actionLabel}
-                >
-                    <span className="flex items-center gap-1.5">
-                        {isRunning ? (
-                            <>
-                                <LoaderCircle aria-hidden className="size-4 motion-safe:animate-spin" />
-                                <Square className="size-3.5 fill-current" />
-                                <span className="text-xs font-medium">{t("canvas.promptPanel.stop")}</span>
-                            </>
+                            />
+                        ) : mode === "video" ? (
+                            modelWorkflowOf(config, config.model) ? <CanvasWorkflowSettings config={config} onChange={(workflowValues) => onConfigChange(node.id, { workflowValues })} /> : <CanvasVideoSettingsPopover config={config} buttonClassName="!h-[var(--control-h-sm)] !max-w-[220px] !justify-start !rounded-[var(--r-md)] !px-2.5" onConfigChange={(key, value) => onConfigChange(node.id, videoConfigPatch(key, value))} />
+                        ) : mode === "audio" ? (
+                            <CanvasAudioSettingsPopover config={config} buttonClassName="!h-[var(--control-h-sm)] !max-w-[170px] !justify-start !rounded-[var(--r-md)] !px-2.5" onConfigChange={(key, value) => onConfigChange(node.id, audioConfigPatch(key, value))} />
                         ) : (
-                            <>
-                                {canQuery ? <RefreshCw className="size-4" /> : <ArrowUp className="size-4" />}
-                                {actionLabel}
-                            </>
+                            <CanvasTextSettingsPopover config={config} count={node.metadata?.textCount || 1} onConfigChange={(_, value) => onConfigChange(node.id, { reasoningEffort: value })} onCountChange={(textCount) => onConfigChange(node.id, { textCount })} />
                         )}
-                    </span>
-                </Button>
+                    </div>
+                    <Button
+                        type="primary"
+                        className="!h-[var(--control-h-sm)] !min-w-16 ml-auto shrink-0 !rounded-[var(--r-md)] !px-3"
+                        danger={isRunning}
+                        disabled={!isRunning && (canQuery ? selectingReferences : !canSubmit)}
+                        onClick={() => (isRunning ? onStop(node.id) : canQuery ? onQueryTask(node) : submit())}
+                        aria-label={actionLabel}
+                    >
+                        <span className="flex items-center gap-1.5">
+                            {isRunning ? (
+                                <>
+                                    <LoaderCircle aria-hidden className="size-4 motion-safe:animate-spin" />
+                                    <Square className="size-3.5 fill-current" />
+                                    <span className="text-[length:var(--fs-caption)] font-medium">{t("canvas.promptPanel.stop")}</span>
+                                </>
+                            ) : (
+                                <>
+                                    {canQuery ? <RefreshCw className="size-4" /> : <ArrowUp className="size-4" />}
+                                    <span className="text-[length:var(--fs-caption)]">{actionLabel}</span>
+                                </>
+                            )}
+                        </span>
+                    </Button>
+                </div>
             </div>
             {(waiting || canQuery || retryBlocked || node.metadata?.status === "error") && (
-                <div role="status" className="mt-2 space-y-1 rounded-lg border border-border bg-[var(--surface-sunken)] px-2.5 py-2 text-xs" style={{ color: theme.node.muted }}>
+                <div role="status" className="mt-2 space-y-1 rounded-[var(--r-md)] border border-border bg-[var(--surface-sunken)] px-2.5 py-2 text-[length:var(--fs-caption)]" style={{ color: theme.node.muted }}>
                     <p className="font-medium">{t(isRunning ? "canvas.node.generating" : canQueryImage ? "canvas.generationHistory.imageTaskPending" : canQuery ? "canvas.promptPanel.resumeVideo" : waiting ? "canvas.node.generating" : retryBlocked ? "canvas.node.retryBlockedHint" : "canvas.node.failed")}</p>
                     {!waiting && node.metadata?.errorDetails && <p className="max-h-14 overflow-y-auto wrap-break-word text-destructive" title={node.metadata.errorDetails}>{node.metadata.errorDetails}</p>}
                 </div>

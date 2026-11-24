@@ -32,7 +32,7 @@ type ImageSettingsPanelProps = {
     quickCount?: number;
 };
 
-export function ImageSettingsPanel({ config, onConfigChange, theme, showTitle = true, className = "w-[320px] space-y-4 rounded-2xl px-1 py-0.5", maxCount = 15, quickCount = 10 }: ImageSettingsPanelProps) {
+export function ImageSettingsPanel({ config, onConfigChange, theme, showTitle = true, className = "w-[320px] space-y-4 rounded-[var(--r-lg)] px-1 py-0.5", maxCount = 15, quickCount = 10 }: ImageSettingsPanelProps) {
     const { t } = useTranslation();
     const [snapDimensionToStep, setSnapDimensionToStep] = useState(true);
     const quality = config.quality || "auto";
@@ -76,7 +76,7 @@ export function ImageSettingsPanel({ config, onConfigChange, theme, showTitle = 
             >
                 {showTitle ? <div className="text-lg font-semibold">{t("settingsPanels.image.title")}</div> : null}
                 {unsupportedFields.length ? (
-                    <div className="rounded-xl px-3 py-2 text-xs leading-relaxed" style={{ background: theme.node.fill, color: theme.node.muted }}>
+                    <div className="rounded-[var(--r-md)] px-3 py-2 text-[length:var(--fs-caption)] leading-relaxed" style={{ background: theme.node.fill, color: theme.node.muted }}>
                         {t("settingsPanels.image.capabilityHint", { fields: unsupportedFields.join(t("imageReferences.separator")) })}
                     </div>
                 ) : null}
@@ -95,7 +95,7 @@ export function ImageSettingsPanel({ config, onConfigChange, theme, showTitle = 
                         <div className="flex items-center justify-between gap-3">
                             <SettingTitle color={theme.node.muted}>{t("settingsPanels.image.size")}</SettingTitle>
                             <div className="flex items-center gap-2">
-                                <span className="text-xs font-medium" style={{ color: theme.node.muted }}>
+                                <span className="text-[length:var(--fs-caption)] font-medium" style={{ color: theme.node.muted }}>
                                     {t("settingsPanels.image.align16")}
                                 </span>
                                 <span title={t("settingsPanels.image.align16Hint")} onMouseDown={(event) => event.stopPropagation()}>
@@ -128,7 +128,7 @@ export function ImageSettingsPanel({ config, onConfigChange, theme, showTitle = 
                                     type="button"
                                     disabled={!sizeEnabled}
                                     aria-disabled={!sizeEnabled}
-                                    className={`flex h-[72px] flex-col items-center justify-center gap-1.5 rounded-xl border bg-transparent text-sm transition ${sizeEnabled ? "cursor-pointer hover:opacity-80" : "cursor-not-allowed opacity-50"}`}
+                                    className={`flex h-[72px] flex-col items-center justify-center gap-1.5 rounded-[var(--r-md)] border bg-transparent text-[length:var(--fs-body)] transition ${sizeEnabled ? "cursor-pointer hover:opacity-80" : "cursor-not-allowed opacity-50"}`}
                                     style={{ borderColor: selectedRatio === item.value ? theme.node.text : theme.node.stroke, background: "transparent", color: theme.node.text }}
                                     onMouseDown={(event) => event.stopPropagation()}
                                     onClick={() => selectRatio(item.value)}
@@ -142,7 +142,7 @@ export function ImageSettingsPanel({ config, onConfigChange, theme, showTitle = 
                     <div className="flex items-center justify-between gap-3">
                         <div className="space-y-0.5">
                             <SettingTitle color={theme.node.muted}>{t("settingsPanels.image.transparent")}</SettingTitle>
-                            <div className="text-xs" style={{ color: theme.node.muted, opacity: 0.75 }}>
+                            <div className="text-[length:var(--fs-caption)]" style={{ color: theme.node.muted, opacity: 0.75 }}>
                                 {t("settingsPanels.image.transparentHint")}
                             </div>
                         </div>
@@ -162,7 +162,7 @@ export function ImageSettingsPanel({ config, onConfigChange, theme, showTitle = 
                         <CountInput value={count} max={maxCount} theme={theme} onChange={(value) => onConfigChange("count", String(value || 1))} />
                     </div>
                     {capabilities.separateRequestsForCount ? (
-                        <div className="text-xs leading-relaxed" style={{ color: theme.node.muted }}>
+                        <div className="text-[length:var(--fs-caption)] leading-relaxed" style={{ color: theme.node.muted }}>
                             {t("settingsPanels.image.capabilityCountHint")}
                         </div>
                     ) : null}
@@ -206,7 +206,7 @@ function OptionPill({ selected, theme, onClick, disabled = false, children }: { 
             type="button"
             disabled={disabled}
             aria-disabled={disabled}
-            className={`h-9 rounded-full border px-2 text-sm transition ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:opacity-80"}`}
+            className={`h-9 rounded-[var(--r-md)] border px-2 text-[length:var(--fs-body)] transition ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:opacity-80"}`}
             style={{ background: "transparent", borderColor: selected ? theme.node.text : theme.node.stroke, color: theme.node.text }}
             onMouseDown={(event) => event.stopPropagation()}
             onClick={onClick}
@@ -224,7 +224,7 @@ function DimensionInput({ prefix, value, disabled, theme, alignToStep, onChange 
     };
 
     return (
-        <label className="flex h-9 overflow-hidden rounded-xl text-sm" style={{ background: theme.node.fill, color: theme.node.text, opacity: disabled ? 0.55 : 1 }}>
+        <label className="flex h-9 overflow-hidden rounded-[var(--r-md)] text-[length:var(--fs-body)]" style={{ background: theme.node.fill, color: theme.node.text, opacity: disabled ? 0.55 : 1 }}>
             <span className="grid w-9 place-items-center" style={{ color: theme.node.muted }}>
                 {prefix}
             </span>
@@ -247,7 +247,7 @@ function DimensionInput({ prefix, value, disabled, theme, alignToStep, onChange 
 
 function CountInput({ value, max, theme, onChange }: { value: number; max: number; theme: CanvasTheme; onChange: (value: number | null) => void }) {
     return (
-        <label className="col-span-2 flex h-9 overflow-hidden rounded-full border text-sm" style={{ borderColor: theme.node.stroke, color: theme.node.text }}>
+        <label className="col-span-2 flex h-9 overflow-hidden rounded-[var(--r-md)] border text-[length:var(--fs-body)]" style={{ borderColor: theme.node.stroke, color: theme.node.text }}>
             <input
                 type="number"
                 min={1}
@@ -276,7 +276,7 @@ function AspectIcon({ width, height, color }: { width: number; height: number; c
 
 function SettingTitle({ children, color }: { children: string; color: string }) {
     return (
-        <div className="text-xs font-medium" style={{ color }}>
+        <div className="text-[length:var(--fs-caption)] font-medium" style={{ color }}>
             {children}
         </div>
     );

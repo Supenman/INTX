@@ -34,7 +34,7 @@ export function CanvasWorkflowSettings({ config, onChange }: { config: AiConfig;
                 {!fields.length && <p className="text-sm">此工作流使用原有参数。</p>}
             </div>
         }>
-            <Button type="text" className="!h-9 !max-w-[170px] !rounded-full !bg-transparent !px-3" icon={<Settings2 className="size-3.5" />}><span className="truncate">工作流参数</span></Button>
+            <Button type="text" className="!h-[var(--control-h-sm)] !max-w-[170px] !rounded-[var(--r-md)] !bg-transparent !px-2.5" icon={<Settings2 className="size-3.5" />}><span className="truncate">工作流参数</span></Button>
         </Popover>
     );
 }
