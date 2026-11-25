@@ -18,6 +18,7 @@ import { nanoid } from "nanoid";
 import { getDataUrlByteSize, readImageMeta } from "@/lib/image-utils";
 import { isBrokenVideoContent } from "@/lib/media-blob";
 import { imageReferenceLabel } from "@/lib/image-reference-prompt";
+import { openOverlayOwnsKeyboard } from "@/lib/canvas/keyboard-scope";
 import { canvasThemes, type CanvasBackgroundMode } from "@/lib/canvas-theme";
 import { useSaveFile, useSaveNotice } from "@/hooks/use-save-file";
 import { useAssetStore } from "@/stores/use-asset-store";
@@ -2151,7 +2152,7 @@ function InfiniteCanvasPage() {
 
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.defaultPrevented) return;
+            if (openOverlayOwnsKeyboard(event.target)) return; // 浮层（弹窗/抽屉）开着时键盘归它，Esc 不能顺带清掉画布选中
             const target = event.target instanceof Element ? event.target : null;
             if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement || target?.closest("[contenteditable='true'],[data-canvas-no-zoom],[data-canvas-shortcuts-ignore]")) return;
 

@@ -26,6 +26,14 @@ description: Implemented changes that still need manual verification
 - Connect two text nodes as references: badges 1 and 2 should correspond to 【文本 1】 and 【文本 2】 in the prompt.
 - In video reference mode the first two images already carry "first frame / last frame"; no numeric badge is added there, the role label wins.
 
+## Escape while an overlay is open
+
+- With a node selected (prompt panel open), open "Generation history" from the top bar and press Escape to close it: the node stays selected and the panel stays open, no re-click needed.
+- Close the "Shortcuts" modal with Escape the same way: the prompt panel should still be there.
+- Open the canvas menu from the top bar and press Escape: only the menu closes, selection and panel are untouched.
+- Open a node's settings popover and press Escape: only the popover closes, the panel stays.
+- After all overlays are closed, pressing Escape on empty canvas should still clear the selection and collapse the panel.
+
 ## Node toolbar vs. settings popovers
 
 - With an image, video or audio node that has content, hover the node: the floating toolbar appears. Open its settings popover: the toolbar hides. Close it with Esc: the toolbar comes back once the pointer returns to the node (the pointer sits on the panel button, so it will not reappear immediately).
