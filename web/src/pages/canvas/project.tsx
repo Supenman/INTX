@@ -3134,8 +3134,8 @@ function InfiniteCanvasPage() {
             }
             const generationConfig = buildGenerationConfig(effectiveConfig, sourceNode, mode);
             if (!isAiConfigReady(generationConfig, generationConfig.model)) {
-                openConfigDialog(true);
-                return;
+                message.warning(t("workbench.configFirst")); // 只弹配置窗口时，看不出是点「生成」触发的。
+                return openConfigDialog(true);
             }
 
             // useBuiltinPanel.writeBackToSelf reuses built-in generation while writing the result back to the plugin node.

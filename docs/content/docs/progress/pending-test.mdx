@@ -5,6 +5,11 @@ description: Implemented changes that still need manual verification
 
 # Pending Tests
 
+## Generate without a configured channel
+
+- With no API key configured, press Enter or click Generate: a "Complete the configuration first" toast should appear together with the configuration dialog, instead of the dialog alone.
+- After filling in a working channel, the same action should start generation and the primary button should switch to the stop state.
+
 ## Node toolbar vs. settings popovers
 
 - With an image, video or audio node that has content, hover the node: the floating toolbar appears. Open its settings popover: the toolbar hides. Close it with Esc: the toolbar comes back once the pointer returns to the node (the pointer sits on the panel button, so it will not reappear immediately).
