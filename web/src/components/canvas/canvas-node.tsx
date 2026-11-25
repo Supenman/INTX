@@ -637,6 +637,7 @@ function TextContent({ node, theme, isEditingContent, textareaRef, mentionRefere
                 ) : content ? (
                     <div className={`thin-scrollbar block h-full w-full overflow-y-auto whitespace-pre-wrap break-words bg-transparent font-mono ${paddingClass}`} style={textStyle} onWheel={(event) => event.stopPropagation()}>
                         {content}
+                        {primaryText?.status === "error" && primaryText.errorDetails ? <span className="mt-2 block font-sans text-[length:var(--fs-caption)] opacity-70">{primaryText.errorDetails}</span> : null}
                     </div>
                 ) : primaryText ? (
                     <TextSlotStatus text={primaryText} />
@@ -706,6 +707,8 @@ function ExpandedTextCard({ node, text, index, onSetPrimary }: { node: CanvasNod
                 <>
                     <div className="thin-scrollbar h-full overflow-y-auto whitespace-pre-wrap break-words px-4 pb-4 pt-14 font-mono text-sm leading-6" style={{ color: theme.node.text }} onWheel={(event) => event.stopPropagation()}>
                         {text.content}
+                        {/* TextSlotStatus 只在空内容时渲染，半截文本得自己挂提示，否则看起来像完整结果。 */}
+                        {text.status === "error" && text.errorDetails ? <span className="mt-2 block font-sans text-[length:var(--fs-caption)] opacity-70">{text.errorDetails}</span> : null}
                     </div>
                     <button type="button" className="pointer-events-none absolute right-2.5 top-2.5 flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium opacity-0 transition duration-150 hover:bg-black/5 group-hover/node:pointer-events-auto group-hover/node:opacity-100 dark:hover:bg-white/10" style={{ color: theme.node.text }} onClick={(event) => (event.stopPropagation(), onSetPrimary())}>
                         <Star className="size-3.5" style={{ color: selectionBlue }} />

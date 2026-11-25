@@ -342,6 +342,8 @@ function InfiniteCanvasPage() {
     const connectionStartPoint = useRef<{ x: number; y: number } | null>(null);
     const saveBarrier = useProjectSaveBarrier(projectId, projectLoaded, { nodes, connections, chatSessions, activeChatId, backgroundMode, showImageInfo, viewport }, viewportSaveTimerRef);
     const generationRequestsRef = useRef(new Map<string, CanvasGenerationRequest>());
+    /** 用户主动停止的节点：流的 settle 可能晚于 abort，后续写入得知道「这是停止」不是完成。 */
+    const stoppedNodeIdsRef = useRef(new Set<string>());
     useEffect(() => () => {
         generationRequestsRef.current.forEach(({ controller }) => controller.abort());
         generationRequestsRef.current.clear();
@@ -518,21 +520,16 @@ function InfiniteCanvasPage() {
         });
         setRunningNodeId((current) => (current === runningId ? null : current));
         if (!affectedNodeIds.size) return;
+        const partialText = t("canvas.projectPage.stopKeptPartial"); // 停止打断的是等待不是内容：留下的半截标「已停止」，别看着像完整结果
+        affectedNodeIds.forEach((id) => stoppedNodeIdsRef.current.add(id));
+        window.setTimeout(() => affectedNodeIds.forEach((id) => stoppedNodeIdsRef.current.delete(id)), 15_000); // 那趟流不负责收口，结果由这里落定；这只是兜底清理
         setNodes((prev) =>
-            prev.map((node) =>
-                affectedNodeIds.has(node.id) && node.metadata?.status === NODE_STATUS_LOADING
-                    ? {
-                          ...node,
-                          metadata: {
-                              ...node.metadata,
-                              status: NODE_STATUS_IDLE,
-                              errorDetails: undefined,
-                              images: node.metadata.images?.map((image) => (image.status === NODE_STATUS_LOADING ? { ...image, status: NODE_STATUS_ERROR, errorDetails: t("common.requestCanceled") } : image)),
-                              texts: node.metadata.texts?.map((text) => (text.status === NODE_STATUS_LOADING ? { ...text, status: NODE_STATUS_ERROR, errorDetails: t("common.requestCanceled") } : text)),
-                          },
-                      }
-                    : node,
-            ),
+            prev.map((node) => {
+                if (!affectedNodeIds.has(node.id) || node.metadata?.status !== NODE_STATUS_LOADING) return node;
+                const texts = node.metadata.texts?.map((text) => (text.status === NODE_STATUS_LOADING ? { ...text, status: NODE_STATUS_ERROR, errorDetails: text.content.trim() ? partialText : t("common.requestCanceled") } : text));
+                const kept = Boolean(texts?.some((text) => text.content.trim())) || Boolean(node.metadata.content?.trim());
+                return { ...node, metadata: { ...node.metadata, status: kept ? NODE_STATUS_SUCCESS : NODE_STATUS_IDLE, errorDetails: kept ? partialText : undefined, images: node.metadata.images?.map((image) => image.status === NODE_STATUS_LOADING ? { ...image, status: NODE_STATUS_ERROR, errorDetails: t("common.requestCanceled") } : image), texts } };
+            }),
         );
     }, [t]);
 
@@ -3473,60 +3470,55 @@ function InfiniteCanvasPage() {
                 setDialogNodeId(nodeId);
 
                 const controller = rootId === nodeId ? runController : startGenerationRequest(rootId, nodeId, nodeId, runController);
-                const results = await Promise.all(
-                    textIds.map(async (textId): Promise<CanvasNodeText | null> => {
+                const streamedTexts = new Map<string, string>(); // 流会晚于停止才收口，留一份每路最后收到的文本给收尾用
+                const writeText = (textId: string, text: string, status?: CanvasNodeText["status"]) => {
+                    const interrupted = stoppedNodeIdsRef.current.has(rootId); // true = 已按「已停止」收尾，这次写入跳过
+                    if (!interrupted) setNodes((prev) =>
+                        prev.map((node) =>
+                            node.id === rootId
+                                ? {
+                                      ...node,
+                                      metadata: {
+                                          ...node.metadata,
+                                          ...(node.metadata?.primaryTextId === textId ? { content: text } : {}),
+                                          texts: node.metadata?.texts?.map((item) => (item.id === textId ? { ...item, content: text, ...(status && { status }) } : item)),
+                                      },
+                                  }
+                                : node,
+                        ),
+                    );
+                    return interrupted;
+                };
+                const results = await Promise.all(textIds.map(async (textId): Promise<CanvasNodeText | null> => {
                         let streamed = "";
                         try {
                             const answer = await requestImageQuestion(
                                 generationConfig,
                                 buildNodeResponseMessages({ ...generationContext, prompt: effectivePrompt }),
                                 (text) => {
-                                    streamed = text;
-                                    setNodes((prev) =>
-                                        prev.map((node) =>
-                                            node.id === rootId
-                                                ? {
-                                                      ...node,
-                                                      metadata: {
-                                                          ...node.metadata,
-                                                          ...(node.metadata?.primaryTextId === textId ? { content: text } : {}),
-                                                          texts: node.metadata?.texts?.map((item) => (item.id === textId ? { ...item, content: text } : item)),
-                                                      },
-                                                  }
-                                                : node,
-                                        ),
-                                    );
+                                    streamedTexts.set(textId, (streamed = text));
+                                    writeText(textId, text, NODE_STATUS_LOADING);
                                 },
                                 { signal: controller.signal },
                             );
                             const content = answer || streamed;
-                            setNodes((prev) =>
-                                prev.map((node) =>
-                                    node.id === rootId
-                                        ? {
-                                              ...node,
-                                              metadata: {
-                                                  ...node.metadata,
-                                                  ...(node.metadata?.primaryTextId === textId ? { content } : {}),
-                                                  texts: node.metadata?.texts?.map((item) => (item.id === textId ? { ...item, content, status: NODE_STATUS_SUCCESS } : item)),
-                                              },
-                                          }
-                                        : node,
-                                ),
-                            );
-                            return { id: textId, status: NODE_STATUS_SUCCESS, content } satisfies CanvasNodeText;
+                            const interrupted = writeText(textId, content, stoppedNodeIdsRef.current.has(rootId) ? NODE_STATUS_ERROR : NODE_STATUS_SUCCESS);
+                            return interrupted ? null : { id: textId, status: NODE_STATUS_SUCCESS, content } satisfies CanvasNodeText; // 停止后迟到的「成功」是半截，不进完成列表。
                         } catch (error) {
                             if (isGenerationCanceled(error)) return null;
                             const errorDetails = error instanceof Error ? error.message : t("canvas.projectPage.generationFailed");
                             setNodes((prev) => prev.map((node) => (node.id === rootId ? { ...node, metadata: { ...node.metadata, texts: node.metadata?.texts?.map((item) => (item.id === textId ? { ...item, status: NODE_STATUS_ERROR, errorDetails } : item)) } } : node)));
                             return { id: textId, status: NODE_STATUS_ERROR, content: "", errorDetails } satisfies CanvasNodeText;
                         }
-                    }),
-                );
-                if (rootId !== nodeId) finishGenerationRequest(rootId, controller);
-                if (controller.signal.aborted) return;
-                const completedTexts = results.flatMap((item) => (item?.status === NODE_STATUS_SUCCESS ? [item] : []));
-                const failedTexts = results.filter((item) => item?.status === NODE_STATUS_ERROR);
+                }));
+                if (rootId !== nodeId) finishGenerationRequest(rootId, controller); // 停止打断的是等待不是文本：这条路也会走到，要按半截收尾
+                const interrupted = stoppedNodeIdsRef.current.delete(rootId);
+                const settled: CanvasNodeText[] = results.map((item, index) => item ?? { id: textIds[index], status: NODE_STATUS_ERROR, content: streamedTexts.get(textIds[index]) ?? "" }); // 停止那路以 null 收尾，半截只能按槽 id 取回
+                const completedTexts = settled.flatMap((item) => { // 半截文本照样进列表（retry 要看到它），只挂「已停止」而不是完成
+                    const kept = item.status === NODE_STATUS_SUCCESS ? item.content : streamedTexts.get(item.id)?.trim();
+                    return kept ? [{ ...item, content: kept, status: interrupted ? NODE_STATUS_ERROR : item.status, errorDetails: interrupted ? t("canvas.projectPage.stopKeptPartial") : item.errorDetails }] : [];
+                });
+                const failedTexts = interrupted ? [] : settled.filter((item) => item.status === NODE_STATUS_ERROR);
                 const firstText = completedTexts[0];
                 if (completedTexts.length <= 1) setExpandedBatchNodeIds((current) => new Set([...current].filter((id) => id !== rootId)));
                 if (failedTexts.length) message.error(firstText ? t("canvas.projectPage.partialTextFailed") : failedTexts[0]?.errorDetails || t("canvas.projectPage.generationFailed"));
