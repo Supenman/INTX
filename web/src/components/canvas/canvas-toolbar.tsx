@@ -192,7 +192,7 @@ export function CanvasToolbar({
                         rootRef.current?.querySelector<HTMLButtonElement>('[data-toolbar-id="tool-extensions"]')?.focus({ preventScroll: true });
                     }}
                 >
-                    <div className="px-1.5 pb-1.5 text-[11px] font-medium opacity-50">{t("canvas.toolbar.extensions")}</div>
+                    <div className="px-1.5 pb-1.5 text-[length:var(--fs-label)] font-medium opacity-50">{t("canvas.toolbar.extensions")}</div>
                     <div className="grid gap-0.5">
                         {extensionDefs.map((def) => (
                             <button
@@ -230,7 +230,7 @@ export function CanvasToolbar({
                     }}
                 >
                     <div className="px-1 pb-2 text-sm font-medium opacity-65">{t("canvas.toolbar.appearance")}</div>
-                    <div className="px-1 pb-1.5 text-[11px] font-medium opacity-50">{t("canvas.toolbar.themeMode")}</div>
+                    <div className="px-1 pb-1.5 text-[length:var(--fs-label)] font-medium opacity-50">{t("canvas.toolbar.themeMode")}</div>
                     <div className="grid grid-cols-2 gap-1 rounded-lg p-1" style={{ background: theme.toolbar.itemHover }}>
                         <CanvasThemeButton colorTheme={colorTheme} targetTheme="light" onThemeChange={setTheme}>
                             <Sun className="size-4" />
@@ -241,7 +241,7 @@ export function CanvasToolbar({
                             {t("canvas.toolbar.dark")}
                         </CanvasThemeButton>
                     </div>
-                    <div className="mt-3 px-1 pb-1.5 text-[11px] font-medium opacity-50">{t("canvas.toolbar.gridStyle")}</div>
+                    <div className="mt-3 px-1 pb-1.5 text-[length:var(--fs-label)] font-medium opacity-50">{t("canvas.toolbar.gridStyle")}</div>
                     <Segmented
                         className="w-full !p-1 [&_.ant-segmented-group]:!flex [&_.ant-segmented-item]:!min-h-8 [&_.ant-segmented-item]:!flex-1 [&_.ant-segmented-item-label]:!min-h-8 [&_.ant-segmented-item-label]:!leading-8"
                         value={backgroundMode}
@@ -275,7 +275,7 @@ export function CanvasToolbar({
                         ]}
                     />
                     <div className="mt-2 flex items-center justify-between gap-3 rounded-lg px-1.5 py-1">
-                        <span className="text-[11px] font-medium opacity-65">{t("canvas.toolbar.snapToGrid", { size: 16 })}</span>
+                        <span className="text-[length:var(--fs-label)] font-medium opacity-65">{t("canvas.toolbar.snapToGrid", { size: 16 })}</span>
                         <Switch size="small" checked={snapToGrid} onChange={onSnapToGridChange} aria-label={t("canvas.toolbar.snapToGrid", { size: 16 })} />
                     </div>
                     <button
@@ -291,7 +291,7 @@ export function CanvasToolbar({
                         {t("canvas.toolbar.fitAll")}
                     </button>
                     <div className="mt-3 flex items-center justify-between gap-3 rounded-lg px-1.5 py-1">
-                        <span className="inline-flex min-w-0 items-center gap-1.5 text-[11px] font-medium opacity-65">
+                        <span className="inline-flex min-w-0 items-center gap-1.5 text-[length:var(--fs-label)] font-medium opacity-65">
                             <Info className="size-3.5" />
                             {t("canvas.toolbar.imageInfo")}
                         </span>

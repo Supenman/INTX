@@ -43,6 +43,8 @@ export interface ToolContext {
   node: ToolNodeContext | null;
   /** 右键菜单命中的节点 id；空白处右键为 null。多选右键时指向被点的那个。 */
   contextNodeId?: string | null;
+  /** 右键命中的节点是否已锁定；决定菜单显示「锁定」还是「解锁」。 */
+  nodeLocked?: boolean;
   /** 右键菜单：命中节点是视频且有画面时，才给「截帧 / 提取音频」入口。 */
   canCaptureVideoFrame?: boolean;
   canExtractAudio?: boolean;

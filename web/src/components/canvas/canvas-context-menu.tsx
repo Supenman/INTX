@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { motion, useReducedMotion } from "motion/react";
-import { BetweenHorizontalStart, ClipboardPaste, Copy, GalleryHorizontalEnd, GalleryHorizontal, Group, Images, Music2, Plus, Redo2, Trash2, Undo2, Ungroup, Upload } from "lucide-react";
+import { BetweenHorizontalStart, ClipboardPaste, Copy, GalleryHorizontalEnd, GalleryHorizontal, Group, Images, Lock, LockOpen, Music2, Plus, Redo2, Trash2, Undo2, Ungroup, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { canvasThemes } from "@/lib/canvas-theme";
@@ -16,7 +16,7 @@ import { resolveCanvasContextMenu, resolveNodeContextMenu } from "@/domain/tool/
  * 节点右键菜单。显示哪些条目、什么顺序、谁该红，全部由声明式工具注册表解析，
  * 组件只保留「id → 图标 / 点击行为」的渲染映射（图标是 ReactNode，不能进 domain）。
  */
-export function CanvasNodeContextMenu({ menu, selectedCount, canCaptureVideoFrame, canExtractAudio, canGroup, canUngroup, onClose, onCaptureVideoFrame, onExtractAudio, onDuplicate, onCopySelection, onGroup, onUngroup, onDelete }: { menu: Exclude<ContextMenuState, { type: "canvas" }>; selectedCount: number; canCaptureVideoFrame: boolean; canExtractAudio?: boolean; canGroup?: boolean; canUngroup?: boolean; onClose: () => void; onCaptureVideoFrame: (position: VideoFramePosition) => void; onExtractAudio?: () => void; onDuplicate: () => void; onCopySelection: () => void; onGroup?: () => void; onUngroup?: () => void; onDelete: () => void }) {
+export function CanvasNodeContextMenu({ menu, selectedCount, canCaptureVideoFrame, canExtractAudio, canGroup, canUngroup, nodeLocked, onClose, onCaptureVideoFrame, onExtractAudio, onDuplicate, onCopySelection, onGroup, onUngroup, onToggleLock, onDelete }: { menu: Exclude<ContextMenuState, { type: "canvas" }>; selectedCount: number; canCaptureVideoFrame: boolean; canExtractAudio?: boolean; canGroup?: boolean; canUngroup?: boolean; nodeLocked?: boolean; onClose: () => void; onCaptureVideoFrame: (position: VideoFramePosition) => void; onExtractAudio?: () => void; onDuplicate: () => void; onCopySelection: () => void; onGroup?: () => void; onUngroup?: () => void; onToggleLock?: () => void; onDelete: () => void }) {
     const { t } = useTranslation();
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const multiple = menu.type === "node" && selectedCount > 1;
@@ -34,6 +34,7 @@ export function CanvasNodeContextMenu({ menu, selectedCount, canCaptureVideoFram
         canExtractAudio: !multiple && Boolean(canExtractAudio),
         canGroup: Boolean(canGroup),
         canUngroup: Boolean(canUngroup),
+        nodeLocked: Boolean(nodeLocked),
     });
     const commands = resolveNodeContextMenu(ctx);
 
@@ -44,6 +45,8 @@ export function CanvasNodeContextMenu({ menu, selectedCount, canCaptureVideoFram
         "ctx-extract-audio": <Music2 className="size-4" />,
         "ctx-group": <Group className="size-4" />,
         "ctx-ungroup": <Ungroup className="size-4" />,
+        "ctx-lock": <Lock className="size-4" />,
+        "ctx-unlock": <LockOpen className="size-4" />,
         "ctx-duplicate": <Plus className="size-4" />,
         "ctx-delete": <Trash2 className="size-4" />,
     };
@@ -54,6 +57,8 @@ export function CanvasNodeContextMenu({ menu, selectedCount, canCaptureVideoFram
         "ctx-extract-audio": () => onExtractAudio?.(),
         "ctx-group": () => onGroup?.(),
         "ctx-ungroup": () => onUngroup?.(),
+        "ctx-lock": () => onToggleLock?.(),
+        "ctx-unlock": () => onToggleLock?.(),
         "ctx-duplicate": () => onDuplicate(),
         "ctx-delete": () => onDelete(),
     };

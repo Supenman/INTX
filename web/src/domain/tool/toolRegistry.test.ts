@@ -185,14 +185,27 @@ describe('节点右键菜单与生产按钮对齐', () => {
       'ctx-capture-last',
       'ctx-capture-current',
       'ctx-extract-audio',
+      'ctx-lock',
       'ctx-duplicate',
       'ctx-delete',
     ]);
   });
 
-  it('普通节点：没有截帧与提取音频，只有复制与删除', () => {
+  it('普通节点：没有截帧与提取音频，只有锁定、复制与删除', () => {
     const ids = resolveNodeContextMenu(ctx()).map((c) => c.id);
-    expect(ids).toEqual(['ctx-duplicate', 'ctx-delete']);
+    expect(ids).toEqual(['ctx-lock', 'ctx-duplicate', 'ctx-delete']);
+  });
+
+  it('锁定状态只给解锁入口，不重复显示锁定', () => {
+    const ids = resolveNodeContextMenu(ctx({ nodeLocked: true })).map((c) => c.id);
+    expect(ids).toContain('ctx-unlock');
+    expect(ids).not.toContain('ctx-lock');
+  });
+
+  it('连线右键没有节点时不给锁定/解锁', () => {
+    const ids = resolveNodeContextMenu(ctx({ contextNodeId: null, selectedCount: 0, nodeLocked: true })).map((c) => c.id);
+    expect(ids).not.toContain('ctx-lock');
+    expect(ids).not.toContain('ctx-unlock');
   });
 
   it('可分组/解组时才出现打组与解散组', () => {

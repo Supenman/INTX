@@ -33,6 +33,7 @@ export interface CanvasToolState {
   canExtractAudio?: boolean;
   canGroup?: boolean;
   canUngroup?: boolean;
+  nodeLocked?: boolean;
 }
 
 /** 画布的 pan 与注册表的 hand 是同一个工具，只在这里对齐一次。 */
@@ -51,6 +52,7 @@ export function buildToolContext(state: CanvasToolState): ToolContext {
     canExtractAudio: state.canExtractAudio ?? false,
     canGroup: state.canGroup ?? false,
     canUngroup: state.canUngroup ?? false,
+    nodeLocked: state.nodeLocked ?? false,
   };
 }
 

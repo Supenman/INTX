@@ -1230,6 +1230,19 @@ function InfiniteCanvasPage() {
         cleanupCanvasFiles({ projectId, nodes: [], chatSessions: [] });
     }, [cleanupCanvasFiles, deselectCanvas, projectId]);
 
+    // 锁定只影响拖动、缩放和键盘微移，不改选中与面板：锁住的节点仍要能改参数、看内容。
+    // 右键点在选区内时对整组生效，避免多选后只锁住其中一个。
+    const toggleNodeLock = useCallback((nodeId: string) => {
+        setNodes((prev) => {
+            const target = prev.find((node) => node.id === nodeId);
+            if (!target) return prev;
+            const selected = selectedNodeIdsRef.current;
+            const ids = selected.has(nodeId) ? new Set(selected) : new Set([nodeId]);
+            const nextLocked = !target.metadata?.locked;
+            return prev.map((node) => (ids.has(node.id) ? { ...node, metadata: { ...node.metadata, locked: nextLocked || undefined } } : node));
+        });
+    }, []);
+
     const duplicateNode = useCallback((nodeId: string) => {
         const source = nodesRef.current.find((node) => node.id === nodeId);
         if (!source) return;
@@ -2196,6 +2209,13 @@ function InfiniteCanvasPage() {
                     event.preventDefault();
                     groupSelection();
                 }
+                return;
+            }
+
+            if (isModifierShortcut && !event.altKey && key === "l") {
+                event.preventDefault();
+                const [first] = selectedNodeIdsRef.current;
+                if (first) toggleNodeLock(first);
                 return;
             }
 
@@ -4319,6 +4339,7 @@ function InfiniteCanvasPage() {
                         canExtractAudio={contextMenuNode?.type === CanvasNodeType.Video && Boolean(contextMenuNode.metadata?.content)}
                         canGroup={contextMenu.type === "node" && canGroupSelection}
                         canUngroup={contextMenu.type === "node" && canUngroupSelection}
+                        nodeLocked={Boolean(contextMenuNode?.metadata?.locked)}
                         onClose={() => setContextMenu(null)}
                         onCaptureVideoFrame={(position) => {
                             if (contextMenu.type !== "node") return;
@@ -4336,6 +4357,11 @@ function InfiniteCanvasPage() {
                         onCopySelection={copySelectedNodes}
                         onGroup={groupSelection}
                         onUngroup={ungroupSelection}
+                        onToggleLock={() => {
+                            if (contextMenu.type !== "node") return;
+                            toggleNodeLock(contextMenu.nodeId);
+                            setContextMenu(null);
+                        }}
                         onDelete={() => {
                             if (contextMenu.type === "node") {
                                 deleteNodes(selectedNodeIds.has(contextMenu.nodeId) ? new Set(selectedNodeIds) : new Set([contextMenu.nodeId]));

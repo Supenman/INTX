@@ -54,6 +54,8 @@ export type CanvasNodeMetadata = {
     errorDetails?: string;
     /** 失败这单被判「需先确认」（可能已收单）：不给重试入口，避免点一下再扣一次钱。 */
     retryBlocked?: boolean;
+    /** 锁定后仍可选中、可打开面板，但不参与拖动和缩放。 */
+    locked?: boolean;
     fontSize?: number;
     generationMode?: CanvasGenerationMode;
     generationType?: CanvasImageGenerationType;

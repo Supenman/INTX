@@ -5,6 +5,15 @@ description: Implemented changes that still need manual verification
 
 # Pending Tests
 
+## Node locking
+
+- Right-click any node: the menu shows "Lock node". After locking, a lock badge appears in the top-right corner, the four resize handles disappear, and dragging the node no longer moves it.
+- A locked node can still be selected and opened for editing; changing parameters and regenerating should work, and copy/delete stay available.
+- Right-click again: the menu now shows "Unlock node". Unlocking restores the handles and dragging.
+- With a node selected, press `Ctrl/Cmd+L` to toggle locking; `Ctrl/Cmd+Z` undoes it.
+- Select two nodes, right-click and lock: the whole selection should switch together. Dragging moves only unlocked nodes.
+- Reopen the canvas after saving: the lock badge should persist and dragging should still be blocked.
+
 - While dragging nodes, check that connections, selection outlines, and the composer follow. Press Escape or switch windows to restore original positions. Check undo after a normal drop. Focus a selection of distant nodes and check that they all come into view and remain selected.
 
 - While dragging a node resize handle, switch windows and release outside the app. On return, the toolbar and composer should reappear and pointer movement should no longer resize the node. Right-clicking a resize handle should not start resizing.

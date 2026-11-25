@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactNode } from "react";
-import { AlertCircle, ChevronRight, Copy, Download, FileText, Group, Image as ImageIcon, Music2, Pencil, Play, Plus, Puzzle, RefreshCw, Star, Trash2, Video } from "lucide-react";
+import { AlertCircle, ChevronRight, Copy, Download, FileText, Group, Image as ImageIcon, Lock, Music2, Pencil, Play, Plus, Puzzle, RefreshCw, Star, Trash2, Video } from "lucide-react";
 
 import { canvasThemes } from "@/lib/canvas-theme";
 import { colorGradeFilter } from "@/lib/canvas/color-grade";
@@ -454,6 +454,14 @@ export const CanvasNode = React.memo(function CanvasNode({
                 {referenceSelectionState && (referenceSelectionState !== "available" || hovered) ? (
                     <div className="pointer-events-none absolute inset-0 z-[60] grid place-items-center rounded-[inherit]" style={{ background: `color-mix(in srgb, ${theme.canvas.background} ${referenceSelectionState === "target" ? 78 : referenceSelectionState === "disabled" ? 60 : 34}%, transparent)`, boxShadow: referenceSelectionState === "available" ? `inset 0 0 0 2px ${selectionBlue}` : undefined }}>
                         {referenceSelectionState !== "disabled" ? <span className="rounded-lg px-3 py-2 text-sm font-medium shadow-sm" style={{ background: theme.toolbar.panel, color: theme.node.text }}>{t(referenceSelectionState === "target" ? "canvas.references.selecting" : "canvas.references.choose")}</span> : null}
+                    </div>
+                ) : null}
+
+                {/* 锁定标记：手柄和拖动都没了，得让用户知道为什么，并能从右键解锁。 */}
+                {data.metadata?.locked && !isGroup ? (
+                    <div className="pointer-events-none absolute right-2 top-2 z-30 grid size-6 place-items-center rounded-[var(--r-sm)]" style={{ background: theme.toolbar.panel, color: theme.node.muted }}>
+                        <Lock className="size-3.5" aria-hidden />
+                        <span className="sr-only">{t("canvas.contextMenu.locked")}</span>
                     </div>
                 ) : null}
 
