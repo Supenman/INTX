@@ -5,6 +5,13 @@ description: Implemented changes that still need manual verification
 
 # Pending Tests
 
+## Generation lifecycle with a mock provider
+
+- Point a channel at a local mock that streams SSE deltas. Click Generate: the primary button should become Stop and the node should fill in progressively.
+- Press Stop and confirm: the button returns to Generate, the node stays idle, and the request is closed on the server side (the mock logs a broken pipe).
+- Known gap: after stopping, the text received before the stop is not kept (text nodes). Reopening the panel shows the prompt again, so the same request can be re-sent; decide whether partial results should be preserved.
+- Switch the mock to return HTTP 502: the node shows "Generation failed" with a Retry button and the upstream message, then switching the mock back and clicking Retry should complete normally.
+
 ## Generate without a configured channel
 
 - With no API key configured, press Enter or click Generate: a "Complete the configuration first" toast should appear together with the configuration dialog, instead of the dialog alone.
