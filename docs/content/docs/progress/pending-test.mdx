@@ -26,6 +26,12 @@ description: Implemented changes that still need manual verification
 - Connect two text nodes as references: badges 1 and 2 should correspond to 【文本 1】 and 【文本 2】 in the prompt.
 - In video reference mode the first two images already carry "first frame / last frame"; no numeric badge is added there, the role label wins.
 
+## Required workflow fields
+
+- Pick a workflow model that declares a required field (e.g. negative prompt) and press Generate without filling it: the reference status area names the missing field, Generate is rejected with the same message, and no task is created.
+- The "Workflow parameters · N changed" summary counts only fields the current workflow declares; switching to another model clears the summary and values, and switching back restores them.
+- Field coverage: number, text and boolean controls follow the workflow declaration, media inputs read "Input 1: required/optional", and the popover stays inside the viewport.
+
 ## Escape while an overlay is open
 
 - With a node selected (prompt panel open), open "Generation history" from the top bar and press Escape to close it: the node stays selected and the panel stays open, no re-click needed.

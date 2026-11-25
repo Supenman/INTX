@@ -68,7 +68,7 @@ import { SnapshotStorageStatus } from "@/components/layout/snapshot-storage-stat
 import { usePluginHost } from "@/pages/canvas/hooks/use-plugin-host";
 import { buildCanvasResourceReferences, buildNodeMentionReferences, getGroupResourceNodes, isCanvasReferenceNode, remapReferenceLabels, type CanvasResourceReference } from "@/lib/canvas/canvas-resource-references";
 import { exportCanvasProjects } from "@/lib/canvas/canvas-export";
-import { placeCanvasSubgraph, readCanvasWorkflow, selectWorkflow, type CanvasSubgraph } from "@/lib/canvas/canvas-workflow";
+import { missingWorkflowFields, placeCanvasSubgraph, readCanvasWorkflow, selectWorkflow, type CanvasSubgraph } from "@/lib/canvas/canvas-workflow";
 import { createStoryboardShotGraph } from "@/lib/canvas/storyboard";
 import { applyNodeConfigPatch, audioMetadata, buildAudioGenerationMetadata, buildImageGenerationMetadata, createCanvasNode, imageMetadata, videoMetadata } from "@/lib/canvas/canvas-node-factory";
 import { applyGroupSelection, applyUngroupSelection, canGroupSelectedNodes, canUngroupSelectedNodes, collectGroupMemberNodes, findContainingGroupId, findGroupDropTarget, fitViewportForNodes, focusViewportForNode, getConnectionTargetAnchor, getGroupWrapRect, nodeBounds, normalizeConnection, placeAssetNodes, revealNodesInViewport, snapNodesIntoGroup, warnConnectionRejected } from "@/lib/canvas/canvas-node-geometry";
@@ -3135,6 +3135,8 @@ function InfiniteCanvasPage() {
                 message.warning(t("workbench.configFirst")); // 只弹配置窗口时，看不出是点「生成」触发的。
                 return openConfigDialog(true);
             }
+            const missing = missingWorkflowFields(modelWorkflowOf(generationConfig, generationConfig.model), generationConfig.workflowValues?.[generationConfig.model]); // 必填项没填就提交，后端只会回一句网关错误，先点名缺哪个
+            if (missing.length) return void message.warning(t("settingsPanels.workflow.requiredField", { field: missing.map((key) => t(`settingsPanels.workflow.fieldLabels.${key}`, { defaultValue: key })).join("、") }));
 
             // useBuiltinPanel.writeBackToSelf reuses built-in generation while writing the result back to the plugin node.
             // Image mode currently supports display-only nodes such as panoramas, with a useBuiltinPanel.promptPrefix.

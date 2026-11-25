@@ -6,6 +6,7 @@ import { setMediaBlob } from "@/services/file-storage";
 import { setImageBlob } from "@/services/image-storage";
 import type { CanvasExportFile } from "@/types/canvas-export";
 import type { CanvasConnection, CanvasNodeData, Position } from "@/types/canvas";
+import type { ComfyWorkflowContract, WorkflowValue, WorkflowValues } from "@/types/comfy-workflow";
 
 export type CanvasSubgraph = { nodes: CanvasNodeData[]; connections: CanvasConnection[] };
 
@@ -89,4 +90,30 @@ export async function readCanvasWorkflow(file: File): Promise<CanvasSubgraph> {
         } };
     });
     return { nodes, connections: snapshot.value.projects[0].connections };
+}
+/**
+ * 必填校验：工作流声明了 required 的字段如果既没填也没默认值，提交时后端
+ * 只会回一句网关错误，用户不知道是哪个参数没填。这里把缺的字段算出来，
+ * 供提交前拦下并点名。
+ *
+ * 判定与 canvas-workflow-settings 的写法对齐：
+ * - 媒体字段、提示词、张数由节点连线与面板负责，不在浮层里，不算；
+ * - 用户清空（undefined）但字段声明了 default，仍按默认值提交，不算缺；
+ * - 布尔字段的 false 是有效值，不能按 falsy 判成缺失；
+ * - 字符串空串等于没填。
+ */
+
+const isEmpty = (value: WorkflowValue | undefined) => value === undefined || (typeof value === "string" && value.trim() === "");
+
+export function missingWorkflowFields(workflow: ComfyWorkflowContract | undefined, values: Record<string, WorkflowValue> | undefined) {
+    if (!workflow) return [];
+    return workflow.fields
+        .filter((field) => field.required && !field.media && field.from !== "prompt" && field.from !== "count" && field.default === undefined)
+        .filter((field) => isEmpty(values?.[field.key]))
+        .map((field) => field.key);
+}
+
+/** 每个模型只认自己那份参数，切换模型不会把上一个模型的填写带过去。 */
+export function workflowValuesFor(values: WorkflowValues | undefined, model: string) {
+    return values?.[model] || {};
 }

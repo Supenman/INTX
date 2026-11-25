@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { ArrowUp, LoaderCircle, Maximize2, RefreshCw, Square } from "lucide-react";
-import { Button, Modal, Tooltip } from "antd";
+import { App, Button, Modal, Tooltip } from "antd";
 import { useTranslation } from "react-i18next";
 
 import { ModelPicker } from "@/components/model-picker";
 import { modelWorkflowOf, useConfigStore, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
+import { missingWorkflowFields } from "@/lib/canvas/canvas-workflow";
 import { CanvasWorkflowSettings } from "./canvas-workflow-settings";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
@@ -46,6 +47,7 @@ type CanvasNodePromptPanelProps = {
 
 export function CanvasNodePromptPanel({ node, nodes, connections, selectingReferences = false, referencePromptUpdateId, onFinishReferenceSelection, isRunning, onPromptChange, onConfigChange, onGenerate, onStop, onQueryTask, mentionReferences = [], connectedNodes = [], onDisconnectReference, onMoveReference, onReplaceReference, onStartReferenceSelection, onSettingsOpenChange, modeOverride }: CanvasNodePromptPanelProps) {
     const { t } = useTranslation();
+    const { message } = App.useApp();
     const globalConfig = useEffectiveConfig();
     const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
@@ -76,7 +78,7 @@ export function CanvasNodePromptPanel({ node, nodes, connections, selectingRefer
     // 有上游素材时可只凭输入生成，保留原生成配置节点「无需提示词」的能力；
     // 文本模式与音频模式必须有提示词或上游文本，和 handleGenerateNode 的校验保持一致。
     const hasUpstreamText = connectedNodes.some((item) => item.type === CanvasNodeType.Text && Boolean(item.metadata?.content?.trim()));
-    const workflow = mode === "image" || mode === "video" ? modelWorkflowOf(config, config.model) : undefined;
+    const workflow = modelWorkflowOf(config, config.model); // 四类节点都可能挂工作流：只按模型判定，否则文本/音频节点永远拿不到必填与参考输入提示
     const frameRoles = new Map<number, "firstFrame" | "lastFrame">();
     if (mode === "video") for (const field of workflow?.fields ?? []) {
         if (field.frameRole && field.media === "image") frameRoles.set(field.imageIndex ?? 0, field.frameRole);
@@ -92,10 +94,12 @@ export function CanvasNodePromptPanel({ node, nodes, connections, selectingRefer
         return { actual, needed, kind, id: field.key };
     });
     const missingMedia = inputStatus.some(({ actual, needed }) => actual < needed);
+    const missingFields = missingWorkflowFields(workflow, config.workflowValues?.[config.model]); // 缺项不拦按钮，点了才提示，和「没填就提交只会得到网关报错」对上
     const canSubmit = !selectingReferences && !retryBlocked && !canQuery && !waiting && !missingMedia && (Boolean(prompt.trim()) || (mode === "image" || mode === "video" ? connectedNodes.length > 0 || (Boolean(workflow) && imageIds.size > 0) : hasUpstreamText));
     const actionLabel = t(isRunning ? "canvas.promptPanel.stopGeneration" : waiting ? "canvas.node.generating" : canQuery ? "canvas.nodeToolbar.queryVideoTask" : "canvas.promptPanel.generate");
     const submit = () => {
         if (!canSubmit) return;
+        if (missingFields.length) return void message.warning(t("settingsPanels.workflow.requiredField", { field: missingFields.map((key) => t(`settingsPanels.workflow.fieldLabels.${key}`, { defaultValue: key })).join("、") }));
         onGenerate(node.id, mode, prompt.trim());
     };
 
@@ -131,7 +135,7 @@ export function CanvasNodePromptPanel({ node, nodes, connections, selectingRefer
                 frameRoles={frameRoles}
                 onStartSelection={onStartReferenceSelection}
             />
-            {inputStatus.length > 0 && (
+            {(inputStatus.length > 0 || missingFields.length > 0) && (
                 <div className="mb-2 space-y-1" role="status">
                     <div className="flex flex-wrap gap-1.5">
                         {/* 摘要 chip 用填充底而非描边：描边看起来像告警，而这里多数情况是"够用"的正常状态。 */}
@@ -145,6 +149,7 @@ export function CanvasNodePromptPanel({ node, nodes, connections, selectingRefer
                         })}
                     </div>
                     {missingMedia && !canQuery && <p className="text-[length:var(--fs-caption)]" style={{ color: theme.node.muted }}>{t("canvas.promptPanel.missingMedia")}</p>}
+                    {missingFields.length > 0 && <p className="text-[length:var(--fs-caption)]" style={{ color: theme.node.muted }}>{t("settingsPanels.workflow.requiredField", { field: missingFields.map((key) => t(`settingsPanels.workflow.fieldLabels.${key}`, { defaultValue: key })).join("、") })}</p>}
                 </div>
             )}
             {/* 输入区独立成块：BeefTV 的 composer 用一块填充底把「写提示词」和「调参数」分开，
