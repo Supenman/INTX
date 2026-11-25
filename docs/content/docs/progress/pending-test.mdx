@@ -5,6 +5,13 @@ description: Implemented changes that still need manual verification
 
 # Pending Tests
 
+## Node toolbar vs. settings popovers
+
+- With an image, video or audio node that has content, hover the node: the floating toolbar appears. Open its settings popover: the toolbar hides. Close it with Esc: the toolbar comes back once the pointer returns to the node (the pointer sits on the panel button, so it will not reappear immediately).
+- With the popover open, click another node, then click empty canvas: no stale "popover open" state should keep the toolbar hidden on the next node.
+- The settings button reads back its current values to screen readers ("Image settings: Auto · 1:1 · 3 images"), matching the visible label, for all four node types.
+- With nothing selected or hovered, the resize handles are not mounted, and hidden connection ports are skipped by Tab (they only take focus while hovered, selected or connecting).
+
 ## Node locking
 
 - Right-click any node: the menu shows "Lock node". After locking, a lock badge appears in the top-right corner, the four resize handles disappear, and dragging the node no longer moves it.
