@@ -1,3 +1,4 @@
+import { useReducedMotion } from "motion/react";
 import { App, Button, Form, Input, Modal, Progress, Radio, Select, Switch, Tabs } from "antd";
 import type { TFunction } from "i18next";
 import { Cloud, Download, Ellipsis, Pencil, Plus, RefreshCw, Trash2, Upload, Wifi } from "lucide-react";
@@ -53,6 +54,7 @@ function createWebdavDomainProgress(): Record<AppSyncDomainKey, WebdavDomainProg
 }
 
 export function AppConfigPanel({ showDoneButton = false, initialTab = "channels", visibleTabs, onTabChange }: { showDoneButton?: boolean; initialTab?: ConfigTabKey; visibleTabs?: readonly ConfigTabKey[]; onTabChange?: (tab: ConfigTabKey) => void }) {
+    const reducedMotion = useReducedMotion();
     const { message } = App.useApp();
     const { i18n, t } = useTranslation();
     const saveNotice = useSaveNotice();
@@ -189,6 +191,7 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
                 /* 空间不足时 antd 只会裁掉末尾并塞进「更多」，改用下拉模式保证每个标签都能点到 */
                 more={{ icon: <Ellipsis className="size-4" /> }}
                 renderTabBar={visibleTabs?.length === 1 ? () => <></> : undefined}
+                animated={{ inkBar: !reducedMotion, tabPane: false }}
                 className="config-tabs"
                 onChange={(key) => {
                     const nextTab = key as ConfigTabKey;

@@ -4,7 +4,7 @@ import { Button, Modal, Tooltip } from "antd";
 import { useTranslation } from "react-i18next";
 
 import { ModelPicker } from "@/components/model-picker";
-import { defaultConfig, modelWorkflowOf, resolveModelForCapability, useConfigStore, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
+import { modelWorkflowOf, useConfigStore, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
 import { CanvasWorkflowSettings } from "./canvas-workflow-settings";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
@@ -17,7 +17,7 @@ import { CanvasNodeType, type CanvasConnection, type CanvasGenerationMode, type 
 import type { CanvasResourceReference } from "@/lib/canvas/canvas-resource-references";
 import { buildNodeGenerationContext, nodeGenerationMode } from "./canvas-node-generation";
 import { CanvasNodeReferenceBar } from "./canvas-node-reference-bar";
-import { hasResumableImageTask, hasResumableVideoTask } from "@/lib/canvas/canvas-generation-helpers";
+import { buildGenerationConfig, hasResumableImageTask, hasResumableVideoTask } from "@/lib/canvas/canvas-generation-helpers";
 
 export type CanvasNodeGenerationMode = CanvasGenerationMode;
 
@@ -40,17 +40,17 @@ type CanvasNodePromptPanelProps = {
     onMoveReference?: (sourceId: string, targetId: string, delta: -1 | 1) => void;
     onReplaceReference?: (sourceId: string, targetId: string, replacementId: string) => void;
     onStartReferenceSelection?: (nodeId: string) => void;
-    onImageSettingsOpenChange?: (open: boolean) => void;
+    onSettingsOpenChange?: (open: boolean) => void;
     modeOverride?: CanvasNodeGenerationMode; // Plugin nodes set their generation type through useBuiltinPanel.mode.
 };
 
-export function CanvasNodePromptPanel({ node, nodes, connections, selectingReferences = false, referencePromptUpdateId, onFinishReferenceSelection, isRunning, onPromptChange, onConfigChange, onGenerate, onStop, onQueryTask, mentionReferences = [], connectedNodes = [], onDisconnectReference, onMoveReference, onReplaceReference, onStartReferenceSelection, onImageSettingsOpenChange, modeOverride }: CanvasNodePromptPanelProps) {
+export function CanvasNodePromptPanel({ node, nodes, connections, selectingReferences = false, referencePromptUpdateId, onFinishReferenceSelection, isRunning, onPromptChange, onConfigChange, onGenerate, onStop, onQueryTask, mentionReferences = [], connectedNodes = [], onDisconnectReference, onMoveReference, onReplaceReference, onStartReferenceSelection, onSettingsOpenChange, modeOverride }: CanvasNodePromptPanelProps) {
     const { t } = useTranslation();
     const globalConfig = useEffectiveConfig();
     const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const mode = modeOverride ?? nodeGenerationMode(node.type);
-    const config = buildNodeConfig(globalConfig, node, mode);
+    const config = buildGenerationConfig(globalConfig, node, mode);
     const hasTextContent = node.type === CanvasNodeType.Text && Boolean(node.metadata?.content?.trim());
     const hasImageContent = node.type === CanvasNodeType.Image && Boolean(node.metadata?.content);
     const canQueryImage = hasResumableImageTask(node);
@@ -93,7 +93,7 @@ export function CanvasNodePromptPanel({ node, nodes, connections, selectingRefer
     });
     const missingMedia = inputStatus.some(({ actual, needed }) => actual < needed);
     const canSubmit = !selectingReferences && !retryBlocked && !canQuery && !waiting && !missingMedia && (Boolean(prompt.trim()) || (mode === "image" || mode === "video" ? connectedNodes.length > 0 || (Boolean(workflow) && imageIds.size > 0) : hasUpstreamText));
-    const actionLabel = t(isRunning ? "canvas.promptPanel.stopGeneration" : canQuery ? "canvas.nodeToolbar.queryVideoTask" : "canvas.promptPanel.generate");
+    const actionLabel = t(isRunning ? "canvas.promptPanel.stopGeneration" : waiting ? "canvas.node.generating" : canQuery ? "canvas.nodeToolbar.queryVideoTask" : "canvas.promptPanel.generate");
     const submit = () => {
         if (!canSubmit) return;
         onGenerate(node.id, mode, prompt.trim());
@@ -166,27 +166,27 @@ export function CanvasNodePromptPanel({ node, nodes, connections, selectingRefer
                 <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1.5">
                     <div className="min-w-0">
                         {mode === "image" ? (
-                            modelWorkflowOf(config, config.model) ? <CanvasWorkflowSettings config={config} onChange={(workflowValues) => onConfigChange(node.id, { workflowValues })} /> : <CanvasImageSettingsPopover
+                            modelWorkflowOf(config, config.model) ? <CanvasWorkflowSettings config={config} onChange={(workflowValues) => onConfigChange(node.id, { workflowValues })} onOpenChange={onSettingsOpenChange} /> : <CanvasImageSettingsPopover
                                 config={config}
                                 placement="topLeft"
                                 buttonClassName="!h-[var(--control-h-sm)] !max-w-[170px] !justify-start !rounded-[var(--r-md)] !px-2.5"
                                 onConfigChange={(key, value) => onConfigChange(node.id, key === "count" ? { count: Number(value) || 1 } : { [key]: value })}
                                 onMissingConfig={() => openConfigDialog(true)}
-                                onOpenChange={onImageSettingsOpenChange}
+                                onOpenChange={onSettingsOpenChange}
                             />
                         ) : mode === "video" ? (
-                            modelWorkflowOf(config, config.model) ? <CanvasWorkflowSettings config={config} onChange={(workflowValues) => onConfigChange(node.id, { workflowValues })} /> : <CanvasVideoSettingsPopover config={config} buttonClassName="!h-[var(--control-h-sm)] !max-w-[220px] !justify-start !rounded-[var(--r-md)] !px-2.5" onConfigChange={(key, value) => onConfigChange(node.id, videoConfigPatch(key, value))} />
+                            modelWorkflowOf(config, config.model) ? <CanvasWorkflowSettings config={config} onChange={(workflowValues) => onConfigChange(node.id, { workflowValues })} onOpenChange={onSettingsOpenChange} /> : <CanvasVideoSettingsPopover config={config} buttonClassName="!h-[var(--control-h-sm)] !max-w-[220px] !justify-start !rounded-[var(--r-md)] !px-2.5" onConfigChange={(key, value) => onConfigChange(node.id, videoConfigPatch(key, value))} onOpenChange={onSettingsOpenChange} />
                         ) : mode === "audio" ? (
-                            <CanvasAudioSettingsPopover config={config} buttonClassName="!h-[var(--control-h-sm)] !max-w-[170px] !justify-start !rounded-[var(--r-md)] !px-2.5" onConfigChange={(key, value) => onConfigChange(node.id, audioConfigPatch(key, value))} />
+                            <CanvasAudioSettingsPopover config={config} buttonClassName="!h-[var(--control-h-sm)] !max-w-[170px] !justify-start !rounded-[var(--r-md)] !px-2.5" onConfigChange={(key, value) => onConfigChange(node.id, audioConfigPatch(key, value))} onOpenChange={onSettingsOpenChange} />
                         ) : (
-                            <CanvasTextSettingsPopover config={config} count={node.metadata?.textCount || 1} onConfigChange={(_, value) => onConfigChange(node.id, { reasoningEffort: value })} onCountChange={(textCount) => onConfigChange(node.id, { textCount })} />
+                            <CanvasTextSettingsPopover config={config} count={node.metadata?.textCount || 1} onConfigChange={(_, value) => onConfigChange(node.id, { reasoningEffort: value })} onCountChange={(textCount) => onConfigChange(node.id, { textCount })} onOpenChange={onSettingsOpenChange} />
                         )}
                     </div>
                     <Button
                         type="primary"
                         className="!h-[var(--control-h-sm)] !min-w-16 ml-auto shrink-0 !rounded-[var(--r-md)] !px-3"
                         danger={isRunning}
-                        disabled={!isRunning && (canQuery ? selectingReferences : !canSubmit)}
+                        disabled={!isRunning && (waiting || (canQuery ? selectingReferences : !canSubmit))}
                         onClick={() => (isRunning ? onStop(node.id) : canQuery ? onQueryTask(node) : submit())}
                         aria-label={actionLabel}
                     >
@@ -196,6 +196,11 @@ export function CanvasNodePromptPanel({ node, nodes, connections, selectingRefer
                                     <LoaderCircle aria-hidden className="size-4 motion-safe:animate-spin" />
                                     <Square className="size-3.5 fill-current" />
                                     <span className="text-[length:var(--fs-caption)] font-medium">{t("canvas.promptPanel.stop")}</span>
+                                </>
+                            ) : waiting ? (
+                                <>
+                                    <LoaderCircle aria-hidden className="size-4 motion-safe:animate-spin" />
+                                    <span className="text-[length:var(--fs-caption)]">{t("canvas.node.generating")}</span>
                                 </>
                             ) : (
                                 <>
@@ -228,28 +233,6 @@ export function CanvasNodePromptPanel({ node, nodes, connections, selectingRefer
             </Modal>
         </div>
     );
-}
-
-function buildNodeConfig(globalConfig: AiConfig, node: CanvasNodeData, mode: CanvasNodeGenerationMode): AiConfig {
-    return {
-        ...globalConfig,
-        workflowValues: node.metadata?.workflowValues,
-        model: resolveModelForCapability(globalConfig, node.metadata?.model, mode),
-        reasoningEffort: node.metadata?.reasoningEffort || globalConfig.reasoningEffort || defaultConfig.reasoningEffort,
-        quality: node.metadata?.quality || globalConfig.quality || defaultConfig.quality,
-        size: node.metadata?.size || globalConfig.size || defaultConfig.size,
-        background: node.metadata?.background ?? globalConfig.background ?? defaultConfig.background,
-        videoSeconds: node.metadata?.seconds || globalConfig.videoSeconds || defaultConfig.videoSeconds,
-        vquality: node.metadata?.vquality || globalConfig.vquality || defaultConfig.vquality,
-        videoGenerateAudio: node.metadata?.generateAudio || globalConfig.videoGenerateAudio || defaultConfig.videoGenerateAudio,
-        videoWatermark: node.metadata?.watermark || globalConfig.videoWatermark || defaultConfig.videoWatermark,
-        videoMode: node.metadata?.videoMode || globalConfig.videoMode || defaultConfig.videoMode,
-        audioVoice: node.metadata?.audioVoice || globalConfig.audioVoice || defaultConfig.audioVoice,
-        audioFormat: node.metadata?.audioFormat || globalConfig.audioFormat || defaultConfig.audioFormat,
-        audioSpeed: node.metadata?.audioSpeed || globalConfig.audioSpeed || defaultConfig.audioSpeed,
-        audioInstructions: node.metadata?.audioInstructions || globalConfig.audioInstructions || defaultConfig.audioInstructions,
-        count: modelWorkflowOf(globalConfig, resolveModelForCapability(globalConfig, node.metadata?.model, mode)) ? "1" : String(node.metadata?.count || (mode === "image" ? globalConfig.canvasImageCount || globalConfig.count : globalConfig.count) || defaultConfig.count),
-    };
 }
 
 function videoConfigPatch(key: keyof AiConfig, value: string) {

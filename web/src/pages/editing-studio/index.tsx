@@ -208,7 +208,7 @@ function EditorWorkspace() {
                         const cover = assetCoverUrl(asset);
                         const Icon = asset.kind === "image" ? ImageIcon : Video;
                         return (
-                            <Checkbox key={asset.id} className="!m-0 flex w-full items-center gap-2 rounded-md px-2 py-2 focus-within:bg-[var(--surface-card-hover)] hover:bg-[var(--surface-card-hover)] [&>span:last-child]:min-w-0 [&>span:last-child]:flex-1" disabled={importing || alreadyImported} checked={alreadyImported || selectedIds.includes(asset.id)} onChange={(event) => setSelectedIds((ids) => event.target.checked ? [...ids, asset.id] : ids.filter((id) => id !== asset.id))}>
+                            <Checkbox key={asset.id} className="!m-0 flex w-full items-center gap-2 rounded-md px-2 py-2 has-checked:bg-accent has-checked:text-accent-foreground focus-within:bg-[var(--surface-card-hover)] hover:bg-[var(--surface-card-hover)] motion-safe:transition-colors [&>span:last-child]:min-w-0 [&>span:last-child]:flex-1" disabled={importing || alreadyImported} checked={alreadyImported || selectedIds.includes(asset.id)} onChange={(event) => setSelectedIds((ids) => event.target.checked ? [...ids, asset.id] : ids.filter((id) => id !== asset.id))}>
                                 <span className="flex min-w-0 items-center gap-3">
                                     <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-md bg-[var(--surface-sunken)] text-muted-foreground">
                                         {cover ? <img src={cover} alt="" className="size-full object-cover" /> : <Icon aria-hidden className="size-4" />}

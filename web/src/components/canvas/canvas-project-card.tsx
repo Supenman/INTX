@@ -67,12 +67,12 @@ export function CanvasProjectCard({ project, folderNames }: { project: CanvasPro
     return (
         <article
             className={cn(
-                "surface-card-interactive group flex min-h-44 cursor-pointer flex-col justify-between p-4",
+                "surface-card-interactive group flex min-h-44 cursor-pointer flex-col justify-between p-4 hover:bg-[var(--surface-card-hover)] focus-within:bg-[var(--surface-card-hover)]",
                 selected && "ring-1 ring-inset ring-[var(--ring)]",
             )}
             onClick={() => !editing && open()}
         >
-            <div className="mb-3"><CanvasProjectPreview project={project} /></div>
+            <div className="mb-3 motion-safe:transition-transform motion-safe:duration-200 motion-safe:group-hover:scale-[1.015] motion-safe:group-focus-within:scale-[1.015]"><CanvasProjectPreview project={project} /></div>
             <div className="flex items-start gap-3">
                 <input
                     type="checkbox"
@@ -87,7 +87,7 @@ export function CanvasProjectCard({ project, folderNames }: { project: CanvasPro
                 ) : (
                     <button
                         type="button"
-                        className="min-w-0 cursor-pointer text-left"
+                        className="focus-ring min-w-0 cursor-pointer rounded-sm text-left"
                         onClick={(event) => {
                             event.stopPropagation();
                             open();

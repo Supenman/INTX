@@ -20,6 +20,7 @@ export function CanvasToolbar({
     canUndo,
     canRedo,
     backgroundMode,
+    snapToGrid,
     showImageInfo,
     addMenuActive,
     onOpenCreateMenu,
@@ -31,14 +32,17 @@ export function CanvasToolbar({
     onClear,
     onCanvasToolChange,
     onBackgroundModeChange,
+    onSnapToGridChange,
     onShowImageInfoChange,
     onFocusSelected,
+    onFitCanvas,
 }: {
     selectedCount: number;
     canvasTool: "select" | "pan";
     canUndo: boolean;
     canRedo: boolean;
     backgroundMode: CanvasBackgroundMode;
+    snapToGrid: boolean;
     showImageInfo: boolean;
     addMenuActive: boolean;
     onOpenCreateMenu: (event: ReactMouseEvent<HTMLElement>) => void;
@@ -50,8 +54,10 @@ export function CanvasToolbar({
     onClear: () => void;
     onCanvasToolChange: (tool: "select" | "pan") => void;
     onBackgroundModeChange: (mode: CanvasBackgroundMode) => void;
+    onSnapToGridChange: (enabled: boolean) => void;
     onShowImageInfoChange: (show: boolean) => void;
     onFocusSelected: () => void;
+    onFitCanvas: () => void;
 }) {
     const wrapRef = useRef<HTMLDivElement>(null);
     const { t } = useTranslation();
@@ -268,6 +274,22 @@ export function CanvasToolbar({
                             },
                         ]}
                     />
+                    <div className="mt-2 flex items-center justify-between gap-3 rounded-lg px-1.5 py-1">
+                        <span className="text-[11px] font-medium opacity-65">{t("canvas.toolbar.snapToGrid", { size: 16 })}</span>
+                        <Switch size="small" checked={snapToGrid} onChange={onSnapToGridChange} aria-label={t("canvas.toolbar.snapToGrid", { size: 16 })} />
+                    </div>
+                    <button
+                        type="button"
+                        className="mt-2 flex w-full items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-left text-xs transition hover:bg-black/5 dark:hover:bg-white/5"
+                        style={{ color: theme.toolbar.item }}
+                        onClick={() => {
+                            setAppearanceOpen(false);
+                            onFitCanvas();
+                        }}
+                    >
+                        <LocateFixed className="size-3.5" />
+                        {t("canvas.toolbar.fitAll")}
+                    </button>
                     <div className="mt-3 flex items-center justify-between gap-3 rounded-lg px-1.5 py-1">
                         <span className="inline-flex min-w-0 items-center gap-1.5 text-[11px] font-medium opacity-65">
                             <Info className="size-3.5" />
@@ -339,7 +361,7 @@ function ToolbarButton({
             data-toolbar-id={id}
             aria-expanded={id === "tool-add-node" ? Boolean(active) : undefined}
             aria-haspopup={id === "tool-add-node" ? "dialog" : undefined}
-            className={showLabel ? "!h-8 !px-2 text-xs font-medium" : "!h-8 !w-8 !min-w-8 !p-0"}
+            className={`focus-ring motion-safe:transition motion-safe:enabled:active:scale-95 ${showLabel ? "!h-8 !px-2 text-xs font-medium" : "!h-8 !w-8 !min-w-8 !p-0"}` }
             disabled={disabled}
             style={active ? activeStyle : id === "tool-add-node" ? { background: theme.node.text, color: theme.node.panel } : hovered === id && !disabled ? hoverStyle : { color: danger ? "#f87171" : theme.toolbar.item, opacity: disabled ? 0.35 : 1 }}
             icon={children}

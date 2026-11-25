@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { canvasThemes, type CanvasBackgroundMode } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
@@ -25,6 +25,7 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const panState = useRef({
         isPanning: false,
+        pointerId: -1,
         startX: 0,
         startY: 0,
         initialX: 0,
@@ -32,16 +33,16 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
         hasMoved: false,
         startedOnBackground: false,
     });
-    const scaleRef = useRef(viewport.k);
+    const viewportRef = useRef(viewport);
     const frameRef = useRef<number | null>(null);
     const nextViewportRef = useRef<ViewportTransform | null>(null);
     const [isSpacePressed, setIsSpacePressed] = useState(false);
     const [isControlPressed, setIsControlPressed] = useState(false);
     const [isPanning, setIsPanning] = useState(false);
 
-    useEffect(() => {
-        scaleRef.current = viewport.k;
-    }, [viewport.k]);
+    useLayoutEffect(() => {
+        viewportRef.current = viewport;
+    }, [viewport]);
 
     useEffect(
         () => () => {
@@ -55,7 +56,7 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
             if (event.key === "Control") setIsControlPressed(true);
             if (event.code !== "Space") return;
             const target = event.target instanceof Element ? event.target : null;
-            if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement || target?.closest("[contenteditable='true']")) return;
+            if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement || target?.closest("button,[contenteditable='true']")) return;
             event.preventDefault();
             setIsSpacePressed(true);
         };
@@ -63,7 +64,7 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
         const handleKeyUp = (event: KeyboardEvent) => {
             if (event.code === "Space") {
                 const target = event.target instanceof Element ? event.target : null;
-                if (!(event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement || target?.closest("[contenteditable='true']"))) event.preventDefault();
+                if (!(event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement || target?.closest("button,[contenteditable='true']"))) event.preventDefault();
                 setIsSpacePressed(false);
             }
             if (event.key === "Control") setIsControlPressed(false);
@@ -73,6 +74,7 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
             setIsSpacePressed(false);
             setIsControlPressed(false);
             panState.current.isPanning = false;
+            panState.current.pointerId = -1;
             setIsPanning(false);
             document.body.style.cursor = "";
         };
@@ -91,22 +93,39 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
         const target = event.target instanceof Element ? event.target : null;
         if (target?.closest("[data-canvas-no-zoom],.ant-modal,.ant-popover,.ant-dropdown,.ant-select-dropdown,.ant-picker-dropdown")) return;
 
-        const delta = -event.deltaY;
-        const factor = Math.pow(1.1, delta / 100);
-        const newScale = Math.min(Math.max(viewport.k * factor, 0.05), 5);
+        if (panState.current.isPanning) return;
+        const current = viewportRef.current;
         const rect = containerRef.current?.getBoundingClientRect();
         if (!rect) return;
 
-        const mouseX = event.clientX - rect.left;
-        const mouseY = event.clientY - rect.top;
-        const worldX = (mouseX - viewport.x) / viewport.k;
-        const worldY = (mouseY - viewport.y) / viewport.k;
+        const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? rect.height : 1;
+        const dx = event.deltaX * unit;
+        const dy = event.deltaY * unit;
+        const zoomModifier = event.ctrlKey || event.metaKey;
+        let next: ViewportTransform;
 
-        onViewportChange({
-            x: mouseX - worldX * newScale,
-            y: mouseY - worldY * newScale,
-            k: newScale,
-        });
+        if (!zoomModifier && (event.shiftKey || Math.abs(dx) > Math.abs(dy))) {
+            const shiftToHorizontal = event.shiftKey && dx === 0;
+            next = {
+                x: current.x - (shiftToHorizontal ? dy : dx),
+                y: current.y - (shiftToHorizontal ? 0 : dy),
+                k: current.k,
+            };
+        } else {
+            const newScale = Math.min(Math.max(current.k * Math.pow(1.1, -dy / 100), 0.05), 5);
+            if (newScale === current.k) return;
+            const mouseX = event.clientX - rect.left;
+            const mouseY = event.clientY - rect.top;
+            const ratio = newScale / current.k;
+            next = {
+                x: mouseX - (mouseX - current.x) * ratio,
+                y: mouseY - (mouseY - current.y) * ratio,
+                k: newScale,
+            };
+        }
+        // Rapid wheel events can arrive before React renders the previous update.
+        viewportRef.current = next;
+        onViewportChange(next);
     };
 
     const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -123,6 +142,7 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
             event.currentTarget.setPointerCapture(event.pointerId);
             panState.current = {
                 isPanning: true,
+                pointerId: event.pointerId,
                 startX: event.clientX,
                 startY: event.clientY,
                 initialX: viewport.x,
@@ -150,7 +170,7 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
 
     useEffect(() => {
         const handlePointerMove = (event: PointerEvent) => {
-            if (!panState.current.isPanning) return;
+            if (!panState.current.isPanning || panState.current.pointerId !== event.pointerId) return;
 
             const dx = event.clientX - panState.current.startX;
             const dy = event.clientY - panState.current.startY;
@@ -161,7 +181,7 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
             nextViewportRef.current = {
                 x: panState.current.initialX + dx,
                 y: panState.current.initialY + dy,
-                k: scaleRef.current,
+                k: viewportRef.current.k,
             };
             if (frameRef.current) return;
             frameRef.current = requestAnimationFrame(() => {
@@ -170,24 +190,25 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
             });
         };
 
-        const handlePointerUp = () => {
-            if (!panState.current.isPanning) return;
+        const handlePointerEnd = (event: PointerEvent) => {
+            if (!panState.current.isPanning || panState.current.pointerId !== event.pointerId) return;
 
-            if (!panState.current.hasMoved && panState.current.startedOnBackground) {
+            if (event.type === "pointerup" && !panState.current.hasMoved && panState.current.startedOnBackground) {
                 onCanvasDeselect?.();
             }
             panState.current.isPanning = false;
+            panState.current.pointerId = -1;
             setIsPanning(false);
             document.body.style.cursor = "";
         };
 
         window.addEventListener("pointermove", handlePointerMove);
-        window.addEventListener("pointerup", handlePointerUp);
-        window.addEventListener("pointercancel", handlePointerUp);
+        window.addEventListener("pointerup", handlePointerEnd);
+        window.addEventListener("pointercancel", handlePointerEnd);
         return () => {
             window.removeEventListener("pointermove", handlePointerMove);
-            window.removeEventListener("pointerup", handlePointerUp);
-            window.removeEventListener("pointercancel", handlePointerUp);
+            window.removeEventListener("pointerup", handlePointerEnd);
+            window.removeEventListener("pointercancel", handlePointerEnd);
             document.body.style.cursor = "";
         };
     }, [onCanvasDeselect, onViewportChange]);

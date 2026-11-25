@@ -170,7 +170,7 @@ export default function TasksPage() {
                                             detailTriggerRef.current = event.currentTarget;
                                             setSelectedId(task.id);
                                         }}
-                                        className="focus-ring block w-full rounded-xl border border-border bg-[var(--surface-card)] px-4 py-3 text-left hover:bg-[var(--surface-card-hover)] focus-visible:bg-[var(--surface-card-hover)] motion-safe:transition-colors"
+                                        className="focus-ring block w-full rounded-xl border border-border bg-[var(--surface-card)] px-4 py-3 text-left hover:bg-[var(--surface-card-hover)] focus-visible:bg-[var(--surface-card-hover)] motion-safe:transition motion-safe:active:scale-[0.995]"
                                     >
                                         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
                                             <div className="min-w-0 flex-1">

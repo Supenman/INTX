@@ -5,6 +5,57 @@ description: Implemented changes that still need manual verification
 
 # Pending Tests
 
+- While dragging nodes, check that connections, selection outlines, and the composer follow. Press Escape or switch windows to restore original positions. Check undo after a normal drop. Focus a selection of distant nodes and check that they all come into view and remain selected.
+
+- While dragging a node resize handle, switch windows and release outside the app. On return, the toolbar and composer should reappear and pointer movement should no longer resize the node. Right-clicking a resize handle should not start resizing.
+
+- Open a canvas, node, or connection context menu and check that the first enabled command is focused. Press Enter to run it or Escape to dismiss the menu, then check that focus returns to the original control or canvas. Right-click inside a multi-selection and check that copy and delete act on the entire selection.
+
+- Hover a versioned image node. Check that the preview has no version badge or download button and that both actions are available in the node toolbar.
+
+## Canvas connections and viewport
+
+- Use Canvas Appearance → Fit all content with nodes spread across the canvas. All nodes should fit with margin; using it on an empty canvas should leave the viewport unchanged. After a box selection, release the mouse and confirm the hit nodes stay selected. Interrupt a box selection by switching windows or triggering pointer cancellation; verify the selection returns to its state before the drag.
+- Check box selection with each modifier: no modifier replaces the selection, Shift adds hits, Alt removes hits, and Ctrl/Cmd toggles hits. Move the box repeatedly over the same nodes to confirm toggle does not flicker; interrupt each mode and confirm the initial selection is restored.
+- Start a background pan without moving and release normally; selection should clear. Repeat, then cancel the pointer instead; the existing selection should remain. During a pan, an unrelated pointer ending should not stop the active gesture.
+- Check locked nodes: clicking selects the node and opens its panel, dragging it does not move it, and dragging another node in a mixed selection moves only unlocked nodes.
+- Tab to either port and press Enter or Space to open the creation menu. Use the arrow keys and Enter to create a connected node. Escape should return focus to the original port. While dragging a connection, Escape should keep the current selection. Delete should leave canvas nodes alone while a canvas menu is open.
+- Release a connection near its target and check that the curve keeps its shape. An input port should not snap to a plugin node with its output port hidden.
+
+- Drag near two adjacent ports from outside their nodes. The preview and drop should choose the nearest available port. Dropping on overlapping nodes should select the topmost one. Check self and duplicate connections, group outputs, and dropping on blank space to create a node.
+- Scroll rapidly to zoom and check that the point under the cursor stays in place. Check panning with a horizontal trackpad gesture and Shift + wheel. Toggle the sidebar and use the zoom slider to check that it anchors to the visible canvas center.
+
+## Canvas generation controls
+
+- Open a model picker and a settings popover in turn on image, video, audio, and text nodes. Only the most recently opened floating panel should remain visible.
+- While settings are open, the trigger should show its selected state and report its expanded state to assistive technology. Click outside or press Escape; the trigger should reset and the node should remain selected.
+- Check image, video, audio, text, and ComfyUI workflow nodes. Workflow settings, model selection, and regular settings should follow the same floating-panel exclusivity rule. After changing workflow fields, the trigger summary should show the number of changed fields.
+- Switch the app language to English and open workflow settings. All hints, media requirements, field labels, and empty states should be English. Change/import a workflow so it no longer declares a previously edited field; its stale saved value should not appear in the summary or be submitted.
+- Reopen a canvas while a generation is recoverable. During the restore/polling interval, the composer should clearly show a disabled “Generating” state, not an enabled-looking Generate action or Stop control. Once the request is actively running in this page, Stop should be available again.
+- Open image, video, audio, text, and workflow settings one at a time. The node hover toolbar should hide for each open popover and return after close, outside click, Escape, or opening another settings popover.
+- Tab through image, video, and audio parameter options. Keyboard focus should be visible, and assistive technology should identify the selected option.
+
+## Canvas drag snapping
+
+- At several zoom levels, drag a node, a multi-selection, and a group near another node. Check matching edges and centers, dashed guides, and consistent preview and final positions.
+- Toggle 16px grid snapping in Canvas Appearance, drag a node, multi-selection and group, then reload the project to check the preference persists. With it enabled, preview and final position should match; with it disabled, edge/center alignment snapping should remain available.
+- Drag a node, multi-selection and group. Every node moving with the selection should show a grabbing cursor and return to its resting cursor on release.
+- A slight pointer movement on blank canvas should not trigger marquee selection. Drag further and check that selection works.
+
+## Workspace interactions
+
+- Enter a draft on Home and switch its target project. Check that the composer and submit button remain usable in a narrow window.
+- Hover and tab through project cards, asset cards, and skill rows. Check for visible feedback and distinct selected and hovered asset filters.
+- Select assets in the editing studio and move the pointer away. Selection should remain visible. With reduced motion enabled, check that the Settings tab indicator updates immediately.
+
+## Canvas panels and asset placement
+
+- Resize each sidebar and release the pointer outside the handle. Resizing should stop and the width should persist. With reduced motion enabled, panels and the tab indicator should switch immediately. Tab to an asset action and check that it becomes visible.
+
+- Insert assets from the sidebar, asset picker, and canvas context menu. Visible inserts keep the view in place. Offscreen inserts pan into view at the current zoom, centering an oversized batch as a group.
+- Toggle the sidebar and Agent panel, then open and close Generation History. Check that the project, selection and zoom persist and the sidebar does not overlay the canvas.
+- Check that the toolbar shows Generation History and a node with multiple versions opens Compare node versions.
+
 ## Canvas settings popover tracking and reduced motion
 
 - Open an image node's settings popover, then zoom the canvas with the wheel (or move the canvas). The popover must stay attached to the parameter button instead of staying at its original screen position.
@@ -786,3 +837,17 @@ The Chinese version contains the complete item-by-item acceptance checklist.
 - 查单取回后任务记录保存失败，不提前显示恢复成功；已知产物引用保留在当前进程，可补记，不重新买图。
 - **边界**：未保存的证据仅留在当前进程，崩溃后可能丢失，不能承诺重启一定找回。项目/素材 store 仍是原实现，跨素材与任务的保存屏障和崩溃补齐属于 2.2a-2/3、2.2c。
 - 自动化验证与真机验收分开：类型检查、34 个测试文件/499 个用例、构建和 domain 依赖边界已通过；独立 fake IndexedDB 库覆盖并发冲突、晚阶段 abort、现有格式接入及读写失败。构建仍提示本机 Node 20.18 低于 Vite 要求，以及原有打包体积/混合导入警告。浏览器/Tauri 实际刷新恢复、保存失败界面及真实厂商查单尚未验证。故障点验使用独立测试库，不清空用户库；真实厂商请求须另行明确授权。
+
+## Canvas generation settings follow-up
+
+- The generation panel now uses the same configuration builder as the request path. Verify image, video, audio, text, and workflow nodes after switching models and reopening a project: each summary and submitted request should reflect the node's saved values and the active model's defaults.
+- Static source comparison only; no build or tests were run for this change. Windows WebView2 request payloads remain unverified.
+
+### Canvas connection keyboard focus
+
+- Hidden node connection points should be skipped by Tab. Hover or select a node so the points appear, then verify they can receive focus and Enter/Space triggers the existing quick-create action. Pointer-drag connections must remain unchanged.
+- Source-only change; keyboard and pointer behavior remain unverified in Windows WebView2.
+
+- Failed image and video nodes use generic wording for the original-task status action. Verify both locales and confirm querying still retrieves the same task without resubmitting.
+
+- Node resize handles appear only while the node is hovered or selected and unlocked. Verify all four corners resize in those states, remain absent/unhittable otherwise, and locked nodes cannot resize.

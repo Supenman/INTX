@@ -155,9 +155,17 @@ function CanvasContextMenuSurface({ menu, onClose, children }: { menu: ContextMe
     const ref = useRef<HTMLDivElement>(null);
     const previousFocus = useRef<HTMLElement | null>(null);
     const reduceMotion = useReducedMotion();
+    const restoreFocus = () => {
+        const previous = previousFocus.current;
+        const target = previous?.isConnected && previous !== document.body
+            ? previous
+            : document.querySelector<HTMLElement>("[data-canvas-root]");
+        target?.focus({ preventScroll: true });
+    };
     useLayoutEffect(() => {
         previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-        ref.current?.focus({ preventScroll: true });
+        const firstEnabled = ref.current?.querySelector<HTMLButtonElement>('[role="menuitem"]:enabled');
+        (firstEnabled ?? ref.current)?.focus({ preventScroll: true });
     }, []);
     useLayoutEffect(() => {
         const place = () => {
@@ -188,7 +196,7 @@ function CanvasContextMenuSurface({ menu, onClose, children }: { menu: ContextMe
                     event.preventDefault();
                     event.stopPropagation();
                     onClose();
-                    previousFocus.current?.focus({ preventScroll: true });
+                    restoreFocus();
                     return;
                 }
                 if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
@@ -202,6 +210,9 @@ function CanvasContextMenuSurface({ menu, onClose, children }: { menu: ContextMe
                 if (event.key === "ArrowDown") next = (current + 1) % items.length;
                 if (event.key === "ArrowUp") next = current <= 0 ? items.length - 1 : current - 1;
                 items[next]?.focus();
+            }}
+            onClickCapture={(event) => {
+                if (event.target instanceof Element && event.target.closest('[role="menuitem"]:enabled')) restoreFocus();
             }}
             onPointerDown={(event) => event.stopPropagation()}>
             {children}

@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { notifyCanvasFloatingPopoverOpen, subscribeCanvasFloatingPopoverOpen } from "@/lib/canvas/canvas-floating-popover";
 import { modelOptionLabel, modelOptionName, selectableModelsByCapability, type AiConfig, type ModelCapability } from "@/stores/use-config-store";
 
 type ModelPickerProps = {
@@ -31,7 +32,11 @@ export function ModelPicker({ config, value, onChange, capability, className, fu
             if ((event as CustomEvent<string>).detail !== pickerId) setOpen(false);
         };
         window.addEventListener("model-picker-open", closeOtherPicker);
-        return () => window.removeEventListener("model-picker-open", closeOtherPicker);
+        const unsubscribeCanvasPopover = subscribeCanvasFloatingPopoverOpen(pickerId, () => setOpen(false));
+        return () => {
+            window.removeEventListener("model-picker-open", closeOtherPicker);
+            unsubscribeCanvasPopover();
+        };
     }, [pickerId]);
 
     return (
@@ -40,7 +45,10 @@ export function ModelPicker({ config, value, onChange, capability, className, fu
             value={current}
             onOpenChange={(nextOpen) => {
                 if (nextOpen && !options.length && config.channelMode === "local") onMissingConfig?.();
-                if (nextOpen) window.dispatchEvent(new CustomEvent("model-picker-open", { detail: pickerId }));
+                if (nextOpen) {
+                    window.dispatchEvent(new CustomEvent("model-picker-open", { detail: pickerId }));
+                    notifyCanvasFloatingPopoverOpen(pickerId);
+                }
                 setOpen(nextOpen);
             }}
             onValueChange={onChange}

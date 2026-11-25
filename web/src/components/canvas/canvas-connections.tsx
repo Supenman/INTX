@@ -4,6 +4,11 @@ import { canvasThemes } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
 import type { CanvasConnection, CanvasNodeData, ConnectionHandle, Position } from "@/types/canvas";
 
+function connectionCurve(startX: number, startY: number, endX: number, endY: number) {
+    const curvature = Math.max(Math.abs(endX - startX) * 0.5, 50);
+    return `M ${startX} ${startY} C ${startX + curvature} ${startY}, ${endX - curvature} ${endY}, ${endX} ${endY}`;
+}
+
 export function ConnectionPath({
     connection,
     from,
@@ -24,9 +29,7 @@ export function ConnectionPath({
     const startY = from.position.y + from.height / 2;
     const endX = to.position.x;
     const endY = to.position.y + to.height / 2;
-    const dx = Math.abs(endX - startX);
-    const curvature = Math.max(dx * 0.5, 50);
-    const pathD = `M ${startX} ${startY} C ${startX + curvature} ${startY}, ${endX - curvature} ${endY}, ${endX} ${endY}`;
+    const pathD = connectionCurve(startX, startY, endX, endY);
 
     return (
         <g>
@@ -78,8 +81,7 @@ export function ActiveConnectionPath({ node, handle, mouseWorld, target }: { nod
     const snappedStartY = handle.handleType === "target" && target ? target.position.y + target.height / 2 : startY;
     const snappedEndX = handle.handleType === "source" && target ? target.position.x : endX;
     const snappedEndY = handle.handleType === "source" && target ? target.position.y + target.height / 2 : endY;
-    const distance = Math.abs(snappedEndX - snappedStartX);
-    const pathD = `M ${snappedStartX} ${snappedStartY} C ${snappedStartX + distance * 0.5} ${snappedStartY}, ${snappedEndX - distance * 0.5} ${snappedEndY}, ${snappedEndX} ${snappedEndY}`;
+    const pathD = connectionCurve(snappedStartX, snappedStartY, snappedEndX, snappedEndY);
 
     return <path d={pathD} stroke={theme.node.activeStroke} strokeWidth={target ? 2.8 : 1.8} vectorEffect="non-scaling-stroke" fill="none" strokeDasharray={target ? undefined : "5,5"} className="motion-safe:transition-[stroke-width] motion-safe:duration-150" />;
 }

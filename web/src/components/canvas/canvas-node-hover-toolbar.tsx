@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { App, Modal, Segmented, Tooltip } from "antd";
-import { Download, Ellipsis, FolderPlus, Image as ImageIcon, Info, Minus, Music2, Plus, RefreshCw, SlidersHorizontal, Trash2, Ungroup, Upload, Video } from "lucide-react";
+import { Download, Ellipsis, FolderPlus, Image as ImageIcon, Info, Layers, Minus, Music2, Plus, RefreshCw, SlidersHorizontal, Trash2, Ungroup, Upload, Video } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { resolveToolbarTools } from "@/domain";
@@ -31,6 +31,7 @@ type CanvasNodeHoverToolbarProps = {
     onGenerateImage: (node: CanvasNodeData) => void;
     onUpload: (node: CanvasNodeData) => void;
     onDownload: (node: CanvasNodeData) => void;
+    onOpenVersions: (node: CanvasNodeData) => void;
     onSaveAsset: (node: CanvasNodeData) => void;
     onMaskEdit: (node: CanvasNodeData) => void;
     onCrop: (node: CanvasNodeData) => void;
@@ -80,6 +81,7 @@ export function CanvasNodeHoverToolbar({
     onGenerateImage,
     onUpload,
     onDownload,
+    onOpenVersions,
     onSaveAsset,
     onMaskEdit,
     onCrop,
@@ -331,6 +333,7 @@ export function CanvasNodeHoverToolbar({
                 {toolbarTools.map((tool) => (
                     <ToolbarAction key={tool.id} {...tool} showLabel={isImage ? showImageToolLabels : true} />
                 ))}
+                {hasImage && node.metadata?.versionLabel ? <ToolbarAction id="node-versions" title={t("canvas.node.openVersions")} label={t("canvas.node.openVersions")} icon={<Layers className="size-4" />} onClick={() => onOpenVersions(node)} showLabel={showImageToolLabels} /> : null}
                 {hasImage ? <ToolbarAction id="more" title={t("canvas.imageTools.configure")} label={t("canvas.imageTools.more")} icon={<Ellipsis className="size-4" />} active={imageToolSettingsOpen} onClick={openImageToolSettings} showLabel={showImageToolLabels} /> : null}
             </div>
             {hasImage ? (
@@ -426,7 +429,7 @@ function ToolbarAction({ title, label, icon, onClick, showLabel, pressed, active
     return (
         <Tooltip title={title} placement="top" mouseEnterDelay={0.2} color="#ffffff" styles={{ root: { color: "#242529", boxShadow: "0 8px 24px rgba(15,23,42,.16)", fontSize: 13, fontWeight: 500 } }}>
             <button type="button" className={`group relative flex h-10 items-center whitespace-nowrap px-1.5 ${danger ? "text-destructive" : ""}`} onClick={onClick} aria-label={title} aria-pressed={pressed}>
-                <span className={`flex h-9 items-center ${hasText ? "gap-2 px-2.5" : "justify-center px-2"} rounded-lg transition ${active ? "bg-[var(--node-toolbar-active)]" : "group-hover:bg-[var(--node-toolbar-hover)]"}`}>
+                <span className={`flex h-9 items-center ${hasText ? "gap-2 px-2.5" : "justify-center px-2"} rounded-lg transition ${active ? "bg-[var(--node-toolbar-active)]" : "group-hover:bg-[var(--node-toolbar-hover)] group-focus-visible:bg-[var(--node-toolbar-hover)] motion-safe:group-active:scale-95"}`}>
                     {icon ?? null}
                     {hasText ? <span>{label}</span> : null}
                 </span>

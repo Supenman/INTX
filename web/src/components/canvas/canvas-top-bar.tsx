@@ -102,7 +102,7 @@ export function CanvasTopBar({
             <div className="pointer-events-none absolute left-0 right-0 top-0 z-50 flex h-14 items-start justify-between gap-2 px-2 pt-2" style={{ background: `linear-gradient(to bottom, ${theme.canvas.background} 65%, transparent)` }}>
                 <div className="pointer-events-auto flex min-w-0 items-center gap-1 px-1.5 py-1" style={{ color: theme.node.text }}>
                     <Tooltip title={sidePanelOpen ? t("canvas.collapsePanel") : t("canvas.expandPanel")}>
-                        <button type="button" onClick={toggleSidePanel} aria-label={sidePanelOpen ? t("canvas.collapsePanel") : t("canvas.expandPanel")} className="grid size-8 shrink-0 place-items-center rounded-lg transition hover:bg-black/5 dark:hover:bg-white/10" style={{ color: theme.node.text }}>
+                        <button type="button" onClick={toggleSidePanel} aria-expanded={sidePanelOpen} aria-label={sidePanelOpen ? t("canvas.collapsePanel") : t("canvas.expandPanel")} className="grid size-8 shrink-0 place-items-center rounded-lg transition duration-150 hover:bg-black/5 dark:hover:bg-white/10 motion-safe:active:scale-95" style={{ color: theme.node.text }}>
                             {sidePanelOpen ? <PanelLeftClose className="size-4" /> : <PanelLeftOpen className="size-4" />}
                         </button>
                     </Tooltip>

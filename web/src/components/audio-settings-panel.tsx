@@ -84,7 +84,7 @@ export function AudioSettingsPanel({ config, onConfigChange, theme, showTitle = 
 
 function OptionPill({ selected, theme, onClick, children }: { selected: boolean; theme: CanvasTheme; onClick: () => void; children: ReactNode }) {
     return (
-        <button type="button" aria-pressed={selected} className="h-9 cursor-pointer rounded-[var(--r-md)] border px-2 text-[length:var(--fs-body)] transition hover:opacity-80" style={{ background: "transparent", borderColor: selected ? theme.node.text : theme.node.stroke, color: theme.node.text }} onMouseDown={(event) => event.stopPropagation()} onClick={onClick}>
+        <button type="button" aria-pressed={selected} className="h-9 cursor-pointer rounded-[var(--r-md)] border px-2 text-[length:var(--fs-body)] transition hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" style={{ background: "transparent", borderColor: selected ? theme.node.text : theme.node.stroke, color: theme.node.text }} onMouseDown={(event) => event.stopPropagation()} onClick={onClick}>
             {children}
         </button>
     );

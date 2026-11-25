@@ -26,6 +26,7 @@ type CanvasNodeProps = {
     data: CanvasNodeData;
     scale: number;
     isSelected: boolean;
+    isDragging?: boolean;
     isRelated: boolean;
     isFocusRelated: boolean;
     isConnectionTarget: boolean;
@@ -48,6 +49,7 @@ type CanvasNodeProps = {
     onHoverStart: (nodeId: string) => void;
     onHoverEnd: (nodeId: string) => void;
     onConnectStart: (event: React.MouseEvent, nodeId: string, handleType: "source" | "target") => void;
+    onConnectQuickAdd: (nodeId: string, handleType: "source" | "target") => void;
     onResizeStart: (nodeId: string) => void;
     onResize: (nodeId: string, width: number, height: number, position?: Position) => void;
     onResizeEnd: (nodeId: string) => void;
@@ -93,6 +95,7 @@ export const CanvasNode = React.memo(function CanvasNode({
     data,
     scale,
     isSelected,
+    isDragging = false,
     isRelated,
     isFocusRelated,
     isConnectionTarget,
@@ -112,6 +115,7 @@ export const CanvasNode = React.memo(function CanvasNode({
     onHoverStart,
     onHoverEnd,
     onConnectStart,
+    onConnectQuickAdd,
     onResizeStart,
     onResize,
     onResizeEnd,
@@ -166,6 +170,7 @@ export const CanvasNode = React.memo(function CanvasNode({
         startTop: 0,
         startWidth: 0,
         startHeight: 0,
+        scale: 1,
         keepRatio: false,
         ratio: 1,
     });
@@ -230,8 +235,8 @@ export const CanvasNode = React.memo(function CanvasNode({
         (event: MouseEvent) => {
             if (!resizeRef.current.isResizing) return;
 
-            const dx = (event.clientX - resizeRef.current.startX) / scale;
-            const dy = (event.clientY - resizeRef.current.startY) / scale;
+            const dx = (event.clientX - resizeRef.current.startX) / resizeRef.current.scale;
+            const dy = (event.clientY - resizeRef.current.startY) / resizeRef.current.scale;
             const isMediaNode = data.type === CanvasNodeType.Image || data.type === CanvasNodeType.Video;
             const minWidth = isMediaNode ? 420 : 220;
             const minHeight = isMediaNode ? 236 : 160;
@@ -265,18 +270,23 @@ export const CanvasNode = React.memo(function CanvasNode({
                 y: fromTop ? startBottom - height : resizeRef.current.startTop,
             });
         },
-        [data.id, onResize, scale],
+        [data.id, data.type, onResize],
     );
 
-    const handleResizeUp = useCallback(() => {
+    const handleResizeUp = useCallback((event?: Event) => {
+        if (event instanceof MouseEvent && event.type === "mouseup" && event.button !== 0) return;
+        if (!resizeRef.current.isResizing) return;
         resizeRef.current.isResizing = false;
         window.removeEventListener("mousemove", handleResizeMove);
         window.removeEventListener("mouseup", handleResizeUp);
+        window.removeEventListener("blur", handleResizeUp);
+        window.removeEventListener("pointercancel", handleResizeUp);
         onResizeEnd(data.id);
     }, [data.id, handleResizeMove, onResizeEnd]);
 
     const handleResizeMouseDown = (event: React.MouseEvent, corner: ResizeCorner) => {
         event.stopPropagation();
+        if (event.button !== 0 || resizeRef.current.isResizing) return;
         event.preventDefault();
         onResizeStart(data.id);
         resizeRef.current = {
@@ -288,24 +298,22 @@ export const CanvasNode = React.memo(function CanvasNode({
             startTop: data.position.y,
             startWidth: data.width,
             startHeight: data.height,
+            scale,
             keepRatio: (data.type === CanvasNodeType.Image && !data.metadata?.freeResize) || data.type === CanvasNodeType.Video || Boolean(definition?.keepAspectRatio?.(data)),
             ratio: (data.metadata?.naturalWidth || data.width) / (data.metadata?.naturalHeight || data.height || 1),
         };
         window.addEventListener("mousemove", handleResizeMove);
         window.addEventListener("mouseup", handleResizeUp);
+        window.addEventListener("blur", handleResizeUp);
+        window.addEventListener("pointercancel", handleResizeUp);
     };
 
-    useEffect(() => {
-        return () => {
-            window.removeEventListener("mousemove", handleResizeMove);
-            window.removeEventListener("mouseup", handleResizeUp);
-        };
-    }, [handleResizeMove, handleResizeUp]);
+    useEffect(() => () => handleResizeUp(), [handleResizeUp]);
 
     return (
         <div
             data-node-id={data.id}
-            className={`node-element group/node absolute flex select-none flex-col transition-shadow duration-200 ${isGroup ? "z-[5]" : isSelected ? "z-50" : "z-10"} ${referenceSelectionState === "available" ? "cursor-pointer" : referenceSelectionState ? "cursor-not-allowed" : ""}`}
+            className={`node-element group/node absolute flex select-none flex-col transition-shadow duration-200 ${isGroup ? "z-[5]" : isSelected ? "z-50" : "z-10"} ${isDragging ? "cursor-grabbing" : referenceSelectionState === "available" ? "cursor-pointer" : referenceSelectionState ? "cursor-not-allowed" : ""}`}
             style={{
                 transform: `translate(${data.position.x}px, ${data.position.y}px)`,
                 width: data.width,
@@ -328,7 +336,7 @@ export const CanvasNode = React.memo(function CanvasNode({
                 else onContextMenu(event, data.id);
             }}
         >
-            {data.metadata?.versionLabel && onOpenVersions ? <button type="button" data-version-badge={data.metadata.versionLabel} title={`${t("canvas.node.versionBadge", { label: data.metadata.versionLabel })}${data.metadata.versionPrimary ? ` · ${t("canvas.node.versionBadgePrimary")}` : ""} · ${t("canvas.node.openVersions")}`} className="absolute left-2 top-2 z-[66] rounded-full border px-2 py-1 text-xs font-medium shadow-sm" style={{ background: data.metadata.versionPrimary ? theme.toolbar.activeBg : theme.toolbar.panel, borderColor: data.metadata.versionPrimary ? theme.node.activeStroke : theme.toolbar.border, color: data.metadata.versionPrimary ? theme.node.activeStroke : theme.node.text }} onMouseDown={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); onOpenVersions(data); }}>{data.metadata.versionLabel}</button> : null}
+            {data.type !== CanvasNodeType.Image && data.metadata?.versionLabel && onOpenVersions ? <button type="button" data-version-badge={data.metadata.versionLabel} title={`${t("canvas.node.versionBadge", { label: data.metadata.versionLabel })}${data.metadata.versionPrimary ? ` · ${t("canvas.node.versionBadgePrimary")}` : ""} · ${t("canvas.node.openVersions")}`} className="absolute left-2 top-2 z-[66] rounded-full border px-2 py-1 text-xs font-medium shadow-sm" style={{ background: data.metadata.versionPrimary ? theme.toolbar.activeBg : theme.toolbar.panel, borderColor: data.metadata.versionPrimary ? theme.node.activeStroke : theme.toolbar.border, color: data.metadata.versionPrimary ? theme.node.activeStroke : theme.node.text }} onMouseDown={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); onOpenVersions(data); }}>{data.metadata.versionLabel}</button> : null}
             {(!referenceSelectionState || referenceSelectionState === "target") && (hasTitleIcon || isSelected || hovered || isEditingTitle) && (
                 <div data-canvas-node-control className="absolute bottom-full left-1 z-[65] mb-1" style={{ width: titleHeaderWidth, transform: `scale(${1 / Math.max(scale, 0.05)})`, transformOrigin: "left bottom" }} onMouseDown={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
                     {isEditingTitle ? (
@@ -449,14 +457,16 @@ export const CanvasNode = React.memo(function CanvasNode({
                     </div>
                 ) : null}
 
-                {!referenceSelectionState ? <ResizeHandle corner="top-left" onMouseDown={handleResizeMouseDown} /> : null}
-                {!referenceSelectionState ? <ResizeHandle corner="top-right" onMouseDown={handleResizeMouseDown} /> : null}
-                {!referenceSelectionState ? <ResizeHandle corner="bottom-left" onMouseDown={handleResizeMouseDown} /> : null}
-                {!referenceSelectionState ? <ResizeHandle corner="bottom-right" onMouseDown={handleResizeMouseDown} /> : null}
+                {!referenceSelectionState && !data.metadata?.locked && (isSelected || hovered) ? <>
+                    <ResizeHandle corner="top-left" onMouseDown={handleResizeMouseDown} />
+                    <ResizeHandle corner="top-right" onMouseDown={handleResizeMouseDown} />
+                    <ResizeHandle corner="bottom-left" onMouseDown={handleResizeMouseDown} />
+                    <ResizeHandle corner="bottom-right" onMouseDown={handleResizeMouseDown} />
+                </> : null}
             </div>
 
-            {!referenceSelectionState && !isGroup ? <ConnectionHandleDot side="left" scale={scale} visible={hovered || isSelected || isConnecting} onMouseDown={(event) => onConnectStart(event, data.id, "target")} /> : null}
-            {!referenceSelectionState && (definition?.hasSourceHandle ?? true) ? <ConnectionHandleDot side="right" scale={scale} visible={hovered || isSelected || isConnecting} onMouseDown={(event) => onConnectStart(event, data.id, "source")} /> : null}
+            {!referenceSelectionState && !isGroup ? <ConnectionHandleDot side="left" scale={scale} visible={hovered || isSelected || isConnecting} onMouseDown={(event) => onConnectStart(event, data.id, "target")} onQuickAdd={() => onConnectQuickAdd(data.id, "target")} /> : null}
+            {!referenceSelectionState && (definition?.hasSourceHandle ?? true) ? <ConnectionHandleDot side="right" scale={scale} visible={hovered || isSelected || isConnecting} onMouseDown={(event) => onConnectStart(event, data.id, "source")} onQuickAdd={() => onConnectQuickAdd(data.id, "source")} /> : null}
 
             {/* Counter-scale the panel so its on-screen size stays constant while the canvas zooms. */}
             {showPanel && !isGroup && renderPanel ? (
@@ -849,12 +859,6 @@ function ImageContent({
                 )}
             </div>
             {primaryImage?.status === "error" ? <BatchImageFailureActions placement="left" onRetry={() => onRetryBatchImage?.(primaryImage.id)} onDelete={() => onDeleteBatchImage?.(primaryImage.id)} /> : null}
-            {primaryImage?.content ? (
-                <button type="button" className="pointer-events-none absolute left-2.5 top-2.5 z-30 flex h-8 items-center gap-1 rounded-lg border px-2 text-[10px] font-medium opacity-0 shadow-[0_6px_18px_rgba(15,23,42,.16)] backdrop-blur-md transition hover:scale-[1.02] group-hover/node:pointer-events-auto group-hover/node:opacity-100" style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.toolbar.activeText }} title={t("common.download")} onClick={(event) => (event.stopPropagation(), onDownloadBatchImage?.(primaryImage.id))}>
-                    <Download className="size-3" />
-                    {t("common.download")}
-                </button>
-            ) : null}
             {isBatchRoot ? (
                 <button
                     type="button"
@@ -1028,9 +1032,10 @@ function ResizeHandle({ corner, onMouseDown }: { corner: ResizeCorner; onMouseDo
     return <div className={`absolute z-50 size-7 ${positionClass}`} onMouseDown={(event) => onMouseDown(event, corner)} />;
 }
 
-function ConnectionHandleDot({ side, scale, visible, onMouseDown }: { side: "left" | "right"; scale: number; visible: boolean; onMouseDown: (event: React.MouseEvent) => void }) {
+function ConnectionHandleDot({ side, scale, visible, onMouseDown, onQuickAdd }: { side: "left" | "right"; scale: number; visible: boolean; onMouseDown: (event: React.MouseEvent) => void; onQuickAdd: () => void }) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const { t } = useTranslation();
+    const label = t(side === "left" ? "canvas.createMenu.beforeNode" : "canvas.createMenu.fromNode");
     const handleRef = useRef<HTMLSpanElement>(null);
     const [railHovered, setRailHovered] = useState(false);
     const inverseScale = 1 / Math.max(scale, 0.05);
@@ -1062,14 +1067,18 @@ function ConnectionHandleDot({ side, scale, visible, onMouseDown }: { side: "lef
             data-canvas-connection-rail={side}
             className={`group/port absolute top-1/2 z-30 flex -translate-y-1/2 items-center justify-center rounded-full border-0 bg-transparent p-0 outline-none motion-safe:transition-[width,opacity] motion-safe:duration-150 ${visible || railHovered ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"}`}
             style={{ width: railHovered ? railSize : restingRailWidth, height: `min(100%, ${railSize}px)`, cursor: "crosshair", ...(side === "left" ? { right: "100%" } : { left: "100%" }) }}
+            tabIndex={visible || railHovered ? 0 : -1}
             onMouseEnter={(event) => { setRailHovered(true); updateHandle(event); }}
             onMouseMove={updateHandle}
             onMouseLeave={() => { setRailHovered(false); resetHandle(); }}
             onMouseDown={onMouseDown}
+            onClick={(event) => {
+                if (event.detail === 0) onQuickAdd();
+            }}
             onFocus={() => setRailHovered(true)}
             onBlur={() => { setRailHovered(false); resetHandle(); }}
-            aria-label={t("canvas.toolbar.addNode")}
-            title={t("canvas.toolbar.addNode")}
+            aria-label={label}
+            title={label}
         >
             <span
                 ref={handleRef}

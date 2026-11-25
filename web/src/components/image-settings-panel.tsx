@@ -95,7 +95,7 @@ export function ImageSettingsPanel({ config, onConfigChange, theme, showTitle = 
                                 disabled={!sizeEnabled}
                                 aria-disabled={!sizeEnabled}
                                 aria-pressed={selectedRatio === item.value}
-                                className={`flex h-[72px] flex-col items-center justify-center gap-1.5 rounded-[var(--r-md)] border bg-transparent text-[length:var(--fs-body)] transition ${sizeEnabled ? "cursor-pointer hover:opacity-80" : "cursor-not-allowed opacity-50"}`}
+                                className={`flex h-[72px] flex-col items-center justify-center gap-1.5 rounded-[var(--r-md)] border bg-transparent text-[length:var(--fs-body)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${sizeEnabled ? "cursor-pointer hover:opacity-80" : "cursor-not-allowed opacity-50"}`}
                                 style={{ borderColor: selectedRatio === item.value ? theme.node.text : theme.node.stroke, background: "transparent", color: theme.node.text }}
                                 onMouseDown={(event) => event.stopPropagation()}
                                 onClick={() => selectRatio(item.value)}
@@ -221,7 +221,8 @@ function OptionPill({ selected, theme, onClick, disabled = false, children }: { 
             type="button"
             disabled={disabled}
             aria-disabled={disabled}
-            className={`h-9 rounded-[var(--r-md)] border px-2 text-[length:var(--fs-body)] transition ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:opacity-80"}`}
+            aria-pressed={selected}
+            className={`h-9 rounded-[var(--r-md)] border px-2 text-[length:var(--fs-body)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:opacity-80"}`}
             style={{ background: "transparent", borderColor: selected ? theme.node.text : theme.node.stroke, color: theme.node.text }}
             onMouseDown={(event) => event.stopPropagation()}
             onClick={onClick}

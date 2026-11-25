@@ -121,8 +121,8 @@ export function AgentSkillManagerView({ theme, endpoint, token, connected, fullP
                     {errors.length ? <div className="text-xs text-amber-500">{errors.join(" · ")}</div> : null}
                     {loading && !skills.length ? <div className="py-10 text-center"><Spin /></div> : visibleSkills.length ? (
                         <div className="divide-y rounded-lg border" style={{ borderColor: theme.node.stroke }}>
-                            {visibleSkills.map((skill) => <div key={skill.name} className="flex items-center gap-2 px-3 py-3" style={{ borderColor: theme.node.stroke }}>
-                                <button type="button" className="min-w-0 flex-1 text-left" disabled={Boolean(opening)} onClick={() => void openSkill(skill.name)}>
+                            {visibleSkills.map((skill) => <div key={skill.name} className="flex items-center gap-2 px-3 py-3 hover:bg-[var(--surface-card-hover)] focus-within:bg-[var(--surface-card-hover)] motion-safe:transition-colors" style={{ borderColor: theme.node.stroke }}>
+                                <button type="button" className="focus-ring min-w-0 flex-1 rounded-sm text-left disabled:cursor-wait" disabled={Boolean(opening)} onClick={() => void openSkill(skill.name)}>
                                     <div className="truncate text-sm font-medium" style={{ color: theme.node.text }}>{skill.interface?.displayName || skill.name}</div>
                                     <div className="line-clamp-2 text-xs" style={{ color: theme.node.muted }}>{skill.description}</div>
                                 </button>

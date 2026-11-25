@@ -303,7 +303,7 @@ export default function AssetsPage() {
                                     key={option}
                                     type="button"
                                     aria-pressed={kindFilter === option}
-                                    className={cn("focus-ring flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm hover:bg-[var(--surface-card-hover)] motion-safe:transition-colors", kindFilter === option ? "bg-[var(--surface-card-hover)] font-medium text-foreground" : "text-muted-foreground")}
+                                    className={cn("focus-ring flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm motion-safe:transition-colors", kindFilter === option ? "bg-accent font-medium text-accent-foreground" : "text-muted-foreground hover:bg-[var(--surface-card-hover)] hover:text-foreground")}
                                     onClick={() => {
                                         setPage(1);
                                         setKindFilter(option);
@@ -467,7 +467,7 @@ export default function AssetsPage() {
                         <Typography.Text strong>{t("assets.preview")}</Typography.Text>
                         <div className="mt-3 overflow-hidden rounded-lg bg-[var(--surface-card)]">
                             {coverUrl || imageDraft?.dataUrl ? (
-                                <img src={coverUrl || imageDraft?.dataUrl} alt="" className="aspect-[4/3] w-full object-cover" />
+                                <img src={coverUrl || imageDraft?.dataUrl} alt="" className="aspect-[4/3] w-full object-cover motion-safe:transition-transform motion-safe:duration-200 motion-safe:group-hover:scale-[1.025] motion-safe:group-focus-visible:scale-[1.025]" />
                             ) : (
                                 <div className="line-clamp-6 flex aspect-[4/3] items-center justify-center overflow-hidden bg-[var(--surface-sunken)] p-4 text-center text-xs leading-5 break-words whitespace-pre-wrap text-muted-foreground">{content || t("assets.noCover")}</div>
                             )}
@@ -538,11 +538,10 @@ function AssetCard({ asset, selected, onSelect, onOpen, onEdit, onCopy, onDownlo
     const summary = assetSummary(asset);
     return (
         <Card
-            hoverable
-            className={cn("surface-card-interactive relative overflow-hidden", selected && "ring-2 ring-primary")}
+            className={cn("surface-card-interactive relative overflow-hidden hover:bg-[var(--surface-card-hover)] focus-within:bg-[var(--surface-card-hover)]", selected && "ring-2 ring-primary")}
             styles={{ body: { padding: 0 } }}
             cover={
-                <button type="button" className="focus-ring block w-full text-left" aria-label={asset.title} onClick={(event) => onOpen(event.currentTarget)}>
+                <button type="button" className="group relative block w-full overflow-hidden text-left focus-visible:z-10 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring" aria-label={asset.title} onClick={(event) => onOpen(event.currentTarget)}>
                     {cover ? (
                         <img src={cover} alt="" loading="lazy" className="aspect-[4/3] w-full object-cover" />
                     ) : (

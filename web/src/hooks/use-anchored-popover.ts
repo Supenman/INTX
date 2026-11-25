@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type RefObject } from "react";
+import { notifyCanvasFloatingPopoverOpen, subscribeCanvasFloatingPopoverOpen } from "@/lib/canvas/canvas-floating-popover";
 
 type UseAnchoredPopoverOptions = {
     /** 触发按钮所属的容器；水平避让以它为界，默认是节点里的生成面板。 */
@@ -10,7 +11,7 @@ export type AnchoredPopover = {
     buttonRef: RefObject<HTMLSpanElement | null>;
     panelRef: RefObject<HTMLDivElement | null>;
     open: boolean;
-    setOpen: Dispatch<SetStateAction<boolean>>;
+    setOpen: (open: boolean) => void;
     /** 首帧可能还没测量到按钮位置；为 null 时先不渲染浮层。 */
     buttonRect: DOMRect | null;
     anchorRect: DOMRect | null;
@@ -26,17 +27,18 @@ export type AnchoredPopover = {
 export function useAnchoredPopover({ anchorSelector = "[data-canvas-prompt-panel]", onOpenChange }: UseAnchoredPopoverOptions = {}): AnchoredPopover {
     const buttonRef = useRef<HTMLSpanElement>(null);
     const panelRef = useRef<HTMLDivElement>(null);
+    const popoverId = useId();
     const [open, setOpenState] = useState(false);
     const [buttonRect, setButtonRect] = useState<DOMRect | null>(null);
     const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
 
-    const setOpen = useCallback<Dispatch<SetStateAction<boolean>>>((next) => {
-        setOpenState((current) => {
-            const resolved = typeof next === "function" ? next(current) : next;
-            if (resolved !== current) onOpenChange?.(resolved);
-            return resolved;
-        });
-    }, [onOpenChange]);
+    const setOpen = useCallback((next: boolean) => {
+        if (next) notifyCanvasFloatingPopoverOpen(popoverId);
+        setOpenState(next);
+        onOpenChange?.(next);
+    }, [onOpenChange, popoverId]);
+
+    useEffect(() => subscribeCanvasFloatingPopoverOpen(popoverId, () => setOpen(false)), [popoverId, setOpen]);
 
     useEffect(() => {
         if (!open) {
@@ -97,6 +99,7 @@ export function useAnchoredPopover({ anchorSelector = "[data-canvas-prompt-panel
             window.removeEventListener("scroll", measure, true);
             window.removeEventListener("pointerdown", closeOnOutsidePointer, true);
             window.removeEventListener("keydown", closeOnEscape, true);
+            onOpenChange?.(false);
         };
     }, [anchorSelector, open, setOpen]);
 

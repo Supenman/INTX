@@ -18,6 +18,31 @@ export function nodeBounds(nodes: CanvasNodeData[]) {
     );
 }
 
+export function placeAssetNodes(newNodes: CanvasNodeData[], center: { x: number; y: number }): CanvasNodeData[] {
+    const { x, y } = center;
+    const columns = Math.min(3, newNodes.length);
+    const cellWidth = Math.max(...newNodes.map((node) => node.width)) + 32;
+    const cellHeight = Math.max(...newNodes.map((node) => node.height)) + 32;
+    return newNodes.map((node, index) => ({
+        ...node,
+        position: {
+            x: x + (index % columns - (columns - 1) / 2) * cellWidth - node.width / 2,
+            y: y + Math.floor(index / columns) * cellHeight - node.height / 2,
+        },
+    }));
+}
+
+export function revealNodesInViewport(viewport: ViewportTransform, nodes: CanvasNodeData[], size?: { width: number; height: number }): ViewportTransform {
+    if (!size?.width || !size.height || !nodes.length) return viewport;
+    const { left, right, top, bottom } = nodeBounds(nodes);
+    const { x, y, k } = viewport;
+    const nextX = left * k + x < 0 || right * k + x > size.width
+        ? (size.width - (left + right) * k) / 2 : x;
+    const nextY = top * k + y < 0 || bottom * k + y > size.height
+        ? (size.height - (top + bottom) * k) / 2 : y;
+    return nextX === x && nextY === y ? viewport : { x: nextX, y: nextY, k };
+}
+
 function containsCenter(group: CanvasNodeData, node: CanvasNodeData) {
     const centerX = node.position.x + node.width / 2;
     const centerY = node.position.y + node.height / 2;
@@ -176,4 +201,20 @@ export function focusViewportForNode(node: Pick<CanvasNodeData, "position" | "wi
     const slack = usableBottom - groupHeight;
     const groupTop = slack * (below > 0 && slack > 0 ? 0.75 : 0.5);
     return { x: size.width / 2 - nodeCenterX * k, y: groupTop + groupHeight / 2 - nodeCenterY * k - (below - above) / 2, k };
+}
+
+/** Fit all canvas content into the viewport with a small, even margin. */
+export function fitViewportForNodes(nodes: CanvasNodeData[], size: { width: number; height: number }, padding = 64): ViewportTransform | null {
+    if (!nodes.length || size.width <= 0 || size.height <= 0) return null;
+    const { left, top, right, bottom } = nodeBounds(nodes);
+    const width = Math.max(right - left, 1);
+    const height = Math.max(bottom - top, 1);
+    const availableWidth = Math.max(size.width - padding * 2, 1);
+    const availableHeight = Math.max(size.height - padding * 2, 1);
+    const k = Math.min(Math.max(Math.min(availableWidth / width, availableHeight / height), 0.05), 1);
+    return {
+        x: size.width / 2 - ((left + right) / 2) * k,
+        y: size.height / 2 - ((top + bottom) / 2) * k,
+        k,
+    };
 }

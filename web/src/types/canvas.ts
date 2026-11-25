@@ -167,7 +167,7 @@ export type SelectionBox = {
     startWorldY: number;
     currentWorldX: number;
     currentWorldY: number;
-    additive: boolean;
+    strategy: "replace" | "add" | "subtract" | "toggle";
     initialSelectedNodeIds: string[];
 };
 
