@@ -5,6 +5,17 @@ description: Implemented changes that still need manual verification
 
 # Pending Tests
 
+## Node settings popover field hierarchy
+
+- Image node: the popover starts with a "Size" group — aspect ratio cards first, then resolution (Auto / 1k / 2k / 4k). Both write the same value, so changing either must update the trigger summary.
+- Image node: below the size group there is a collapsed row "Exact size · 1024 × 1024". Expanding it reveals the W/H inputs and the "Align to multiples of 16" switch; the current pixel value stays visible when collapsed.
+- Image node: change the exact size, collapse the row, and the trigger summary must match the new value; expanding again must not reset it.
+- Video node: the order is "Ratio → Resolution → Exact size (collapsed) → Seconds → Mode". Picking a ratio updates the trigger summary.
+- Image node: quality and transparent background sit in an "Output" group instead of being wedged between size and count.
+- All four nodes (image / video / audio / text): the settings popover opens outside the generation panel and never covers the prompt input or the generate button; it stays inside the viewport on narrow screens.
+- Audio node: voice, format and speed controls use the same border weight and font size as the other popovers.
+- Text node: double-click the node, open "Reasoning · Auto · 1", and both "Reasoning effort" and "Count" render without clipping.
+
 ## Canvas creation entry points and node settings popover
 
 - Press `I` / `V` / `T` / `A` on an empty canvas to create an image, video, text or audio node. The new node appears at the canvas centre and is selected; other letters do nothing.

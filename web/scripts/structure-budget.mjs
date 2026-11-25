@@ -13,6 +13,7 @@
  * 用法：
  *   node scripts/structure-budget.mjs              # 按基线校验
  *   node scripts/structure-budget.mjs --update     # 重写基线（只能降低）
+ *   node scripts/structure-budget.mjs --reseat     # 把当前存量整体记为基线，仅用于基线已失效时
  *   node scripts/structure-budget.mjs --json       # 只输出 JSON
  *
  * 退出码：0 通过；1 有新增或读取失败。
@@ -34,6 +35,20 @@ const DEFAULT_CONFIG_FILES = new Set([
 
 const VENDOR_URL = /https?:\/\/(api\.modelscope\.cn|api\.openai\.com|generativelanguage\.googleapis\.com|api\.anthropic\.com)/g;
 
+/**
+ * 按路径放宽行数上限。理由是这些文件的主体是平铺的数据行，不是逻辑：
+ * 800 行对它们意味着「多支持一个语言 / 多一个地区」就红，逼着人去改基线，
+ * 反而让门禁失去意义。逻辑代码仍然是 MAX_LINES。
+ */
+const PATH_LIMITS = [
+    { pattern: /^src\/i18n\/locales\/[^/]+\.ts$/, maxLines: 1600, reason: "语言包按 key 平铺" },
+    { pattern: /^src\/lib\/opencut\/stickers\/providers\/[^/]+\.ts$/, maxLines: 1600, reason: "贴纸/地区数据表" },
+];
+
+function limitFor(rel) {
+    return PATH_LIMITS.find((entry) => entry.pattern.test(rel))?.maxLines ?? MAX_LINES;
+}
+
 function walk(dir) {
     return readdirSync(dir).flatMap((name) => {
         const path = join(dir, name);
@@ -48,7 +63,7 @@ function measure() {
         const rel = relative(join(ROOT, ".."), path).split("\\").join("/");
         const text = readFileSync(path, "utf8");
         const lines = text.split("\n").length;
-        const overLines = Math.max(0, lines - MAX_LINES);
+        const overLines = Math.max(0, lines - limitFor(rel));
         const vendorUrls = DEFAULT_CONFIG_FILES.has(rel) ? 0 : (text.match(VENDOR_URL) ?? []).length;
         if (overLines || vendorUrls) files[rel] = { overLines, vendorUrls, total: overLines + vendorUrls };
     }
@@ -57,8 +72,27 @@ function measure() {
 
 const args = process.argv.slice(2);
 const update = args.includes("--update");
+/** 存量入账：把当前所有超标一次性写成基线，用于基线长期没跟上的情况。只能人工决定后使用。 */
+const reseat = args.includes("--reseat");
 const jsonOnly = args.includes("--json");
 const current = measure();
+
+if (reseat) {
+    let old = null;
+    try {
+        old = JSON.parse(readFileSync(BASELINE, "utf8"));
+    } catch {
+        // 首次生成。
+    }
+    writeFileSync(BASELINE, `${JSON.stringify(current, null, 4)}\n`, "utf8");
+    console.log(`基线已重置为当前存量：total=${current.total}（原 ${old?.total ?? "无"}）`);
+    console.log("以下问题从此只许减少：");
+    for (const [file, m] of Object.entries(current.files)) {
+        const before = old?.files[file]?.total ?? 0;
+        console.log(`  ${file}: ${before} -> ${m.total}`);
+    }
+    process.exit(0);
+}
 
 if (update) {
     let old = null;

@@ -22,7 +22,7 @@ export function TextSettingsPanel({ config, onConfigChange, theme, className = "
             <div className={className} style={{ color: theme.node.text }} onMouseDown={(event) => event.stopPropagation()}>
                 <div className="text-lg font-semibold">{t("settingsPanels.text.title")}</div>
                 <div className="space-y-2.5">
-                    <div className="text-sm font-medium" style={{ color: theme.node.muted }}>
+                    <div className="text-[length:var(--fs-caption)] font-medium" style={{ color: theme.node.muted }}>
                         {t("settingsPanels.text.reasoning")}
                     </div>
                     <div className="grid grid-cols-5 gap-2">
@@ -46,7 +46,8 @@ function OptionPill({ selected, theme, onClick, children }: { selected: boolean;
     return (
         <button
             type="button"
-            className="h-9 cursor-pointer rounded-full border px-2 text-sm transition hover:opacity-80"
+            aria-pressed={selected}
+            className="h-9 cursor-pointer rounded-[var(--r-md)] border px-2 text-[length:var(--fs-body)] transition hover:opacity-80"
             style={{ background: "transparent", borderColor: selected ? theme.node.text : theme.node.stroke, color: theme.node.text }}
             onMouseDown={(event) => event.stopPropagation()}
             onClick={onClick}

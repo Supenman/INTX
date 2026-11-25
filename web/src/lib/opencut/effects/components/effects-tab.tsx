@@ -25,7 +25,6 @@ import {
 } from "@hugeicons/core-free-icons";
 import { cn } from "@/lib/opencut/utils/ui";
 import { Separator } from "@/lib/opencut/components/ui/separator";
-import { useAssetsPanelStore } from "@/lib/opencut/components/editor/panels/assets/assets-panel-store";
 
 export function StandaloneEffectTab({
 	element,
@@ -204,8 +203,6 @@ export function ClipEffectsTab({
 }
 
 function EmptyView() {
-	const setActiveTab = useAssetsPanelStore((s) => s.setActiveTab);
-
 	return (
 		<div className="flex flex-col h-full items-center justify-center gap-4 text-center">
 			<HugeiconsIcon
@@ -219,13 +216,6 @@ function EmptyView() {
 					Add effects to this layer from the Assets panel.
 				</p>
 			</div>
-			<Button
-				variant="default"
-				size="sm"
-				onClick={() => setActiveTab("effects")}
-			>
-				Open effects
-			</Button>
 		</div>
 	);
 }

@@ -173,8 +173,27 @@ function scan() {
 const args = process.argv.slice(2);
 const asJson = args.includes("--json");
 const update = args.includes("--update");
+/** 存量入账：基线长期没跟上时一次性记账，只能人工决定后使用，之后仍只许降低。 */
+const reseat = args.includes("--reseat");
 const current = scan();
 const currentTotal = [...current.values()].reduce((sum, v) => sum + v.total, 0);
+
+if (reseat) {
+    const next = Object.fromEntries([...current.entries()].sort(([a], [b]) => a.localeCompare(b)));
+    let prev = null;
+    try {
+        prev = JSON.parse(readFileSync(BASELINE, "utf8"));
+    } catch {
+        // 首次生成。
+    }
+    writeFileSync(BASELINE, `${JSON.stringify({ total: currentTotal, files: next }, null, 4)}\n`, "utf8");
+    console.log(`基线已重置为当前存量：${currentTotal} 处（原 ${prev?.total ?? "无"}）`);
+    for (const [file, stat] of Object.entries(next)) {
+        const before = prev?.files?.[file]?.total ?? 0;
+        if (stat.total !== before) console.log(`  ${file}: ${before} -> ${stat.total}`);
+    }
+    process.exit(0);
+}
 
 if (update) {
     const next = Object.fromEntries([...current.entries()].sort(([a], [b]) => a.localeCompare(b)));

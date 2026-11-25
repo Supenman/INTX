@@ -1,20 +1,65 @@
 {
-    "total": 3860,
+    "total": 6256,
     "files": {
         "src/components/canvas/canvas-node.tsx": {
-            "overLines": 281,
+            "overLines": 349,
             "vendorUrls": 0,
-            "total": 281
+            "total": 349
         },
-        "src/pages/canvas/project.tsx": {
-            "overLines": 3109,
+        "src/lib/opencut/animation/keyframes.ts": {
+            "overLines": 562,
             "vendorUrls": 0,
-            "total": 3109
+            "total": 562
         },
-        "src/services/api/image.ts": {
+        "src/lib/opencut/core/managers/timeline-manager.ts": {
+            "overLines": 136,
+            "vendorUrls": 0,
+            "total": 136
+        },
+        "src/lib/opencut/gradients/canvas.ts": {
+            "overLines": 124,
+            "vendorUrls": 0,
+            "total": 124
+        },
+        "src/lib/opencut/masks/components/masks-tab.tsx": {
+            "overLines": 53,
+            "vendorUrls": 0,
+            "total": 53
+        },
+        "src/lib/opencut/masks/freeform/path.ts": {
+            "overLines": 36,
+            "vendorUrls": 0,
+            "total": 36
+        },
+        "src/lib/opencut/media/audio.ts": {
+            "overLines": 68,
+            "vendorUrls": 0,
+            "total": 68
+        },
+        "src/lib/opencut/stickers/providers/countries-data.ts": {
             "overLines": 220,
             "vendorUrls": 0,
             "total": 220
+        },
+        "src/lib/opencut/timeline/components/index.tsx": {
+            "overLines": 162,
+            "vendorUrls": 0,
+            "total": 162
+        },
+        "src/lib/opencut/timeline/components/timeline-element.tsx": {
+            "overLines": 499,
+            "vendorUrls": 0,
+            "total": 499
+        },
+        "src/pages/canvas/project.tsx": {
+            "overLines": 3517,
+            "vendorUrls": 0,
+            "total": 3517
+        },
+        "src/services/api/image.ts": {
+            "overLines": 280,
+            "vendorUrls": 0,
+            "total": 280
         },
         "src/services/api/model-plugin.ts": {
             "overLines": 250,

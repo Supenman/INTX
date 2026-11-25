@@ -21,10 +21,17 @@ export function CanvasVideoSettingsPopover({ config, onConfigChange, buttonClass
     const panelRef = useRef<HTMLDivElement>(null);
     const [open, setOpen] = useState(false);
     const [buttonRect, setButtonRect] = useState<DOMRect | null>(null);
+    const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
 
     useEffect(() => {
         if (!open) return;
-        const syncPosition = () => setButtonRect(buttonRef.current?.getBoundingClientRect() || null);
+        const syncPosition = () => {
+            const button = buttonRef.current;
+            setButtonRect(button?.getBoundingClientRect() || null);
+            // 生成面板是浮层要避开的邻居，不只是按钮：只按按钮算会压在面板右侧空隙上。
+            const anchor = button?.closest("[data-canvas-prompt-panel]");
+            setAnchorRect(anchor instanceof HTMLElement ? anchor.getBoundingClientRect() : null);
+        };
         const closeOnOutsidePointer = (event: PointerEvent) => {
             const target = event.target;
             if (!(target instanceof Node)) return;
@@ -45,7 +52,7 @@ export function CanvasVideoSettingsPopover({ config, onConfigChange, buttonClass
 
     // 位置由 Portal 内部按按钮实测矩形算；这里不要求 buttonRect 先就绪，
     // 否则首帧 buttonRect 还是 null，面板要等下一次 setState 才出现。
-    const panel = open ? <VideoSettingsPortal buttonRect={buttonRect} panelRef={panelRef} placement={placement} theme={theme} config={config} onConfigChange={onConfigChange} /> : null;
+    const panel = open ? <VideoSettingsPortal buttonRect={buttonRect} anchorRect={anchorRect} panelRef={panelRef} placement={placement} theme={theme} config={config} onConfigChange={onConfigChange} /> : null;
 
     return (
         <>
@@ -63,6 +70,7 @@ export function CanvasVideoSettingsPopover({ config, onConfigChange, buttonClass
 
 function VideoSettingsPortal({
     buttonRect,
+    anchorRect,
     panelRef,
     placement,
     theme,
@@ -71,6 +79,8 @@ function VideoSettingsPortal({
 }: {
     /** 首帧可能还没测量到按钮位置；为 null 时先不渲染，等首次 syncPosition 即可。 */
     buttonRect: DOMRect | null;
+    /** 触发按钮所属的生成面板，水平避让以它为界。 */
+    anchorRect: DOMRect | null;
     panelRef: RefObject<HTMLDivElement | null>;
     placement: CanvasVideoSettingsPopoverProps["placement"];
     theme: (typeof canvasThemes)[keyof typeof canvasThemes];
@@ -85,7 +95,17 @@ function VideoSettingsPortal({
     const dockInset = 88;
     const alignRight = placement?.endsWith("Right");
     const alignCenter = placement === "top" || placement === "bottom";
-    const left = alignCenter ? buttonRect.left + buttonRect.width / 2 - width / 2 : alignRight ? buttonRect.right - width : buttonRect.left;
+    // 水平避让以生成面板为界，而不是按钮：按钮只是面板里的一小块。
+    const anchor = anchorRect ?? buttonRect;
+    const left = alignCenter
+        ? buttonRect.left + buttonRect.width / 2 - width / 2
+        : alignRight
+            ? buttonRect.right - width
+            : window.innerWidth - anchor.right - gap - margin >= width
+                ? anchor.right + gap
+                : anchor.left - gap - margin >= width
+                    ? anchor.left - gap - width
+                    : buttonRect.right - width;
     const topPlacement = placement?.startsWith("top");
     const style = {
         position: "fixed",

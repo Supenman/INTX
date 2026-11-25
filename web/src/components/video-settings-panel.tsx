@@ -1,5 +1,6 @@
-import { type ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { Slider } from "antd";
+import { ChevronDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import i18n from "@/i18n";
@@ -32,6 +33,8 @@ type VideoSettingsPanelProps = {
 
 export function VideoSettingsPanel({ config, onConfigChange, theme, showTitle = true, className = "w-[320px] space-y-4 rounded-2xl px-1 py-0.5" }: VideoSettingsPanelProps) {
     const { t } = useTranslation();
+    // 精确像素属于低频项，默认收起，让比例和清晰度先被看到。
+    const [exactSizeOpen, setExactSizeOpen] = useState(false);
     const seconds = Number(clampVideoSeconds(config.videoSeconds || "6"));
     const videoMode = normalizeVideoModeValue(config.videoMode);
     const resolution = parseVideoResolution(config.vquality);
@@ -50,6 +53,26 @@ export function VideoSettingsPanel({ config, onConfigChange, theme, showTitle = 
         <ImageSettingsTheme theme={theme}>
             <div className={className} style={{ color: theme.node.text }} onMouseDown={(event) => event.stopPropagation()}>
                 {showTitle ? <div className="text-lg font-semibold">{t("settingsPanels.video.title")}</div> : null}
+                {/* 尺寸先行：比例和清晰度共同决定出图尺寸，之前清晰度排在最前、比例排第三，
+                    中间夹着精确像素，读起来像三个互不相干的参数。 */}
+                <SettingGroup title={t("settingsPanels.video.ratio")} color={theme.node.muted}>
+                    <div className="grid grid-cols-4 gap-2.5">
+                        {videoRatioOptions.map((item) => (
+                            <button
+                                key={item.value}
+                                type="button"
+                                aria-pressed={selectedRatio === item.value}
+                                className="flex h-[72px] cursor-pointer flex-col items-center justify-center gap-1.5 rounded-[var(--r-md)] border bg-transparent text-[length:var(--fs-body)] transition hover:opacity-80"
+                                style={{ borderColor: selectedRatio === item.value ? theme.node.text : theme.node.stroke, color: theme.node.text }}
+                                onMouseDown={(event) => event.stopPropagation()}
+                                onClick={() => applySize(resolution, item.value)}
+                            >
+                                <SizePreview width={item.width} height={item.height} color={theme.node.text} />
+                                <span>{item.value === "auto" ? t("settingsPanels.common.auto") : item.value}</span>
+                            </button>
+                        ))}
+                    </div>
+                </SettingGroup>
                 <SettingGroup title={t("settingsPanels.video.quality")} color={theme.node.muted}>
                     <div className="grid grid-cols-4 gap-2.5">
                         {resolutionOptions.map((item) => (
@@ -62,35 +85,35 @@ export function VideoSettingsPanel({ config, onConfigChange, theme, showTitle = 
                         </div>
                     </div>
                 </SettingGroup>
-                <SettingGroup title={t("settingsPanels.video.size")} color={theme.node.muted}>
-                    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2.5">
-                        <DimensionInput prefix="W" value={dimensions.width} disabled={selectedRatio === "auto"} theme={theme} onChange={(value) => updateDimension("width", value, dimensions, onConfigChange)} />
-                        <span className="text-lg opacity-45">↔</span>
-                        <DimensionInput prefix="H" value={dimensions.height} disabled={selectedRatio === "auto"} theme={theme} onChange={(value) => updateDimension("height", value, dimensions, onConfigChange)} />
-                    </div>
-                </SettingGroup>
-                <SettingGroup title={t("settingsPanels.video.ratio")} color={theme.node.muted}>
-                    <div className="grid grid-cols-4 gap-2.5">
-                        {videoRatioOptions.map((item) => (
-                            <button
-                                key={item.value}
-                                type="button"
-                                className="flex h-[72px] cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border bg-transparent text-sm transition hover:opacity-80"
-                                style={{ borderColor: selectedRatio === item.value ? theme.node.text : theme.node.stroke, color: theme.node.text }}
-                                onMouseDown={(event) => event.stopPropagation()}
-                                onClick={() => applySize(resolution, item.value)}
-                            >
-                                <SizePreview width={item.width} height={item.height} color={theme.node.text} />
-                                <span>{item.value === "auto" ? t("settingsPanels.common.auto") : item.value}</span>
-                            </button>
-                        ))}
-                    </div>
-                </SettingGroup>
+                {/* 高级：精确像素。比例选 auto 时尺寸由模型决定，这里禁用，收起状态下也能看到结果值。 */}
+                <button
+                    type="button"
+                    className="flex w-full cursor-pointer items-center justify-between rounded-[var(--r-md)] px-2.5 py-1.5 text-[length:var(--fs-caption)] transition hover:bg-[var(--surface-card-hover)]"
+                    style={{ color: theme.node.muted }}
+                    aria-expanded={exactSizeOpen}
+                    onMouseDown={(event) => event.stopPropagation()}
+                    onClick={() => setExactSizeOpen((value) => !value)}
+                >
+                    <span className="flex items-center gap-1.5">
+                        <ChevronDown className={`size-3.5 transition-transform ${exactSizeOpen ? "" : "-rotate-90"}`} />
+                        {t("settingsPanels.image.exactSize")}
+                    </span>
+                    <span style={{ opacity: 0.8 }}>{dimensions.width} × {dimensions.height}</span>
+                </button>
+                {exactSizeOpen ? (
+                    <SettingGroup title={t("settingsPanels.video.size")} color={theme.node.muted}>
+                        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2.5">
+                            <DimensionInput prefix="W" value={dimensions.width} disabled={selectedRatio === "auto"} theme={theme} onChange={(value) => updateDimension("width", value, dimensions, onConfigChange)} />
+                            <span className="text-lg opacity-45">↔</span>
+                            <DimensionInput prefix="H" value={dimensions.height} disabled={selectedRatio === "auto"} theme={theme} onChange={(value) => updateDimension("height", value, dimensions, onConfigChange)} />
+                        </div>
+                    </SettingGroup>
+                ) : null}
                 <SettingGroup title={t("settingsPanels.video.seconds")} color={theme.node.muted}>
                     <div className="flex items-center gap-3" onMouseDown={(event) => event.stopPropagation()}>
                         <Slider className="min-w-0 flex-1" min={VIDEO_SECONDS_MIN} max={VIDEO_SECONDS_MAX} step={1} value={seconds} onChange={(value) => onConfigChange("videoSeconds", String(Array.isArray(value) ? value[0] : value))} />
                         <SecondsInput value={seconds} theme={theme} onCommit={(value) => onConfigChange("videoSeconds", String(value))} />
-                        <span className="shrink-0 text-sm" style={{ color: theme.node.muted }}>s</span>
+                        <span className="shrink-0 text-[length:var(--fs-body)]" style={{ color: theme.node.muted }}>s</span>
                     </div>
                 </SettingGroup>
                 <SettingGroup title={t("settingsPanels.video.mode")} color={theme.node.muted}>
