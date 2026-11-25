@@ -25,13 +25,14 @@ export function CanvasWorkflowSettings({ config, onChange, onOpenChange }: { con
         else next[key] = value;
         onChange({ ...config.workflowValues, [config.model]: next });
     };
-    const panel = open && buttonRect ? createPortal(
+    const position = buttonRect ? resolvePopoverPosition({ buttonRect, anchorRect, placement: "topLeft", width: 320, viewport: { width: window.innerWidth, height: window.innerHeight } }) : null;
+    const panel = open && position ? createPortal(
         <div
             ref={panelRef}
             data-canvas-no-zoom
             data-node-settings-panel
             className="fixed z-[1200] space-y-3 overflow-y-auto rounded-[var(--r-xl)] p-4 shadow-[var(--shadow-lg)]"
-            style={{ ...resolvePopoverPosition({ buttonRect, anchorRect, placement: "topLeft", width: 320, viewport: { width: window.innerWidth, height: window.innerHeight } }), background: theme.toolbar.panel, color: theme.node.text, boxShadow: "var(--shadow-lg), var(--hairline)", overscrollBehavior: "contain" }}
+            style={{ ...position, background: theme.toolbar.panel, color: theme.node.text, boxShadow: "var(--shadow-lg), var(--hairline)", overscrollBehavior: "contain" }}
             onPointerDown={(event) => event.stopPropagation()}
             onMouseDown={(event) => event.stopPropagation()}
             onClick={(event) => event.stopPropagation()}
