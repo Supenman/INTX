@@ -5,6 +5,14 @@ description: Implemented changes that still need manual verification
 
 # Pending Tests
 
+## Canvas settings popover tracking and reduced motion
+
+- Open an image node's settings popover, then zoom the canvas with the wheel (or move the canvas). The popover must stay attached to the parameter button instead of staying at its original screen position.
+- Shrink the window to about 1024px wide with the popover open: it should move fully above the generation panel, leaving the prompt input and the generate button visible. Content scrolls inside the popover.
+- Press Esc while the popover is open: only the popover closes, focus returns to the parameter button, and the node stays selected with its generation panel still open.
+- Repeat the Esc check on video, audio and text nodes.
+- In the OS/browser "reduce motion" setting, page transitions and the aurora title stop moving while the "generating" spinner still turns slowly.
+
 ## Node settings popover field hierarchy
 
 - Image node: the popover starts with a "Size" group — aspect ratio cards first, then resolution (Auto / 1k / 2k / 4k). Both write the same value, so changing either must update the trigger summary.

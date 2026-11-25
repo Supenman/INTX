@@ -448,6 +448,36 @@
     mix-blend-mode: normal;
 }
 
+@keyframes intx-reduced-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* 系统开启「减少动态效果」时，装饰性过渡和循环动画直接停掉；
+   进度类旋转是状态信息（生成中/加载中），保留低速旋转，
+   否则用户会以为任务卡死。 */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+
+    .animate-spin,
+    .motion-safe\:animate-spin {
+        animation: intx-reduced-spin 2.4s linear infinite !important;
+    }
+
+    .ai-title-aurora {
+        animation: none !important;
+        background-position: 0% 50%;
+    }
+}
+
 .agent-streamdown {
     overflow-wrap: anywhere;
 }

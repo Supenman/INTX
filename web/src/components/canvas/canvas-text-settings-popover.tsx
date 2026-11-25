@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { Settings2 } from "lucide-react";
 import { Button, InputNumber } from "antd";
@@ -6,6 +6,8 @@ import { useTranslation } from "react-i18next";
 
 import { reasoningEffortLabel, TextSettingsPanel } from "@/components/text-settings-panel";
 import { canvasThemes } from "@/lib/canvas-theme";
+import { resolvePopoverPosition, type PopoverPlacement } from "@/lib/canvas/popover-position";
+import { useAnchoredPopover } from "@/hooks/use-anchored-popover";
 import { useThemeStore } from "@/stores/use-theme-store";
 import type { AiConfig, ReasoningEffort } from "@/stores/use-config-store";
 
@@ -15,42 +17,13 @@ type CanvasTextSettingsPopoverProps = {
     count?: number;
     onCountChange?: (count: number) => void;
     buttonClassName?: string;
-    placement?: "topLeft" | "top" | "topRight" | "bottomLeft" | "bottom" | "bottomRight";
+    placement?: PopoverPlacement;
 };
 
 export function CanvasTextSettingsPopover({ config, onConfigChange, count, onCountChange, buttonClassName, placement = "topLeft" }: CanvasTextSettingsPopoverProps) {
     const { t } = useTranslation();
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
-    const buttonRef = useRef<HTMLSpanElement>(null);
-    const panelRef = useRef<HTMLDivElement>(null);
-    const [open, setOpen] = useState(false);
-    const [buttonRect, setButtonRect] = useState<DOMRect | null>(null);
-    const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
-
-    useEffect(() => {
-        if (!open) return;
-        const syncPosition = () => {
-            const button = buttonRef.current;
-            setButtonRect(button?.getBoundingClientRect() || null);
-            // 生成面板是浮层要避开的邻居，不只是按钮：只按按钮算会压在面板右侧空隙上。
-            const anchor = button?.closest("[data-canvas-prompt-panel]");
-            setAnchorRect(anchor instanceof HTMLElement ? anchor.getBoundingClientRect() : null);
-        };
-        const closeOnOutsidePointer = (event: PointerEvent) => {
-            const target = event.target;
-            if (!(target instanceof Node) || buttonRef.current?.contains(target) || panelRef.current?.contains(target)) return;
-            setOpen(false);
-        };
-        syncPosition();
-        window.addEventListener("resize", syncPosition);
-        window.addEventListener("scroll", syncPosition, true);
-        window.addEventListener("pointerdown", closeOnOutsidePointer, true);
-        return () => {
-            window.removeEventListener("resize", syncPosition);
-            window.removeEventListener("scroll", syncPosition, true);
-            window.removeEventListener("pointerdown", closeOnOutsidePointer, true);
-        };
-    }, [open]);
+    const { buttonRef, panelRef, open, setOpen, buttonRect, anchorRect } = useAnchoredPopover();
 
     // 同 image/audio/video：只按 open 渲染，定位在 Portal 内部处理。
     const panel = open ? <TextSettingsPortal buttonRect={buttonRect} anchorRect={anchorRect} panelRef={panelRef} placement={placement} theme={theme} config={config} count={count} onConfigChange={onConfigChange} onCountChange={onCountChange} /> : null;
@@ -58,7 +31,7 @@ export function CanvasTextSettingsPopover({ config, onConfigChange, count, onCou
     return (
         <>
             <span ref={buttonRef} className="inline-flex min-w-0">
-                <Button size="small" type="text" className={buttonClassName || "!h-[var(--control-h-sm)] !max-w-[180px] !justify-start !rounded-[var(--r-md)] !px-2.5"} style={{ background: theme.toolbar.activeBg, color: theme.node.text }} icon={<Settings2 className="size-3.5" />} onClick={() => setOpen((current) => !current)}>
+                <Button size="small" type="text" className={buttonClassName || "!h-[var(--control-h-sm)] !max-w-[180px] !justify-start !rounded-[var(--r-md)] !px-2.5"} style={{ background: theme.toolbar.activeBg, color: theme.node.text }} icon={<Settings2 className="size-3.5" />} onClick={() => setOpen(!open)}>
                     <span className="truncate">{t("canvas.controls.reasoning")} · {reasoningEffortLabel(config.reasoningEffort)}{onCountChange ? ` · ${t("canvas.controls.generations", { count })}` : ""}</span>
                 </Button>
             </span>
@@ -68,12 +41,12 @@ export function CanvasTextSettingsPopover({ config, onConfigChange, count, onCou
 }
 
 function TextSettingsPortal({ buttonRect, anchorRect, panelRef, placement, theme, config, count, onConfigChange, onCountChange }: {
-    /** 首帧可能还没测量到按钮位置；为 null 时先不渲染，等首次 syncPosition 即可。 */
+    /** 首帧可能还没测量到按钮位置；为 null 时先不渲染，等首次测量即可。 */
     buttonRect: DOMRect | null;
     /** 触发按钮所属的生成面板，水平避让以它为界。 */
     anchorRect: DOMRect | null;
     panelRef: RefObject<HTMLDivElement | null>;
-    placement: CanvasTextSettingsPopoverProps["placement"];
+    placement: PopoverPlacement;
     theme: (typeof canvasThemes)[keyof typeof canvasThemes];
     config: AiConfig;
     count?: number;
@@ -82,41 +55,30 @@ function TextSettingsPortal({ buttonRect, anchorRect, panelRef, placement, theme
 }) {
     const { t } = useTranslation();
     if (!buttonRect) return null;
-    const width = Math.min(356, window.innerWidth - 24);
-    const gap = 8;
-    const margin = 12;
-    // 底部工具栏占位：向下展开时留出这段，避免面板盖住工具坞。
-    const dockInset = 88;
-    const alignRight = placement?.endsWith("Right");
-    const alignCenter = placement === "top" || placement === "bottom";
-    // 水平避让以生成面板为界，而不是按钮：按钮只是面板里的一小块。
-    const anchor = anchorRect ?? buttonRect;
-    const left = alignCenter
-        ? buttonRect.left + buttonRect.width / 2 - width / 2
-        : alignRight
-            ? buttonRect.right - width
-            : window.innerWidth - anchor.right - gap - margin >= width
-                ? anchor.right + gap
-                : anchor.left - gap - margin >= width
-                    ? anchor.left - gap - width
-                    : buttonRect.right - width;
-    const topPlacement = placement?.startsWith("top");
+    const position = resolvePopoverPosition({ buttonRect, anchorRect, placement, viewport: { width: window.innerWidth, height: window.innerHeight } });
     const style = {
         position: "fixed",
         zIndex: 1200,
-        width,
-        left: Math.max(margin, Math.min(window.innerWidth - width - margin, left)),
-        ...(topPlacement ? { bottom: window.innerHeight - buttonRect.top + gap, maxHeight: Math.max(220, buttonRect.top - gap - margin) } : { top: buttonRect.bottom + gap, maxHeight: Math.max(220, Math.min(window.innerHeight - buttonRect.bottom - gap - dockInset, buttonRect.top - gap - margin)) }),
+        ...position,
         background: theme.toolbar.panel,
-        borderRadius: 18,
-        boxShadow: "0 18px 54px rgba(28, 25, 23, 0.16)",
-        padding: 18,
+        borderRadius: "var(--r-xl)",
+        boxShadow: "var(--shadow-lg), var(--hairline)",
+        padding: "var(--space-4)",
         overflowY: "auto",
+        overscrollBehavior: "contain",
         color: theme.node.text,
     } as const;
 
     return createPortal(
-        <div ref={panelRef} data-node-settings-panel style={style} onPointerDown={(event) => event.stopPropagation()} onMouseDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>
+        <div
+            ref={panelRef}
+            className="canvas-image-settings-popover"
+            data-node-settings-panel
+            style={style}
+            onPointerDown={(event) => event.stopPropagation()}
+            onMouseDown={(event) => event.stopPropagation()}
+            onClick={(event) => event.stopPropagation()}
+        >
             <TextSettingsPanel config={config} onConfigChange={onConfigChange} theme={theme} />
             {onCountChange ? (
                 <div className="mt-4 space-y-2.5">
