@@ -18,6 +18,14 @@ description: Implemented changes that still need manual verification
 - With no API key configured, press Enter or click Generate: a "Complete the configuration first" toast should appear together with the configuration dialog, instead of the dialog alone.
 - After filling in a working channel, the same action should start generation and the primary button should switch to the stop state.
 
+## Reference order and numbering
+
+- Connect two images to one node and select it: the thumbnails should carry 1 and 2 badges in connection order, and a single reference should show no badge.
+- Run an image edit and check that the prompt prefix "reference image numbers: 图片1、图片2" matches those badges.
+- Hover the first thumbnail and click "Move reference later": both badges should swap, and the prompt numbering should swap with them.
+- Connect two text nodes as references: badges 1 and 2 should correspond to 【文本 1】 and 【文本 2】 in the prompt.
+- In video reference mode the first two images already carry "first frame / last frame"; no numeric badge is added there, the role label wins.
+
 ## Node toolbar vs. settings popovers
 
 - With an image, video or audio node that has content, hover the node: the floating toolbar appears. Open its settings popover: the toolbar hides. Close it with Esc: the toolbar comes back once the pointer returns to the node (the pointer sits on the panel button, so it will not reappear immediately).
