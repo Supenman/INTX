@@ -25,7 +25,7 @@ import { useAssetStore } from "@/stores/use-asset-store";
 import { archivedCanvasNodeIds, canvasNodeToAsset, importCanvasMediaToAssets } from "@/application/canvas/canvas-assets";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { cropDataUrl, splitDataUrl, upscaleDataUrl } from "@/lib/canvas/canvas-image-data";
-import { focusNodeElement } from "@/lib/canvas/canvas-node-focus";
+import { focusNodeElement, restoreCanvasFocus } from "@/lib/canvas/canvas-node-focus";
 import { fitNodeSize, nodeSizeFromRatio } from "@/lib/canvas/canvas-node-size";
 import { resolveImagePreset, type ImagePresetId } from "@/lib/canvas/image-presets";
 import { estimateGenerationCost } from "@/domain/cost";
@@ -1011,6 +1011,7 @@ function InfiniteCanvasPage() {
                     ? true
                     : isBuiltinType(type) && type !== CanvasNodeType.Text && type !== CanvasNodeType.Audio && type !== CanvasNodeType.Group;
             setDialogNodeId(wantsPanel ? newNode.id : null);
+            focusNodeElement(newNode.id); // 新节点已选中，焦点也跟过去，键盘用户按 Tab 就能进面板，不用先猜焦点在哪
         },
         [createDraftNode, getCanvasCenter],
     );
@@ -4174,7 +4175,7 @@ function InfiniteCanvasPage() {
                         }}
                         onOpenHistory={() => setGenerationHistoryOpen(true)}
                         onOpenStoryboard={() => setStoryboardOpen(true)}
-                        onClose={() => setNodeCreatePosition(null)}
+                        onClose={() => { setNodeCreatePosition(null); restoreCanvasFocus(); }}
                     />
                 )}
 
@@ -4439,7 +4440,7 @@ function InfiniteCanvasPage() {
                 }} onClose={() => setAssetPickerOpen(false)} />
                 {/* 关闭即卸载：本环境 antd 离场动画会停在 ant-zoom-leave，视觉上关不掉 */}
                 {generationHistoryOpen ? (
-                    <CanvasGenerationHistoryModal nodes={nodes} onClose={() => setGenerationHistoryOpen(false)}
+                    <CanvasGenerationHistoryModal nodes={nodes} onClose={() => { setGenerationHistoryOpen(false); restoreCanvasFocus(); }}
                         onLocate={(node) => { setGenerationHistoryOpen(false); focusNode(node.id); focusNodeElement(node.id); }}
                         onPreview={(node, imageId) => { setGenerationHistoryOpen(false); handleNodeViewImage(node, imageId); }}
                         onArchive={(node, imageId) => void archiveHistoryOutput(node, imageId)}

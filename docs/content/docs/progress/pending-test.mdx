@@ -58,8 +58,11 @@ description: Implemented changes that still need manual verification
 - With a screen reader running, trigger the settings button: it should announce a dialog named "Video settings", not an unnamed container.
 - Run this for the image, video, audio and text popovers plus the workflow parameters popover.
 
-## Focus after locating from generation history
+## Where focus lands
 
+- Open the Add node menu and close it with Escape: focus should return to the canvas (Tab keeps walking canvas tools) instead of restarting from the top bar.
+- From the same menu, click Text: the new node should take focus immediately, Tab should enter its panel, and pressing T / V / A afterwards should still create more nodes.
+- Open Generation history and close it with ✕ or Escape: focus returns to the canvas the same way.
 - Generate something, open Generation history and click Locate on an entry: the canvas should move to that node, select it and open the prompt panel, and focus should sit on the node (a screen reader announces the node title). Further Tab presses should continue inside the node instead of restarting from the top of the page.
 - The locate button in version compare should behave the same way.
 - Press Escape right after locating: the selection clears and the panel collapses, with the node still in place.
