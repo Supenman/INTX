@@ -1,7 +1,7 @@
 import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode, RefObject } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, Segmented, Switch } from "antd";
-import { CircleDot, Eraser, Grid2x2, Group, Hand, Info, SlidersHorizontal, LocateFixed, Moon, MousePointer2, Palette, Plus, Puzzle, Redo2, Square, Sun, Trash2, Undo2 } from "lucide-react";
+import { Check, CircleDot, Eraser, Grid2x2, Group, Hand, Info, SlidersHorizontal, LocateFixed, Moon, MousePointer2, Palette, Plus, Puzzle, Redo2, Square, Sun, Trash2, Undo2 } from "lucide-react";
 
 import { canvasThemes, type CanvasBackgroundMode, type CanvasColorTheme, type CanvasTheme } from "@/lib/canvas-theme";
 import { buildToolContext, toolView } from "@/lib/canvas/tool-wiring";
@@ -13,6 +13,12 @@ import { getNodeSpec } from "@/constant/canvas";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { AnimatedThemeToggler } from "@/components/ui/animated-theme-toggler";
 import { useTranslation } from "react-i18next";
+
+/** 工具菜单的两项。顺序即菜单顺序，「移动」在前，与默认工具一致。 */
+const CANVAS_TOOL_OPTIONS = [
+    { value: "select", labelKey: "canvas.toolbar.select", hintKey: "canvas.toolbar.selectHint" },
+    { value: "pan", labelKey: "canvas.toolbar.pan", hintKey: "canvas.toolbar.panHint" },
+] as const;
 
 export function CanvasToolbar({
     selectedCount,
@@ -72,6 +78,8 @@ export function CanvasToolbar({
     const [panelX, setPanelX] = useState(0);
     const [extensionsOpen, setExtensionsOpen] = useState(false);
     const [extPanelX, setExtPanelX] = useState(0);
+    const [toolMenuOpen, setToolMenuOpen] = useState(false);
+    const [toolMenuX, setToolMenuX] = useState(0);
     // 撤销/重做的可用性由注册表判定；两个值仍来自 store，这里只做映射。
     const { prefs } = useToolbarPrefs("main");
     const toolCtx = useMemo(
@@ -91,18 +99,38 @@ export function CanvasToolbar({
     const activeStyle = { background: theme.toolbar.activeBg, color: theme.toolbar.activeText };
     const tip = hovered ? toolLabel(hovered, t) : "";
 
-    // Close extension-node and canvas-appearance popovers when clicking outside the toolbar and its panels.
+    // Close extension-node, canvas-appearance and tool menus when clicking outside the toolbar and its panels.
     useEffect(() => {
-        if (!extensionsOpen && !appearanceOpen) return;
+        if (!extensionsOpen && !appearanceOpen && !toolMenuOpen) return;
         const handlePointerDown = (event: PointerEvent) => {
             if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
                 setExtensionsOpen(false);
                 setAppearanceOpen(false);
+                setToolMenuOpen(false);
             }
         };
         document.addEventListener("pointerdown", handlePointerDown, true);
         return () => document.removeEventListener("pointerdown", handlePointerDown, true);
-    }, [extensionsOpen, appearanceOpen]);
+    }, [extensionsOpen, appearanceOpen, toolMenuOpen]);
+
+    // 菜单开合都会把焦点移到菜单或留在按钮上，Esc 落在哪个节点上不固定，
+    // 所以 Esc 在 window 捕获阶段收：菜单和面板都对 Esc 负责，不指望某个内部节点拿到焦点。
+    useEffect(() => {
+        if (!toolMenuOpen && !extensionsOpen && !appearanceOpen) return;
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key !== "Escape") return;
+            event.preventDefault();
+            event.stopPropagation();
+            if (toolMenuOpen) {
+                setToolMenuOpen(false);
+                rootRef.current?.querySelector<HTMLButtonElement>('[data-toolbar-id="tool-mode"]')?.focus({ preventScroll: true });
+            }
+            setExtensionsOpen(false);
+            setAppearanceOpen(false);
+        };
+        window.addEventListener("keydown", handleKeyDown, true);
+        return () => window.removeEventListener("keydown", handleKeyDown, true);
+    }, [toolMenuOpen, extensionsOpen, appearanceOpen]);
 
     return (
         <div ref={rootRef} className="pointer-events-none absolute bottom-4 left-1/2 z-50 flex max-w-[calc(100%-2rem)] -translate-x-1/2 justify-center @max-[1040px]:bottom-20" data-canvas-bottom-toolbar>
@@ -111,7 +139,25 @@ export function CanvasToolbar({
                 <ToolbarButton id="tool-add-node" label={t("canvas.toolbar.addNode")} active={addMenuActive} hovered={hovered} activeStyle={activeStyle} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onOpenCreateMenu}>
                     <Plus className="size-4.5" />
                 </ToolbarButton>
-                <ToolbarButton id={`tool-${canvasTool}`} label={t(`canvas.toolbar.${canvasTool}`)} active hovered={hovered} activeStyle={activeStyle} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={() => onCanvasToolChange(canvasTool === "select" ? "pan" : "select")}>
+                {/* 一个按钮 + 二选一菜单。菜单开着时高亮；按钮图标与提示始终是「当前工具」，
+                    点开即可在「移动（框选）」与「抓手工具（平移）」之间切换。 */}
+                <ToolbarButton
+                    id="tool-mode"
+                    label={t("canvas.toolbar.toolMode")}
+                    menu={toolMenuOpen}
+                    hovered={hovered}
+                    activeStyle={activeStyle}
+                    hoverStyle={hoverStyle}
+                    wrapRef={wrapRef}
+                    onTipX={setTipX}
+                    onHover={setHovered}
+                    onClick={(event) => {
+                        setToolMenuX(getTipX(wrapRef.current, event.currentTarget));
+                        setExtensionsOpen(false);
+                        setAppearanceOpen(false);
+                        setToolMenuOpen((value) => !value);
+                    }}
+                >
                     {canvasTool === "select" ? <MousePointer2 className="size-4.5" /> : <Hand className="size-4.5" />}
                 </ToolbarButton>
                 {undoView.visible ? <ToolbarButton id="tool-undo" label={t("canvas.undo")} disabled={!canUndo || undoView.disabled} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onUndo}>
@@ -316,6 +362,46 @@ export function CanvasToolbar({
                 </div>
             ) : null}
 
+            {toolMenuOpen ? (
+                <div
+                    className="pointer-events-auto absolute bottom-[72px] z-30 w-[200px] -translate-x-1/2 rounded-xl border p-1 shadow-xl backdrop-blur"
+                    style={{ left: toolMenuX || "50%", background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.toolbar.item }}
+                    role="dialog"
+                    aria-label={t("canvas.toolbar.toolMode")}
+                >
+                    {CANVAS_TOOL_OPTIONS.map((option) => {
+                        const selected = canvasTool === option.value;
+                        return (
+                            <button
+                                key={option.value}
+                                type="button"
+                                role="menuitemradio"
+                                aria-checked={selected}
+                                className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--workspace-accent)]"
+                                style={selected ? { background: theme.toolbar.activeBg, color: theme.toolbar.activeText } : { color: theme.toolbar.item }}
+                                onMouseEnter={(event) => {
+                                    if (!selected) event.currentTarget.style.background = theme.toolbar.itemHover;
+                                }}
+                                onMouseLeave={(event) => {
+                                    if (!selected) event.currentTarget.style.background = "transparent";
+                                }}
+                                onClick={() => {
+                                    onCanvasToolChange(option.value);
+                                    setToolMenuOpen(false);
+                                }}
+                            >
+                                <span className="grid size-6 shrink-0 place-items-center">{option.value === "select" ? <MousePointer2 className="size-4" /> : <Hand className="size-4" />}</span>
+                                <span className="min-w-0 flex-1">
+                                    <span className="block truncate">{t(option.labelKey)}</span>
+                                    <span className="block truncate text-[length:var(--fs-label)] opacity-55">{t(option.hintKey)}</span>
+                                </span>
+                                {selected ? <Check className="size-3.5 shrink-0" /> : null}
+                            </button>
+                        );
+                    })}
+                </div>
+            ) : null}
+
             <ToolbarPrefsModal open={prefsOpen} onClose={() => setPrefsOpen(false)} />
         </div>
     );
@@ -326,6 +412,7 @@ function ToolbarButton({
     label,
     showLabel = false,
     active,
+    menu = false,
     hovered,
     activeStyle,
     hoverStyle,
@@ -341,6 +428,8 @@ function ToolbarButton({
     label: string;
     showLabel?: boolean;
     active?: boolean;
+    /** 该按钮打开了一个菜单且菜单正开着：高亮 + aria-expanded，与「常驻激活」区分开。 */
+    menu?: boolean;
     hovered: string | null;
     activeStyle?: CSSProperties;
     hoverStyle: CSSProperties;
@@ -353,17 +442,18 @@ function ToolbarButton({
     children: ReactNode;
 }) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
+    const expanded = id === "tool-add-node" || id === "tool-mode";
 
     return (
         <Button
             type="text"
             aria-label={label}
             data-toolbar-id={id}
-            aria-expanded={id === "tool-add-node" ? Boolean(active) : undefined}
-            aria-haspopup={id === "tool-add-node" ? "dialog" : undefined}
+            aria-expanded={expanded ? Boolean(id === "tool-mode" ? menu : active) : undefined}
+            aria-haspopup={expanded ? "dialog" : undefined}
             className={`focus-ring motion-safe:transition motion-safe:enabled:active:scale-95 ${showLabel ? "!h-8 !px-2 text-xs font-medium" : "!h-8 !w-8 !min-w-8 !p-0"}` }
             disabled={disabled}
-            style={active ? activeStyle : id === "tool-add-node" ? { background: theme.node.text, color: theme.node.panel } : hovered === id && !disabled ? hoverStyle : { color: danger ? "#f87171" : theme.toolbar.item, opacity: disabled ? 0.35 : 1 }}
+            style={menu || active ? activeStyle : id === "tool-add-node" ? { background: theme.node.text, color: theme.node.panel } : hovered === id && !disabled ? hoverStyle : { color: danger ? "#f87171" : theme.toolbar.item, opacity: disabled ? 0.35 : 1 }}
             icon={children}
             onMouseEnter={(event) => {
                 onHover(id);
@@ -410,8 +500,7 @@ function DockTip({ label, x, theme }: { label: string; x: number; theme: CanvasT
 }
 
 function toolLabel(id: string, t: (key: string) => string) {
-    if (id === "tool-select") return t("canvas.toolbar.select");
-    if (id === "tool-pan") return t("canvas.toolbar.pan");
+    if (id === "tool-mode") return t("canvas.toolbar.toolMode");
     if (id === "tool-undo") return t("canvas.undo");
     if (id === "tool-redo") return t("canvas.redo");
     if (id === "tool-focus") return t("canvas.toolbar.focus");

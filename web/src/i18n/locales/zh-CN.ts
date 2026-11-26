@@ -308,7 +308,7 @@ export default {
         openAgent: "打开本地 Agent 面板",
         nodeTypes: { image: "图片", text: "文本", video: "视频", audio: "音频", group: "组" },
         toolbar: {
-            addNode: "添加节点", select: "选择", pan: "移动", focus: "居中聚焦", fitAll: "适配全部内容", text: "文本", image: "图片", video: "视频", audio: "音频", group: "组", extensions: "扩展节点", upload: "导入素材", appearance: "画布外观", clear: "清空画布",
+            addNode: "添加节点", toolMode: "工具", select: "移动", pan: "抓手工具", selectHint: "框选和点选节点", panHint: "拖动画布平移视图", focus: "居中聚焦", fitAll: "适配全部内容", text: "文本", image: "图片", video: "视频", audio: "音频", group: "组", extensions: "扩展节点", upload: "导入素材", appearance: "画布外观", clear: "清空画布",
             themeMode: "主题模式", light: "浅色", dark: "深色", gridStyle: "网格样式", dots: "点", lines: "线", blank: "空白", snapToGrid: "网格吸附（{{size}}px）", imageInfo: "图片信息",
         },
         project: {
@@ -402,7 +402,7 @@ export default {
         shortcut: {
             dragCanvas: "拖动画布",
             pan: "平移视图",
-            toggleTool: "临时切换选择 / 移动",
+            toggleTool: "临时切换移动 / 抓手工具",
             wheel: "滚轮",
             zoom: "缩放画布",
             zoomSlider: "缩放滑杆",

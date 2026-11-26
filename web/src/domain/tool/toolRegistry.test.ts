@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { builtinNodes } from '../node/builtins';
 import { overrideNode, unregisterNode } from '../node/registry';
 import { canvasStarterCopy, resolveCanvasEmptyState } from './canvasStarter';
-import { installBuiltinTools } from './definitions';
+import { CANVAS_MODE_OPTIONS, installBuiltinTools } from './definitions';
 import type { ToolContext } from './definition';
 import {
   defaultToolbarPrefs,
@@ -132,6 +132,15 @@ describe('工具栏偏好迁移', () => {
     const prefs = migrateToolbarPrefs('main', { order: ['ghost-tool', 'undo'], hidden: ['ghost-tool'] });
     expect(prefs.order).not.toContain('ghost-tool');
     expect(prefs.hidden).not.toContain('ghost-tool');
+  });
+});
+
+describe('工具模式两选项', () => {
+  it('「移动」在前且映射到框选，「抓手工具」映射到平移', () => {
+    // 工具栏「移动 / 抓手工具」菜单按这个数组顺序渲染；第一项也是进画布时的默认工具。
+    expect(CANVAS_MODE_OPTIONS.map((o) => o.value)).toEqual(['select', 'hand']);
+    expect(CANVAS_MODE_OPTIONS[0]?.label).toBe('移动');
+    expect(CANVAS_MODE_OPTIONS[1]?.label).toBe('抓手工具');
   });
 });
 

@@ -309,7 +309,7 @@ export default {
         openAgent: "Open local Agent panel",
         nodeTypes: { image: "Image", text: "Text", video: "Video", audio: "Audio", group: "Group" },
         toolbar: {
-            addNode: "Add node", select: "Select", pan: "Move", focus: "Center focus", fitAll: "Fit all content", text: "Text", image: "Image", video: "Video", audio: "Audio", group: "Group", extensions: "Extension nodes", upload: "Upload assets", appearance: "Canvas appearance", clear: "Clear canvas",
+            addNode: "Add node", toolMode: "Tool", select: "Move", pan: "Hand tool", selectHint: "Box-select and click nodes", panHint: "Drag the canvas to pan", focus: "Center focus", fitAll: "Fit all content", text: "Text", image: "Image", video: "Video", audio: "Audio", group: "Group", extensions: "Extension nodes", upload: "Upload assets", appearance: "Canvas appearance", clear: "Clear canvas",
             themeMode: "Theme", light: "Light", dark: "Dark", gridStyle: "Grid style", dots: "Dots", lines: "Lines", blank: "Blank", snapToGrid: "Snap to grid ({{size}}px)", imageInfo: "Image info",
         },
         project: {
@@ -403,7 +403,7 @@ export default {
         shortcut: {
             dragCanvas: "Drag canvas",
             pan: "Pan view",
-            toggleTool: "Temporarily switch Select / Move",
+            toggleTool: "Temporarily switch Move / Hand tool",
             wheel: "Mouse wheel",
             zoom: "Zoom canvas",
             zoomSlider: "Zoom slider",

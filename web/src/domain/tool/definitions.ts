@@ -10,8 +10,8 @@ import type { ToolDefinition } from './definition';
  */
 
 export const CANVAS_MODE_OPTIONS = [
-  { id: 'box-select', label: '区域选择', value: 'select' },
-  { id: 'hand', label: '抓手', value: 'hand' },
+  { id: 'move', label: '移动', value: 'select' },
+  { id: 'hand', label: '抓手工具', value: 'hand' },
 ] as const;
 
 export const builtinTools: readonly ToolDefinition[] = [
@@ -20,8 +20,8 @@ export const builtinTools: readonly ToolDefinition[] = [
     id: 'tool-canvas-mode',
     toolbar: 'main',
     category: 'navigation',
-    label: '抓手 / 框选',
-    hint: '区域选择：空白处拖动框选节点；抓手：拖动画布平移（空格或中键可临时平移）',
+    label: '移动 / 抓手工具',
+    hint: '移动：框选和点选节点；抓手工具：拖动画布平移（空格或中键可临时切换）',
     defaultVisible: true,
     defaultOrder: 5,
     action: 'set-tool-mode',
