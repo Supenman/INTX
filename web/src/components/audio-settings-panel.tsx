@@ -56,6 +56,7 @@ export function AudioSettingsPanel({ config, onConfigChange, theme, showTitle = 
                     </div>
                     <input
                         type="number"
+                        aria-label={t("settingsPanels.audio.speed")}
                         min={0.25}
                         max={4}
                         step={0.05}

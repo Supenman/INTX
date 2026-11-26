@@ -139,7 +139,7 @@ export function ImageSettingsPanel({ config, onConfigChange, theme, showTitle = 
                                     {t("settingsPanels.image.align16")}
                                 </span>
                                 <span title={t("settingsPanels.image.align16Hint")} onMouseDown={(event) => event.stopPropagation()}>
-                                    <Switch size="small" checked={snapDimensionToStep} disabled={!sizeEnabled} onChange={setSnapDimensionToStep} />
+                                    <Switch size="small" aria-label={t("settingsPanels.image.align16")} checked={snapDimensionToStep} disabled={!sizeEnabled} onChange={setSnapDimensionToStep} />
                                 </span>
                             </div>
                         </div>
@@ -153,7 +153,7 @@ export function ImageSettingsPanel({ config, onConfigChange, theme, showTitle = 
                                 {t("settingsPanels.image.images", { count: value })}
                             </OptionPill>
                         ))}
-                        <CountInput value={count} max={maxCount} theme={theme} onChange={(value) => onConfigChange("count", String(value || 1))} />
+                        <CountInput value={count} max={maxCount} label={t("settingsPanels.image.count")} theme={theme} onChange={(value) => onConfigChange("count", String(value || 1))} />
                     </div>
                     {capabilities.separateRequestsForCount ? (
                         <div className="text-[length:var(--fs-caption)] leading-relaxed" style={{ color: theme.node.muted }}>
@@ -178,7 +178,7 @@ export function ImageSettingsPanel({ config, onConfigChange, theme, showTitle = 
                             </div>
                         </div>
                         <span onMouseDown={(event) => event.stopPropagation()}>
-                            <Switch size="small" checked={transparentBackground} disabled={!backgroundEnabled} onChange={(checked) => onConfigChange("background", checked ? "transparent" : "")} />
+                            <Switch size="small" aria-label={t("settingsPanels.image.transparent")} checked={transparentBackground} disabled={!backgroundEnabled} onChange={(checked) => onConfigChange("background", checked ? "transparent" : "")} />
                         </span>
                     </div>
                 </div>
@@ -261,11 +261,12 @@ function DimensionInput({ prefix, value, disabled, theme, alignToStep, onChange 
     );
 }
 
-function CountInput({ value, max, theme, onChange }: { value: number; max: number; theme: CanvasTheme; onChange: (value: number | null) => void }) {
+function CountInput({ value, max, label, theme, onChange }: { value: number; max: number; label: string; theme: CanvasTheme; onChange: (value: number | null) => void }) {
     return (
         <label className="col-span-2 flex h-9 overflow-hidden rounded-[var(--r-md)] border text-[length:var(--fs-body)]" style={{ borderColor: theme.node.stroke, color: theme.node.text }}>
             <input
                 type="number"
+                aria-label={label}
                 min={1}
                 max={max}
                 className="min-w-0 flex-1 bg-transparent px-3 text-center outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"

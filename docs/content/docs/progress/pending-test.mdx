@@ -65,6 +65,12 @@ description: Implemented changes that still need manual verification
 - Press Escape right after locating: the selection clears and the panel collapses, with the node still in place.
 - Click empty space inside a node: the prompt draft and the panel should be unaffected; only focus moves to the node.
 
+## Screen reader names
+
+- With a screen reader (Narrator on Windows, VoiceOver on macOS), land on the canvas prompt box: it should announce something like "Describe the image/video/text to generate" instead of just "edit text".
+- In Video settings, keyboard through the duration slider and the seconds field; in Audio settings the speed; in Image settings the generation count and the "align to multiples of 16" / "transparent background" switches: each should announce its name.
+- Run axe DevTools or a similar checker over the canvas, the four settings popovers, the workflow parameters popover, generation history, the shortcuts dialog and the expanded editor: no critical or serious violations should remain.
+
 ## Node toolbar vs. settings popovers
 
 - With an image, video or audio node that has content, hover the node: the floating toolbar appears. Open its settings popover: the toolbar hides. Close it with Esc: the toolbar comes back once the pointer returns to the node (the pointer sits on the panel button, so it will not reappear immediately).

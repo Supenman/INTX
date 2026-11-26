@@ -139,6 +139,7 @@ export function CanvasPromptChipInput({ value, references, onChange, onSubmit, c
                 suppressContentEditableWarning
                 role="textbox"
                 aria-multiline="true"
+                aria-label={placeholder}
                 className={`${className || ""} overflow-y-auto whitespace-pre-wrap break-words outline-none`}
                 style={{ ...style, cursor: "text" }}
                 onInput={() => {

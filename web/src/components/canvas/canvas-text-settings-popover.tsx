@@ -87,7 +87,7 @@ function TextSettingsPortal({ buttonRect, anchorRect, panelRef, panelProps, plac
             {onCountChange ? (
                 <div className="mt-4 space-y-2.5">
                     <div className="text-sm font-medium" style={{ color: theme.node.muted }}>{t("settingsPanels.text.count")}</div>
-                    <InputNumber className="w-full" min={1} max={15} precision={0} value={count} onChange={(value) => onCountChange(value || 1)} />
+                    <InputNumber className="w-full" aria-label={t("settingsPanels.text.count")} min={1} max={15} precision={0} value={count} onChange={(value) => onCountChange(value || 1)} />
                 </div>
             ) : null}
         </div>,
