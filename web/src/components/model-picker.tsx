@@ -110,6 +110,9 @@ export function ModelPicker({ config, value, onChange, capability, className, fu
                     }
                 }}
                 title={current ? modelOptionLabel(config, current) : pickerPlaceholder}
+                // 触发器里只有图标和模型名，读屏念到的是名称；补一个说明这是「选择模型」。
+                aria-label={t("settingsPanels.model.select")}
+                aria-description={current ? modelOptionLabel(config, current) : pickerPlaceholder}
             >
                 <ModelIcon model={current} />
                 <span className="canvas-model-picker-text min-w-0 flex-1 truncate text-left">{current ? modelOptionLabel(config, current) : pickerPlaceholder}</span>

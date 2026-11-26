@@ -119,6 +119,7 @@ description: Implemented changes that still need manual verification
 - With a screen reader (Narrator on Windows, VoiceOver on macOS), land on the canvas prompt box: it should announce something like "Describe the image/video/text to generate" instead of just "edit text".
 - In Video settings, keyboard through the duration slider and the seconds field; in Audio settings the speed; in Image settings the generation count and the "align to multiples of 16" / "transparent background" switches: each should announce its name.
 - Run axe DevTools or a similar checker over the canvas, the four settings popovers, the workflow parameters popover, generation history, the shortcuts dialog and the expanded editor: no critical or serious violations should remain.
+- Tab to the model picker at the bottom of the canvas generation panel, and in the config dialog reached from the canvas "More" menu → Preferences, to the model and generation-default dropdowns: each should announce a label plus its current value (e.g. "Select model · gpt-5.5 (Default provider)", "Default image resolution · Auto"), not just the model name and not an empty name.
 
 ## Node toolbar vs. settings popovers
 
