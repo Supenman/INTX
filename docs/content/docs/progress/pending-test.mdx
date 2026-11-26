@@ -49,6 +49,14 @@ description: Implemented changes that still need manual verification
 - On a touch device, drag a node by its title: it should follow the finger instead of being cancelled as a scroll at the start. With the hand tool, dragging empty canvas should pan.
 - Swiping up or down inside the prompt editor should scroll the text rather than dragging the node or the canvas.
 
+## Two-finger pinch zoom
+
+- On a touch screen, pinch or spread two fingers on empty canvas: the view should zoom around the midpoint between the fingers, not scroll the page.
+- Start dragging a node with one finger, then put a second finger down: the node should return to where it was and zoom should take over. Start a marquee the same way: the selection should go back to what it was before the marquee started.
+- After a pinch, lift one finger and keep dragging with the other: the canvas should pan by the remaining finger's movement, and the current selection should stay selected.
+- Pinching inside the prompt editor should keep the native text scrolling instead of zooming the canvas.
+- Repeat with a pen or a trackpad-driven touch sequence; Windows touch hardware is still unverified.
+
 ## Reduced motion
 
 - Turn on the system "reduce motion" setting (Windows: Settings → Accessibility → Visual effects → Animation effects; macOS: Accessibility → Display → Reduce motion) and reload the canvas.

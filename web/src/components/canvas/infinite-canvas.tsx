@@ -12,6 +12,8 @@ type InfiniteCanvasProps = {
     backgroundMode?: CanvasBackgroundMode;
     onViewportChange: (viewport: ViewportTransform) => void;
     onCanvasPointerDown?: (event: React.PointerEvent<HTMLDivElement>) => void;
+    /** 第二根手指落下时中断进行中的框选/节点拖动/连线，交给双指缩放手势。 */
+    onGestureInterrupt?: () => void;
     onCanvasDeselect?: () => void;
     onCanvasDoubleClick?: (event: React.MouseEvent<HTMLDivElement>) => void;
     onContextMenu?: (event: React.MouseEvent) => void;
@@ -21,7 +23,7 @@ type InfiniteCanvasProps = {
     children: React.ReactNode;
 };
 
-export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = "lines", emptyNodeCount, onViewportChange, onCanvasPointerDown, onCanvasDeselect, onCanvasDoubleClick, onContextMenu, onDrop, children }: InfiniteCanvasProps) {
+export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = "lines", emptyNodeCount, onViewportChange, onCanvasPointerDown, onGestureInterrupt, onCanvasDeselect, onCanvasDoubleClick, onContextMenu, onDrop, children }: InfiniteCanvasProps) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const panState = useRef({
         isPanning: false,
@@ -33,6 +35,15 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
         hasMoved: false,
         startedOnBackground: false,
     });
+    // 触摸双指缩放：记录每根手指，第二根落下即进入 pinch，剩余一指抬起后接续平移。
+    const touchPointsRef = useRef(new Map<number, { x: number; y: number }>());
+    const pinchRef = useRef<{
+        pointerIds: [number, number];
+        startDistance: number;
+        anchorWorldX: number;
+        anchorWorldY: number;
+        startViewport: ViewportTransform;
+    } | null>(null);
     const viewportRef = useRef(viewport);
     const frameRef = useRef<number | null>(null);
     const nextViewportRef = useRef<ViewportTransform | null>(null);
@@ -71,6 +82,8 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
             setIsSpacePressed(false);
             panState.current.isPanning = false;
             panState.current.pointerId = -1;
+            touchPointsRef.current.clear();
+            pinchRef.current = null;
             setIsPanning(false);
             document.body.style.cursor = "";
         };
@@ -124,6 +137,63 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
         onViewportChange(next);
     };
 
+    const beginPinch = () => {
+        const points = touchPointsRef.current;
+        const ids = [...points.keys()];
+        const a = points.get(ids[0]);
+        const b = points.get(ids[1]);
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (!a || !b || !rect) return;
+        const current = viewportRef.current;
+        const midX = (a.x + b.x) / 2 - rect.left;
+        const midY = (a.y + b.y) / 2 - rect.top;
+        pinchRef.current = {
+            pointerIds: [ids[0], ids[1]],
+            startDistance: Math.max(Math.hypot(b.x - a.x, b.y - a.y), 1),
+            anchorWorldX: (midX - current.x) / current.k,
+            anchorWorldY: (midY - current.y) / current.k,
+            startViewport: current,
+        };
+        // 双指落下即接管：停掉可能已开始的单指平移，并把框选/节点拖动/连线交还调用方回滚。
+        panState.current.isPanning = false;
+        panState.current.pointerId = -1;
+        setIsPanning(false);
+        document.body.style.cursor = "";
+        onGestureInterrupt?.();
+    };
+
+    const applyPinch = (pinch: NonNullable<typeof pinchRef.current>, a: { x: number; y: number }, b: { x: number; y: number }) => {
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        const distance = Math.max(Math.hypot(b.x - a.x, b.y - a.y), 1);
+        const newScale = Math.min(Math.max(pinch.startViewport.k * (distance / pinch.startDistance), 0.05), 5);
+        const midX = (a.x + b.x) / 2 - rect.left;
+        const midY = (a.y + b.y) / 2 - rect.top;
+        nextViewportRef.current = {
+            x: midX - pinch.anchorWorldX * newScale,
+            y: midY - pinch.anchorWorldY * newScale,
+            k: newScale,
+        };
+        if (frameRef.current) return;
+        frameRef.current = requestAnimationFrame(() => {
+            frameRef.current = null;
+            if (nextViewportRef.current) onViewportChange(nextViewportRef.current);
+        });
+    };
+
+    const handlePointerDownCapture = (event: React.PointerEvent<HTMLDivElement>) => {
+        if (event.pointerType !== "touch") return;
+        const target = event.target instanceof Element ? event.target : null;
+        // 输入类控件保留原生单指滚动；双指落在里面也不接管。
+        if (target?.closest("[data-canvas-no-zoom],input,textarea,[contenteditable='true']")) return;
+        touchPointsRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+        if (touchPointsRef.current.size < 2) return;
+        // 第二根手指不再启动节点拖动/框选/连线，统一交给双指缩放。
+        event.stopPropagation();
+        event.preventDefault();
+        if (!pinchRef.current) beginPinch();
+    };
+
     const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
         const target = event.target instanceof Element ? event.target : null;
         if (target?.closest("[data-canvas-no-zoom]")) return;
@@ -167,6 +237,16 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
 
     useEffect(() => {
         const handlePointerMove = (event: PointerEvent) => {
+            const touchPoints = touchPointsRef.current;
+            if (touchPoints.has(event.pointerId)) touchPoints.set(event.pointerId, { x: event.clientX, y: event.clientY });
+            const pinch = pinchRef.current;
+            if (pinch && (event.pointerId === pinch.pointerIds[0] || event.pointerId === pinch.pointerIds[1])) {
+                const a = touchPoints.get(pinch.pointerIds[0]);
+                const b = touchPoints.get(pinch.pointerIds[1]);
+                if (a && b) applyPinch(pinch, a, b);
+                return;
+            }
+
             if (!panState.current.isPanning || panState.current.pointerId !== event.pointerId) return;
 
             const dx = event.clientX - panState.current.startX;
@@ -188,6 +268,30 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
         };
 
         const handlePointerEnd = (event: PointerEvent) => {
+            const wasTracked = touchPointsRef.current.delete(event.pointerId);
+            const pinch = pinchRef.current;
+            if (wasTracked && pinch && (event.pointerId === pinch.pointerIds[0] || event.pointerId === pinch.pointerIds[1])) {
+                pinchRef.current = null;
+                const remainingId = pinch.pointerIds[0] === event.pointerId ? pinch.pointerIds[1] : pinch.pointerIds[0];
+                const remaining = touchPointsRef.current.get(remainingId);
+                // 双指缩放结束后，剩余那根手指继续拖动就是平移；不触发空白点击取消选择。
+                if (remaining && event.type === "pointerup") {
+                    panState.current = {
+                        isPanning: true,
+                        pointerId: remainingId,
+                        startX: remaining.x,
+                        startY: remaining.y,
+                        initialX: viewportRef.current.x,
+                        initialY: viewportRef.current.y,
+                        hasMoved: true,
+                        startedOnBackground: false,
+                    };
+                    setIsPanning(true);
+                    document.body.style.cursor = "grabbing";
+                }
+                return;
+            }
+
             if (!panState.current.isPanning || panState.current.pointerId !== event.pointerId) return;
 
             if (event.type === "pointerup" && !panState.current.hasMoved && panState.current.startedOnBackground) {
@@ -235,6 +339,7 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
             data-canvas-root
             className="relative h-full w-full touch-none select-none overflow-hidden"
             style={{ background: theme.canvas.background, cursor }}
+            onPointerDownCapture={handlePointerDownCapture}
             onPointerDown={handlePointerDown}
             onDoubleClick={handleDoubleClick}
             onWheel={handleWheel}

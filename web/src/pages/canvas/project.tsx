@@ -2016,6 +2016,18 @@ function InfiniteCanvasPage() {
         }
     }, [connectNodes, getConnectionDropTarget, screenToCanvas, setConnecting]);
 
+    const cancelCanvasGesture = useCallback((event?: Event) => {
+        const pointerId = event?.type === "pointercancel" ? (event as PointerEvent).pointerId : null;
+        if (pointerId === null || pointerId === dragRef.current.pointerId) finishNodeDrag();
+        const selection = selectionBoxRef.current;
+        if (selection && (pointerId === null || pointerId === selection.pointerId)) {
+            selectionBoxRef.current = null;
+            setSelectionBox(null);
+            setSelectedNodeIds(new Set(selection.initialSelectedNodeIds));
+        }
+        if (connectingParamsRef.current && (pointerId === null || pointerId === connectionPointerId.current)) cancelPendingConnectionCreate();
+    }, [cancelPendingConnectionCreate, finishNodeDrag]);
+
     useEffect(() => {
         const handlePointerUp = (event: PointerEvent) => {
             if (connectingParamsRef.current && event.pointerId === connectionPointerId.current) {
@@ -2025,17 +2037,6 @@ function InfiniteCanvasPage() {
                 finishNodeDrag(event.clientX, event.clientY);
             }
             if (selectionBoxRef.current?.pointerId === event.pointerId) finishSelectionBox(event.clientX, event.clientY);
-        };
-        const cancelCanvasGesture = (event?: Event) => {
-            const pointerId = event?.type === "pointercancel" ? (event as PointerEvent).pointerId : null;
-            if (pointerId === null || pointerId === dragRef.current.pointerId) finishNodeDrag();
-            const selection = selectionBoxRef.current;
-            if (selection && (pointerId === null || pointerId === selection.pointerId)) {
-                selectionBoxRef.current = null;
-                setSelectionBox(null);
-                setSelectedNodeIds(new Set(selection.initialSelectedNodeIds));
-            }
-            if (connectingParamsRef.current && (pointerId === null || pointerId === connectionPointerId.current)) cancelPendingConnectionCreate();
         };
         window.addEventListener("pointerup", handlePointerUp);
         window.addEventListener("pointercancel", cancelCanvasGesture);
@@ -4031,6 +4032,7 @@ function InfiniteCanvasPage() {
                     onCanvasPointerDown={(event) => {
                         if (!referencePickerNodeId) handleCanvasPointerDown(event);
                     }}
+                    onGestureInterrupt={() => cancelCanvasGesture()}
                     onCanvasDeselect={referencePickerNodeId ? undefined : deselectCanvas}
                     onCanvasDoubleClick={(event) => {
                         if (referencePickerNodeId) return;
