@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState, type RefObject } from "react";
 import { notifyCanvasFloatingPopoverOpen, subscribeCanvasFloatingPopoverOpen } from "@/lib/canvas/canvas-floating-popover";
+import { canvasOverlayLayer } from "@/lib/canvas/canvas-overlay-layer";
 
 type UseAnchoredPopoverOptions = {
     /** 触发按钮所属的容器；水平避让以它为界，默认是节点里的生成面板。 */
@@ -19,6 +20,8 @@ export type AnchoredPopover = {
     /** 首帧可能还没测量到按钮位置；为 null 时先不渲染浮层。 */
     buttonRect: DOMRect | null;
     anchorRect: DOMRect | null;
+    buttonWidth: number | null;
+    layer: number;
 };
 
 /**
@@ -35,14 +38,20 @@ export function useAnchoredPopover({ anchorSelector = "[data-canvas-prompt-panel
     const [open, setOpenState] = useState(false);
     const [buttonRect, setButtonRect] = useState<DOMRect | null>(null);
     const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
+    const [buttonWidth, setButtonWidth] = useState<number | null>(null);
     // 键盘打开才把焦点送进浮层：鼠标点击后立刻跳焦点会让按钮看起来「失焦」，也没必要。
     const keyboardOpenRef = useRef(false);
 
     const setOpen = useCallback((next: boolean) => {
-        if (next) notifyCanvasFloatingPopoverOpen(popoverId);
+        if (next) {
+            notifyCanvasFloatingPopoverOpen(popoverId);
+            setButtonWidth(buttonRef.current?.getBoundingClientRect().width ?? null);
+        } else {
+            setButtonWidth(null);
+        }
         setOpenState(next);
         onOpenChange?.(next);
-    }, [onOpenChange, popoverId]);
+    }, [buttonRef, onOpenChange, popoverId]);
 
     useEffect(() => {
         const markKeyboard = () => { keyboardOpenRef.current = true; };
@@ -132,5 +141,5 @@ export function useAnchoredPopover({ anchorSelector = "[data-canvas-prompt-panel
         };
     }, [anchorSelector, open, setOpen]);
 
-    return { buttonRef, panelRef, panelProps: { role: "dialog" as const, "aria-label": label, tabIndex: -1 }, open, setOpen, buttonRect, anchorRect };
+    return { buttonRef, panelRef, panelProps: { role: "dialog" as const, "aria-label": label, tabIndex: -1 }, open, setOpen, buttonRect, anchorRect, buttonWidth, layer: canvasOverlayLayer(buttonRef.current) };
 }

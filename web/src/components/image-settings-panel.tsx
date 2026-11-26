@@ -96,7 +96,7 @@ export function ImageSettingsPanel({ config, onConfigChange, theme, showTitle = 
                                 aria-disabled={!sizeEnabled}
                                 aria-pressed={selectedRatio === item.value}
                                 className={`flex h-[72px] flex-col items-center justify-center gap-1.5 rounded-[var(--r-md)] border bg-transparent text-[length:var(--fs-body)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${sizeEnabled ? "cursor-pointer hover:opacity-80" : "cursor-not-allowed opacity-50"}`}
-                                style={{ borderColor: selectedRatio === item.value ? theme.node.text : theme.node.stroke, background: "transparent", color: theme.node.text }}
+                                style={{ borderColor: selectedRatio === item.value ? theme.node.text : theme.node.stroke, background: selectedRatio === item.value ? theme.toolbar.activeBg : "transparent", color: theme.node.text }}
                                 onMouseDown={(event) => event.stopPropagation()}
                                 onClick={() => selectRatio(item.value)}
                             >
@@ -223,7 +223,7 @@ function OptionPill({ selected, theme, onClick, disabled = false, children }: { 
             aria-disabled={disabled}
             aria-pressed={selected}
             className={`h-9 rounded-[var(--r-md)] border px-2 text-[length:var(--fs-body)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:opacity-80"}`}
-            style={{ background: "transparent", borderColor: selected ? theme.node.text : theme.node.stroke, color: theme.node.text }}
+            style={{ background: selected ? theme.toolbar.activeBg : "transparent", borderColor: selected ? theme.node.text : theme.node.stroke, color: theme.node.text }}
             onMouseDown={(event) => event.stopPropagation()}
             onClick={onClick}
         >

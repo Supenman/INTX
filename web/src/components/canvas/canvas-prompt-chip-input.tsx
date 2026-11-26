@@ -129,7 +129,7 @@ export function CanvasPromptChipInput({ value, references, onChange, onSubmit, c
     return (
         <div className="relative w-full">
             {showPlaceholder && placeholder ? (
-                <div className="pointer-events-none absolute left-3 top-2 text-sm leading-5" style={{ color: theme.node.placeholder }}>
+                <div className="pointer-events-none absolute left-3 top-2 leading-5" style={{ color: theme.node.placeholder, fontSize: style?.fontSize || "var(--fs-body)" }}>
                     {placeholder}
                 </div>
             ) : null}

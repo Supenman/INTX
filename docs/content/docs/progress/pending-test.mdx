@@ -5,6 +5,14 @@ description: Implemented changes that still need manual verification
 
 # Pending Tests
 
+## Shared generation composer and settings feedback
+
+- On image, video, audio, and text nodes, drag the bottom-center prompt handle up and down; the editor should resize without moving the node or starting a canvas gesture. Use arrow keys and Home/End while the handle is focused.
+- Change prompt font size in the compact composer, switch node types, and open the expanded editor: the chosen size should remain visible and apply to the prompt text and placeholder. Reload and confirm the font preference is retained.
+- Resize the expanded editor independently, then close and reopen it. Confirm the compact composer height is unchanged.
+- Open each applicable image, video, audio, text, and workflow settings panel. Confirm selected options have a clear but soft filled state, trigger backgrounds reflect open/closed state, and changing a setting still updates the summary and generated request.
+- Repeat in a narrow window and in light theme; confirm the resize handle remains reachable and settings controls do not overlap the Generate button.
+
 ## Generation lifecycle with a mock provider
 
 - Point a channel at a local mock that streams SSE deltas. Click Generate: the primary button should become Stop and the node should fill in progressively.
@@ -20,13 +28,19 @@ description: Implemented changes that still need manual verification
 
 ## Reference order and numbering
 
-- Connect two images to one node and select it: the thumbnails should carry 1 and 2 badges in connection order, and a single reference should show no badge.
+- Connect one image to a node: its thumbnail should carry badge 1, matching the “Image 1” reference label. Connect a second image: badges 1 and 2 should follow connection order.
 - Run an image edit and check that the prompt prefix "reference image numbers: 图片1、图片2" matches those badges.
 - Hover the first thumbnail and click "Move reference later": both badges should swap, and the prompt numbering should swap with them.
-- Connect two text nodes as references: badges 1 and 2 should correspond to 【文本 1】 and 【文本 2】 in the prompt.
+- Connect one text node as a reference: badge 1 should match its 【Text 1】 label; with two nodes, badges should correspond to 【Text 1】 and 【Text 2】 in the prompt.
 - Video node in first & last frame mode with one image: the thumbnail carries "First frame" only, with no numeric badge.
 - With two images: they read "First frame" and "Last frame"; no numeric badge is stacked on top — the role label already conveys the order.
 - With three images: first/last frame no longer applies, the labels disappear and 1, 2, 3 badges appear in connection order.
+
+## Connection gesture cancellation
+
+- Start a connection from an output port: only that source port and the current valid target's input port should be shown. Start from an input port and confirm the inverse sides are shown. Hovered or selected nodes should keep their usual ports.
+- Start dragging a connection from a node handle, then cancel a different pointer (for example, a secondary touch gesture); the original connection preview should remain active.
+- Cancel the pointer that started the connection; the preview should close. Switching the window away should still clean up the unfinished connection.
 
 ## Reduced motion
 
@@ -41,6 +55,9 @@ description: Implemented changes that still need manual verification
 - Pick a workflow model that declares a required field (e.g. negative prompt) and press Generate without filling it: the reference status area names the missing field, Generate is rejected with the same message, and no task is created.
 - The "Workflow parameters · N changed" summary counts only fields the current workflow declares; switching to another model clears the summary and values, and switching back restores them.
 - Field coverage: number, text and boolean controls follow the workflow declaration, media inputs read "Input 1: required/optional", and the popover stays inside the viewport.
+
+- On audio and text nodes using a ComfyUI workflow model, open Workflow parameters and confirm the workflow's fields are editable. Connect any required image/video/audio inputs declared by that workflow and confirm the matching requirement is satisfied; disconnect each input and confirm generation is blocked again.
+- For a required audio input, connect an audio node and confirm the panel reports it as present and allows submission when the prompt and other required fields are ready.
 
 ## Escape while an overlay is open
 
@@ -101,6 +118,7 @@ description: Implemented changes that still need manual verification
 - While dragging nodes, check that connections, selection outlines, and the composer follow. Press Escape or switch windows to restore original positions. Check undo after a normal drop. Focus a selection of distant nodes and check that they all come into view and remain selected.
 
 - While dragging a node resize handle, switch windows and release outside the app. On return, the toolbar and composer should reappear and pointer movement should no longer resize the node. Right-clicking a resize handle should not start resizing.
+- While resizing, cancel a different pointer; the active resize should continue until its own pointer is released or cancelled.
 
 - Open a canvas, node, or connection context menu and check that the first enabled command is focused. Press Enter to run it or Escape to dismiss the menu, then check that focus returns to the original control or canvas. Right-click inside a multi-selection and check that copy and delete act on the entire selection.
 
@@ -110,6 +128,7 @@ description: Implemented changes that still need manual verification
 
 - Use Canvas Appearance → Fit all content with nodes spread across the canvas. All nodes should fit with margin; using it on an empty canvas should leave the viewport unchanged. After a box selection, release the mouse and confirm the hit nodes stay selected. Interrupt a box selection by switching windows or triggering pointer cancellation; verify the selection returns to its state before the drag.
 - Check box selection with each modifier: no modifier replaces the selection, Shift adds hits, Alt removes hits, and Ctrl/Cmd toggles hits. Move the box repeatedly over the same nodes to confirm toggle does not flicker; interrupt each mode and confirm the initial selection is restored.
+- While box-selecting, let another touch or pen pointer end or cancel; the selection should continue. Only the pointer that started the box should commit it, and cancel or window blur should restore the initial selection.
 - Start a background pan without moving and release normally; selection should clear. Repeat, then cancel the pointer instead; the existing selection should remain. During a pan, an unrelated pointer ending should not stop the active gesture.
 - Check locked nodes: clicking selects the node and opens its panel, dragging it does not move it, and dragging another node in a mixed selection moves only unlocked nodes.
 - Tab to either port and press Enter or Space to open the creation menu. Use the arrow keys and Enter to create a connected node. Escape should return focus to the original port. While dragging a connection, Escape should keep the current selection. Delete should leave canvas nodes alone while a canvas menu is open.
@@ -124,6 +143,7 @@ description: Implemented changes that still need manual verification
 - While settings are open, the trigger should show its selected state and report its expanded state to assistive technology. Click outside or press Escape; the trigger should reset and the node should remain selected.
 - Check image, video, audio, text, and ComfyUI workflow nodes. Workflow settings, model selection, and regular settings should follow the same floating-panel exclusivity rule. After changing workflow fields, the trigger summary should show the number of changed fields.
 - Switch the app language to English and open workflow settings. All hints, media requirements, field labels, and empty states should be English. Change/import a workflow so it no longer declares a previously edited field; its stale saved value should not appear in the summary or be submitted.
+- Change a workflow parameter with a declared default, then restore that default; the “adjusted” count should decrease and should not count values equal to the default as overrides.
 - Reopen a canvas while a generation is recoverable. During the restore/polling interval, the composer should clearly show a disabled “Generating” state, not an enabled-looking Generate action or Stop control. Once the request is actively running in this page, Stop should be available again.
 - Open image, video, audio, text, and workflow settings one at a time. The node hover toolbar should hide for each open popover and return after close, outside click, Escape, or opening another settings popover.
 - Tab through image, video, and audio parameter options. Keyboard focus should be visible, and assistive technology should identify the selected option.
@@ -186,6 +206,7 @@ description: Implemented changes that still need manual verification
 - 单击图片节点名称不进入重命名，双击名称或点铅笔进入编辑；Enter 保存、Esc 取消，其他节点名称仍可按原方式编辑。
 - 连线未选中时以细淡线显示并在两端有小圆点；选中后线条和端点变亮、加粗。
 - 拖动已选中的图片生成节点时，上方工具栏和下方生成面板应持续显示并跟随节点移动；松开后停在新位置，继续可操作。拖动其他节点时上方工具栏也应持续跟随；多选拖动不应出现单节点工具栏。
+- 拖动节点时取消另一个触摸/笔指针，当前拖动应继续；只有启动拖动的指针松开或取消才结束。点击节点内按钮、编辑文本、拖连接口和缩放角点时不得误启动节点拖动或画布框选。
 - 将单个节点移到画布左、右边缘及顶部附近，工具栏应完整留在视口内；拖动画布、缩放和改变窗口大小后仍应锚定节点。打开下方配置面板并改变其高度，工具栏应避开面板且保持可操作。
 - 新建四类基础节点，对照默认尺寸：图片/视频 720×405、文本 350×350、音频 320×320；验证缩放图片/视频时保留比例且最小尺寸不低于 420×236。打开已有画布确认已保存节点不被自动放大或改形。
 - 新建空文本、图片、视频、音频节点，确认媒体图标大而淡、文本为空时显示四条淡横线；切换浅色/深色主题后仍清晰可辨，读屏标签保留。
@@ -194,6 +215,7 @@ description: Implemented changes that still need manual verification
 - 清除或移除 `canvas-side-panel-open` 偏好后新开画布，侧栏默认收起、画布铺满可用区域；通过顶栏按钮展开和收起，再重启应用确认显式选择能恢复。
 - 在深色、浅色主题分别悬停和选中节点，检查左右连接轨道只在节点可操作时出现；悬停连接轨道时轨道展开，圆点跟随指针移动，离开后回到节点边缘。
 - 从两侧端口单击添加节点、拖线连接已有节点、拖到空白处创建节点；确认原有连接方向、quick-add 位置与连线关系不变。
+- 用鼠标及可用时的触摸指针拖线：只有启动连线的同一指针能移动、完成或取消；松到合法目标应连接，松到空白处应打开节点创建；其他指针的取消事件不应中断连线。
 - 通过端口创建菜单用方向键切换节点，Home/End 定位首尾；按 Esc 或点击菜单外关闭，显式关闭时焦点应回到连接点或画布。点击菜单项创建节点后，焦点不应抢离新节点流程。
 - 从底部新增按钮、画布空白处双击和右键菜单分别打开创建菜单，用 Esc 和关闭按钮退出；焦点应回到原按钮或画布。选择资源类动作打开弹窗时，焦点应进入新弹窗。
 - 打开底部「外观」和「扩展节点」弹层，用 Tab 操作其中控件，按 Esc 关闭后焦点应回到对应工具栏按钮。
@@ -309,6 +331,7 @@ description: Implemented changes that still need manual verification
 
 ## 画布节点配置与参考素材
 
+- Windows WebView2 验收：图片、视频、音频、文本节点以及绑定工作流的节点，依次打开模型菜单和参数面板，确认同一时间仅一个菜单/面板展开，选项可选、Esc/点击外部能关闭；改变参数摘要时按钮不跳宽。再从全局配置对话框打开模型菜单，并从遮罩/较高层弹窗中重复，确认列表和设置面板显示在当前对话框上方、Tab/Esc 焦点正确。
 - Windows WebView2 已在独立配置中复现原验收包的样式丢失，并用修正版验证侧栏恢复纵向排列、工作流入口位于顶部、导入和缩放工具位于画布底部。
 - 画布交互继续向 BeefTV 的空间布局靠拢：项目菜单与标题收在左上，工作流、Agent、生成历史收在右上，创建/选择工具坞居中并缩小。待在 Windows WebView2 验收侧栏开关、菜单、窄宽度和节点提示词面板的遮挡情况。
 

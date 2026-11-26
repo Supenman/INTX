@@ -25,17 +25,17 @@ type CanvasAudioSettingsPopoverProps = {
 export function CanvasAudioSettingsPopover({ config, onConfigChange, onOpenChange, buttonClassName, placement = "topLeft" }: CanvasAudioSettingsPopoverProps) {
     const { t } = useTranslation();
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
-    const { buttonRef, panelRef, panelProps, open, setOpen, buttonRect, anchorRect } = useAnchoredPopover({ onOpenChange, label: t("settingsPanels.audio.title") });
+    const { buttonRef, panelRef, panelProps, open, setOpen, buttonRect, anchorRect, buttonWidth, layer } = useAnchoredPopover({ onOpenChange, label: t("settingsPanels.audio.title") });
 
     // 位置由 Portal 内部按按钮实测矩形算；这里不要求 buttonRect 先就绪，
     // 否则首帧 buttonRect 还是 null，面板要等下一次 setState 才出现。
     const summary = `${audioVoiceLabel(config.audioVoice)} · ${audioFormatLabel(config.audioFormat)} · ${audioSpeedLabel(config.audioSpeed)}`;
-    const panel = open ? <AudioSettingsPortal buttonRect={buttonRect} anchorRect={anchorRect} panelRef={panelRef} panelProps={panelProps} placement={placement} theme={theme} config={config} onConfigChange={onConfigChange} /> : null;
+    const panel = open ? <AudioSettingsPortal buttonRect={buttonRect} anchorRect={anchorRect} panelRef={panelRef} panelProps={panelProps} placement={placement} layer={layer} theme={theme} config={config} onConfigChange={onConfigChange} /> : null;
 
     return (
         <>
-            <span ref={buttonRef} className="inline-flex min-w-0">
-                <Button size="small" type="text" aria-expanded={open} aria-label={`${t("settingsPanels.audio.title")}: ${summary}`} title={`${t("settingsPanels.audio.title")} · ${summary}`} className={buttonClassName || "!h-[var(--control-h-sm)] !max-w-[180px] !justify-start !rounded-[var(--r-md)] !px-2.5"} style={{ background: open ? theme.toolbar.activeBg : "transparent", color: theme.node.text }} icon={<Settings2 className="size-3.5" />} onClick={() => setOpen(!open)}>
+            <span ref={buttonRef} className="inline-flex min-w-0" style={buttonWidth === null ? undefined : { width: buttonWidth }}>
+                <Button size="small" type="text" aria-expanded={open} aria-label={`${t("settingsPanels.audio.title")}: ${summary}`} title={`${t("settingsPanels.audio.title")} · ${summary}`} className={buttonClassName || "!h-[var(--control-h-sm)] !max-w-[180px] !justify-start !rounded-full !px-2.5"} style={{ background: open ? theme.toolbar.activeBg : theme.toolbar.itemHover, color: theme.node.text, width: buttonWidth === null ? undefined : "100%" }} icon={<Settings2 className="size-3.5" />} onClick={() => setOpen(!open)}>
                     <span className="truncate">{summary}</span>
                 </Button>
             </span>
@@ -50,6 +50,7 @@ function AudioSettingsPortal({
     panelRef,
     panelProps,
     placement,
+    layer,
     theme,
     config,
     onConfigChange,
@@ -61,6 +62,7 @@ function AudioSettingsPortal({
     panelRef: RefObject<HTMLDivElement | null>;
     panelProps: AnchoredPopover["panelProps"];
     placement: PopoverPlacement;
+    layer: number;
     theme: (typeof canvasThemes)[keyof typeof canvasThemes];
     config: AiConfig;
     onConfigChange: (key: CanvasAudioSettingKey, value: string) => void;
@@ -69,7 +71,7 @@ function AudioSettingsPortal({
     const position = resolvePopoverPosition({ buttonRect, anchorRect, placement, viewport: { width: window.innerWidth, height: window.innerHeight } });
     const style = {
         position: "fixed",
-        zIndex: 1200,
+        zIndex: layer,
         ...position,
         background: theme.toolbar.panel,
         borderRadius: "var(--r-xl)",

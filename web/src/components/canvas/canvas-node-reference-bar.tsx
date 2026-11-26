@@ -54,7 +54,7 @@ export function CanvasNodeReferenceBar({ nodeId, nodes, connectedNodes, actions,
                         const frame = frameRole ? t(`canvas.references.${frameRole}`) : undefined;
                         const replacements = onReplace && kind && sourceNodeId === node.id ? resources.filter((item) => item.kind === kind && item.nodeId !== nodeId && !connectedIds.has(item.nodeId)) : [];
                         return (
-                            <ReferenceItem key={`${sourceNodeId}:${node.id}`} node={node} frame={frame} ordinal={frame || (kindTotals[kind ?? ""] ?? 0) < 2 ? undefined : ordinalByNode.get(node.id)} onRemove={() => onDisconnect?.(sourceNodeId, nodeId)} controls={first && !selecting && (
+                            <ReferenceItem key={`${sourceNodeId}:${node.id}`} node={node} frame={frame} label={byId.get(node.id)?.label} ordinal={frame ? undefined : ordinalByNode.get(node.id)} onRemove={() => onDisconnect?.(sourceNodeId, nodeId)} controls={first && !selecting && (
                                 <div className="mt-2 flex flex-wrap items-center gap-1.5">
                                     {onMove && <button type="button" disabled={index === 0} title={t("canvas.references.moveEarlier")} aria-label={t("canvas.references.moveEarlier")} className="rounded border border-border p-1 disabled:opacity-40" onClick={() => onMove(sourceNodeId, nodeId, -1)}><ChevronLeft className="size-4" /></button>}
                                     {onMove && <button type="button" disabled={index === connectedNodes.length - 1} title={t("canvas.references.moveLater")} aria-label={t("canvas.references.moveLater")} className="rounded border border-border p-1 disabled:opacity-40" onClick={() => onMove(sourceNodeId, nodeId, 1)}><ChevronRight className="size-4" /></button>}
@@ -74,7 +74,7 @@ export function CanvasNodeReferenceBar({ nodeId, nodes, connectedNodes, actions,
     );
 }
 
-function ReferenceItem({ node, frame, ordinal, controls, onRemove }: { node: CanvasNodeData; frame?: string; ordinal?: number; controls?: ReactNode; onRemove: () => void }) {
+function ReferenceItem({ node, frame, label, ordinal, controls, onRemove }: { node: CanvasNodeData; frame?: string; label?: string; ordinal?: number; controls?: ReactNode; onRemove: () => void }) {
     const { t } = useTranslation();
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     useSyncExternalStore(subscribeImagePreviews, getImagePreviewRevision);
@@ -84,7 +84,7 @@ function ReferenceItem({ node, frame, ordinal, controls, onRemove }: { node: Can
     const Icon = resource?.kind === "image" || node.type === CanvasNodeType.Image ? ImageIcon : resource?.kind === "video" || node.type === CanvasNodeType.Video ? Video : resource?.kind === "audio" || node.type === CanvasNodeType.Audio ? Music2 : resource?.kind === "text" || node.type === CanvasNodeType.Text ? FileText : Puzzle;
     return (
         <Popover placement="topLeft" trigger={["hover", "focus"]} mouseEnterDelay={0.15} content={<div data-canvas-no-zoom onPointerDown={(event) => event.stopPropagation()}><ReferencePreview node={node} content={content} />{controls}</div>}>
-            <div tabIndex={0} aria-label={[ordinal ? `#${ordinal}` : "", frame, node.title].filter(Boolean).join(" · ")} className="group focus-ring relative grid size-12 shrink-0 place-items-center rounded-xl border" style={{ background: theme.toolbar.activeBg, borderColor: theme.toolbar.border }}>
+            <div tabIndex={0} aria-label={[ordinal ? label : "", frame, node.title].filter(Boolean).join(" · ")} className="group focus-ring relative grid size-12 shrink-0 place-items-center rounded-xl border" style={{ background: theme.toolbar.activeBg, borderColor: theme.toolbar.border }}>
                 <span className="grid size-full place-items-center overflow-hidden rounded-[inherit]">
                     {(resource?.kind === "image" || node.type === CanvasNodeType.Image) && thumbnail ? <img src={thumbnail} alt="" className="size-full object-cover" /> : (resource?.kind === "video" || node.type === CanvasNodeType.Video) && content ? <video src={content} className="size-full object-cover" muted /> : <Icon className="size-4 opacity-65" />}
                 </span>

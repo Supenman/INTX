@@ -12,12 +12,13 @@ import type { WorkflowValues, WorkflowValue } from "@/types/comfy-workflow";
 export function CanvasWorkflowSettings({ config, onChange, onOpenChange }: { config: AiConfig; onChange: (values: WorkflowValues) => void; onOpenChange?: (open: boolean) => void }) {
     const { t } = useTranslation();
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
-    const { buttonRef, panelRef, panelProps, open, setOpen, buttonRect, anchorRect } = useAnchoredPopover({ onOpenChange, label: t("settingsPanels.workflow.title") });
+    const { buttonRef, panelRef, panelProps, open, setOpen, buttonRect, anchorRect, buttonWidth, layer } = useAnchoredPopover({ onOpenChange, label: t("settingsPanels.workflow.title") });
     const workflow = modelWorkflowOf(config, config.model);
     const values = config.workflowValues?.[config.model] || {};
     const fields = workflow?.fields.filter((field) => !field.media && field.from !== "prompt" && field.from !== "count") || [];
-    const activeFieldKeys = new Set(fields.map((field) => field.key));
-    const activeValueCount = Object.keys(values).filter((key) => activeFieldKeys.has(key)).length;
+    const activeValueCount = fields.filter(
+        (field) => values[field.key] !== undefined && !Object.is(values[field.key], field.default),
+    ).length;
     const summary = activeValueCount ? t("settingsPanels.workflow.summary", { count: activeValueCount }) : "";
     const update = (key: string, value: WorkflowValue | null | undefined) => {
         const next = { ...values };
@@ -32,8 +33,8 @@ export function CanvasWorkflowSettings({ config, onChange, onOpenChange }: { con
             {...panelProps}
             data-canvas-no-zoom
             data-node-settings-panel
-            className="fixed z-[1200] space-y-3 overflow-y-auto rounded-[var(--r-xl)] p-4 shadow-[var(--shadow-lg)]"
-            style={{ ...position, background: theme.toolbar.panel, color: theme.node.text, boxShadow: "var(--shadow-lg), var(--hairline)", overscrollBehavior: "contain" }}
+            className="fixed space-y-3 overflow-y-auto rounded-[var(--r-xl)] p-4 shadow-[var(--shadow-lg)]"
+            style={{ ...position, zIndex: layer, background: theme.toolbar.panel, color: theme.node.text, boxShadow: "var(--shadow-lg), var(--hairline)", overscrollBehavior: "contain" }}
             onPointerDown={(event) => event.stopPropagation()}
             onMouseDown={(event) => event.stopPropagation()}
             onClick={(event) => event.stopPropagation()}
@@ -69,8 +70,8 @@ export function CanvasWorkflowSettings({ config, onChange, onOpenChange }: { con
 
     return (
         <>
-            <span ref={buttonRef} className="inline-flex min-w-0">
-                <Button type="text" aria-expanded={open} aria-label={`${t("settingsPanels.workflow.title")}${summary ? `: ${summary}` : ""}`} title={`${t("settingsPanels.workflow.title")}${summary ? ` · ${summary}` : ""}`} className="!h-[var(--control-h-sm)] !max-w-[170px] !rounded-[var(--r-md)] !bg-transparent !px-2.5" style={{ background: open ? theme.toolbar.activeBg : "transparent", color: theme.node.text }} icon={<Settings2 className="size-3.5" />} onClick={() => setOpen(!open)}><span className="truncate">{summary ? `${t("settingsPanels.workflow.title")} · ${summary}` : t("settingsPanels.workflow.title")}</span></Button>
+            <span ref={buttonRef} className="inline-flex min-w-0" style={buttonWidth === null ? undefined : { width: buttonWidth }}>
+                <Button type="text" aria-expanded={open} aria-label={`${t("settingsPanels.workflow.title")}${summary ? `: ${summary}` : ""}`} title={`${t("settingsPanels.workflow.title")}${summary ? ` · ${summary}` : ""}`} className="!h-[var(--control-h-sm)] !max-w-[170px] !rounded-full !px-2.5" style={{ background: open ? theme.toolbar.activeBg : theme.toolbar.itemHover, color: theme.node.text, width: buttonWidth === null ? undefined : "100%" }} icon={<Settings2 className="size-3.5" />} onClick={() => setOpen(!open)}><span className="truncate">{summary ? `${t("settingsPanels.workflow.title")} · ${summary}` : t("settingsPanels.workflow.title")}</span></Button>
             </span>
             {panel}
         </>

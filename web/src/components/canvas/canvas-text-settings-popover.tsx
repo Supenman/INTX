@@ -24,16 +24,16 @@ type CanvasTextSettingsPopoverProps = {
 export function CanvasTextSettingsPopover({ config, onConfigChange, count, onCountChange, onOpenChange, buttonClassName, placement = "topLeft" }: CanvasTextSettingsPopoverProps) {
     const { t } = useTranslation();
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
-    const { buttonRef, panelRef, panelProps, open, setOpen, buttonRect, anchorRect } = useAnchoredPopover({ onOpenChange, label: t("settingsPanels.text.title") });
+    const { buttonRef, panelRef, panelProps, open, setOpen, buttonRect, anchorRect, buttonWidth, layer } = useAnchoredPopover({ onOpenChange, label: t("settingsPanels.text.title") });
 
     // 同 image/audio/video：只按 open 渲染，定位在 Portal 内部处理。
     const summary = `${t("canvas.controls.reasoning")} · ${reasoningEffortLabel(config.reasoningEffort)}${onCountChange ? ` · ${t("canvas.controls.generations", { count })}` : ""}`;
-    const panel = open ? <TextSettingsPortal buttonRect={buttonRect} anchorRect={anchorRect} panelRef={panelRef} panelProps={panelProps} placement={placement} theme={theme} config={config} count={count} onConfigChange={onConfigChange} onCountChange={onCountChange} /> : null;
+    const panel = open ? <TextSettingsPortal buttonRect={buttonRect} anchorRect={anchorRect} panelRef={panelRef} panelProps={panelProps} placement={placement} layer={layer} theme={theme} config={config} count={count} onConfigChange={onConfigChange} onCountChange={onCountChange} /> : null;
 
     return (
         <>
-            <span ref={buttonRef} className="inline-flex min-w-0">
-                <Button size="small" type="text" aria-expanded={open} aria-label={`${t("settingsPanels.text.title")}: ${summary}`} title={`${t("settingsPanels.text.title")} · ${summary}`} className={buttonClassName || "!h-[var(--control-h-sm)] !max-w-[180px] !justify-start !rounded-[var(--r-md)] !px-2.5"} style={{ background: open ? theme.toolbar.activeBg : "transparent", color: theme.node.text }} icon={<Settings2 className="size-3.5" />} onClick={() => setOpen(!open)}>
+            <span ref={buttonRef} className="inline-flex min-w-0" style={buttonWidth === null ? undefined : { width: buttonWidth }}>
+                <Button size="small" type="text" aria-expanded={open} aria-label={`${t("settingsPanels.text.title")}: ${summary}`} title={`${t("settingsPanels.text.title")} · ${summary}`} className={buttonClassName || "!h-[var(--control-h-sm)] !max-w-[180px] !justify-start !rounded-full !px-2.5"} style={{ background: open ? theme.toolbar.activeBg : theme.toolbar.itemHover, color: theme.node.text, width: buttonWidth === null ? undefined : "100%" }} icon={<Settings2 className="size-3.5" />} onClick={() => setOpen(!open)}>
                     <span className="truncate">{summary}</span>
                 </Button>
             </span>
@@ -42,7 +42,7 @@ export function CanvasTextSettingsPopover({ config, onConfigChange, count, onCou
     );
 }
 
-function TextSettingsPortal({ buttonRect, anchorRect, panelRef, panelProps, placement, theme, config, count, onConfigChange, onCountChange }: {
+function TextSettingsPortal({ buttonRect, anchorRect, panelRef, panelProps, placement, layer, theme, config, count, onConfigChange, onCountChange }: {
     /** 首帧可能还没测量到按钮位置；为 null 时先不渲染，等首次测量即可。 */
     buttonRect: DOMRect | null;
     /** 触发按钮所属的生成面板，水平避让以它为界。 */
@@ -50,6 +50,7 @@ function TextSettingsPortal({ buttonRect, anchorRect, panelRef, panelProps, plac
     panelRef: RefObject<HTMLDivElement | null>;
     panelProps: AnchoredPopover["panelProps"];
     placement: PopoverPlacement;
+    layer: number;
     theme: (typeof canvasThemes)[keyof typeof canvasThemes];
     config: AiConfig;
     count?: number;
@@ -61,7 +62,7 @@ function TextSettingsPortal({ buttonRect, anchorRect, panelRef, panelProps, plac
     const position = resolvePopoverPosition({ buttonRect, anchorRect, placement, viewport: { width: window.innerWidth, height: window.innerHeight } });
     const style = {
         position: "fixed",
-        zIndex: 1200,
+        zIndex: layer,
         ...position,
         background: theme.toolbar.panel,
         borderRadius: "var(--r-xl)",
