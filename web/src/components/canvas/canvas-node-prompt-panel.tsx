@@ -66,7 +66,7 @@ export function CanvasNodePromptPanel({ node, nodes, connections, selectingRefer
     const [promptHeight, setPromptHeight] = useState(132);
     const [expandedPromptHeight, setExpandedPromptHeight] = useState(420);
     const [promptFontSize, setPromptFontSize] = useState(() => {
-        const stored = typeof window === "undefined" ? null : Number(window.localStorage.getItem("intx-canvas-prompt-font-size"));
+        const stored = typeof window === "undefined" ? Number.NaN : Number(window.localStorage.getItem("intx-canvas-prompt-font-size"));
         return Number.isFinite(stored) && stored >= 12 && stored <= 28 ? stored : 14;
     });
 

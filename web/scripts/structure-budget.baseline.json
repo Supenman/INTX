@@ -1,10 +1,10 @@
 {
-    "total": 6433,
+    "total": 6442,
     "files": {
         "src/components/canvas/canvas-node.tsx": {
-            "overLines": 369,
+            "overLines": 380,
             "vendorUrls": 0,
-            "total": 369
+            "total": 380
         },
         "src/lib/opencut/animation/keyframes.ts": {
             "overLines": 562,
