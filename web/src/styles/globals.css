@@ -456,14 +456,18 @@
 
 /* 系统开启「减少动态效果」时，装饰性过渡和循环动画直接停掉；
    进度类旋转是状态信息（生成中/加载中），保留低速旋转，
-   否则用户会以为任务卡死。 */
+   否则用户会以为任务卡死。
+   delay 也要清零：批量子节点用 animation-delay 做错峰，只压 duration 的话
+   排在后面的节点仍会在延迟期里保持透明（backwards fill），看起来像没出来。 */
 @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
     *::after {
         animation-duration: 0.01ms !important;
+        animation-delay: 0ms !important;
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
+        transition-delay: 0ms !important;
         scroll-behavior: auto !important;
     }
 

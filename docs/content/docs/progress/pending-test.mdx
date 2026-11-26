@@ -24,7 +24,17 @@ description: Implemented changes that still need manual verification
 - Run an image edit and check that the prompt prefix "reference image numbers: 图片1、图片2" matches those badges.
 - Hover the first thumbnail and click "Move reference later": both badges should swap, and the prompt numbering should swap with them.
 - Connect two text nodes as references: badges 1 and 2 should correspond to 【文本 1】 and 【文本 2】 in the prompt.
-- In video reference mode the first two images already carry "first frame / last frame"; no numeric badge is added there, the role label wins.
+- Video node in first & last frame mode with one image: the thumbnail carries "First frame" only, with no numeric badge.
+- With two images: they read "First frame" and "Last frame"; no numeric badge is stacked on top — the role label already conveys the order.
+- With three images: first/last frame no longer applies, the labels disappear and 1, 2, 3 badges appear in connection order.
+
+## Reduced motion
+
+- Turn on the system "reduce motion" setting (Windows: Settings → Accessibility → Visual effects → Animation effects; macOS: Accessibility → Display → Reduce motion) and reload the canvas.
+- Create several nodes at once through Storyboard Pipeline or a batch generation: all nodes should appear at the same instant, with no staggered fade-in and no node that stays invisible for a moment before showing up.
+- The spinner next to the generating button should keep turning slowly (about 2.4s per revolution): it carries state, and stopping it makes the run look stuck.
+- Button hovers, settings popovers and the side panel should settle instantly, with no 0.2–0.3s transition.
+- Turn the setting off and reload: staggered entry, the normal spinner speed and transitions should all come back.
 
 ## Required workflow fields
 
