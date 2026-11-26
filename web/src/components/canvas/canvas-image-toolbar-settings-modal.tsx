@@ -3,6 +3,8 @@ import { Button, Card, Checkbox, Form, Modal, Space, Switch, Tag, Tooltip, Typog
 import { Ellipsis, Image as ImageIcon, Settings2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { restoreCanvasFocus } from "@/lib/canvas/canvas-node-focus";
+
 import type { ImageQuickToolId } from "./canvas-image-toolbar-tools";
 
 export type ImageToolbarSettingsTool = {
@@ -128,6 +130,7 @@ export function ImageToolSettingsModal({
             centered
             width={760}
             onCancel={onCancel}
+            afterClose={restoreCanvasFocus}
             destroyOnHidden
             footer={
                 <div className="flex items-center justify-between gap-3">

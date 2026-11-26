@@ -7,6 +7,7 @@ import { resolveToolbarTools } from "@/domain";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { isBrokenVideoContent } from "@/lib/media-blob";
 import { getNodeDefinition, isBuiltinNodeType } from "@/lib/canvas/node-registry";
+import { restoreCanvasFocus } from "@/lib/canvas/canvas-node-focus";
 import { nodeToolbarHandler } from "@/lib/canvas/node-toolbar-actions";
 import { buildToolContext } from "@/lib/canvas/tool-wiring";
 import { formatBytes, getDataUrlByteSize } from "@/lib/image-utils";
@@ -47,6 +48,8 @@ type CanvasNodeHoverToolbarProps = {
     onDuplicate: (node: CanvasNodeData) => void;
     onDelete: (node: CanvasNodeData) => void;
     onUngroup?: (node: CanvasNodeData) => void;
+    /** 「配置快捷工具」弹窗的开合。弹窗盖住画布时节点会收到 mouseleave，父级需要据此暂缓收起悬浮栏。 */
+    onConfigureToolsOpenChange?: (open: boolean, nodeId: string) => void;
     extraTools?: CanvasNodeToolbarItem[];
 };
 
@@ -97,6 +100,7 @@ export function CanvasNodeHoverToolbar({
     onDuplicate,
     onDelete,
     onUngroup,
+    onConfigureToolsOpenChange,
     extraTools = [],
 }: CanvasNodeHoverToolbarProps) {
     const [quickImageToolIds, setQuickImageToolIds] = useState<ImageQuickToolId[]>(defaultImageQuickToolIds);
@@ -128,6 +132,8 @@ export function CanvasNodeHoverToolbar({
     useEffect(() => {
         setImageToolSettingsOpen(false);
     }, [node?.id]);
+
+    useEffect(() => onConfigureToolsOpenChange?.(imageToolSettingsOpen, node?.id ?? ""), [imageToolSettingsOpen, node?.id, onConfigureToolsOpenChange]);
 
     useLayoutEffect(() => {
         if (!node) return;
@@ -392,7 +398,7 @@ export function CanvasNodeInfoModal({ node, open, onClose }: { node: CanvasNodeD
     );
 
     return (
-        <Modal destroyOnHidden className="canvas-node-info-modal" title={title} open={open && Boolean(node)} centered footer={null} onCancel={onClose}>
+        <Modal destroyOnHidden className="canvas-node-info-modal" title={title} open={open && Boolean(node)} centered footer={null} onCancel={onClose} afterClose={restoreCanvasFocus}>
             {node ? (
                 <div className="h-[56vh] min-h-[360px] select-text text-sm" data-canvas-shortcuts-ignore>
                     {view === "info" ? (

@@ -277,6 +277,7 @@ function InfiniteCanvasPage() {
     const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
     const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
     const nodeHoverHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const nodeHoverSuspendedRef = useRef(false); // 「配置快捷工具」弹窗盖住画布时，遮罩会让节点收到 mouseleave；先别收悬浮栏，否则弹窗跟着卸载
     const [connectingParams, setConnectingParams] = useState<ConnectionHandle | null>(null);
     const [connectionTargetNodeId, setConnectionTargetNodeId] = useState<string | null>(null);
     const [pendingConnectionCreate, setPendingConnectionCreate] = useState<PendingConnectionCreate | null>(null);
@@ -3346,7 +3347,7 @@ function InfiniteCanvasPage() {
                         message.error(hasSuccess ? t("canvas.projectPage.partialFailed") : firstError || t("canvas.projectPage.generationFailed"));
                     }
                     setNodes((prev) =>
-                        prev.map((node) => (node.id === rootId ? { ...node, metadata: { ...node.metadata, status: hasSuccess ? NODE_STATUS_SUCCESS : NODE_STATUS_ERROR, errorDetails: hasSuccess ? undefined : t("canvas.projectPage.allFailed"), retryBlocked: hasSuccess ? undefined : hasConfirm || undefined } } : node)),
+                        prev.map((node) => (node.id === rootId ? { ...node, metadata: { ...node.metadata, status: hasSuccess ? NODE_STATUS_SUCCESS : NODE_STATUS_ERROR, errorDetails: hasSuccess ? undefined : firstError || t("canvas.projectPage.allFailed"), retryBlocked: hasSuccess ? undefined : hasConfirm || undefined } } : node)), // 全部失败时写第一条真实原因，别只留「全部图片生成失败」
                     );
                     return;
                 }
@@ -3539,7 +3540,7 @@ function InfiniteCanvasPage() {
                                     texts: completedTexts,
                                     primaryTextId: primaryText?.id,
                                     status: primaryText ? NODE_STATUS_SUCCESS : NODE_STATUS_ERROR,
-                                    errorDetails: primaryText ? undefined : t("canvas.projectPage.generationFailed"),
+                                    errorDetails: primaryText ? undefined : failedTexts[0]?.errorDetails || t("canvas.projectPage.generationFailed"), // 节点级只写「生成失败」会把真正的原因（网关报错）吞掉，面板里标题和详情变成同一句话；失败详情来自子文本槽
                                 },
                             };
                         }
@@ -3858,8 +3859,9 @@ function InfiniteCanvasPage() {
         if (nodeDraggingRef.current) return;
         if (nodeHoverHideTimerRef.current) clearTimeout(nodeHoverHideTimerRef.current);
         nodeHoverHideTimerRef.current = setTimeout(() => {
-            setHoveredNodeId((current) => (current === nodeId ? null : current));
             nodeHoverHideTimerRef.current = null;
+            if (nodeHoverSuspendedRef.current) return;
+            setHoveredNodeId((current) => (current === nodeId ? null : current));
         }, 120);
     }, []);
     useEffect(() => () => {
@@ -4207,6 +4209,14 @@ function InfiniteCanvasPage() {
                     viewport={viewport}
                     onKeep={handleNodeHoverStart}
                     onLeave={handleNodeHoverEnd}
+                    onConfigureToolsOpenChange={(open, nodeId) => {
+                        nodeHoverSuspendedRef.current = open;
+                        // 关掉后指针多半停在弹窗原来的位置（不在节点上），补一次判定，免得悬浮栏挂在节点上不走
+                        if (!open) window.setTimeout(() => { // 等弹窗关完再收悬浮栏，否则弹窗会被提前卸载、afterClose 不触发，焦点掉回 body
+                            const bar = document.querySelector("[data-node-toolbar]"); // 焦点还在悬浮栏上就先留着，读屏/键盘用户不该被抽走落点
+                            if (!document.querySelector("[data-node-toolbar]:hover, [data-node-id]:hover") && !bar?.contains(document.activeElement)) setHoveredNodeId((current) => (current === nodeId ? null : current));
+                        }, 450);
+                    }}
                     extraTools={toolbarNode ? buildNodeToolbarItems(toolbarNode) : undefined}
                     onInfo={(node) => setInfoNodeId(node.id)}
                     onDecreaseFont={(node) => handleFontSizeChange(node.id, Math.max(10, (node.metadata?.fontSize || 14) - 2))}
@@ -4376,16 +4386,16 @@ function InfiniteCanvasPage() {
                 <CanvasNodeInfoModal node={infoNode} open={Boolean(infoNode)} onClose={() => setInfoNodeId(null)} />
                 <CanvasPluginManagerModal open={pluginManagerOpen} onClose={() => setPluginManagerOpen(false)} />
 
-                {cropNode?.metadata?.content ? <CanvasNodeCropDialog dataUrl={cropNode.metadata.content} open={Boolean(cropNode)} onClose={() => setCropNodeId(null)} onConfirm={(crop) => void cropImageNode(cropNode!, crop)} /> : null}
+                {cropNode?.metadata?.content ? <CanvasNodeCropDialog dataUrl={cropNode.metadata.content} open={Boolean(cropNode)} onClose={() => { setCropNodeId(null); restoreCanvasFocus(); }} onConfirm={(crop) => void cropImageNode(cropNode!, crop)} /> : null}
 
                 {maskEditNode?.metadata?.content ? (
-                    <CanvasNodeMaskEditDialog dataUrl={maskEditNode.metadata.content} open={Boolean(maskEditNode)} onClose={() => setMaskEditNodeId(null)} onConfirm={(payload) => void maskEditImageNode(maskEditNode!, payload)} />
+                    <CanvasNodeMaskEditDialog dataUrl={maskEditNode.metadata.content} open={Boolean(maskEditNode)} onClose={() => { setMaskEditNodeId(null); restoreCanvasFocus(); }} onConfirm={(payload) => void maskEditImageNode(maskEditNode!, payload)} />
                 ) : null}
 
-                {splitNode?.metadata?.content ? <CanvasNodeSplitDialog dataUrl={splitNode.metadata.content} open={Boolean(splitNode)} onClose={() => setSplitNodeId(null)} onConfirm={(params) => void splitImageNode(splitNode!, params)} /> : null}
+                {splitNode?.metadata?.content ? <CanvasNodeSplitDialog dataUrl={splitNode.metadata.content} open={Boolean(splitNode)} onClose={() => { setSplitNodeId(null); restoreCanvasFocus(); }} onConfirm={(params) => void splitImageNode(splitNode!, params)} /> : null}
 
                 {upscaleNode?.metadata?.content ? (
-                    <CanvasNodeUpscaleDialog dataUrl={upscaleNode.metadata.content} open={Boolean(upscaleNode)} onClose={() => setUpscaleNodeId(null)} onConfirm={(params) => void upscaleImageNode(upscaleNode!, params)} />
+                    <CanvasNodeUpscaleDialog dataUrl={upscaleNode.metadata.content} open={Boolean(upscaleNode)} onClose={() => { setUpscaleNodeId(null); restoreCanvasFocus(); }} onConfirm={(params) => void upscaleImageNode(upscaleNode!, params)} />
                 ) : null}
 
                 <Modal
@@ -4403,7 +4413,7 @@ function InfiniteCanvasPage() {
                     </div>
                 </Modal>
 
-                {angleNode?.metadata?.content ? <CanvasNodeAngleDialog dataUrl={angleNode.metadata.content} open={Boolean(angleNode)} onClose={() => setAngleNodeId(null)} onConfirm={(params) => void generateAngleNode(angleNode!, params)} /> : null}
+                {angleNode?.metadata?.content ? <CanvasNodeAngleDialog dataUrl={angleNode.metadata.content} open={Boolean(angleNode)} onClose={() => { setAngleNodeId(null); restoreCanvasFocus(); }} onConfirm={(params) => void generateAngleNode(angleNode!, params)} /> : null}
                 <AgentConfirmDialog
                     plan={pendingAgentPlan?.plan ?? null}
                     open={Boolean(pendingAgentPlan)}
@@ -4415,7 +4425,7 @@ function InfiniteCanvasPage() {
                         run?.();
                     }}
                 />
-                {presetNode?.metadata?.content ? <CanvasNodePresetDialog dataUrl={presetNode.metadata.content} open={Boolean(presetNode)} onClose={() => setPresetNodeId(null)} onConfirm={(id) => void generatePresetNode(presetNode!, id)} /> : null}
+                {presetNode?.metadata?.content ? <CanvasNodePresetDialog dataUrl={presetNode.metadata.content} open={Boolean(presetNode)} onClose={() => { setPresetNodeId(null); restoreCanvasFocus(); }} onConfirm={(id) => void generatePresetNode(presetNode!, id)} /> : null}
 
                 <Modal
                     destroyOnHidden
@@ -4455,7 +4465,7 @@ function InfiniteCanvasPage() {
                         }}
                     />
                 ) : null}
-                {versionCompareRootId ? <CanvasVersionCompareModal open versions={versionCompareVersions} onClose={() => setVersionCompareRootId(null)} onSetPrimary={(nodeId) => setNodes((prev) => setPrimaryMediaVersion(prev, nodeId))} onFocus={(nodeId) => { setVersionCompareRootId(null); focusNode(nodeId); focusNodeElement(nodeId); }} /> : null}
+                {versionCompareRootId ? <CanvasVersionCompareModal open versions={versionCompareVersions} onClose={() => { setVersionCompareRootId(null); restoreCanvasFocus(); }} onSetPrimary={(nodeId) => setNodes((prev) => setPrimaryMediaVersion(prev, nodeId))} onFocus={(nodeId) => { setVersionCompareRootId(null); focusNode(nodeId); focusNodeElement(nodeId); }} /> : null}
                 </div>
             </section>
         </main>

@@ -68,6 +68,14 @@ description: Implemented changes that still need manual verification
 - Press Escape right after locating: the selection clears and the panel collapses, with the node still in place.
 - Click empty space inside a node: the prompt draft and the panel should be unaffected; only focus moves to the node.
 
+## Failures and the quick-tools dialog
+
+- Generate text while the channel returns 5xx (or offline): the node and the panel should show the upstream reason (e.g. 502), not just "Generation failed", and the same sentence should not appear twice.
+- When every image in a batch fails, the node should show the first real error; with a partial failure the per-image retry buttons should stay.
+- Hover an image node and click "Configure quick tools" at the right end of the toolbar: the dialog should stay open instead of flashing away. Uncheck one tool, save, and the toolbar buttons should shrink immediately.
+- With the dialog open, move the pointer to empty canvas and press Escape: the dialog closes and the hover toolbar should not stay pinned over the node. Closing with ✕ or Save should put focus back on the "Configure quick tools" button or the node, never on the page top.
+- Open Node info, Crop, Split, Upscale, Super-resolve, Angle, Preset and Version compare in turn, close with Escape / ✕, then press Tab: focus should continue inside the canvas instead of restarting from the top bar.
+
 ## Screen reader names
 
 - With a screen reader (Narrator on Windows, VoiceOver on macOS), land on the canvas prompt box: it should announce something like "Describe the image/video/text to generate" instead of just "edit text".
