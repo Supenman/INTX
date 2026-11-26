@@ -26,7 +26,7 @@ type CanvasImageSettingsPopoverProps = {
 export function CanvasImageSettingsPopover({ config, onConfigChange, onOpenChange, buttonClassName, placement = "topLeft" }: CanvasImageSettingsPopoverProps) {
     const { t } = useTranslation();
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
-    const { buttonRef, panelRef, panelProps, open, setOpen, buttonRect, anchorRect, buttonWidth, layer } = useAnchoredPopover({ onOpenChange, label: t("settingsPanels.image.title") });
+    const { buttonRef, panelRef, panelProps, open, setOpen, buttonRect, anchorRect, buttonWidth, panelHeight, layer } = useAnchoredPopover({ onOpenChange, label: t("settingsPanels.image.title") });
     const quality = config.quality || "auto";
     const count = Math.max(1, Math.min(15, Math.floor(Math.abs(Number(config.count)) || 1)));
     const activeSize = config.size || "auto";
@@ -41,7 +41,7 @@ export function CanvasImageSettingsPopover({ config, onConfigChange, onOpenChang
 
     // 位置由 Portal 内部按按钮实测矩形算；这里不要求 buttonRect 先就绪，
     // 否则首帧 buttonRect 还是 null，面板要等下一次 setState 才出现。
-    const panel = open ? <ImageSettingsPortal buttonRect={buttonRect} anchorRect={anchorRect} panelRef={panelRef} panelProps={panelProps} placement={placement} layer={layer} theme={theme} config={config} onConfigChange={onConfigChange} /> : null;
+    const panel = open ? <ImageSettingsPortal buttonRect={buttonRect} anchorRect={anchorRect} panelHeight={panelHeight} panelRef={panelRef} panelProps={panelProps} placement={placement} layer={layer} theme={theme} config={config} onConfigChange={onConfigChange} /> : null;
 
     return (
         <>
@@ -58,6 +58,7 @@ export function CanvasImageSettingsPopover({ config, onConfigChange, onOpenChang
 function ImageSettingsPortal({
     buttonRect,
     anchorRect,
+    panelHeight,
     panelRef,
     panelProps,
     placement,
@@ -70,6 +71,8 @@ function ImageSettingsPortal({
     buttonRect: DOMRect | null;
     /** 触发按钮所属的生成面板，水平避让以它为界，避免压住输入区。 */
     anchorRect: DOMRect | null;
+    /** 浮层上一次实测高度，用来判断向上还是向下展开。 */
+    panelHeight: number | null;
     panelRef: RefObject<HTMLDivElement | null>;
     panelProps: AnchoredPopover["panelProps"];
     placement: PopoverPlacement;
@@ -78,10 +81,9 @@ function ImageSettingsPortal({
     config: AiConfig;
     onConfigChange: (key: keyof AiConfig, value: string) => void;
 }) {
-    // 浮层锚在参数按钮上，向上展开。按钮在生成面板底部，上方可用空间比下方多得多；
-    // 面板最高占到按钮上方到底部工具栏之间的整段，内容在这段里滚动，不压住生成面板。
+    // 浮层锚在参数按钮上，默认向上展开；矮窗口下方更宽裕时改到面板下方（见 popover-position）。
     if (!buttonRect) return null;
-    const position = resolvePopoverPosition({ buttonRect, anchorRect, placement, viewport: { width: window.innerWidth, height: window.innerHeight } });
+    const position = resolvePopoverPosition({ buttonRect, anchorRect, placement, panelHeight, viewport: { width: window.innerWidth, height: window.innerHeight } });
     const style = {
         position: "fixed",
         zIndex: layer,

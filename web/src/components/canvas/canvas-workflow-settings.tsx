@@ -12,7 +12,7 @@ import type { WorkflowValues, WorkflowValue } from "@/types/comfy-workflow";
 export function CanvasWorkflowSettings({ config, onChange, onOpenChange }: { config: AiConfig; onChange: (values: WorkflowValues) => void; onOpenChange?: (open: boolean) => void }) {
     const { t } = useTranslation();
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
-    const { buttonRef, panelRef, panelProps, open, setOpen, buttonRect, anchorRect, buttonWidth, layer } = useAnchoredPopover({ onOpenChange, label: t("settingsPanels.workflow.title") });
+    const { buttonRef, panelRef, panelProps, open, setOpen, buttonRect, anchorRect, buttonWidth, panelHeight, layer } = useAnchoredPopover({ onOpenChange, label: t("settingsPanels.workflow.title") });
     const workflow = modelWorkflowOf(config, config.model);
     const values = config.workflowValues?.[config.model] || {};
     const fields = workflow?.fields.filter((field) => !field.media && field.from !== "prompt" && field.from !== "count") || [];
@@ -26,7 +26,7 @@ export function CanvasWorkflowSettings({ config, onChange, onOpenChange }: { con
         else next[key] = value;
         onChange({ ...config.workflowValues, [config.model]: next });
     };
-    const position = buttonRect ? resolvePopoverPosition({ buttonRect, anchorRect, placement: "topLeft", width: 320, viewport: { width: window.innerWidth, height: window.innerHeight } }) : null;
+    const position = buttonRect ? resolvePopoverPosition({ buttonRect, anchorRect, placement: "topLeft", width: 320, panelHeight, viewport: { width: window.innerWidth, height: window.innerHeight } }) : null;
     const panel = open && position ? createPortal(
         <div
             ref={panelRef}

@@ -22,13 +22,13 @@ type CanvasVideoSettingsPopoverProps = {
 export function CanvasVideoSettingsPopover({ config, onConfigChange, onOpenChange, buttonClassName, placement = "topLeft" }: CanvasVideoSettingsPopoverProps) {
     const { t } = useTranslation();
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
-    const { buttonRef, panelRef, panelProps, open, setOpen, buttonRect, anchorRect, buttonWidth, layer } = useAnchoredPopover({ onOpenChange, label: t("settingsPanels.video.title") });
+    const { buttonRef, panelRef, panelProps, open, setOpen, buttonRect, anchorRect, buttonWidth, panelHeight, layer } = useAnchoredPopover({ onOpenChange, label: t("settingsPanels.video.title") });
 
     // 位置由 Portal 内部按按钮实测矩形算；这里不要求 buttonRect 先就绪，
     // 否则首帧 buttonRect 还是 null，面板要等下一次 setState 才出现。
     // 摘要同时给可见文字、aria-label 和 title，读屏与自动化读到的都是当前参数，不是光秃秃的「视频设置」。
     const summary = `${videoResolutionLabel(config.vquality)} · ${videoSizeLabel(config.size)} · ${videoSecondsLabel(config.videoSeconds)} · ${videoModeLabel(config.videoMode)}`;
-    const panel = open ? <VideoSettingsPortal buttonRect={buttonRect} anchorRect={anchorRect} panelRef={panelRef} panelProps={panelProps} placement={placement} layer={layer} theme={theme} config={config} onConfigChange={onConfigChange} /> : null;
+    const panel = open ? <VideoSettingsPortal buttonRect={buttonRect} anchorRect={anchorRect} panelHeight={panelHeight} panelRef={panelRef} panelProps={panelProps} placement={placement} layer={layer} theme={theme} config={config} onConfigChange={onConfigChange} /> : null;
 
     return (
         <>
@@ -45,6 +45,7 @@ export function CanvasVideoSettingsPopover({ config, onConfigChange, onOpenChang
 function VideoSettingsPortal({
     buttonRect,
     anchorRect,
+    panelHeight,
     panelRef,
     panelProps,
     placement,
@@ -57,6 +58,8 @@ function VideoSettingsPortal({
     buttonRect: DOMRect | null;
     /** 触发按钮所属的生成面板，水平避让以它为界。 */
     anchorRect: DOMRect | null;
+    /** 浮层上一次实测高度，用来判断向上还是向下展开。 */
+    panelHeight: number | null;
     panelRef: RefObject<HTMLDivElement | null>;
     panelProps: AnchoredPopover["panelProps"];
     placement: PopoverPlacement;
@@ -66,7 +69,7 @@ function VideoSettingsPortal({
     onConfigChange: (key: keyof AiConfig, value: string) => void;
 }) {
     if (!buttonRect) return null;
-    const position = resolvePopoverPosition({ buttonRect, anchorRect, placement, viewport: { width: window.innerWidth, height: window.innerHeight } });
+    const position = resolvePopoverPosition({ buttonRect, anchorRect, placement, panelHeight, viewport: { width: window.innerWidth, height: window.innerHeight } });
     const style = {
         position: "fixed",
         zIndex: layer,

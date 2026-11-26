@@ -64,4 +64,44 @@ describe("resolvePopoverPosition", () => {
         expect(position.left).toBe(220 + 8);
         expect(position.bottom).toBe(800 - 500 + 8);
     });
+
+    it("上方放不下实际高度时改向下展开，不把浮层挤成一条细缝", () => {
+        const panelHeight = 380;
+        const position = resolvePopoverPosition({
+            buttonRect: rect(320, 200, 240, 32),
+            anchorRect: rect(256, 60, 495, 200),
+            viewport: { width: 1024, height: 640 },
+            panelHeight,
+        });
+
+        // 向上只剩 60 - 8 = 52，下方 640 - 268 - 88 = 284 明显更宽裕，改到面板底边 260 之下
+        expect(position.top).toBe(260 + 8);
+        expect(position.bottom).toBeUndefined();
+        expect(position.maxHeight).toBe(Math.max(220, Math.min(640 - 268 - 88, 200 - 8 - 12)));
+    });
+
+    it("上方空间够时保持向上展开，不因为浮层偏高就翻面", () => {
+        const panelHeight = 380;
+        const position = resolvePopoverPosition({
+            buttonRect: rect(320, 520, 240, 32),
+            anchorRect: rect(256, 300, 495, 200),
+            viewport: { width: 1024, height: 640 },
+            panelHeight,
+        });
+
+        expect(position.bottom).toBe(640 - (300 - 8));
+        expect(position.top).toBeUndefined();
+    });
+
+    it("上下都局促时维持原方向，靠内部滚动而不是来回翻面", () => {
+        const panelHeight = 520;
+        const position = resolvePopoverPosition({
+            buttonRect: rect(320, 330, 240, 32),
+            anchorRect: rect(256, 300, 495, 200),
+            viewport: { width: 1024, height: 640 },
+            panelHeight,
+        });
+
+        expect(position.bottom).toBe(640 - (300 - 8));
+    });
 });

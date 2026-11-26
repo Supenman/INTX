@@ -21,6 +21,8 @@ export type AnchoredPopover = {
     buttonRect: DOMRect | null;
     anchorRect: DOMRect | null;
     buttonWidth: number | null;
+    /** 浮层上一次实测高度；设置浮层据此决定向上还是向下展开，首帧为 null。 */
+    panelHeight: number | null;
     layer: number;
 };
 
@@ -39,6 +41,7 @@ export function useAnchoredPopover({ anchorSelector = "[data-canvas-prompt-panel
     const [buttonRect, setButtonRect] = useState<DOMRect | null>(null);
     const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
     const [buttonWidth, setButtonWidth] = useState<number | null>(null);
+    const [panelHeight, setPanelHeight] = useState<number | null>(null);
     // 键盘打开才把焦点送进浮层：鼠标点击后立刻跳焦点会让按钮看起来「失焦」，也没必要。
     const keyboardOpenRef = useRef(false);
 
@@ -48,6 +51,7 @@ export function useAnchoredPopover({ anchorSelector = "[data-canvas-prompt-panel
             setButtonWidth(buttonRef.current?.getBoundingClientRect().width ?? null);
         } else {
             setButtonWidth(null);
+            setPanelHeight(null);
         }
         setOpenState(next);
         onOpenChange?.(next);
@@ -93,6 +97,9 @@ export function useAnchoredPopover({ anchorSelector = "[data-canvas-prompt-panel
         const measure = () => {
             const button = buttonRef.current;
             const nextButtonRect = button?.getBoundingClientRect() ?? null;
+            // 内容高度（与当前 maxHeight 压缩无关），用来判断浮层向上还是向下展开。
+            const nextPanelHeight = panelRef.current?.scrollHeight ?? null;
+            if (nextPanelHeight) setPanelHeight((current) => (current === nextPanelHeight ? current : nextPanelHeight));
             const anchorEl = button?.closest(anchorSelector);
             const nextAnchorRect = anchorEl instanceof HTMLElement ? anchorEl.getBoundingClientRect() : null;
             const key = `${keyOf(nextButtonRect)}|${keyOf(nextAnchorRect)}`;
@@ -141,5 +148,5 @@ export function useAnchoredPopover({ anchorSelector = "[data-canvas-prompt-panel
         };
     }, [anchorSelector, open, setOpen]);
 
-    return { buttonRef, panelRef, panelProps: { role: "dialog" as const, "aria-label": label, tabIndex: -1 }, open, setOpen, buttonRect, anchorRect, buttonWidth, layer: canvasOverlayLayer(buttonRef.current) };
+    return { buttonRef, panelRef, panelProps: { role: "dialog" as const, "aria-label": label, tabIndex: -1 }, open, setOpen, buttonRect, anchorRect, buttonWidth, panelHeight, layer: canvasOverlayLayer(buttonRef.current) };
 }

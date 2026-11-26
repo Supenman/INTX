@@ -65,6 +65,12 @@ description: Implemented changes that still need manual verification
 - Button hovers, settings popovers and the side panel should settle instantly, with no 0.2–0.3s transition.
 - Turn the setting off and reload: staggered entry, the normal spinner speed and transitions should all come back.
 
+## Settings popovers in short windows
+
+- Shrink the window height to the app minimum (640px) and open the image, video, audio, text, and workflow settings popovers for a node whose Generate panel sits low on screen: the popover should open below the panel when there is clearly more room there, stay inside the window, and never cover the prompt input or the Generate button.
+- Open the same popovers in a normal-size window: they should still open above the button on its right side, without flipping on every render.
+- Resize the window while a popover is open, or zoom the canvas: the popover should move with the button and keep its chosen side.
+
 ## Required workflow fields
 
 - Pick a workflow model that declares a required field (e.g. negative prompt) and press Generate without filling it: the reference status area names the missing field, Generate is rejected with the same message, and no task is created.

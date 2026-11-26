@@ -24,11 +24,11 @@ type CanvasTextSettingsPopoverProps = {
 export function CanvasTextSettingsPopover({ config, onConfigChange, count, onCountChange, onOpenChange, buttonClassName, placement = "topLeft" }: CanvasTextSettingsPopoverProps) {
     const { t } = useTranslation();
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
-    const { buttonRef, panelRef, panelProps, open, setOpen, buttonRect, anchorRect, buttonWidth, layer } = useAnchoredPopover({ onOpenChange, label: t("settingsPanels.text.title") });
+    const { buttonRef, panelRef, panelProps, open, setOpen, buttonRect, anchorRect, buttonWidth, panelHeight, layer } = useAnchoredPopover({ onOpenChange, label: t("settingsPanels.text.title") });
 
     // 同 image/audio/video：只按 open 渲染，定位在 Portal 内部处理。
     const summary = `${t("canvas.controls.reasoning")} · ${reasoningEffortLabel(config.reasoningEffort)}${onCountChange ? ` · ${t("canvas.controls.generations", { count })}` : ""}`;
-    const panel = open ? <TextSettingsPortal buttonRect={buttonRect} anchorRect={anchorRect} panelRef={panelRef} panelProps={panelProps} placement={placement} layer={layer} theme={theme} config={config} count={count} onConfigChange={onConfigChange} onCountChange={onCountChange} /> : null;
+    const panel = open ? <TextSettingsPortal buttonRect={buttonRect} anchorRect={anchorRect} panelHeight={panelHeight} panelRef={panelRef} panelProps={panelProps} placement={placement} layer={layer} theme={theme} config={config} count={count} onConfigChange={onConfigChange} onCountChange={onCountChange} /> : null;
 
     return (
         <>
@@ -42,11 +42,13 @@ export function CanvasTextSettingsPopover({ config, onConfigChange, count, onCou
     );
 }
 
-function TextSettingsPortal({ buttonRect, anchorRect, panelRef, panelProps, placement, layer, theme, config, count, onConfigChange, onCountChange }: {
+function TextSettingsPortal({ buttonRect, anchorRect, panelHeight, panelRef, panelProps, placement, layer, theme, config, count, onConfigChange, onCountChange }: {
     /** 首帧可能还没测量到按钮位置；为 null 时先不渲染，等首次测量即可。 */
     buttonRect: DOMRect | null;
     /** 触发按钮所属的生成面板，水平避让以它为界。 */
     anchorRect: DOMRect | null;
+    /** 浮层上一次实测高度，用来判断向上还是向下展开。 */
+    panelHeight: number | null;
     panelRef: RefObject<HTMLDivElement | null>;
     panelProps: AnchoredPopover["panelProps"];
     placement: PopoverPlacement;
@@ -59,7 +61,7 @@ function TextSettingsPortal({ buttonRect, anchorRect, panelRef, panelProps, plac
 }) {
     const { t } = useTranslation();
     if (!buttonRect) return null;
-    const position = resolvePopoverPosition({ buttonRect, anchorRect, placement, viewport: { width: window.innerWidth, height: window.innerHeight } });
+    const position = resolvePopoverPosition({ buttonRect, anchorRect, placement, panelHeight, viewport: { width: window.innerWidth, height: window.innerHeight } });
     const style = {
         position: "fixed",
         zIndex: layer,

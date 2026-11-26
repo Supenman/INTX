@@ -25,12 +25,12 @@ type CanvasAudioSettingsPopoverProps = {
 export function CanvasAudioSettingsPopover({ config, onConfigChange, onOpenChange, buttonClassName, placement = "topLeft" }: CanvasAudioSettingsPopoverProps) {
     const { t } = useTranslation();
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
-    const { buttonRef, panelRef, panelProps, open, setOpen, buttonRect, anchorRect, buttonWidth, layer } = useAnchoredPopover({ onOpenChange, label: t("settingsPanels.audio.title") });
+    const { buttonRef, panelRef, panelProps, open, setOpen, buttonRect, anchorRect, buttonWidth, panelHeight, layer } = useAnchoredPopover({ onOpenChange, label: t("settingsPanels.audio.title") });
 
     // 位置由 Portal 内部按按钮实测矩形算；这里不要求 buttonRect 先就绪，
     // 否则首帧 buttonRect 还是 null，面板要等下一次 setState 才出现。
     const summary = `${audioVoiceLabel(config.audioVoice)} · ${audioFormatLabel(config.audioFormat)} · ${audioSpeedLabel(config.audioSpeed)}`;
-    const panel = open ? <AudioSettingsPortal buttonRect={buttonRect} anchorRect={anchorRect} panelRef={panelRef} panelProps={panelProps} placement={placement} layer={layer} theme={theme} config={config} onConfigChange={onConfigChange} /> : null;
+    const panel = open ? <AudioSettingsPortal buttonRect={buttonRect} anchorRect={anchorRect} panelHeight={panelHeight} panelRef={panelRef} panelProps={panelProps} placement={placement} layer={layer} theme={theme} config={config} onConfigChange={onConfigChange} /> : null;
 
     return (
         <>
@@ -47,6 +47,7 @@ export function CanvasAudioSettingsPopover({ config, onConfigChange, onOpenChang
 function AudioSettingsPortal({
     buttonRect,
     anchorRect,
+    panelHeight,
     panelRef,
     panelProps,
     placement,
@@ -59,6 +60,8 @@ function AudioSettingsPortal({
     buttonRect: DOMRect | null;
     /** 触发按钮所属的生成面板，水平避让以它为界。 */
     anchorRect: DOMRect | null;
+    /** 浮层上一次实测高度，用来判断向上还是向下展开。 */
+    panelHeight: number | null;
     panelRef: RefObject<HTMLDivElement | null>;
     panelProps: AnchoredPopover["panelProps"];
     placement: PopoverPlacement;
@@ -68,7 +71,7 @@ function AudioSettingsPortal({
     onConfigChange: (key: CanvasAudioSettingKey, value: string) => void;
 }) {
     if (!buttonRect) return null;
-    const position = resolvePopoverPosition({ buttonRect, anchorRect, placement, viewport: { width: window.innerWidth, height: window.innerHeight } });
+    const position = resolvePopoverPosition({ buttonRect, anchorRect, placement, panelHeight, viewport: { width: window.innerWidth, height: window.innerHeight } });
     const style = {
         position: "fixed",
         zIndex: layer,
