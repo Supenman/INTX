@@ -5,11 +5,15 @@ type UseAnchoredPopoverOptions = {
     /** 触发按钮所属的容器；水平避让以它为界，默认是节点里的生成面板。 */
     anchorSelector?: string;
     onOpenChange?: (open: boolean) => void;
+    /** 浮层标题。给了就给容器补上 dialog 语义，读屏打开后能听到这是什么设置。 */
+    label?: string;
 };
 
 export type AnchoredPopover = {
     buttonRef: RefObject<HTMLSpanElement | null>;
     panelRef: RefObject<HTMLDivElement | null>;
+    /** 容器语义与焦点落点：portal 挂在 body 末尾，不主动接管焦点的话 Tab 会绕到画布工具栏。 */
+    panelProps: { role: "dialog"; "aria-label": string | undefined; tabIndex: number };
     open: boolean;
     setOpen: (open: boolean) => void;
     /** 首帧可能还没测量到按钮位置；为 null 时先不渲染浮层。 */
@@ -24,13 +28,15 @@ export type AnchoredPopover = {
  * 事件会让浮层停在旧位置（实测缩放 5 档后按钮上移 209px，浮层原地不动）。
  * 这里在打开期间逐帧测量，位置真变了才写 state，避免无意义重渲染。
  */
-export function useAnchoredPopover({ anchorSelector = "[data-canvas-prompt-panel]", onOpenChange }: UseAnchoredPopoverOptions = {}): AnchoredPopover {
+export function useAnchoredPopover({ anchorSelector = "[data-canvas-prompt-panel]", onOpenChange, label }: UseAnchoredPopoverOptions = {}): AnchoredPopover {
     const buttonRef = useRef<HTMLSpanElement>(null);
     const panelRef = useRef<HTMLDivElement>(null);
     const popoverId = useId();
     const [open, setOpenState] = useState(false);
     const [buttonRect, setButtonRect] = useState<DOMRect | null>(null);
     const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
+    // 键盘打开才把焦点送进浮层：鼠标点击后立刻跳焦点会让按钮看起来「失焦」，也没必要。
+    const keyboardOpenRef = useRef(false);
 
     const setOpen = useCallback((next: boolean) => {
         if (next) notifyCanvasFloatingPopoverOpen(popoverId);
@@ -38,7 +44,30 @@ export function useAnchoredPopover({ anchorSelector = "[data-canvas-prompt-panel
         onOpenChange?.(next);
     }, [onOpenChange, popoverId]);
 
+    useEffect(() => {
+        const markKeyboard = () => { keyboardOpenRef.current = true; };
+        const markPointer = () => { keyboardOpenRef.current = false; };
+        window.addEventListener("keydown", markKeyboard, true);
+        window.addEventListener("pointerdown", markPointer, true);
+        return () => {
+            window.removeEventListener("keydown", markKeyboard, true);
+            window.removeEventListener("pointerdown", markPointer, true);
+        };
+    }, []);
+
     useEffect(() => subscribeCanvasFloatingPopoverOpen(popoverId, () => setOpen(false)), [popoverId, setOpen]);
+
+    // 浮层要先测量到按钮位置才挂载，所以等 buttonRect 就绪后的这次渲染再把焦点送进去。
+    const focusedRef = useRef(false);
+    useEffect(() => {
+        if (!open) {
+            focusedRef.current = false;
+            return;
+        }
+        if (!buttonRect || focusedRef.current || !keyboardOpenRef.current) return;
+        focusedRef.current = true;
+        panelRef.current?.focus({ preventScroll: true });
+    }, [buttonRect, open]);
 
     useEffect(() => {
         if (!open) {
@@ -103,5 +132,5 @@ export function useAnchoredPopover({ anchorSelector = "[data-canvas-prompt-panel
         };
     }, [anchorSelector, open, setOpen]);
 
-    return { buttonRef, panelRef, open, setOpen, buttonRect, anchorRect };
+    return { buttonRef, panelRef, panelProps: { role: "dialog" as const, "aria-label": label, tabIndex: -1 }, open, setOpen, buttonRect, anchorRect };
 }

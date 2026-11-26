@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next";
 import { reasoningEffortLabel, TextSettingsPanel } from "@/components/text-settings-panel";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { resolvePopoverPosition, type PopoverPlacement } from "@/lib/canvas/popover-position";
-import { useAnchoredPopover } from "@/hooks/use-anchored-popover";
+import { useAnchoredPopover, type AnchoredPopover } from "@/hooks/use-anchored-popover";
 import { useThemeStore } from "@/stores/use-theme-store";
 import type { AiConfig, ReasoningEffort } from "@/stores/use-config-store";
 
@@ -24,11 +24,11 @@ type CanvasTextSettingsPopoverProps = {
 export function CanvasTextSettingsPopover({ config, onConfigChange, count, onCountChange, onOpenChange, buttonClassName, placement = "topLeft" }: CanvasTextSettingsPopoverProps) {
     const { t } = useTranslation();
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
-    const { buttonRef, panelRef, open, setOpen, buttonRect, anchorRect } = useAnchoredPopover({ onOpenChange });
+    const { buttonRef, panelRef, panelProps, open, setOpen, buttonRect, anchorRect } = useAnchoredPopover({ onOpenChange, label: t("settingsPanels.text.title") });
 
     // 同 image/audio/video：只按 open 渲染，定位在 Portal 内部处理。
     const summary = `${t("canvas.controls.reasoning")} · ${reasoningEffortLabel(config.reasoningEffort)}${onCountChange ? ` · ${t("canvas.controls.generations", { count })}` : ""}`;
-    const panel = open ? <TextSettingsPortal buttonRect={buttonRect} anchorRect={anchorRect} panelRef={panelRef} placement={placement} theme={theme} config={config} count={count} onConfigChange={onConfigChange} onCountChange={onCountChange} /> : null;
+    const panel = open ? <TextSettingsPortal buttonRect={buttonRect} anchorRect={anchorRect} panelRef={panelRef} panelProps={panelProps} placement={placement} theme={theme} config={config} count={count} onConfigChange={onConfigChange} onCountChange={onCountChange} /> : null;
 
     return (
         <>
@@ -42,12 +42,13 @@ export function CanvasTextSettingsPopover({ config, onConfigChange, count, onCou
     );
 }
 
-function TextSettingsPortal({ buttonRect, anchorRect, panelRef, placement, theme, config, count, onConfigChange, onCountChange }: {
+function TextSettingsPortal({ buttonRect, anchorRect, panelRef, panelProps, placement, theme, config, count, onConfigChange, onCountChange }: {
     /** 首帧可能还没测量到按钮位置；为 null 时先不渲染，等首次测量即可。 */
     buttonRect: DOMRect | null;
     /** 触发按钮所属的生成面板，水平避让以它为界。 */
     anchorRect: DOMRect | null;
     panelRef: RefObject<HTMLDivElement | null>;
+    panelProps: AnchoredPopover["panelProps"];
     placement: PopoverPlacement;
     theme: (typeof canvasThemes)[keyof typeof canvasThemes];
     config: AiConfig;
@@ -74,6 +75,7 @@ function TextSettingsPortal({ buttonRect, anchorRect, panelRef, placement, theme
     return createPortal(
         <div
             ref={panelRef}
+            {...panelProps}
             className="canvas-image-settings-popover"
             data-node-settings-panel
             style={style}

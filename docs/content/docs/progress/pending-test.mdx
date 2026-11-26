@@ -50,6 +50,14 @@ description: Implemented changes that still need manual verification
 - Open a node's settings popover and press Escape: only the popover closes, the panel stays.
 - After all overlays are closed, pressing Escape on empty canvas should still clear the selection and collapse the panel.
 
+## Keyboard use of the settings popovers
+
+- Tab to a node's settings button (e.g. "Video settings: …") and press Enter: focus should move into the popover, and further Tab presses should walk its controls instead of jumping to the canvas toolbar.
+- Press Escape from there: the popover closes, focus returns to the settings button, and the next Tab continues after it rather than restarting from the top of the page.
+- Open the same popover with the mouse: focus stays on the button (no forced jump) and the popover works normally with the pointer.
+- With a screen reader running, trigger the settings button: it should announce a dialog named "Video settings", not an unnamed container.
+- Run this for the image, video, audio and text popovers plus the workflow parameters popover.
+
 ## Node toolbar vs. settings popovers
 
 - With an image, video or audio node that has content, hover the node: the floating toolbar appears. Open its settings popover: the toolbar hides. Close it with Esc: the toolbar comes back once the pointer returns to the node (the pointer sits on the panel button, so it will not reappear immediately).

@@ -8,7 +8,7 @@ import { ImageSettingsPanel, imageQualityLabel, imageSizeLabel } from "@/compone
 import { resolveImageCapabilities } from "@/domain/provider/imageCapabilities";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { resolvePopoverPosition, type PopoverPlacement } from "@/lib/canvas/popover-position";
-import { useAnchoredPopover } from "@/hooks/use-anchored-popover";
+import { useAnchoredPopover, type AnchoredPopover } from "@/hooks/use-anchored-popover";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { resolveModelRequestConfig, resolveModelScript, type AiConfig } from "@/stores/use-config-store";
 
@@ -26,7 +26,7 @@ type CanvasImageSettingsPopoverProps = {
 export function CanvasImageSettingsPopover({ config, onConfigChange, onOpenChange, buttonClassName, placement = "topLeft" }: CanvasImageSettingsPopoverProps) {
     const { t } = useTranslation();
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
-    const { buttonRef, panelRef, open, setOpen, buttonRect, anchorRect } = useAnchoredPopover({ onOpenChange });
+    const { buttonRef, panelRef, panelProps, open, setOpen, buttonRect, anchorRect } = useAnchoredPopover({ onOpenChange, label: t("settingsPanels.image.title") });
     const quality = config.quality || "auto";
     const count = Math.max(1, Math.min(15, Math.floor(Math.abs(Number(config.count)) || 1)));
     const activeSize = config.size || "auto";
@@ -41,7 +41,7 @@ export function CanvasImageSettingsPopover({ config, onConfigChange, onOpenChang
 
     // 位置由 Portal 内部按按钮实测矩形算；这里不要求 buttonRect 先就绪，
     // 否则首帧 buttonRect 还是 null，面板要等下一次 setState 才出现。
-    const panel = open ? <ImageSettingsPortal buttonRect={buttonRect} anchorRect={anchorRect} panelRef={panelRef} placement={placement} theme={theme} config={config} onConfigChange={onConfigChange} /> : null;
+    const panel = open ? <ImageSettingsPortal buttonRect={buttonRect} anchorRect={anchorRect} panelRef={panelRef} panelProps={panelProps} placement={placement} theme={theme} config={config} onConfigChange={onConfigChange} /> : null;
 
     return (
         <>
@@ -59,6 +59,7 @@ function ImageSettingsPortal({
     buttonRect,
     anchorRect,
     panelRef,
+    panelProps,
     placement,
     theme,
     config,
@@ -69,6 +70,7 @@ function ImageSettingsPortal({
     /** 触发按钮所属的生成面板，水平避让以它为界，避免压住输入区。 */
     anchorRect: DOMRect | null;
     panelRef: RefObject<HTMLDivElement | null>;
+    panelProps: AnchoredPopover["panelProps"];
     placement: PopoverPlacement;
     theme: (typeof canvasThemes)[keyof typeof canvasThemes];
     config: AiConfig;
@@ -95,6 +97,7 @@ function ImageSettingsPortal({
     return createPortal(
         <div
             ref={panelRef}
+            {...panelProps}
             className="canvas-image-settings-popover"
             data-node-settings-panel
             style={style}

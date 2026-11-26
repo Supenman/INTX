@@ -12,7 +12,7 @@ import type { WorkflowValues, WorkflowValue } from "@/types/comfy-workflow";
 export function CanvasWorkflowSettings({ config, onChange, onOpenChange }: { config: AiConfig; onChange: (values: WorkflowValues) => void; onOpenChange?: (open: boolean) => void }) {
     const { t } = useTranslation();
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
-    const { buttonRef, panelRef, open, setOpen, buttonRect, anchorRect } = useAnchoredPopover({ onOpenChange });
+    const { buttonRef, panelRef, panelProps, open, setOpen, buttonRect, anchorRect } = useAnchoredPopover({ onOpenChange, label: t("settingsPanels.workflow.title") });
     const workflow = modelWorkflowOf(config, config.model);
     const values = config.workflowValues?.[config.model] || {};
     const fields = workflow?.fields.filter((field) => !field.media && field.from !== "prompt" && field.from !== "count") || [];
@@ -29,6 +29,7 @@ export function CanvasWorkflowSettings({ config, onChange, onOpenChange }: { con
     const panel = open && position ? createPortal(
         <div
             ref={panelRef}
+            {...panelProps}
             data-canvas-no-zoom
             data-node-settings-panel
             className="fixed z-[1200] space-y-3 overflow-y-auto rounded-[var(--r-xl)] p-4 shadow-[var(--shadow-lg)]"

@@ -8,7 +8,7 @@ import { AudioSettingsPanel } from "@/components/audio-settings-panel";
 import { audioFormatLabel, audioSpeedLabel, audioVoiceLabel } from "@/lib/audio-generation";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { resolvePopoverPosition, type PopoverPlacement } from "@/lib/canvas/popover-position";
-import { useAnchoredPopover } from "@/hooks/use-anchored-popover";
+import { useAnchoredPopover, type AnchoredPopover } from "@/hooks/use-anchored-popover";
 import { useThemeStore } from "@/stores/use-theme-store";
 import type { AiConfig } from "@/stores/use-config-store";
 
@@ -25,12 +25,12 @@ type CanvasAudioSettingsPopoverProps = {
 export function CanvasAudioSettingsPopover({ config, onConfigChange, onOpenChange, buttonClassName, placement = "topLeft" }: CanvasAudioSettingsPopoverProps) {
     const { t } = useTranslation();
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
-    const { buttonRef, panelRef, open, setOpen, buttonRect, anchorRect } = useAnchoredPopover({ onOpenChange });
+    const { buttonRef, panelRef, panelProps, open, setOpen, buttonRect, anchorRect } = useAnchoredPopover({ onOpenChange, label: t("settingsPanels.audio.title") });
 
     // 位置由 Portal 内部按按钮实测矩形算；这里不要求 buttonRect 先就绪，
     // 否则首帧 buttonRect 还是 null，面板要等下一次 setState 才出现。
     const summary = `${audioVoiceLabel(config.audioVoice)} · ${audioFormatLabel(config.audioFormat)} · ${audioSpeedLabel(config.audioSpeed)}`;
-    const panel = open ? <AudioSettingsPortal buttonRect={buttonRect} anchorRect={anchorRect} panelRef={panelRef} placement={placement} theme={theme} config={config} onConfigChange={onConfigChange} /> : null;
+    const panel = open ? <AudioSettingsPortal buttonRect={buttonRect} anchorRect={anchorRect} panelRef={panelRef} panelProps={panelProps} placement={placement} theme={theme} config={config} onConfigChange={onConfigChange} /> : null;
 
     return (
         <>
@@ -48,6 +48,7 @@ function AudioSettingsPortal({
     buttonRect,
     anchorRect,
     panelRef,
+    panelProps,
     placement,
     theme,
     config,
@@ -58,6 +59,7 @@ function AudioSettingsPortal({
     /** 触发按钮所属的生成面板，水平避让以它为界。 */
     anchorRect: DOMRect | null;
     panelRef: RefObject<HTMLDivElement | null>;
+    panelProps: AnchoredPopover["panelProps"];
     placement: PopoverPlacement;
     theme: (typeof canvasThemes)[keyof typeof canvasThemes];
     config: AiConfig;
@@ -81,6 +83,7 @@ function AudioSettingsPortal({
     return createPortal(
         <div
             ref={panelRef}
+            {...panelProps}
             className="canvas-image-settings-popover"
             data-node-settings-panel
             style={style}
