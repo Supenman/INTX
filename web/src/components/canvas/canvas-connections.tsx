@@ -1,4 +1,4 @@
-import type { MouseEvent as ReactMouseEvent } from "react";
+import React, { useState, type MouseEvent as ReactMouseEvent } from "react";
 
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
@@ -9,7 +9,7 @@ function connectionCurve(startX: number, startY: number, endX: number, endY: num
     return `M ${startX} ${startY} C ${startX + curvature} ${startY}, ${endX - curvature} ${endY}, ${endX} ${endY}`;
 }
 
-export function ConnectionPath({
+export const ConnectionPath = React.memo(function ConnectionPath({
     connection,
     from,
     to,
@@ -25,14 +25,17 @@ export function ConnectionPath({
     onContextMenu?: (event: ReactMouseEvent<SVGPathElement>) => void;
 }) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
+    const [hovered, setHovered] = useState(false);
     const startX = from.position.x + from.width;
     const startY = from.position.y + from.height / 2;
     const endX = to.position.x;
     const endY = to.position.y + to.height / 2;
     const pathD = connectionCurve(startX, startY, endX, endY);
+    const highlighted = active || hovered;
+    const strokeColor = highlighted ? theme.node.activeStroke : theme.node.muted;
 
     return (
-        <g>
+        <g onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
             <path
                 data-connection-id={connection.id}
                 d={pathD}
@@ -53,21 +56,23 @@ export function ConnectionPath({
             />
             <path
                 d={pathD}
-                stroke={active ? theme.node.activeStroke : theme.node.muted}
-                strokeWidth={active ? 2.8 : 1.5}
+                stroke={strokeColor}
+                strokeWidth={active ? 2.8 : hovered ? 2.2 : 1.5}
                 vectorEffect="non-scaling-stroke"
-                strokeOpacity={active ? 0.95 : 0.62}
+                strokeOpacity={active ? 0.95 : hovered ? 0.85 : 0.62}
                 fill="none"
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 className="motion-safe:transition-[stroke,stroke-width,stroke-opacity] motion-safe:duration-150"
-                style={{ filter: active ? `drop-shadow(0 0 8px ${theme.node.activeStroke}66)` : undefined, pointerEvents: "none" }}
+                style={{ pointerEvents: "none" }}
             />
-            <circle cx={startX} cy={startY} r={active ? 3.5 : 2} fill={active ? theme.node.activeStroke : theme.node.muted} fillOpacity={active ? 0.9 : 0.56} vectorEffect="non-scaling-stroke" style={{ pointerEvents: "none" }} />
-            <circle cx={endX} cy={endY} r={active ? 3.5 : 2} fill={active ? theme.node.activeStroke : theme.node.muted} fillOpacity={active ? 0.9 : 0.56} vectorEffect="non-scaling-stroke" style={{ pointerEvents: "none" }} />
+            {highlighted ? <path d={pathD} stroke={theme.node.activeStroke} strokeWidth={active ? 7 : 5} vectorEffect="non-scaling-stroke" strokeOpacity={active ? 0.18 : 0.12} fill="none" strokeLinecap="round" style={{ pointerEvents: "none" }} /> : null}
+            <circle cx={startX} cy={startY} r={highlighted ? 3.5 : 2} fill={strokeColor} fillOpacity={highlighted ? 0.9 : 0.56} vectorEffect="non-scaling-stroke" style={{ pointerEvents: "none" }} />
+            <circle cx={endX} cy={endY} r={highlighted ? 3.5 : 2} fill={strokeColor} fillOpacity={highlighted ? 0.9 : 0.56} vectorEffect="non-scaling-stroke" style={{ pointerEvents: "none" }} />
+            {highlighted ? <path d={`M ${endX - 9} ${endY - 4.5} L ${endX - 2} ${endY} L ${endX - 9} ${endY + 4.5}`} stroke={theme.node.activeStroke} strokeWidth={2} vectorEffect="non-scaling-stroke" fill="none" strokeLinecap="round" strokeLinejoin="round" style={{ pointerEvents: "none" }} /> : null}
         </g>
     );
-}
+});
 
 export function ActiveConnectionPath({ node, handle, mouseWorld, target }: { node?: CanvasNodeData; handle: ConnectionHandle; mouseWorld: Position; target?: CanvasNodeData }) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
@@ -83,5 +88,7 @@ export function ActiveConnectionPath({ node, handle, mouseWorld, target }: { nod
     const snappedEndY = handle.handleType === "source" && target ? target.position.y + target.height / 2 : endY;
     const pathD = connectionCurve(snappedStartX, snappedStartY, snappedEndX, snappedEndY);
 
-    return <path d={pathD} stroke={theme.node.activeStroke} strokeWidth={target ? 2.8 : 1.8} vectorEffect="non-scaling-stroke" fill="none" strokeDasharray={target ? undefined : "5,5"} className="motion-safe:transition-[stroke-width] motion-safe:duration-150" />;
+    const snapPortX = handle.handleType === "source" ? snappedEndX : snappedStartX;
+    const snapPortY = handle.handleType === "source" ? snappedEndY : snappedStartY;
+    return <g style={{ pointerEvents: "none" }}>{target ? <path d={pathD} stroke={theme.node.activeStroke} strokeWidth={7} vectorEffect="non-scaling-stroke" strokeOpacity={0.18} fill="none" strokeLinecap="round" /> : null}<path d={pathD} stroke={theme.node.activeStroke} strokeWidth={target ? 2.8 : 1.8} vectorEffect="non-scaling-stroke" fill="none" strokeDasharray={target ? undefined : "5,5"} className="motion-safe:transition-[stroke-width] motion-safe:duration-150" />{target ? <circle cx={snapPortX} cy={snapPortY} r={6} fill={theme.node.activeStroke} fillOpacity={0.22} stroke={theme.node.activeStroke} strokeWidth={2} vectorEffect="non-scaling-stroke" /> : null}</g>;
 }

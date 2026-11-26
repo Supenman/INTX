@@ -4297,14 +4297,14 @@ function InfiniteCanvasPage() {
                     onShowImageInfoChange={setShowImageInfo}
                 />
 
-                {isMiniMapOpen ? <Minimap nodes={displayNodes} viewport={viewport} viewportSize={size} onViewportChange={setViewport} /> : null}
+                {isMiniMapOpen ? <Minimap nodes={displayNodes} selectedNodeIds={selectedNodeIds} viewport={viewport} viewportSize={size} onViewportChange={setViewport} /> : null}
 
                 <CanvasZoomControls
                     canvasImages={nodes.filter((node) => node.type === CanvasNodeType.Image && Boolean(node.metadata?.content || node.metadata?.images?.length))}
                     onFocusImage={focusNode}
                     scale={viewport.k}
                     onScaleChange={setZoomScale}
-                    onReset={resetViewport}
+                    onReset={resetViewport} onFitCanvas={fitCanvasViewport}
                     isMiniMapOpen={isMiniMapOpen}
                     onToggleMiniMap={() => setIsMiniMapOpen((value) => !value)}
                     onInsertAsset={handleAssetInsert}

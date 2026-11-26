@@ -202,7 +202,7 @@ function CanvasNodesTab({ nodes, selectedNodeIds, onFocusNode, onPreviewNode, on
     };
 
     return (
-        <div className="flex h-full flex-col" onMouseLeave={() => onHoverNode(null)}>
+        <div className="flex h-full flex-col" onMouseLeave={() => onHoverNode(null)} onKeyDown={(event) => { if (event.key === "Escape" && selectMode) { event.stopPropagation(); exitSelect(); } }}>
             <div className="flex items-center gap-2 px-3 pb-2.5 pt-1">
                 <span className="min-w-0 truncate text-xs font-medium opacity-60">{t("canvas.sidePanel.elements")}</span>
                 {filtered.length ? <span className="shrink-0 text-xs opacity-35">{filtered.length}</span> : null}
@@ -215,7 +215,7 @@ function CanvasNodesTab({ nodes, selectedNodeIds, onFocusNode, onPreviewNode, on
                     <ListChecks className="size-3.5" />
                     {selectMode ? t("common.cancel") : t("canvas.sidePanel.select")}
                 </button>
-                {selectMode ? null : <Select size="small" variant="borderless" className="w-20" value={typeFilter} onChange={setTypeFilter} options={NODE_FILTER_VALUES.map((value) => ({ value, label: value === "all" ? t("common.all") : t(`canvas.sidePanel.filter.${value}`) }))} />}
+                {selectMode ? null : <Select size="small" variant="borderless" className="w-20" aria-label={t("canvas.sidePanel.elements")} value={typeFilter} onChange={setTypeFilter} options={NODE_FILTER_VALUES.map((value) => ({ value, label: value === "all" ? t("common.all") : t(`canvas.sidePanel.filter.${value}`) }))} />}
                 <button
                     type="button"
                     onClick={() => setNodeViewMode(nodeViewMode === "grid" ? "list" : "grid")}

@@ -80,8 +80,6 @@ export default function AssetsPage() {
         for (const asset of validAssets) counts[asset.kind]++;
         return counts;
     }, [validAssets]);
-    const selectedAssets = validAssets.filter((asset) => selectedIds.has(asset.id));
-
     const filteredAssets = useMemo(() => {
         const query = keyword.trim().toLowerCase();
         return validAssets.filter((asset) => {
@@ -94,6 +92,8 @@ export default function AssetsPage() {
             return sortOrder === "oldest" ? -byDate : byDate;
         });
     }, [validAssets, keyword, kindFilter, sortOrder, i18n.resolvedLanguage]);
+
+    const selectedAssets = useMemo(() => filteredAssets.filter((asset) => selectedIds.has(asset.id)), [filteredAssets, selectedIds]);
 
     const visibleAssets = useMemo(() => {
         const start = (page - 1) * pageSize;

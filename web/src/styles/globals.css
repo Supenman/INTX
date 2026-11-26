@@ -628,3 +628,23 @@
     border-radius: 0.6rem;
     font-size: 0.75rem;
 }
+.node-element[data-resizing="true"]::after {
+  content: attr(data-resize-label);
+  position: absolute;
+  z-index: 66;
+  left: 50%;
+  bottom: -1.75rem;
+  transform: translateX(-50%) scale(calc(1 / var(--node-scale)));
+  transform-origin: top center;
+  white-space: nowrap;
+  border: 1px solid var(--node-resize-border);
+  border-radius: var(--r-sm);
+  background: var(--node-resize-bg);
+  color: var(--node-resize-text);
+  padding: 0.125rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 12%);
+  pointer-events: none;
+}

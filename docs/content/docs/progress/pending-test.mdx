@@ -5,6 +5,16 @@ description: Implemented changes that still need manual verification
 
 # Pending Tests
 
+## 画布交互与页面快捷操作（最新版叠加补丁）
+
+- 多选至少两个节点并靠近视口顶部/左右边缘：多选工具栏应跟随深浅主题、保持在可视范围内，空间不足时翻到选区下方。
+- 打开小地图后确认选中节点高亮；鼠标和触控拖动小地图时不应触发画布框选或页面滚动。
+- 点击缩放百分比，试用缩放预设、步进、适配全部内容和重置；快捷键弹窗关闭后焦点回到画布。
+- 悬停连线应有清晰但轻量的高亮和方向提示；拖线靠近有效端口时出现吸附提示。
+- 画布边缘打开创建菜单，确认菜单不溢出；搜索后首个匹配项高亮，按 Enter 创建。
+- 外部拖入图片、视频或音频文件时出现拖放提示，并在离开、放下或窗口失焦后消失。
+- 命令面板测试 Home/End；首页测试 Ctrl/Cmd+Enter 与 IME 输入保护；项目库/资产库筛选后验证隐藏选中项不进入批量操作；剪辑台重命名验证 Esc 取消与 64 字符限制。
+
 ## Shared generation composer and settings feedback
 
 - On image, video, audio, and text nodes, drag the bottom-center prompt handle up and down; the editor should resize without moving the node or starting a canvas gesture. Use arrow keys and Home/End while the handle is focused.

@@ -203,11 +203,13 @@ export function NodeCreateMenu({ position, dockAnchor, onCreate, onClose, onUplo
         { id: "history", label: t("canvas.generationHistory.entry"), icon: <History className="size-4" />, shortcut: undefined, run: onOpenHistory },
         { id: "assets", label: t("canvas.assetPicker.open"), icon: <Images className="size-4" />, shortcut: undefined, run: onOpenAssets },
     ];
-    const matches = (label: string) => label.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase());
+    const trimmedQuery = query.trim().toLocaleLowerCase();
+    const matches = (label: string) => !trimmedQuery || label.toLocaleLowerCase().includes(trimmedQuery);
     const sections = [
         { label: t("canvas.createMenu.nodes"), items: items.filter((item) => matches(item.label)) },
         { label: t("canvas.createMenu.resources"), items: imports.filter((item) => matches(item.label)) },
     ];
+    const firstMatchedId = trimmedQuery ? sections.flatMap((section) => section.items)[0]?.id : undefined;
     return (
         <motion.div
             ref={menuRef}
@@ -219,7 +221,7 @@ export function NodeCreateMenu({ position, dockAnchor, onCreate, onClose, onUplo
             tabIndex={-1}
             className="thin-scrollbar absolute z-[90] w-60 max-w-[calc(100%-1rem)] overflow-y-auto rounded-xl border p-2 shadow-xl outline-none"
             data-canvas-no-zoom
-            style={{ left: position.x, ...(dockAnchor ? { bottom: position.y } : { top: position.y }), maxHeight: `calc(100% - ${position.y + 8}px)`, background: theme.node.panel, borderColor: theme.node.stroke, color: theme.node.text }}
+            style={{ left: `clamp(8px, ${position.x}px, calc(100% - 248px))`, ...(dockAnchor ? { bottom: position.y } : { top: position.y }), maxHeight: `calc(100% - ${position.y + 8}px)`, background: theme.node.panel, borderColor: theme.node.stroke, color: theme.node.text }}
             onPointerDown={(event) => event.stopPropagation()}
             onKeyDown={(event) => {
                 if (event.key === "Escape") {
@@ -252,7 +254,7 @@ export function NodeCreateMenu({ position, dockAnchor, onCreate, onClose, onUplo
                 <div key={section.label} className="mt-1 border-t border-border pt-1">
                     <div className="px-2 py-1 text-xs" style={{ color: theme.node.muted }}>{section.label}</div>
                     {section.items.map((item) => (
-                        <button key={item.id} type="button" data-create-option className="flex h-8 w-full items-center gap-2 rounded-[var(--r-sm)] px-2 text-left text-sm hover:bg-[var(--surface-card-hover)] focus-visible:bg-[var(--surface-card-hover)]" onClick={() => { closeMenu(); item.run(); }}>
+                        <button key={item.id} type="button" data-create-option className="flex h-8 w-full items-center gap-2 rounded-[var(--r-sm)] px-2 text-left text-sm hover:bg-[var(--surface-card-hover)] focus-visible:bg-[var(--surface-card-hover)]" style={item.id === firstMatchedId ? { background: theme.toolbar.itemHover } : undefined} onClick={() => { closeMenu(); item.run(); }}>
                             {item.icon}
                             <span className="min-w-0 flex-1 truncate">{item.label}</span>
                             {/* 键位提示：让「菜单里有」和「按一下就出来」对得上。 */}

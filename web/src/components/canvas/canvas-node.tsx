@@ -317,14 +317,15 @@ export const CanvasNode = React.memo(function CanvasNode({
 
     return (
         <div
-            data-node-id={data.id} role="group" aria-label={data.title || t("canvas.node.untitled")} tabIndex={-1}
+            data-node-id={data.id} data-resizing={resizeRef.current.isResizing ? "true" : undefined} data-resize-label={`${Math.round(data.width)} × ${Math.round(data.height)}`} role="group" aria-label={data.title || t("canvas.node.untitled")} tabIndex={-1}
             className={`node-element group/node absolute flex select-none flex-col transition-shadow duration-200 ${isGroup ? "z-[5]" : isSelected ? "z-50" : "z-10"} ${isDragging ? "cursor-grabbing" : referenceSelectionState === "available" ? "cursor-pointer" : referenceSelectionState ? "cursor-not-allowed" : ""}`}
             style={{
                 transform: `translate(${data.position.x}px, ${data.position.y}px)`,
                 width: data.width,
                 height: data.height,
                 contain: "layout style",
-            }}
+                "--node-scale": scale, "--node-resize-bg": theme.toolbar.panel, "--node-resize-border": theme.toolbar.border, "--node-resize-text": theme.node.text,
+            } as React.CSSProperties}
             onMouseEnter={() => {
                 setHovered(true);
                 onHoverStart(data.id);
@@ -459,7 +460,6 @@ export const CanvasNode = React.memo(function CanvasNode({
                 </div>
 
                 {showImageInfo && hasImageContent ? <ImageInfoBar node={data} /> : null}
-
                 {!isGroup && !hasTitleIcon && !hasImageContent && !hasVideoContent && !hasAudioContent ? <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12" style={{ background: `linear-gradient(to top, ${theme.canvas.background}66, transparent)` }} /> : null}
 
                 {referenceSelectionState && (referenceSelectionState !== "available" || hovered) ? (

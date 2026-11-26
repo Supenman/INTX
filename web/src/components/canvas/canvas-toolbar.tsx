@@ -136,7 +136,7 @@ export function CanvasToolbar({
         <div ref={rootRef} className="pointer-events-none absolute bottom-4 left-1/2 z-50 flex max-w-[calc(100%-2rem)] -translate-x-1/2 justify-center @max-[1040px]:bottom-20" data-canvas-bottom-toolbar>
             {tip ? <DockTip label={tip} x={tipX} theme={theme} /> : null}
             <div ref={wrapRef} className="thin-scrollbar pointer-events-auto flex h-12 max-w-full items-center gap-0.5 overflow-x-auto rounded-2xl border px-1.5 shadow-md backdrop-blur [&>*]:shrink-0" style={dockStyle}>
-                <ToolbarButton id="tool-add-node" label={t("canvas.toolbar.addNode")} active={addMenuActive} hovered={hovered} activeStyle={activeStyle} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onOpenCreateMenu}>
+                <ToolbarButton id="tool-add-node" label={t("canvas.toolbar.addNode")} active={addMenuActive} hovered={hovered} activeStyle={activeStyle} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={(event) => { setExtensionsOpen(false); setAppearanceOpen(false); onOpenCreateMenu(event); }}>
                     <Plus className="size-4.5" />
                 </ToolbarButton>
                 {/* 一个按钮 + 二选一菜单。菜单开着时高亮；按钮图标与提示始终是「当前工具」，

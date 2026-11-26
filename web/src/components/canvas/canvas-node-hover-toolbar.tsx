@@ -431,9 +431,11 @@ export function CanvasNodeInfoModal({ node, open, onClose }: { node: CanvasNodeD
 }
 
 function ToolbarAction({ title, label, icon, onClick, showLabel, pressed, active = false, danger = false }: ToolbarTool & { showLabel: boolean; pressed?: boolean }) {
+    const colorTheme = useThemeStore((state) => state.theme);
+    const theme = canvasThemes[colorTheme];
     const hasText = showLabel && Boolean(label);
     return (
-        <Tooltip title={title} placement="top" mouseEnterDelay={0.2} color="#ffffff" styles={{ root: { color: "#242529", boxShadow: "0 8px 24px rgba(15,23,42,.16)", fontSize: 13, fontWeight: 500 } }}>
+        <Tooltip title={title} placement="top" mouseEnterDelay={0.2} color={theme.toolbar.panel} styles={{ root: { color: theme.node.text, boxShadow: colorTheme === "dark" ? "0 8px 24px rgba(0,0,0,.38)" : "0 8px 24px rgba(15,23,42,.16)", fontSize: 13, fontWeight: 500 } }}>
             <button type="button" className={`group relative flex h-10 items-center whitespace-nowrap px-1.5 ${danger ? "text-destructive" : ""}`} onClick={onClick} aria-label={title} aria-pressed={pressed}>
                 <span className={`flex h-9 items-center ${hasText ? "gap-2 px-2.5" : "justify-center px-2"} rounded-lg transition ${active ? "bg-[var(--node-toolbar-active)]" : "group-hover:bg-[var(--node-toolbar-hover)] group-focus-visible:bg-[var(--node-toolbar-hover)] motion-safe:group-active:scale-95"}`}>
                     {icon ?? null}

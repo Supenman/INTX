@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, House, Plus, type LucideIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, House, Plus, Search, type LucideIcon } from "lucide-react";
 import { Button } from "antd";
 import { motion, useReducedMotion } from "motion/react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
@@ -35,6 +35,7 @@ export function AppTopNav() {
     const connectLocalAgent = useAgentStore((state) => state.connectLocalAgent);
     const hideSidebar = /^\/canvas\/[^/]+/.test(pathname) || pathname === "/editing-studio";
     const sidebarLabel = t(collapsed ? "topNav.expandSidebar" : "topNav.collapseSidebar");
+    const isApplePlatform = /Mac|iPhone|iPad/.test(navigator.platform);
     const toggleSidebar = () => {
         setCollapsed(!collapsed);
         try {
@@ -91,6 +92,20 @@ export function AppTopNav() {
                     >
                         {!collapsed && t("home.newCanvas")}
                     </Button>
+
+                    <button
+                        type="button"
+                        onClick={() => setPaletteOpen(true)}
+                        aria-label={t("commandPalette.open")}
+                        title={collapsed ? `${t("commandPalette.open")} (${isApplePlatform ? "⌘K" : "Ctrl+K"})` : undefined}
+                        className={cn(
+                            "mt-2 flex h-8 w-full shrink-0 items-center rounded-lg border border-border/70 bg-background/60 text-xs text-muted-foreground hover:bg-[var(--surface-card-hover)] hover:text-foreground motion-safe:transition-colors",
+                            collapsed ? "justify-center px-0" : "gap-2 px-2.5",
+                        )}
+                    >
+                        <Search aria-hidden className="size-3.5 shrink-0" />
+                        {!collapsed && <><span className="min-w-0 flex-1 truncate text-left">{t("commandPalette.open")}</span><kbd className="shrink-0 font-mono text-[length:var(--fs-caption)] opacity-60">{isApplePlatform ? "⌘K" : "Ctrl+K"}</kbd></>}
+                    </button>
 
                     <nav id="workspace-navigation" className="mt-4 flex shrink-0 flex-col gap-1 pb-3">
                         <SidebarLink to="/" icon={House} label={t("navigation.home")} active={pathname === "/"} collapsed={collapsed} />

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Compass, Focus, HelpCircle, Images } from "lucide-react";
+import { Compass, Focus, HelpCircle, Images, LocateFixed, Minus, Plus } from "lucide-react";
 import { useState } from "react";
 import { Button, Modal, Popover, Tooltip } from "antd";
 import { useTranslation } from "react-i18next";
@@ -14,6 +14,7 @@ type CanvasZoomControlsProps = {
     scale: number;
     onScaleChange: (scale: number) => void;
     onReset: () => void;
+    onFitCanvas?: () => void;
     isMiniMapOpen: boolean;
     onToggleMiniMap: () => void;
     onOpenAssets: () => void;
@@ -22,18 +23,20 @@ type CanvasZoomControlsProps = {
     onFocusImage: (id: string) => void;
 };
 
-export function CanvasZoomControls({ scale, onScaleChange, onReset, isMiniMapOpen, onToggleMiniMap, onOpenAssets, onInsertAsset, canvasImages, onFocusImage }: CanvasZoomControlsProps) {
+export function CanvasZoomControls({ scale, onScaleChange, onReset, onFitCanvas, isMiniMapOpen, onToggleMiniMap, onOpenAssets, onInsertAsset, canvasImages, onFocusImage }: CanvasZoomControlsProps) {
     const [shortcutsOpen, setShortcutsOpen] = useState(false);
     const [assetsOpen, setAssetsOpen] = useState(false);
+    const [zoomMenuOpen, setZoomMenuOpen] = useState(false);
     const [showCanvasImages, setShowCanvasImages] = useState(false);
     const { t } = useTranslation();
     const colorTheme = useThemeStore((state) => state.theme);
     const theme = canvasThemes[colorTheme];
     const dockStyle = { background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.toolbar.item, boxShadow: colorTheme === "dark" ? "0 18px 45px rgba(0,0,0,.32)" : "0 16px 40px rgba(15,23,42,.12)" };
     const activeStyle = { background: theme.toolbar.activeBg, color: theme.toolbar.activeText };
+    const stepZoom = (delta: number) => onScaleChange(Math.min(5, Math.max(0.05, Math.round((scale + delta) * 100) / 100)));
 
     return (
-        <div className="absolute bottom-5 left-5 z-50" onMouseDown={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
+        <div className="absolute bottom-5 left-5 z-50" data-canvas-no-zoom onMouseDown={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
             <div className="flex h-14 items-center gap-1 rounded-xl border px-2 shadow-lg backdrop-blur" style={dockStyle}>
                 <Popover trigger="click" placement="topLeft" open={assetsOpen} onOpenChange={setAssetsOpen} destroyOnHidden content={
                     <div className="flex h-[min(52dvh,390px)] w-[min(320px,calc(100vw-56px))] flex-col">
@@ -88,16 +91,31 @@ export function CanvasZoomControls({ scale, onScaleChange, onReset, isMiniMapOpe
                         aria-label={t("canvas.zoom")}
                     />
                 </Tooltip>
-                <span className="w-10 text-right text-xs tabular-nums" style={{ color: theme.node.muted }}>
-                    {Math.round(scale * 100)}%
-                </span>
+                <Popover trigger="click" placement="top" open={zoomMenuOpen} onOpenChange={setZoomMenuOpen} destroyOnHidden content={
+                    <div className="flex w-36 flex-col gap-1" data-canvas-no-zoom>
+                        <div className="flex items-center justify-between gap-1 pb-1">
+                            <Button size="small" type="text" icon={<Minus className="size-3.5" />} aria-label={t("canvas.editors.zoomOut")} onClick={() => stepZoom(-0.1)} />
+                            <span className="text-xs font-medium tabular-nums">{Math.round(scale * 100)}%</span>
+                            <Button size="small" type="text" icon={<Plus className="size-3.5" />} aria-label={t("canvas.editors.zoomIn")} onClick={() => stepZoom(0.1)} />
+                        </div>
+                        <div className="grid grid-cols-2 gap-1 border-t pt-1" style={{ borderColor: theme.toolbar.border }}>
+                            {[0.5, 1, 1.5, 2].map((preset) => <button key={preset} type="button" className="rounded-md px-2 py-1 text-xs tabular-nums hover:bg-black/5 dark:hover:bg-white/10" style={Math.abs(scale - preset) < 0.01 ? activeStyle : { color: theme.node.text }} onClick={() => { onScaleChange(preset); setZoomMenuOpen(false); }}>{Math.round(preset * 100)}%</button>)}
+                        </div>
+                        <div className="flex flex-col gap-0.5 border-t pt-1" style={{ borderColor: theme.toolbar.border }}>
+                            {onFitCanvas ? <button type="button" className="flex items-center gap-1.5 rounded-md px-2 py-1 text-left text-xs hover:bg-black/5 dark:hover:bg-white/10" style={{ color: theme.node.text }} onClick={() => { onFitCanvas(); setZoomMenuOpen(false); }}><LocateFixed className="size-3.5" />{t("canvas.toolbar.fitAll")}</button> : null}
+                            <button type="button" className="flex items-center gap-1.5 rounded-md px-2 py-1 text-left text-xs hover:bg-black/5 dark:hover:bg-white/10" style={{ color: theme.node.text }} onClick={() => { onReset(); setZoomMenuOpen(false); }}><Focus className="size-3.5" />{t("canvas.resetView")}</button>
+                        </div>
+                    </div>
+                }>
+                    <button type="button" className="h-7 min-w-11 rounded-md px-1.5 text-right text-xs tabular-nums hover:bg-black/5 dark:hover:bg-white/10" style={zoomMenuOpen ? activeStyle : { color: theme.node.muted }} aria-expanded={zoomMenuOpen} aria-label={t("canvas.zoom")}>{Math.round(scale * 100)}%</button>
+                </Popover>
                 <Tooltip title={t("canvas.shortcuts")}>
                     <Button type="text" className="!h-8 !w-8 !min-w-8 !p-0" style={shortcutsOpen ? activeStyle : { color: theme.toolbar.item }} icon={<HelpCircle className="size-4" />} onClick={() => setShortcutsOpen(true)} aria-label={t("canvas.shortcuts")} />
                 </Tooltip>
             </div>
             <Modal destroyOnHidden title={t("canvas.shortcuts")} open={shortcutsOpen} onCancel={() => setShortcutsOpen(false)} footer={null} centered>
                 <div className="space-y-3 border-t pt-4 text-sm" style={{ borderColor: theme.node.stroke }}>
-                    <Shortcut label={`Space + ${t("canvas.shortcut.drag")}`} value={t("canvas.shortcut.toggleTool")} />
+                    <Shortcut label={`Ctrl / Space + ${t("canvas.shortcut.drag")}`} value={t("canvas.shortcut.toggleTool")} />
                     <Shortcut label={t("canvas.shortcut.wheel")} value={t("canvas.shortcut.zoom")} />
                     <Shortcut label={t("canvas.shortcut.drag")} value={t("canvas.shortcut.boxSelect")} />
                     <Shortcut label={`Shift / Cmd + ${t("canvas.shortcut.click")}`} value={t("canvas.shortcut.addSelection")} />

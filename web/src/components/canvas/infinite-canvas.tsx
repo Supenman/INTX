@@ -1,4 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Image as ImageIcon, Music2, Upload, Video } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { canvasThemes, type CanvasBackgroundMode } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
@@ -25,6 +27,14 @@ type InfiniteCanvasProps = {
 
 export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = "lines", emptyNodeCount, onViewportChange, onCanvasPointerDown, onGestureInterrupt, onCanvasDeselect, onCanvasDoubleClick, onContextMenu, onDrop, children }: InfiniteCanvasProps) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
+    const { t } = useTranslation();
+    const dragDepthRef = useRef(0);
+    const [isFileDragging, setIsFileDragging] = useState(false);
+    useEffect(() => {
+        const reset = () => { dragDepthRef.current = 0; setIsFileDragging(false); };
+        window.addEventListener("blur", reset);
+        return () => window.removeEventListener("blur", reset);
+    }, []);
     const panState = useRef({
         isPanning: false,
         pointerId: -1,
@@ -344,11 +354,26 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
             onDoubleClick={handleDoubleClick}
             onWheel={handleWheel}
             onContextMenu={onContextMenu}
-            onDragOver={(event) => event.preventDefault()}
-            onDrop={onDrop}
+            onDragEnter={(event) => {
+                if (!Array.from(event.dataTransfer.types).includes("Files")) return;
+                event.preventDefault();
+                dragDepthRef.current += 1;
+                setIsFileDragging(true);
+            }}
+            onDragOver={(event) => {
+                if (Array.from(event.dataTransfer.types).includes("Files")) event.dataTransfer.dropEffect = "copy";
+                event.preventDefault();
+            }}
+            onDragLeave={(event) => {
+                if (!Array.from(event.dataTransfer.types).includes("Files")) return;
+                dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+                if (dragDepthRef.current === 0) setIsFileDragging(false);
+            }}
+            onDrop={(event) => { dragDepthRef.current = 0; setIsFileDragging(false); onDrop?.(event); }}
         >
             <CanvasGrid viewport={viewport} mode={backgroundMode} />
             {emptyNodeCount !== undefined ? <CanvasEmptyState nodeCount={emptyNodeCount} demoMode={false} starterMode="freeform" /> : null}
+            {isFileDragging ? <div data-canvas-file-drop-overlay aria-live="polite" className="pointer-events-none absolute inset-4 z-[85] grid place-items-center rounded-2xl border-2 border-dashed backdrop-blur-sm" style={{ background: `color-mix(in srgb, ${theme.toolbar.panel} 82%, transparent)`, borderColor: theme.node.activeStroke, color: theme.node.text }}><div className="flex flex-col items-center gap-3 px-6 py-5 text-center"><span className="grid size-12 place-items-center rounded-2xl border shadow-sm" style={{ background: theme.node.panel, borderColor: theme.toolbar.border, color: theme.node.activeStroke }}><Upload className="size-5" aria-hidden /></span><div className="text-base font-semibold">{t("canvas.shortcut.dropMedia")}</div><div className="flex items-center gap-2 text-xs" style={{ color: theme.node.muted }}><span className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1" style={{ borderColor: theme.toolbar.border, background: theme.node.panel }}><ImageIcon className="size-3.5" aria-hidden />{t("assets.kinds.image")}</span><span className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1" style={{ borderColor: theme.toolbar.border, background: theme.node.panel }}><Video className="size-3.5" aria-hidden />{t("assets.kinds.video")}</span><span className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1" style={{ borderColor: theme.toolbar.border, background: theme.node.panel }}><Music2 className="size-3.5" aria-hidden />{t("assets.kinds.audio")}</span></div></div></div> : null}
             <div
                 className="absolute origin-top-left"
                 style={{

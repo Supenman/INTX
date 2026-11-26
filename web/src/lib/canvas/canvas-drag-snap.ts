@@ -10,6 +10,8 @@ function anchors(start: number, end: number) {
     return [start, (start + end) / 2, end];
 }
 
+const SNAP_PAIRS = [[0, 0], [1, 1], [2, 2], [0, 2], [2, 0]] as const;
+
 export function createDragSnap(nodes: CanvasNodeData[], movingIds: ReadonlySet<string>) {
     const bounds = nodeBounds(collectAlignUnits(nodes, movingIds));
     const targets = nodes.filter((node) => !movingIds.has(node.id) && !movingIds.has(node.metadata?.groupId ?? ""));
@@ -17,13 +19,14 @@ export function createDragSnap(nodes: CanvasNodeData[], movingIds: ReadonlySet<s
     const yTargets = targets.map((node) => anchors(node.position.y, node.position.y + node.height));
 
     function nearest(source: number[], candidates: number[][], offset: number, distance: number) {
-        let match: { guide: number; offset: number } | undefined;
+        let match: { guide: number; offset: number; sameRole: boolean } | undefined;
         let best = distance;
         for (const target of candidates) {
-            for (let index = 0; index < source.length; index++) {
-                const gap = Math.abs(target[index] - source[index] - offset);
-                if (gap <= distance && (match === undefined || gap < best)) {
-                    match = { guide: target[index], offset: target[index] - source[index] };
+            for (const [sourceIndex, targetIndex] of SNAP_PAIRS) {
+                const gap = Math.abs(target[targetIndex] - source[sourceIndex] - offset);
+                const sameRole = sourceIndex === targetIndex;
+                if (gap <= distance && (match === undefined || gap < best - 1e-6 || (Math.abs(gap - best) <= 1e-6 && sameRole && !match.sameRole))) {
+                    match = { guide: target[targetIndex], offset: target[targetIndex] - source[sourceIndex], sameRole };
                     best = gap;
                 }
             }

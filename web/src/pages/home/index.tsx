@@ -7,6 +7,7 @@ import { SnapshotStorageStatus } from "@/components/layout/snapshot-storage-stat
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/layout/empty-state";
 import { CanvasProjectPreview } from "@/components/canvas/canvas-project-card";
+import { isImeComposing } from "@/lib/keyboard-event";
 import { useCanvasStore, type CanvasProject } from "@/stores/canvas/use-canvas-store";
 
 export default function HomePage() {
@@ -59,6 +60,12 @@ export default function HomePage() {
                                 value={agentPrompt}
                                 placeholder={t("home.agentPlaceholder")}
                                 onChange={(event) => setAgentPrompt(event.target.value)}
+                            onKeyDown={(event) => {
+                                if (!isImeComposing(event) && (event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                                    event.preventDefault();
+                                    startCreation();
+                                }
+                            }}
                             />
                             <div className="mt-1 flex flex-wrap items-center justify-between gap-3 px-1 pb-1">
                                 <label className="flex min-w-0 max-w-full items-center gap-2 text-sm text-muted-foreground">

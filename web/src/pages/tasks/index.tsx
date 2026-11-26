@@ -175,7 +175,7 @@ export default function TasksPage() {
                                         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
                                             <div className="min-w-0 flex-1">
                                                 <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                                                    <span className={`inline-block size-1.5 rounded-full ${task.status === "running" ? "bg-emerald-500" : task.status === "failed" ? "bg-red-500" : task.status === "canceled" ? "bg-stone-400" : task.status === "succeeded" ? "bg-stone-500" : "bg-amber-500"}`} />
+                                                    <span className={`inline-block size-1.5 rounded-full ${task.status === "running" ? "bg-emerald-500" : task.status === "failed" ? "bg-red-500" : task.status === "canceled" ? "bg-muted-foreground/50" : task.status === "succeeded" ? "bg-muted-foreground" : "bg-amber-500"}`} />
                                                     <span>{t(`tasks.kind.${task.kind}`, { defaultValue: task.kind })}</span>
                                                     <span>·</span>
                                                     <span className="min-w-0 break-all">{task.params.model || "—"}</span>

@@ -144,20 +144,20 @@ export default function CanvasPage() {
                         description={t("canvas.description")}
                         actions={
                             <>
-                                {!showTrash && selectedIds.length ? (
+                                {!showTrash && visibleSelectedIds.length ? (
                                     <>
                                         <Button
                                             disabled={!hydrated}
                                             icon={<Download className="size-4" />}
                                             onClick={() => {
-                                                void exportCanvasProjects(projects.filter((project) => selectedIds.includes(project.id)), `${t("canvas.title")}-${selectedIds.length}`)
+                                                void exportCanvasProjects(projects.filter((project) => visibleSelectedIds.includes(project.id)), `${t("canvas.title")}-${visibleSelectedIds.length}`)
                                                     .then(saveNotice)
                                                     .catch((error) => saveNotice({ status: "failed", error }));
                                             }}
                                         >
                                             {t("canvas.exportSelected")}
                                         </Button>
-                                        <Button disabled={!hydrated} onClick={() => setDeleteIds(selectedIds)}>
+                                        <Button disabled={!hydrated} onClick={() => setDeleteIds(visibleSelectedIds)}>
                                             {t("canvas.deleteSelected")}
                                         </Button>
                                     </>
@@ -201,6 +201,7 @@ export default function CanvasPage() {
                         />
                         {visibleSelectedIds.length ? <Select
                             mode="tags"
+                            aria-label={t("canvas.moveToFolder")}
                             className="min-w-48"
                             maxTagCount={1}
                             placeholder={t("canvas.moveToFolder")}

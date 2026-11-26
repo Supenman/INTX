@@ -100,10 +100,12 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
         setActiveIndex(0);
     }, [query]);
 
+    const safeActiveIndex = results.length ? Math.min(activeIndex, results.length - 1) : 0;
+
     // 结果变化时把高亮项滚进可视区，避免键盘走到列表外。
     useEffect(() => {
-        listRef.current?.querySelector<HTMLElement>(`[data-index="${activeIndex}"]`)?.scrollIntoView({ block: "nearest" });
-    }, [activeIndex]);
+        listRef.current?.querySelector<HTMLElement>(`[data-index="${safeActiveIndex}"]`)?.scrollIntoView({ block: "nearest" });
+    }, [safeActiveIndex]);
 
     const onKeyDown = (event: ReactKeyboardEvent) => {
         if (isImeComposing(event)) return;
@@ -113,9 +115,15 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
         } else if (event.key === "ArrowUp") {
             event.preventDefault();
             setActiveIndex((index) => (results.length ? (index - 1 + results.length) % results.length : 0));
+        } else if (event.key === "Home" && results.length) {
+            event.preventDefault();
+            setActiveIndex(0);
+        } else if (event.key === "End" && results.length) {
+            event.preventDefault();
+            setActiveIndex(results.length - 1);
         } else if (event.key === "Enter") {
             event.preventDefault();
-            results[activeIndex]?.run();
+            results[safeActiveIndex]?.run();
         } else if (event.key === "Escape") {
             event.preventDefault();
             close();
@@ -150,25 +158,28 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
                     ref={inputRef}
                     variant="borderless"
                     prefix={<Search className="size-4 text-muted-foreground" />}
+                    aria-label={t("commandPalette.placeholder")}
                     placeholder={t("commandPalette.placeholder")}
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
                 />
             </div>
-            <div ref={listRef} onKeyDown={onResultKeyDown} className="max-h-[50vh] overflow-y-auto overscroll-contain p-2">
+            <div ref={listRef} role="listbox" aria-label={t("commandPalette.open")} onKeyDown={onResultKeyDown} className="max-h-[50vh] overflow-y-auto overscroll-contain p-2">
                 {results.length ? results.map((item, index) => {
                     const Icon = item.icon;
                     return (
                         <button
                             key={item.id}
                             type="button"
+                            role="option"
+                            aria-selected={index === safeActiveIndex}
                             data-index={index}
                             onMouseEnter={() => setActiveIndex(index)}
                             onFocus={() => setActiveIndex(index)}
                             onClick={item.run}
                             className={cn(
                                 "focus-ring flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm motion-safe:transition-colors",
-                                index === activeIndex ? "bg-[var(--surface-card-hover)] text-foreground" : "text-muted-foreground",
+                                index === safeActiveIndex ? "bg-[var(--surface-card-hover)] text-foreground" : "text-muted-foreground",
                             )}
                         >
                             <Icon className="size-4 shrink-0" />

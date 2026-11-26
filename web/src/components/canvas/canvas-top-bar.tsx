@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 
 import { UserStatusActions } from "@/components/layout/user-status-actions";
 import { canvasThemes } from "@/lib/canvas-theme";
+import { restoreCanvasFocus } from "@/lib/canvas/canvas-node-focus";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { SnapshotStorageStatus } from "@/components/layout/snapshot-storage-status";
 import { useCanvasSidePanelStore } from "@/stores/use-canvas-side-panel-store";
@@ -160,12 +161,14 @@ export function CanvasTopBar({
                         {isTitleEditing ? (
                             <input
                                 autoFocus
+                                maxLength={64}
                                 value={titleDraft}
+                                onFocus={(event) => event.currentTarget.select()}
                                 onChange={(event) => onTitleDraftChange(event.target.value)}
                                 onBlur={onFinishTitleEditing}
                                 onKeyDown={(event) => {
-                                    if (event.key === "Enter") onFinishTitleEditing();
-                                    if (event.key === "Escape") onCancelTitleEditing();
+                                    if (event.key === "Enter") { event.stopPropagation(); onFinishTitleEditing(); }
+                                    if (event.key === "Escape") { event.stopPropagation(); onCancelTitleEditing(); }
                                 }}
                                 className="w-full min-w-0 max-w-[280px] bg-transparent p-0 text-left text-base font-semibold outline-none"
                                 style={{ color: theme.node.text }}
@@ -197,9 +200,9 @@ export function CanvasTopBar({
                         className="!h-8 !rounded-lg"
                         aria-label="Agent"
                         aria-pressed={agentOpen}
-                        title="Agent"
+                        title={compactAgentStatus.connected ? t("canvas.agentConnected", { kind: t("agent.kind.opencode") }) : compactAgentStatus.enabled ? t("canvas.agentConnecting", { kind: t("agent.kind.opencode"), activity: compactAgentStatus.activity || t("canvas.connecting") }) : "Agent"}
                         style={agentOpen ? { background: theme.toolbar.activeBg, color: theme.toolbar.activeText } : undefined}
-                        icon={<Bot className="size-4" />}
+                        icon={<span className="relative inline-flex items-center justify-center"><Bot className="size-4" />{compactAgentStatus.connected || compactAgentStatus.enabled ? <span className="absolute -right-0.5 -top-0.5 size-1.5 rounded-full" style={{ background: compactAgentStatus.connected ? "#22c55e" : "#f59e0b" }} /> : null}</span>}
                         onClick={onToggleAgent}
                     >
                         <span className="hidden @min-[600px]:inline">Agent</span>
@@ -212,7 +215,7 @@ export function CanvasTopBar({
                     </Popover>
                 </div>
             </div>
-            <Modal destroyOnHidden title={t("canvas.shortcuts")} open={shortcutsOpen} onCancel={() => setShortcutsOpen(false)} footer={null} centered>
+            <Modal destroyOnHidden title={t("canvas.shortcuts")} open={shortcutsOpen} onCancel={() => setShortcutsOpen(false)} afterClose={restoreCanvasFocus} footer={null} centered>
                 <div className="space-y-2 border-t pt-4 text-sm" style={{ borderColor: theme.node.stroke }}>
                     <Shortcut keys={["Space", t("canvas.shortcut.drag")]} value={t("canvas.shortcut.toggleTool")} />
                     <Shortcut keys={[t("canvas.shortcut.wheel")]} value={t("canvas.shortcut.zoom")} />
