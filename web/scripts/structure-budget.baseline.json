@@ -1,5 +1,5 @@
 {
-    "total": 6421,
+    "total": 6422,
     "files": {
         "src/components/canvas/canvas-node.tsx": {
             "overLines": 369,
@@ -52,9 +52,9 @@
             "total": 499
         },
         "src/pages/canvas/project.tsx": {
-            "overLines": 3662,
+            "overLines": 3663,
             "vendorUrls": 0,
-            "total": 3662
+            "total": 3663
         },
         "src/services/api/image.ts": {
             "overLines": 280,

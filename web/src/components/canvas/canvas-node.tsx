@@ -312,7 +312,7 @@ export const CanvasNode = React.memo(function CanvasNode({
 
     return (
         <div
-            data-node-id={data.id}
+            data-node-id={data.id} role="group" aria-label={data.title || t("canvas.node.untitled")} tabIndex={-1}
             className={`node-element group/node absolute flex select-none flex-col transition-shadow duration-200 ${isGroup ? "z-[5]" : isSelected ? "z-50" : "z-10"} ${isDragging ? "cursor-grabbing" : referenceSelectionState === "available" ? "cursor-pointer" : referenceSelectionState ? "cursor-not-allowed" : ""}`}
             style={{
                 transform: `translate(${data.position.x}px, ${data.position.y}px)`,

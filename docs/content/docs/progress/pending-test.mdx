@@ -58,6 +58,13 @@ description: Implemented changes that still need manual verification
 - With a screen reader running, trigger the settings button: it should announce a dialog named "Video settings", not an unnamed container.
 - Run this for the image, video, audio and text popovers plus the workflow parameters popover.
 
+## Focus after locating from generation history
+
+- Generate something, open Generation history and click Locate on an entry: the canvas should move to that node, select it and open the prompt panel, and focus should sit on the node (a screen reader announces the node title). Further Tab presses should continue inside the node instead of restarting from the top of the page.
+- The locate button in version compare should behave the same way.
+- Press Escape right after locating: the selection clears and the panel collapses, with the node still in place.
+- Click empty space inside a node: the prompt draft and the panel should be unaffected; only focus moves to the node.
+
 ## Node toolbar vs. settings popovers
 
 - With an image, video or audio node that has content, hover the node: the floating toolbar appears. Open its settings popover: the toolbar hides. Close it with Esc: the toolbar comes back once the pointer returns to the node (the pointer sits on the panel button, so it will not reappear immediately).

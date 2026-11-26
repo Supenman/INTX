@@ -25,6 +25,7 @@ import { useAssetStore } from "@/stores/use-asset-store";
 import { archivedCanvasNodeIds, canvasNodeToAsset, importCanvasMediaToAssets } from "@/application/canvas/canvas-assets";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { cropDataUrl, splitDataUrl, upscaleDataUrl } from "@/lib/canvas/canvas-image-data";
+import { focusNodeElement } from "@/lib/canvas/canvas-node-focus";
 import { fitNodeSize, nodeSizeFromRatio } from "@/lib/canvas/canvas-node-size";
 import { resolveImagePreset, type ImagePresetId } from "@/lib/canvas/image-presets";
 import { estimateGenerationCost } from "@/domain/cost";
@@ -4439,7 +4440,7 @@ function InfiniteCanvasPage() {
                 {/* 关闭即卸载：本环境 antd 离场动画会停在 ant-zoom-leave，视觉上关不掉 */}
                 {generationHistoryOpen ? (
                     <CanvasGenerationHistoryModal nodes={nodes} onClose={() => setGenerationHistoryOpen(false)}
-                        onLocate={(node) => { setGenerationHistoryOpen(false); focusNode(node.id); }}
+                        onLocate={(node) => { setGenerationHistoryOpen(false); focusNode(node.id); focusNodeElement(node.id); }}
                         onPreview={(node, imageId) => { setGenerationHistoryOpen(false); handleNodeViewImage(node, imageId); }}
                         onArchive={(node, imageId) => void archiveHistoryOutput(node, imageId)}
                         onInsert={(node, imageId) => {
@@ -4453,7 +4454,7 @@ function InfiniteCanvasPage() {
                         }}
                     />
                 ) : null}
-                {versionCompareRootId ? <CanvasVersionCompareModal open versions={versionCompareVersions} onClose={() => setVersionCompareRootId(null)} onSetPrimary={(nodeId) => setNodes((prev) => setPrimaryMediaVersion(prev, nodeId))} onFocus={(nodeId) => { setVersionCompareRootId(null); focusNode(nodeId); }} /> : null}
+                {versionCompareRootId ? <CanvasVersionCompareModal open versions={versionCompareVersions} onClose={() => setVersionCompareRootId(null)} onSetPrimary={(nodeId) => setNodes((prev) => setPrimaryMediaVersion(prev, nodeId))} onFocus={(nodeId) => { setVersionCompareRootId(null); focusNode(nodeId); focusNodeElement(nodeId); }} /> : null}
                 </div>
             </section>
         </main>
