@@ -42,6 +42,13 @@ description: Implemented changes that still need manual verification
 - Start dragging a connection from a node handle, then cancel a different pointer (for example, a secondary touch gesture); the original connection preview should remain active.
 - Cancel the pointer that started the connection; the preview should close. Switching the window away should still clean up the unfinished connection.
 
+## Marquee modifiers and touch dragging
+
+- Switch to the Select tool, click a node to select it, then marquee over it while holding Ctrl: it should be deselected. With nothing selected, Ctrl-marquee should add it. Shift adds, Alt removes, and no modifier replaces.
+- Hold Space and drag empty canvas to pan; middle-button drag should pan too. Releasing Space should return to the Select tool. Ctrl no longer temporarily switches to the hand tool.
+- On a touch device, drag a node by its title: it should follow the finger instead of being cancelled as a scroll at the start. With the hand tool, dragging empty canvas should pan.
+- Swiping up or down inside the prompt editor should scroll the text rather than dragging the node or the canvas.
+
 ## Reduced motion
 
 - Turn on the system "reduce motion" setting (Windows: Settings → Accessibility → Visual effects → Animation effects; macOS: Accessibility → Display → Reduce motion) and reload the canvas.

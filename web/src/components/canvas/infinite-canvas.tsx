@@ -37,7 +37,6 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
     const frameRef = useRef<number | null>(null);
     const nextViewportRef = useRef<ViewportTransform | null>(null);
     const [isSpacePressed, setIsSpacePressed] = useState(false);
-    const [isControlPressed, setIsControlPressed] = useState(false);
     const [isPanning, setIsPanning] = useState(false);
 
     useLayoutEffect(() => {
@@ -53,7 +52,6 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
 
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === "Control") setIsControlPressed(true);
             if (event.code !== "Space") return;
             const target = event.target instanceof Element ? event.target : null;
             if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement || target?.closest("button,[contenteditable='true']")) return;
@@ -67,12 +65,10 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
                 if (!(event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement || target?.closest("button,[contenteditable='true']"))) event.preventDefault();
                 setIsSpacePressed(false);
             }
-            if (event.key === "Control") setIsControlPressed(false);
         };
 
         const handleBlur = () => {
             setIsSpacePressed(false);
-            setIsControlPressed(false);
             panState.current.isPanning = false;
             panState.current.pointerId = -1;
             setIsPanning(false);
@@ -133,7 +129,8 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
         if (target?.closest("[data-canvas-no-zoom]")) return;
         if (target?.closest("[data-connection-create-menu]")) return;
         const isBackgroundClick = !target?.closest("[data-node-id],[data-connection-id]");
-        const temporaryTool = event.ctrlKey || isSpacePressed;
+        // 空格才是临时抓手；Ctrl 留给框选的 toggle（否则 Ctrl+拖动会被这里判成平移，框选策略永远进不去）。
+        const temporaryTool = isSpacePressed;
         const activeTool = temporaryTool ? (tool === "select" ? "pan" : "select") : tool;
         const shouldPan = event.button === 1 || (event.button === 0 && activeTool === "pan" && isBackgroundClick);
 
@@ -227,7 +224,7 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
         return () => container.removeEventListener("wheel", preventWheelScroll);
     }, [containerRef]);
 
-    const temporaryTool = isControlPressed || isSpacePressed;
+    const temporaryTool = isSpacePressed;
     const activeTool = temporaryTool ? (tool === "select" ? "pan" : "select") : tool;
     const cursor = isPanning ? "grabbing" : activeTool === "pan" ? "grab" : undefined;
 
@@ -236,7 +233,7 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
             ref={containerRef}
             tabIndex={-1}
             data-canvas-root
-            className="relative h-full w-full select-none overflow-hidden"
+            className="relative h-full w-full touch-none select-none overflow-hidden"
             style={{ background: theme.canvas.background, cursor }}
             onPointerDown={handlePointerDown}
             onDoubleClick={handleDoubleClick}

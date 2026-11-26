@@ -140,7 +140,7 @@ export function CanvasPromptChipInput({ value, references, onChange, onSubmit, c
                 role="textbox"
                 aria-multiline="true"
                 aria-label={placeholder}
-                className={`${className || ""} overflow-y-auto whitespace-pre-wrap break-words outline-none`}
+                className={`${className || ""} touch-pan-y overflow-y-auto whitespace-pre-wrap break-words outline-none`}
                 style={{ ...style, cursor: "text" }}
                 onInput={() => {
                     if (!composingRef.current) syncFromEditor();
