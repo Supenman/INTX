@@ -1,6 +1,7 @@
 import { useLayoutEffect, useMemo, useRef, type CSSProperties, type ReactNode } from "react";
-import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceAround, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceAround, Download, FileDown, Group, Ungroup } from "lucide-react";
+import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceAround, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceAround, Download, FileDown, Group, LayoutGrid, Ungroup } from "lucide-react";
 import { Tooltip } from "antd";
+import { requestCanvasAutoArrange } from "@/lib/canvas/canvas-auto-arrange";
 import { useTranslation } from "react-i18next";
 
 import { canvasThemes } from "@/lib/canvas-theme";
@@ -40,6 +41,7 @@ export function CanvasSelectionToolbar({
     onUngroup,
     onAlign,
     onDistribute,
+    onAutoArrange,
     onSaveWorkflow,
 }: {
     nodes: CanvasNodeData[];
@@ -51,6 +53,7 @@ export function CanvasSelectionToolbar({
     onUngroup: () => void;
     onAlign: (axis: AlignAxis) => void;
     onDistribute: (axis: DistributeAxis) => void;
+    onAutoArrange?: () => void;
     onSaveWorkflow: () => void;
 }) {
     const { t } = useTranslation();
@@ -148,6 +151,7 @@ export function CanvasSelectionToolbar({
                             onClick={() => onDistribute(item.axis)}
                         />
                     ))}
+                    <SelectionIconAction title={t("canvas.nodeToolbar.autoArrange")} icon={<LayoutGrid className="size-4" />} tooltipBg={theme.toolbar.panel} tooltipStyles={tooltipStyles} onClick={onAutoArrange ?? requestCanvasAutoArrange} />
                     {canGroup || canUngroup ? <Divider color={theme.toolbar.border} /> : null}
                     {canGroup ? <SelectionAction title={t("canvas.nodeToolbar.groupTitle")} label={t("canvas.nodeToolbar.group")} icon={<Group className="size-4" />} tooltipBg={theme.toolbar.panel} tooltipStyles={tooltipStyles} onClick={onGroup} /> : null}
                     {canUngroup ? <SelectionAction title={t("canvas.nodeToolbar.ungroupTitle")} label={t("canvas.nodeToolbar.ungroup")} icon={<Ungroup className="size-4" />} tooltipBg={theme.toolbar.panel} tooltipStyles={tooltipStyles} onClick={onUngroup} /> : null}

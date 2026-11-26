@@ -21,6 +21,7 @@ import { imageReferenceLabel } from "@/lib/image-reference-prompt";
 import { openOverlayOwnsKeyboard } from "@/lib/canvas/keyboard-scope";
 import { canvasThemes, type CanvasBackgroundMode } from "@/lib/canvas-theme";
 import { useSaveFile, useSaveNotice } from "@/hooks/use-save-file";
+import { useCanvasViewActions } from "@/hooks/use-canvas-view-actions";
 import { useAssetStore } from "@/stores/use-asset-store";
 import { archivedCanvasNodeIds, canvasNodeToAsset, importCanvasMediaToAssets } from "@/application/canvas/canvas-assets";
 import { useThemeStore } from "@/stores/use-theme-store";
@@ -35,7 +36,7 @@ import { captureVideoFrame, type VideoFramePosition } from "@/lib/canvas/canvas-
 import { extractVideoAudio } from "@/lib/canvas/extract-video-audio";
 import { App, Button, Modal } from "antd";
 import { NODE_DEFAULT_SIZE } from "@/constant/canvas";
-import { ActiveConnectionPath, ConnectionPath } from "@/components/canvas/canvas-connections";
+import { ActiveConnectionPath, ConnectionPath, CanvasDragGuides } from "@/components/canvas/canvas-connections";
 import { CanvasBackgroundContextMenu, CanvasNodeContextMenu } from "@/components/canvas/canvas-context-menu";
 import { CanvasNodeAngleDialog, type CanvasImageAngleParams } from "@/components/canvas/canvas-node-angle-dialog";
 import { CanvasNodePresetDialog } from "@/components/canvas/canvas-node-preset-dialog";
@@ -75,6 +76,7 @@ import { applyNodeConfigPatch, audioMetadata, buildAudioGenerationMetadata, buil
 import { applyGroupSelection, applyUngroupSelection, canGroupSelectedNodes, canUngroupSelectedNodes, collectGroupMemberNodes, findContainingGroupId, findGroupDropTarget, fitViewportForNodes, focusViewportForNode, getConnectionTargetAnchor, getGroupWrapRect, nodeBounds, normalizeConnection, placeAssetNodes, revealNodesInViewport, snapNodesIntoGroup, warnConnectionRejected } from "@/lib/canvas/canvas-node-geometry";
 import { createDragSnap, moveDraggedNodes, type DragGuides } from "@/lib/canvas/canvas-drag-snap";
 import { alignNodes, distributeNodes, type AlignAxis, type DistributeAxis } from "@/lib/canvas/canvas-align";
+import { CanvasNodeSearchLayer } from "@/components/canvas/canvas-node-search-modal";
 import {
     audioExtension,
     buildAngleLabel,
@@ -1650,7 +1652,7 @@ function InfiniteCanvasPage() {
         },
         [size.height, size.width],
     );
-
+    useCanvasViewActions({ enabled: true, viewportRef, selectedNodeIdsRef, nodesRef, connectionsRef, setNodes, setZoomScale, resetViewport, fitCanvasViewport, focusSelectedNode });
     const applyHistory = useCallback((entry: CanvasHistoryEntry) => {
         if (historyCommitTimerRef.current) {
             clearTimeout(historyCommitTimerRef.current);
@@ -4129,10 +4131,7 @@ function InfiniteCanvasPage() {
                         </svg>
                     ) : null}
                 </InfiniteCanvas>
-                {(dragGuides.x !== undefined || dragGuides.y !== undefined) && <svg aria-hidden className="pointer-events-none absolute inset-0 z-10 h-full w-full" stroke={theme.canvas.selectionStroke} strokeDasharray="4 4">
-                    {dragGuides.x !== undefined && <line x1={viewport.x + dragGuides.x * viewport.k} x2={viewport.x + dragGuides.x * viewport.k} y2="100%" />}
-                    {dragGuides.y !== undefined && <line y1={viewport.y + dragGuides.y * viewport.k} y2={viewport.y + dragGuides.y * viewport.k} x2="100%" />}
-                </svg>}
+                <CanvasDragGuides guides={dragGuides} viewport={viewport} theme={theme} />
                 {pendingConnectionCreate ? (
                     <ConnectionCreateMenu
                         fromInput={pendingConnectionCreate.connection.handleType === "target"}
@@ -4298,6 +4297,7 @@ function InfiniteCanvasPage() {
                 />
 
                 {isMiniMapOpen ? <Minimap nodes={displayNodes} selectedNodeIds={selectedNodeIds} viewport={viewport} viewportSize={size} onViewportChange={setViewport} /> : null}
+                <CanvasNodeSearchLayer nodes={nodes} onSelectNode={focusNode} />
 
                 <CanvasZoomControls
                     canvasImages={nodes.filter((node) => node.type === CanvasNodeType.Image && Boolean(node.metadata?.content || node.metadata?.images?.length))}

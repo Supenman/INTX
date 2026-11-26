@@ -1,9 +1,11 @@
 import type { ReactNode } from "react";
-import { Compass, Focus, HelpCircle, Images, LocateFixed, Minus, Plus } from "lucide-react";
+import { Compass, Focus, HelpCircle, Images, LayoutGrid, LocateFixed, Minus, Plus, Search } from "lucide-react";
 import { useState } from "react";
 import { Button, Modal, Popover, Tooltip } from "antd";
 import { useTranslation } from "react-i18next";
 
+import { openCanvasNodeSearch } from "@/components/canvas/canvas-node-search-modal";
+import { requestCanvasAutoArrange } from "@/lib/canvas/canvas-auto-arrange";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { CanvasAssetsTab } from "./canvas-side-panel";
@@ -15,6 +17,8 @@ type CanvasZoomControlsProps = {
     onScaleChange: (scale: number) => void;
     onReset: () => void;
     onFitCanvas?: () => void;
+    onAutoArrange?: () => void;
+    onOpenNodeSearch?: () => void;
     isMiniMapOpen: boolean;
     onToggleMiniMap: () => void;
     onOpenAssets: () => void;
@@ -23,7 +27,7 @@ type CanvasZoomControlsProps = {
     onFocusImage: (id: string) => void;
 };
 
-export function CanvasZoomControls({ scale, onScaleChange, onReset, onFitCanvas, isMiniMapOpen, onToggleMiniMap, onOpenAssets, onInsertAsset, canvasImages, onFocusImage }: CanvasZoomControlsProps) {
+export function CanvasZoomControls({ scale, onScaleChange, onReset, onFitCanvas, onAutoArrange, onOpenNodeSearch, isMiniMapOpen, onToggleMiniMap, onOpenAssets, onInsertAsset, canvasImages, onFocusImage }: CanvasZoomControlsProps) {
     const [shortcutsOpen, setShortcutsOpen] = useState(false);
     const [assetsOpen, setAssetsOpen] = useState(false);
     const [zoomMenuOpen, setZoomMenuOpen] = useState(false);
@@ -103,25 +107,33 @@ export function CanvasZoomControls({ scale, onScaleChange, onReset, onFitCanvas,
                         </div>
                         <div className="flex flex-col gap-0.5 border-t pt-1" style={{ borderColor: theme.toolbar.border }}>
                             {onFitCanvas ? <button type="button" className="flex items-center gap-1.5 rounded-md px-2 py-1 text-left text-xs hover:bg-black/5 dark:hover:bg-white/10" style={{ color: theme.node.text }} onClick={() => { onFitCanvas(); setZoomMenuOpen(false); }}><LocateFixed className="size-3.5" />{t("canvas.toolbar.fitAll")}</button> : null}
+                            <button type="button" className="flex items-center gap-1.5 rounded-md px-2 py-1 text-left text-xs transition hover:bg-black/5 dark:hover:bg-white/10" style={{ color: theme.node.text }} onClick={() => { (onAutoArrange ?? requestCanvasAutoArrange)(); setZoomMenuOpen(false); }}><LayoutGrid className="size-3.5 shrink-0" /><span>{t("canvas.nodeToolbar.autoArrange")}</span></button>
                             <button type="button" className="flex items-center gap-1.5 rounded-md px-2 py-1 text-left text-xs hover:bg-black/5 dark:hover:bg-white/10" style={{ color: theme.node.text }} onClick={() => { onReset(); setZoomMenuOpen(false); }}><Focus className="size-3.5" />{t("canvas.resetView")}</button>
                         </div>
                     </div>
                 }>
                     <button type="button" className="h-7 min-w-11 rounded-md px-1.5 text-right text-xs tabular-nums hover:bg-black/5 dark:hover:bg-white/10" style={zoomMenuOpen ? activeStyle : { color: theme.node.muted }} aria-expanded={zoomMenuOpen} aria-label={t("canvas.zoom")}>{Math.round(scale * 100)}%</button>
                 </Popover>
+                <Tooltip title={`${t("canvas.sidePanel.searchNodes")} (Ctrl+F)`}>
+                    <Button type="text" className="!h-8 !w-8 !min-w-8 !p-0" style={{ color: theme.toolbar.item }} icon={<Search className="size-4" />} onClick={onOpenNodeSearch ?? openCanvasNodeSearch} aria-label={t("canvas.sidePanel.searchNodes")} />
+                </Tooltip>
                 <Tooltip title={t("canvas.shortcuts")}>
                     <Button type="text" className="!h-8 !w-8 !min-w-8 !p-0" style={shortcutsOpen ? activeStyle : { color: theme.toolbar.item }} icon={<HelpCircle className="size-4" />} onClick={() => setShortcutsOpen(true)} aria-label={t("canvas.shortcuts")} />
                 </Tooltip>
             </div>
             <Modal destroyOnHidden title={t("canvas.shortcuts")} open={shortcutsOpen} onCancel={() => setShortcutsOpen(false)} footer={null} centered>
                 <div className="space-y-3 border-t pt-4 text-sm" style={{ borderColor: theme.node.stroke }}>
-                    <Shortcut label={`Ctrl / Space + ${t("canvas.shortcut.drag")}`} value={t("canvas.shortcut.toggleTool")} />
+                    <Shortcut label={`Space + ${t("canvas.shortcut.drag")}`} value={t("canvas.shortcut.toggleTool")} />
                     <Shortcut label={t("canvas.shortcut.wheel")} value={t("canvas.shortcut.zoom")} />
                     <Shortcut label={t("canvas.shortcut.drag")} value={t("canvas.shortcut.boxSelect")} />
                     <Shortcut label={`Shift / Cmd + ${t("canvas.shortcut.click")}`} value={t("canvas.shortcut.addSelection")} />
                     <Shortcut label="Ctrl / Cmd + C / V" value={t("canvas.shortcut.copyPasteNodes")} />
                     <Shortcut label="Ctrl / Cmd + G" value={t("canvas.shortcut.group")} />
                     <Shortcut label="Ctrl / Cmd + Shift + G" value={t("canvas.shortcut.ungroup")} />
+                    <Shortcut label="Ctrl / Cmd + F" value={t("canvas.shortcut.searchNodes")} />
+                    <Shortcut label="Ctrl / Cmd + +/- / 0" value={t("canvas.shortcut.zoomInOut")} />
+                    <Shortcut label="Shift + 1 / 2" value={t("canvas.shortcut.fitOrFocus")} />
+                    <Shortcut label="↑ / ↓ / ← / →" value={t("canvas.shortcut.nudge")} />
                     <Shortcut label="Delete / Backspace" value={t("canvas.shortcut.delete")} />
                 </div>
             </Modal>

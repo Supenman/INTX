@@ -3,9 +3,19 @@ title: Pending Tests
 description: Implemented changes that still need manual verification
 ---
 
-# Pending Tests
+## Canvas polish: flow wires, loading pulse, auto arrange, search, nudge
 
-## 画布交互与页面快捷操作（最新版叠加补丁）
+- Hover or select an existing connection, or drag a new wire out of a port: a flowing dashed layer should travel along it toward the target, and stop entirely under "reduce motion".
+- Put a node into a generating state: its frame should breathe with the canvas accent color, then stop cleanly when generation finishes or fails.
+- Select two or more nodes and click "Auto arrange" in the selection toolbar, then the same command in the bottom-left zoom menu: connected nodes should flow left-to-right by level, locked nodes stay put, group children follow their group, and Undo restores the previous positions.
+- Press Ctrl+F (Cmd+F) inside the canvas, or click the search icon in the zoom dock: type a title or prompt snippet, move with ↑↓/Home/End, press Enter to center and select the node, Esc to close and return focus to the canvas. Ctrl+F inside the prompt editor must keep its native behavior.
+- Zoom shortcuts: Ctrl/Cmd + = / - / 0, Shift+1 to fit all, Shift+2 to focus the selection.
+- Arrow keys nudge selected nodes by 1px, Shift+Arrow by 16px; locked nodes must not move, and selecting a group should move its children too.
+- Drag a node until both the horizontal and vertical guides appear: a small filled dot should mark the crossing point.
+
+ Pending Tests
+
+## Canvas interactions and page shortcuts (overlay patch)
 
 - 多选至少两个节点并靠近视口顶部/左右边缘：多选工具栏应跟随深浅主题、保持在可视范围内，空间不足时翻到选区下方。
 - 打开小地图后确认选中节点高亮；鼠标和触控拖动小地图时不应触发画布框选或页面滚动。

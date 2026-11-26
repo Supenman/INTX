@@ -645,6 +645,40 @@
   font-size: 0.75rem;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
-  box-shadow: 0 1px 3px rgb(0 0 0 / 12%);
+  box-shadow: var(--shadow-sm);
   pointer-events: none;
+}
+
+/* 连线流光：只在悬停/选中/拖拽中的连线上跑，静态时完全不可见。 */
+@keyframes canvas-connection-flow {
+  to {
+    stroke-dashoffset: -56;
+  }
+}
+
+.canvas-connection-flow {
+  animation: canvas-connection-flow 1.4s linear infinite;
+}
+
+/* 生成中的节点：用画布主题色做呼吸光晕，完成或失败后类名失效自然停止。 */
+@keyframes canvas-node-loading-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--node-accent) 45%, transparent), 0 0 18px color-mix(in srgb, var(--node-accent) 18%, transparent);
+  }
+
+  50% {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--node-accent) 85%, transparent), 0 0 26px color-mix(in srgb, var(--node-accent) 34%, transparent);
+  }
+}
+
+.node-element[data-node-status="loading"] .canvas-node-frame {
+  animation: canvas-node-loading-pulse 1.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .canvas-connection-flow,
+  .node-element[data-node-status="loading"] .canvas-node-frame {
+    animation: none;
+  }
 }

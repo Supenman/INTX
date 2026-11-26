@@ -317,14 +317,14 @@ export const CanvasNode = React.memo(function CanvasNode({
 
     return (
         <div
-            data-node-id={data.id} data-resizing={resizeRef.current.isResizing ? "true" : undefined} data-resize-label={`${Math.round(data.width)} × ${Math.round(data.height)}`} role="group" aria-label={data.title || t("canvas.node.untitled")} tabIndex={-1}
+            data-node-id={data.id} data-node-status={data.metadata?.status || "idle"} data-resizing={resizeRef.current.isResizing ? "true" : undefined} data-resize-label={`${Math.round(data.width)} × ${Math.round(data.height)}`} role="group" aria-label={data.title || t("canvas.node.untitled")} tabIndex={-1}
             className={`node-element group/node absolute flex select-none flex-col transition-shadow duration-200 ${isGroup ? "z-[5]" : isSelected ? "z-50" : "z-10"} ${isDragging ? "cursor-grabbing" : referenceSelectionState === "available" ? "cursor-pointer" : referenceSelectionState ? "cursor-not-allowed" : ""}`}
             style={{
                 transform: `translate(${data.position.x}px, ${data.position.y}px)`,
                 width: data.width,
                 height: data.height,
                 contain: "layout style",
-                "--node-scale": scale, "--node-resize-bg": theme.toolbar.panel, "--node-resize-border": theme.toolbar.border, "--node-resize-text": theme.node.text,
+                "--node-scale": scale, "--node-accent": theme.node.activeStroke, "--node-resize-bg": theme.toolbar.panel, "--node-resize-border": theme.toolbar.border, "--node-resize-text": theme.node.text,
             } as React.CSSProperties}
             onMouseEnter={() => {
                 setHovered(true);
@@ -386,7 +386,7 @@ export const CanvasNode = React.memo(function CanvasNode({
             )}
 
             <div
-                className="relative h-full w-full overflow-visible rounded-[var(--r-lg)] border motion-safe:transition-[border-color,box-shadow] motion-safe:duration-150"
+                className="canvas-node-frame relative h-full w-full overflow-visible rounded-[var(--r-lg)] border motion-safe:transition-[border-color,box-shadow] motion-safe:duration-150"
                 style={{
                     background: isGroup ? "transparent" : hasImageContent || hasVideoContent || transparentBg ? "transparent" : theme.node.fill,
                     // 静止/媒体节点用透明描边占位：选中时只换颜色不换宽度，避免边界跳动。

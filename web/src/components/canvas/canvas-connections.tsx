@@ -1,8 +1,9 @@
 import React, { useState, type MouseEvent as ReactMouseEvent } from "react";
 
-import { canvasThemes } from "@/lib/canvas-theme";
+import { canvasThemes, type CanvasTheme } from "@/lib/canvas-theme";
+import type { DragGuides } from "@/lib/canvas/canvas-drag-snap";
 import { useThemeStore } from "@/stores/use-theme-store";
-import type { CanvasConnection, CanvasNodeData, ConnectionHandle, Position } from "@/types/canvas";
+import type { CanvasConnection, CanvasNodeData, ConnectionHandle, Position, ViewportTransform } from "@/types/canvas";
 
 function connectionCurve(startX: number, startY: number, endX: number, endY: number) {
     const curvature = Math.max(Math.abs(endX - startX) * 0.5, 50);
@@ -67,6 +68,7 @@ export const ConnectionPath = React.memo(function ConnectionPath({
                 style={{ pointerEvents: "none" }}
             />
             {highlighted ? <path d={pathD} stroke={theme.node.activeStroke} strokeWidth={active ? 7 : 5} vectorEffect="non-scaling-stroke" strokeOpacity={active ? 0.18 : 0.12} fill="none" strokeLinecap="round" style={{ pointerEvents: "none" }} /> : null}
+            {highlighted ? <path className="canvas-connection-flow" d={pathD} stroke={theme.node.activeStroke} strokeWidth={active ? 2.4 : 2} vectorEffect="non-scaling-stroke" strokeOpacity={active ? 0.92 : 0.72} strokeDasharray="10 18" fill="none" strokeLinecap="round" style={{ pointerEvents: "none" }} /> : null}
             <circle cx={startX} cy={startY} r={highlighted ? 3.5 : 2} fill={strokeColor} fillOpacity={highlighted ? 0.9 : 0.56} vectorEffect="non-scaling-stroke" style={{ pointerEvents: "none" }} />
             <circle cx={endX} cy={endY} r={highlighted ? 3.5 : 2} fill={strokeColor} fillOpacity={highlighted ? 0.9 : 0.56} vectorEffect="non-scaling-stroke" style={{ pointerEvents: "none" }} />
             {highlighted ? <path d={`M ${endX - 9} ${endY - 4.5} L ${endX - 2} ${endY} L ${endX - 9} ${endY + 4.5}`} stroke={theme.node.activeStroke} strokeWidth={2} vectorEffect="non-scaling-stroke" fill="none" strokeLinecap="round" strokeLinejoin="round" style={{ pointerEvents: "none" }} /> : null}
@@ -90,5 +92,17 @@ export function ActiveConnectionPath({ node, handle, mouseWorld, target }: { nod
 
     const snapPortX = handle.handleType === "source" ? snappedEndX : snappedStartX;
     const snapPortY = handle.handleType === "source" ? snappedEndY : snappedStartY;
-    return <g style={{ pointerEvents: "none" }}>{target ? <path d={pathD} stroke={theme.node.activeStroke} strokeWidth={7} vectorEffect="non-scaling-stroke" strokeOpacity={0.18} fill="none" strokeLinecap="round" /> : null}<path d={pathD} stroke={theme.node.activeStroke} strokeWidth={target ? 2.8 : 1.8} vectorEffect="non-scaling-stroke" fill="none" strokeDasharray={target ? undefined : "5,5"} className="motion-safe:transition-[stroke-width] motion-safe:duration-150" />{target ? <circle cx={snapPortX} cy={snapPortY} r={6} fill={theme.node.activeStroke} fillOpacity={0.22} stroke={theme.node.activeStroke} strokeWidth={2} vectorEffect="non-scaling-stroke" /> : null}</g>;
+    return <g style={{ pointerEvents: "none" }}>{target ? <path d={pathD} stroke={theme.node.activeStroke} strokeWidth={7} vectorEffect="non-scaling-stroke" strokeOpacity={0.18} fill="none" strokeLinecap="round" /> : null}<path d={pathD} stroke={theme.node.activeStroke} strokeWidth={target ? 2.8 : 1.8} vectorEffect="non-scaling-stroke" fill="none" strokeDasharray={target ? undefined : "6 6"} className={target ? "motion-safe:transition-[stroke-width] motion-safe:duration-150" : "canvas-connection-flow motion-safe:transition-[stroke-width] motion-safe:duration-150"} />{target ? <circle cx={snapPortX} cy={snapPortY} r={6} fill={theme.node.activeStroke} fillOpacity={0.22} stroke={theme.node.activeStroke} strokeWidth={2} vectorEffect="non-scaling-stroke" /> : null}</g>;
+}
+
+/** 拖动吸附引导线。X、Y 同时吸附时补一个实心点，比两条虚线交叉更明确地表示「已经对上了」。 */
+export function CanvasDragGuides({ guides, viewport, theme }: { guides: DragGuides; viewport: ViewportTransform; theme: CanvasTheme }) {
+    if (guides.x === undefined && guides.y === undefined) return null;
+    return (
+        <svg aria-hidden className="pointer-events-none absolute inset-0 z-10 h-full w-full" stroke={theme.canvas.selectionStroke} strokeWidth={1.25} strokeDasharray="4 4">
+            {guides.x !== undefined && <line x1={viewport.x + guides.x * viewport.k} x2={viewport.x + guides.x * viewport.k} y2="100%" />}
+            {guides.y !== undefined && <line y1={viewport.y + guides.y * viewport.k} y2={viewport.y + guides.y * viewport.k} x2="100%" />}
+            {guides.x !== undefined && guides.y !== undefined && <circle cx={viewport.x + guides.x * viewport.k} cy={viewport.y + guides.y * viewport.k} r={3.5} fill={theme.canvas.selectionStroke} stroke="none" />}
+        </svg>
+    );
 }
