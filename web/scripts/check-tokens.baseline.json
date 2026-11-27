@@ -1,122 +1,21 @@
 {
-    "total": 145,
+    "total": 45,
     "files": {
-        "src/components/agent/agent-chat-composer.tsx": {
-            "total": 1,
-            "radius": 1
-        },
-        "src/components/agent/agent-chat-message.tsx": {
-            "total": 16,
-            "blackwhite": 4,
-            "fontsize": 12
-        },
-        "src/components/agent/agent-chat.tsx": {
-            "total": 1,
-            "fontsize": 1
-        },
-        "src/components/agent/agent-connect-view.tsx": {
-            "total": 2,
-            "fontsize": 2
-        },
-        "src/components/agent/agent-history-view.tsx": {
-            "total": 3,
-            "fontsize": 3
-        },
-        "src/components/agent/agent-log-view.tsx": {
-            "total": 6,
-            "fontsize": 6
-        },
-        "src/components/agent/agent-panel-tabs.tsx": {
-            "total": 1,
-            "fontsize": 1
-        },
-        "src/components/agent/opencode-agent-panel.tsx": {
-            "total": 1,
-            "fontsize": 1
-        },
-        "src/components/canvas/canvas-create-menus.tsx": {
-            "total": 1,
-            "blackwhite": 1
-        },
-        "src/components/canvas/canvas-image-toolbar-settings-modal.tsx": {
-            "total": 2,
-            "fontsize": 1,
-            "radius": 1
-        },
-        "src/components/canvas/canvas-mini-map.tsx": {
-            "total": 1,
-            "radius": 1
-        },
-        "src/components/canvas/canvas-node-angle-dialog.tsx": {
-            "total": 1,
-            "blackwhite": 1
-        },
-        "src/components/canvas/canvas-node-prompt-panel.tsx": {
-            "total": 1,
-            "fontsize": 1
-        },
         "src/components/canvas/canvas-node-split-dialog.tsx": {
-            "total": 4,
-            "blackwhite": 4
-        },
-        "src/components/canvas/canvas-node-upscale-dialog.tsx": {
-            "total": 1,
-            "blackwhite": 1
+            "total": 3,
+            "blackwhite": 3
         },
         "src/components/canvas/canvas-node.tsx": {
-            "total": 13,
-            "fontsize": 11,
-            "blackwhite": 2
-        },
-        "src/components/canvas/canvas-plugin-manager-modal.tsx": {
             "total": 1,
-            "fontsize": 1
-        },
-        "src/components/canvas/canvas-prompt-chip-input.tsx": {
-            "total": 2,
-            "blackwhite": 2
-        },
-        "src/components/canvas/canvas-resource-mention-textarea.tsx": {
-            "total": 2,
-            "blackwhite": 2
-        },
-        "src/components/canvas/canvas-selection-toolbar.tsx": {
-            "total": 2,
-            "fontsize": 1,
-            "radius": 1
-        },
-        "src/components/image-generation-pending.tsx": {
-            "total": 11,
-            "neutral": 8,
-            "blackwhite": 2,
-            "fontsize": 1
-        },
-        "src/components/layout/channel-editor-drawer.tsx": {
-            "total": 2,
-            "neutral": 2
-        },
-        "src/components/layout/github-link.tsx": {
-            "total": 6,
-            "neutral": 5,
             "blackwhite": 1
         },
-        "src/components/layout/model-select-modal.tsx": {
-            "total": 5,
-            "neutral": 5
-        },
-        "src/components/layout/user-status-actions.tsx": {
-            "total": 5,
-            "neutral": 3,
-            "blackwhite": 1,
-            "fontsize": 1
-        },
-        "src/components/video-settings-panel.tsx": {
+        "src/components/canvas/canvas-prompt-chip-input.tsx": {
             "total": 1,
-            "radius": 1
+            "blackwhite": 1
         },
-        "src/lib/opencut/components/editor/panels/assets/draggable-item.tsx": {
+        "src/components/canvas/canvas-resource-mention-textarea.tsx": {
             "total": 1,
-            "fontsize": 1
+            "blackwhite": 1
         },
         "src/lib/opencut/components/editor/panels/assets/views/assets.tsx": {
             "total": 2,
@@ -130,21 +29,9 @@
             "total": 1,
             "blackwhite": 1
         },
-        "src/lib/opencut/components/ui/context-menu.tsx": {
-            "total": 1,
-            "fontsize": 1
-        },
         "src/lib/opencut/components/ui/dialog.tsx": {
             "total": 1,
             "blackwhite": 1
-        },
-        "src/lib/opencut/components/ui/dropdown-menu.tsx": {
-            "total": 1,
-            "fontsize": 1
-        },
-        "src/lib/opencut/components/ui/select.tsx": {
-            "total": 1,
-            "fontsize": 1
         },
         "src/lib/opencut/components/ui/sheet.tsx": {
             "total": 1,
@@ -175,31 +62,16 @@
             "blackwhite": 1
         },
         "src/lib/opencut/timeline/components/audio-volume-line.tsx": {
-            "total": 6,
-            "blackwhite": 5,
-            "fontsize": 1
-        },
-        "src/lib/opencut/timeline/components/graph-editor/popover.tsx": {
-            "total": 2,
-            "fontsize": 2
+            "total": 5,
+            "blackwhite": 5
         },
         "src/lib/opencut/timeline/components/timeline-element.tsx": {
-            "total": 13,
-            "blackwhite": 12,
-            "fontsize": 1
-        },
-        "src/lib/opencut/timeline/components/timeline-tick.tsx": {
-            "total": 1,
-            "fontsize": 1
+            "total": 12,
+            "blackwhite": 12
         },
         "src/pages/assets/index.tsx": {
-            "total": 4,
-            "fontsize": 3,
+            "total": 1,
             "blackwhite": 1
-        },
-        "src/pages/tasks/index.tsx": {
-            "total": 2,
-            "neutral": 2
         }
     }
 }

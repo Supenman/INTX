@@ -623,7 +623,7 @@ export function OpencodeAgentPanel() {
                                     }}
                                 />
                             ) : (
-                                <span className="hidden text-[11px] @min-[340px]:inline" style={{ color: theme.node.muted }}>
+                                <span className="hidden text-xs @min-[340px]:inline" style={{ color: theme.node.muted }}>
                                     {t(modelsUnavailable ? "agent.kind.opencodeModelsUnavailable" : "agent.kind.opencodeModel")}
                                 </span>
                             )

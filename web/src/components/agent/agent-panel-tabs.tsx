@@ -39,7 +39,7 @@ export function AgentPanelTabs<T extends string>({
                                     role="tab"
                                     aria-label={`${item.label}${item.count ? ` ${item.count}` : ""}`}
                                     aria-selected={active}
-                                    className={`focus-ring inline-flex h-7 min-w-7 flex-1 cursor-pointer items-center justify-center gap-1 rounded-[10px] px-1.5 transition ${active ? "font-medium shadow-xs" : "font-normal hover:opacity-90"}`}
+                                    className={`focus-ring inline-flex h-7 min-w-7 flex-1 cursor-pointer items-center justify-center gap-1 rounded-lg px-1.5 transition ${active ? "font-medium shadow-xs" : "font-normal hover:opacity-90"}`}
                                     style={{
                                         background: active ? theme.toolbar.activeBg : "transparent",
                                         color: active ? theme.node.text : theme.node.muted,

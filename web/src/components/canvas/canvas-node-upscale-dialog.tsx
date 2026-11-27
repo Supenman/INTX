@@ -55,7 +55,7 @@ export function CanvasNodeUpscaleDialog({ dataUrl, open, onClose, onConfirm }: {
                 </div>
                 <div className="grid grid-cols-[minmax(260px,1fr)_360px] gap-6">
                     <div className="rounded-xl border p-4">
-                        <div className="grid min-h-[280px] place-items-center rounded-lg bg-black/5">
+                        <div className="grid min-h-[280px] place-items-center rounded-lg bg-muted/50">
                             <img src={dataUrl} alt="" className="max-h-[320px] max-w-full rounded-lg object-contain shadow-xl" draggable={false} />
                         </div>
                         <div className="mt-3 flex items-center justify-between text-sm">

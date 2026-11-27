@@ -126,7 +126,7 @@ export function DraggableItem({
 						</AspectRatio>
 						{shouldShowLabel && (
 							<span
-								className="text-muted-foreground w-full truncate text-left text-[0.7rem]"
+								className="text-muted-foreground w-full truncate text-left text-xs"
 								title={name}
 							>
 								<span className="sr-only">{name}</span>

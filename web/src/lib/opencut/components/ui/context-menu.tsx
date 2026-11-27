@@ -160,7 +160,7 @@ const ContextMenuItem = React.forwardRef<
 				)}
 				{children}
 				{textRight && (
-					<span className="ml-auto text-[0.60rem] tracking-widest text-muted-foreground/80 mb-0.5">
+					<span className="ml-auto text-xs tracking-widest text-muted-foreground/80 mb-0.5">
 						{textRight}
 					</span>
 				)}

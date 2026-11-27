@@ -164,7 +164,7 @@ export function ImageToolSettingsModal({
                 <div className="relative flex min-h-[300px] w-full justify-center pt-20 pb-9">
                     <div
                         ref={previewToolbarRef}
-                        className="hide-scrollbar absolute left-2 right-2 top-3 z-10 flex h-12 items-center overflow-x-auto rounded-[18px] border px-1 text-[13px]"
+                        className="hide-scrollbar absolute left-2 right-2 top-3 z-10 flex h-12 items-center overflow-x-auto rounded-2xl border px-1 text-sm"
                         style={{ background: token.colorBgElevated, borderColor: token.colorBorderSecondary, boxShadow: token.boxShadowSecondary, color: token.colorText }}
                         onScroll={syncPreviewScroll}
                     >

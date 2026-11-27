@@ -242,5 +242,5 @@ function SizePreview({ width, height, color }: { width: number; height: number; 
     const longSide = Math.max(width, height);
     const previewWidth = Math.max(10, Math.round((width / longSide) * 26));
     const previewHeight = Math.max(10, Math.round((height / longSide) * 26));
-    return <span className="rounded-[3px] border-2" style={{ width: previewWidth, height: previewHeight, borderColor: color }} />;
+    return <span className="rounded-sm border-2" style={{ width: previewWidth, height: previewHeight, borderColor: color }} />;
 }

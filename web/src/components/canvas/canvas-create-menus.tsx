@@ -96,7 +96,7 @@ export function ConnectionCreateMenu({
                 <span className="text-sm font-medium" style={{ color: theme.node.muted }}>
                     {t(fromInput ? "canvas.createMenu.beforeNode" : "canvas.createMenu.fromNode")}
                 </span>
-                <button type="button" className="grid size-7 place-items-center rounded-lg text-base opacity-55 transition hover:bg-white/10 hover:opacity-100" onClick={closeAndRestoreFocus} aria-label={t("canvas.createMenu.close")}>
+                <button type="button" className="grid size-7 place-items-center rounded-lg text-base opacity-55 transition hover:bg-black/5 dark:hover:bg-white/10 hover:opacity-100" onClick={closeAndRestoreFocus} aria-label={t("canvas.createMenu.close")}>
                     ×
                 </button>
             </div>

@@ -47,7 +47,7 @@ export function AgentConnectView({
                 </div>
                 <div className="rounded-lg border p-3" style={{ borderColor: theme.node.stroke }}>
                     <div className="flex flex-wrap items-center justify-between gap-3">
-                        <span className="inline-flex min-w-0 items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] leading-4" style={{ borderColor: connected || enabled || connectError ? statusColor : theme.node.stroke, color: statusColor }}>
+                        <span className="inline-flex min-w-0 items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs leading-4" style={{ borderColor: connected || enabled || connectError ? statusColor : theme.node.stroke, color: statusColor }}>
                             <span className="size-1.5 shrink-0 rounded-full" style={{ background: statusColor }} />
                             <span className="truncate">{statusText}</span>
                         </span>
@@ -88,7 +88,7 @@ export function AgentConnectView({
                         <>
                             <div className="mt-1 text-xs leading-5" style={{ color: theme.node.muted }}>{t("agent.connect.opencodeText")}</div>
                             <div className="mt-2 flex items-center gap-2 rounded-md border bg-transparent px-2 py-1.5" style={{ borderColor: theme.node.stroke, color: theme.node.text }}>
-                                <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap text-[11px] leading-5">{command}</code>
+                                <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap text-xs leading-5">{command}</code>
                                 <Tooltip title={t("agent.connect.copyCommand")}>
                                     <Button
                                         size="small"

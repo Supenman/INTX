@@ -267,7 +267,7 @@ function ReferencePreview({ reference }: { reference: CanvasResourceReference })
     if (reference.kind === "video" && reference.previewUrl) return <video src={reference.previewUrl} className="size-9 rounded-md bg-black object-cover" muted preload="metadata" />;
     const Icon = reference.kind === "audio" ? Music2 : reference.kind === "video" ? Video : reference.kind === "image" ? ImageIcon : FileText;
     return (
-        <span className="grid size-9 shrink-0 place-items-center rounded-md bg-black/10">
+        <span className="grid size-9 shrink-0 place-items-center rounded-md bg-muted">
             <Icon className="size-4" />
         </span>
     );

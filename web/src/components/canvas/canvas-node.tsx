@@ -515,7 +515,7 @@ function NodeContent(props: NodeContentRendererProps) {
                 <Renderer {...props} />
                 <div className="pointer-events-none absolute left-2 top-2 z-20 flex items-center gap-1 rounded-full px-2 py-0.5" style={{ background: "color-mix(in oklch, var(--destructive) 20%, transparent)", color: "var(--destructive)" }} role="status">
                     <AlertCircle aria-hidden className="size-3" />
-                    <span className="text-[10px] font-medium leading-none">{t("canvas.node.failed")}</span>
+                    <span className="text-xs font-medium leading-none">{t("canvas.node.failed")}</span>
                 </div>
                 <div className="absolute inset-x-3 bottom-3 z-30 flex justify-center rounded-xl border p-1 shadow-lg backdrop-blur-md" style={{ background: props.theme.toolbar.panel, borderColor: "var(--destructive)", color: props.theme.node.text }}>
                     <CanvasNodeErrorCard node={props.node} theme={props.theme} onRetry={props.onRetry} />
@@ -553,7 +553,7 @@ function GroupNodeContent({ node, theme, groupChildCount }: NodeContentRendererP
             <div className="flex h-7 max-w-full items-center gap-2 px-1 text-xs font-medium" style={{ color: theme.node.text }}>
                 <Group className="size-3.5 shrink-0" style={{ color: theme.node.muted }} />
                 <span className="truncate">{node.title || t("canvas.node.group")}</span>
-                <span className="shrink-0 text-[11px] font-normal" style={{ color: theme.node.muted }}>
+                <span className="shrink-0 text-xs font-normal" style={{ color: theme.node.muted }}>
                     {t("canvas.node.nodeCount", { count: groupChildCount })}
                 </span>
             </div>
@@ -567,7 +567,7 @@ function MissingPluginContent({ theme, type }: Pick<NodeContentRendererProps, "t
         <div className="flex h-full w-full flex-col items-center justify-center gap-2 px-4 text-center" style={{ color: theme.node.placeholder }}>
             <Puzzle className="size-7 opacity-40" />
             <span className="text-sm">{t("canvas.node.missingPlugin")}</span>
-            <span className="text-[11px] opacity-70">{t("canvas.node.missingPluginDescription", { type })}</span>
+            <span className="text-xs opacity-70">{t("canvas.node.missingPluginDescription", { type })}</span>
         </div>
     );
 }
@@ -705,7 +705,7 @@ function TextSlotStatus({ text }: { text: CanvasNodeText }) {
     return (
         <div className="flex h-full w-full flex-col items-center justify-center gap-3 px-6 text-center" style={{ background: theme.node.fill, color: failed ? theme.node.text : theme.node.activeStroke }}>
             {failed ? <span className="text-xs leading-5">{text.errorDetails || t("canvas.node.failed")}</span> : loading ? <div aria-hidden className="size-8 rounded-full border-2 motion-safe:animate-spin" style={{ borderColor: theme.node.stroke, borderTopColor: theme.node.activeStroke }} /> : <span className="text-xs">{t("apiErrors.noContent")}</span>}
-            {loading ? <span className="text-[10px] tracking-[0.2em]">{t("canvas.node.generating")}</span> : null}
+            {loading ? <span className="text-xs tracking-[0.2em]">{t("canvas.node.generating")}</span> : null}
         </div>
     );
 }
@@ -897,15 +897,15 @@ function ExpandedImageCard({ node, image, index, scale, onView, onSetPrimary, on
             {image.content ? <img src={source} alt={node.title} draggable={false} className="pointer-events-none h-full w-full select-none object-contain" /> : <ImageSlotStatus image={image} />}
             {image.content ? (
                 <div className="pointer-events-none absolute inset-x-2 top-2 flex items-center gap-1 opacity-0 transition-opacity duration-150 group-hover/node:pointer-events-auto group-hover/node:opacity-100">
-                    <button type="button" className="flex h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border px-1.5 text-[10px] font-medium shadow-[0_6px_18px_rgba(15,23,42,.16)] backdrop-blur-md transition hover:scale-[1.02]" style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.toolbar.activeText }} title={t("common.download")} onClick={(event) => (event.stopPropagation(), onDownload())}>
+                    <button type="button" className="flex h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border px-1.5 text-xs font-medium shadow-[0_6px_18px_rgba(15,23,42,.16)] backdrop-blur-md transition hover:scale-[1.02]" style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.toolbar.activeText }} title={t("common.download")} onClick={(event) => (event.stopPropagation(), onDownload())}>
                         <Download className="size-3 shrink-0" />
                         <span className="truncate">{t("common.download")}</span>
                     </button>
-                    <button type="button" className="flex h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border px-1.5 text-[10px] font-medium shadow-[0_6px_18px_rgba(15,23,42,.16)] backdrop-blur-md transition hover:scale-[1.02]" style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.toolbar.activeText }} title={t("canvas.node.createCopy")} onClick={(event) => (event.stopPropagation(), onDuplicate())}>
+                    <button type="button" className="flex h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border px-1.5 text-xs font-medium shadow-[0_6px_18px_rgba(15,23,42,.16)] backdrop-blur-md transition hover:scale-[1.02]" style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.toolbar.activeText }} title={t("canvas.node.createCopy")} onClick={(event) => (event.stopPropagation(), onDuplicate())}>
                         <Copy className="size-3 shrink-0" />
                         <span className="truncate">{t("canvas.node.createCopy")}</span>
                     </button>
-                    <button type="button" className="flex h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border px-1.5 text-[10px] font-medium shadow-[0_6px_18px_rgba(15,23,42,.16)] backdrop-blur-md transition hover:scale-[1.02]" style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.toolbar.activeText }} title={t("canvas.node.setPrimary")} onClick={(event) => (event.stopPropagation(), onSetPrimary())}>
+                    <button type="button" className="flex h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border px-1.5 text-xs font-medium shadow-[0_6px_18px_rgba(15,23,42,.16)] backdrop-blur-md transition hover:scale-[1.02]" style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.toolbar.activeText }} title={t("canvas.node.setPrimary")} onClick={(event) => (event.stopPropagation(), onSetPrimary())}>
                         <Star className="size-3 shrink-0" style={{ color: selectionBlue }} />
                         <span className="truncate">{t("canvas.node.setPrimary")}</span>
                     </button>
@@ -939,7 +939,7 @@ function ImageSlotStatus({ image }: { image?: CanvasNodeImage }) {
     return (
         <div className="flex h-full w-full flex-col items-center justify-center gap-3 px-6 text-center" style={{ background: theme.node.fill, color: failed ? theme.node.text : theme.node.activeStroke }}>
             {failed ? <span className="text-xs leading-5">{image.errorDetails || t("canvas.node.failed")}</span> : <div aria-hidden className="size-8 rounded-full border-2 motion-safe:animate-spin" style={{ borderColor: theme.node.stroke, borderTopColor: theme.node.activeStroke }} />}
-            {!failed ? <span className="text-[10px] tracking-[0.2em]">{t("canvas.node.generating")}</span> : null}
+            {!failed ? <span className="text-xs tracking-[0.2em]">{t("canvas.node.generating")}</span> : null}
         </div>
     );
 }
@@ -950,7 +950,7 @@ function ImageInfoBar({ node }: { node: CanvasNodeData }) {
     const size = formatBytes(node.metadata?.bytes || 0);
     return (
         <div className="pointer-events-none absolute bottom-3 right-3 z-40 max-w-[calc(100%-24px)]">
-            <span className="max-w-full truncate rounded-md bg-black/55 px-2 py-1 text-[11px] font-medium leading-none text-white backdrop-blur-sm">
+            <span className="max-w-full truncate rounded-md bg-black/55 px-2 py-1 text-xs font-medium leading-none text-white backdrop-blur-sm">
                 {width} x {height}
                 {size ? ` · ${size}` : ""}
             </span>
