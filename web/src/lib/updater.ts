@@ -1,5 +1,7 @@
 export const DEFAULT_UPDATE_MANIFEST_URL =
     "https://github.com/Supenman/INTX/releases/latest/download/update.json";
+export const DEFAULT_RELEASES_API_URL =
+    "https://api.github.com/repos/Supenman/INTX/releases?per_page=10";
 const CUSTOM_MANIFEST_STORAGE_KEY = "intx-update-manifest-url";
 
 export type UpdatePlatformEntry = {
@@ -26,21 +28,56 @@ export type AvailableAppUpdate = {
     pubDate: string;
 };
 
-function parseVersionParts(version: string): [number, number, number] | null {
-    const match = version.trim().match(/^v?(\d+)\.(\d+)\.(\d+)/);
+type ParsedSemver = {
+    core: [number, number, number];
+    prerelease: string[];
+};
+
+function parseSemver(version: string): ParsedSemver | null {
+    const match = version.trim().match(/^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+.*)?$/);
     if (!match) return null;
-    return [Number(match[1]), Number(match[2]), Number(match[3])];
+    return {
+        core: [Number(match[1]), Number(match[2]), Number(match[3])],
+        prerelease: match[4] ? match[4].split(".").filter(Boolean) : [],
+    };
 }
 
+function comparePrereleaseIdentifiers(a: string, b: string): number {
+    const aNum = /^\d+$/.test(a);
+    const bNum = /^\d+$/.test(b);
+    if (aNum && bNum) return Number(a) - Number(b);
+    if (aNum !== bNum) return aNum ? -1 : 1;
+    return a.localeCompare(b);
+}
+
+/** 按 SemVer 2.0.0 规则判断 candidate 是否严格高于 current（支持 -beta.N 等预发布后缀）。 */
 export function isNewerSemver(candidate: string, current: string): boolean {
-    const next = parseVersionParts(candidate);
-    const curr = parseVersionParts(current);
+    const next = parseSemver(candidate);
+    const curr = parseSemver(current);
     if (!next || !curr) return false;
     for (let i = 0; i < 3; i += 1) {
-        if (next[i] > curr[i]) return true;
-        if (next[i] < curr[i]) return false;
+        if (next.core[i] > curr.core[i]) return true;
+        if (next.core[i] < curr.core[i]) return false;
+    }
+    const nextPre = next.prerelease;
+    const currPre = curr.prerelease;
+    if (nextPre.length === 0 && currPre.length === 0) return false;
+    // 同主次修订号下，正式版高于预发布版（如 0.2.4 > 0.2.4-beta.2）。
+    if (nextPre.length === 0) return true;
+    if (currPre.length === 0) return false;
+    const len = Math.max(nextPre.length, currPre.length);
+    for (let i = 0; i < len; i += 1) {
+        if (i >= nextPre.length) return false;
+        if (i >= currPre.length) return true;
+        const diff = comparePrereleaseIdentifiers(nextPre[i], currPre[i]);
+        if (diff !== 0) return diff > 0;
     }
     return false;
+}
+
+export function isPrereleaseVersion(version: string): boolean {
+    const parsed = parseSemver(version);
+    return Boolean(parsed && parsed.prerelease.length > 0);
 }
 
 export function isValidSha256Hex(value: unknown): value is string {
@@ -49,6 +86,19 @@ export function isValidSha256Hex(value: unknown): value is string {
 
 export function isHttpsUrl(value: unknown): value is string {
     return typeof value === "string" && value.trim().startsWith("https://");
+}
+
+/** 从 GitHub Releases API 列表中取最新非草稿且包含 update.json 资产的清单地址（含 pre-release）。 */
+export function extractPrereleaseManifestUrl(releasesRaw: unknown): string | null {
+    if (!Array.isArray(releasesRaw)) return null;
+    for (const item of releasesRaw) {
+        if (!item || typeof item !== "object") continue;
+        const release = item as { draft?: boolean; assets?: Array<{ name?: string; browser_download_url?: string }> };
+        if (release.draft || !Array.isArray(release.assets)) continue;
+        const asset = release.assets.find((entry) => entry?.name === "update.json" && isHttpsUrl(entry.browser_download_url));
+        if (asset?.browser_download_url) return asset.browser_download_url.trim();
+    }
+    return null;
 }
 
 /**
@@ -83,12 +133,16 @@ export function resolveAvailableUpdate(
     };
 }
 
-export function getUpdateManifestUrl(): string {
+export function getCustomUpdateManifestUrl(): string | null {
     try {
         const stored = typeof window !== "undefined" ? window.localStorage.getItem(CUSTOM_MANIFEST_STORAGE_KEY) : null;
         if (isHttpsUrl(stored)) return stored.trim();
     } catch {
         // ignore storage access failure
     }
-    return DEFAULT_UPDATE_MANIFEST_URL;
+    return null;
+}
+
+export function getUpdateManifestUrl(): string {
+    return getCustomUpdateManifestUrl() ?? DEFAULT_UPDATE_MANIFEST_URL;
 }

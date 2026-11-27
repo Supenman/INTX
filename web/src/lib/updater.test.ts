@@ -1,15 +1,30 @@
 import { describe, expect, it } from "vitest";
 
-import { isNewerSemver, isValidSha256Hex, resolveAvailableUpdate } from "./updater";
+import { extractPrereleaseManifestUrl, isNewerSemver, isPrereleaseVersion, isValidSha256Hex, resolveAvailableUpdate } from "./updater";
 
 const VALID_SHA = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
 
 describe("custom updater manifest parsing", () => {
-    it("compares semantic versions with or without v prefix", () => {
+    it("compares semantic versions including prerelease tags", () => {
         expect(isNewerSemver("0.2.3", "v0.2.2")).toBe(true);
         expect(isNewerSemver("v1.0.0", "0.9.9")).toBe(true);
         expect(isNewerSemver("v0.2.2", "0.2.2")).toBe(false);
         expect(isNewerSemver("0.2.1", "v0.2.2")).toBe(false);
+        expect(isNewerSemver("v0.2.4-beta.2", "v0.2.4-beta.1")).toBe(true);
+        expect(isNewerSemver("v0.2.4-beta.10", "v0.2.4-beta.2")).toBe(true);
+        expect(isNewerSemver("v0.2.4", "v0.2.4-beta.2")).toBe(true);
+        expect(isNewerSemver("v0.2.4-beta.9", "v0.2.4")).toBe(false);
+        expect(isNewerSemver("v0.2.4-beta.2", "v0.2.4-beta.2")).toBe(false);
+        expect(isPrereleaseVersion("v0.2.4-beta.1")).toBe(true);
+        expect(isPrereleaseVersion("v0.2.4")).toBe(false);
+    });
+
+    it("extracts update.json download URL from GitHub releases API including prereleases", () => {
+        const url = extractPrereleaseManifestUrl([
+            { draft: true, prerelease: true, assets: [{ name: "update.json", browser_download_url: "https://example.com/draft.json" }] },
+            { draft: false, prerelease: true, assets: [{ name: "update.json", browser_download_url: "https://github.com/Supenman/INTX/releases/download/v0.2.4-beta.2/update.json" }] },
+        ]);
+        expect(url).toBe("https://github.com/Supenman/INTX/releases/download/v0.2.4-beta.2/update.json");
     });
 
     it("resolves a valid newer Windows update and filters non-HTTPS mirrors", () => {

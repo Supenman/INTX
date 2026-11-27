@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next";
 import { APP_VERSION } from "@/constant/env";
 import { parseChangelog, type ReleaseInfo } from "@/lib/release";
 import { runtime } from "@/lib/runtime/capabilities";
-import { getUpdateManifestUrl, isNewerSemver, resolveAvailableUpdate, type AvailableAppUpdate } from "@/lib/updater";
+import { DEFAULT_RELEASES_API_URL, extractPrereleaseManifestUrl, getCustomUpdateManifestUrl, getUpdateManifestUrl, isNewerSemver, isPrereleaseVersion, resolveAvailableUpdate, type AvailableAppUpdate } from "@/lib/updater";
 
 const REPO_RAW = "https://raw.githubusercontent.com/Supenman/INTX/dev";
 const latestVersionUrl = `${REPO_RAW}/VERSION`;
@@ -56,10 +56,23 @@ export function useVersionCheck() {
     const checkAppUpdate = useCallback(async () => {
         if (runtime !== "desktop") return;
         try {
-            const manifestUrl = getUpdateManifestUrl();
             // 桌面端经 Rust 侧 plugin-http 拉取，避免 github.com/releases/latest/download 302 跳转触发 WebView2 CORS 拦截。
             const { fetch: tauriFetch } = await import("@tauri-apps/plugin-http");
-            const response = await tauriFetch(manifestUrl, { method: "GET", headers: { "Cache-Control": "no-cache" } });
+            let manifestUrl = getCustomUpdateManifestUrl();
+            if (!manifestUrl && isPrereleaseVersion(currentVersion)) {
+                try {
+                    const releasesResp = await tauriFetch(DEFAULT_RELEASES_API_URL, {
+                        method: "GET",
+                        headers: { Accept: "application/vnd.github+json", "User-Agent": "INTX-Desktop" },
+                    });
+                    if (releasesResp.ok) {
+                        manifestUrl = extractPrereleaseManifestUrl(await releasesResp.json());
+                    }
+                } catch {
+                    // 回退到默认 latest 清单地址
+                }
+            }
+            const response = await tauriFetch(manifestUrl ?? getUpdateManifestUrl(), { method: "GET", headers: { "Cache-Control": "no-cache" } });
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const raw: unknown = await response.json();
             const update = resolveAvailableUpdate(raw, currentVersion);
