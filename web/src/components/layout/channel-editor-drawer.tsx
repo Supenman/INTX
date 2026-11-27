@@ -3,7 +3,7 @@ import { CheckCircle2, ListPlus, Plus, Search, Trash2, Wifi, XCircle } from "luc
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { createModelChannel, defaultBaseUrlForApiFormat, guessCapability, normalizeChannelModels, type ApiCallFormat, type ChannelModel, type ChannelProxyMode, type ModelCapability, type ModelChannel } from "@/stores/use-config-store";
+import { createModelChannel, defaultBaseUrlForApiFormat, guessCapability, normalizeChannelModels, type ApiCallFormat, type ChannelModel, type ModelCapability, type ModelChannel } from "@/stores/use-config-store";
 import { isRunningHubEndpoint } from "@/domain/provider/endpoints";
 import { fetchChannelModels } from "@/services/api/image";
 import { ModelScriptEditor } from "./model-script-editor";
@@ -191,22 +191,6 @@ export function ChannelEditorDrawer({ open, channel, onSave, onClose }: { open: 
                         </Button>
                     )}
                 </div>
-                <label className="col-span-2 block">
-                    <span className="mb-1 block text-sm font-medium">{t("config.channelEditor.proxyMode")}</span>
-                    <Segmented
-                        block
-                        className="w-full"
-                        value={draft.proxyMode}
-                        options={[
-                            { label: t("config.channelEditor.proxyModeSystem"), value: "system" },
-                            { label: t("config.channelEditor.proxyModeDirect"), value: "direct" },
-                        ]}
-                        onChange={(value) => patch({ proxyMode: value as ChannelProxyMode })}
-                    />
-                    <span className="mt-1 block text-xs text-muted-foreground">
-                        {draft.proxyMode === "direct" ? t("config.channelEditor.proxyModeDirectHint") : t("config.channelEditor.proxyModeSystemHint")}
-                    </span>
-                </label>
             </div>
 
             <div className="mt-6 mb-3 flex flex-wrap items-center justify-between gap-2">

@@ -2,9 +2,9 @@
 
 ## Unreleased
 
-- [优化] 桌面端应用内更新切换为自研免密码更新器（方案 A）：移除 `tauri-plugin-updater` 与 minisign 私钥/密码依赖；新增 Rust 侧 `updater.rs`（复用 `tauri_plugin_http::reqwest` 流式下载安装包、实时推送 `intx-update-progress` 进度、零依赖内置 SHA-256 校验、支持 HTTPS 多镜像自动回退、回收子进程后拉起 NSIS 安装程序），前端 `updater.ts` + `use-version-check.ts` 接入 `update.json` 清单解析（补 3 例单测），新增 `generate-update-manifest.mjs` 自动计算 SHA-256 生成 `update.json`，并同步将 `.github/workflows/release-desktop.yml` 改为零 Secret 免密码自动发版。
+- [调整] 彻底收口为纯桌面端主线，清理历史网页版与冗余发布包袱：移除 `canvas-proxy/` 跨域代理包、设置页「本地代理」标签页与渠道「出网方式」开关（桌面端请求统一走 Rust `tauriFetch`，天然无 CORS）；删除 `vercel.json`、`render.yaml`、`nginx.conf`、`Dockerfile`、`docker-compose*.yml` 与 `github-pages` / `docker-image` / `docs-docker-image` / `publish-npm` 工作流，保留桌面端构建发版、质量门禁与插件发布。
 
-- [新增] Windows Tauri 桌面端云端自动签名发版流水线（`.github/workflows/release-desktop.yml`）：支持推送 `v*` Tag 自动触发或手动 `workflow_dispatch`（可选先建 Draft 草稿），自动校验 `VERSION` 与 `tauri.conf.json` 版本号一致、使用仓库 Secrets 完成 updater 私钥签名、自动生成并上传 `latest.json` 与 NSIS 安装包到 GitHub Release。
+- [优化] 桌面端应用内更新切换为自研免密码更新器（方案 A）：移除 `tauri-plugin-updater` 与 minisign 私钥/密码依赖；新增 Rust 侧 `updater.rs`（复用 `tauri_plugin_http::reqwest` 流式下载安装包、实时推送 `intx-update-progress` 进度、零依赖内置 SHA-256 校验、支持 HTTPS 多镜像自动回退、回收子进程后拉起 NSIS 安装程序），前端 `updater.ts` + `use-version-check.ts` 接入 `update.json` 清单解析（补 3 例单测），新增 `generate-update-manifest.mjs` 自动计算 SHA-256 生成 `update.json`，并同步将 `.github/workflows/release-desktop.yml` 改为零 Secret 免密码自动发版。
 
 - [优化] 首页聚焦 Agent 主舞台、统一设置入口收口与 Agent 面板全套 UI 升级：① 首页移除与侧栏重复的「新建画布创作」按钮，Hero 直接聚焦 INTX Agent 对话输入框（修复禁用态提交按钮暗色对比度不可见的问题，补齐 `Ctrl+Enter` 提示）；② 侧栏设置入口对照 BeefTV 收口为「模型配置 / 存储设置」两项，将「使用偏好」合并进「模型配置」标签页并以分组卡片呈现，同时修复渠道卡片「测试连接」缺失文案键显示为原始 key 的问题；③ Agent 侧栏全套视觉升级：顶栏升级为胶囊分段切换条、空对话区新增 INTX Agent 欢迎态与 3 条一键画布快捷指令卡片（消除大面积空白黑屏感）、底部输入框在 340px 侧栏宽度下即展示权限与模型标签并统一高对比圆形发送按钮。
 

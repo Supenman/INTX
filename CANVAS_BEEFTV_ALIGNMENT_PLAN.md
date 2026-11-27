@@ -269,6 +269,17 @@
 
 静态门禁：typecheck 0、边界通过、tokens 130/145、结构 6438/6442；vitest 89 文件 954 例全绿；前端 build 成功、manifest 脚本语法与优雅降级、workflow YAML 语法、版本号一致性均已验证；补丁内 Rust SHA-256 源码独立编译跑 NIST 向量通过。未验证：完整 `cargo check`/`tauri:build` 因 Linux 缺 webkit2gtk、crates.io 网络受限无法执行；Windows NSIS 打包、Release 发布、安装覆盖升级与子进程回收需 Windows 环境实测，不声称已验证。
 
+## v8 批次：收敛为纯桌面端主线
+
+清除历史网页版与冗余发布包袱，把项目收口为桌面端（补丁 `intx-desktop-only-cleanup-v8`，删 799 行）：
+
+- **移除网页代理**：删除 `canvas-proxy/` 包、`config-local-proxy.tsx` 配置页、`services/api/local-proxy.ts`、设置页「本地代理」标签与渠道抽屉「出网方式」开关；`check-boundaries.mjs` 白名单同步去除 `local-proxy.ts`。桌面端请求统一走 Rust `tauriFetch`，无 CORS；底层 `proxyMode` 字段与 transport 保留兼容，不改快照 codec/schema。
+- **移除 Web/容器发布配置**：删除 `Dockerfile`、`docker-compose*.yml`、`nginx.conf`、`vercel.json`、`render.yaml`、`.dockerignore`，以及 `github-pages` / `docker-image` / `docs-docker-image` / `publish-npm` 四个工作流；保留桌面端 `release-desktop.yml`、质量门禁与插件发布。
+- **类型/导航收口**：`ConfigTabKey`、导航分区与 i18n 页签同步去除 `local-proxy`。
+- 额外清理：删除 CHANGELOG 中与「零 Secret 自研更新器」矛盾的旧「云端私钥签名发版」条目（v7 已取代，非补丁内容）。
+
+静态门禁：typecheck 0、边界通过、tokens 130/145、结构 6438/6442；vitest 89 文件 954 例全绿；前端 build 成功、无循环分包警告。删除后通过 typecheck 确认无悬空引用。Windows `pnpm tauri:build` 仍需在 Windows 环境实测；未触碰画布、快照 codec/schema、OpenCut、剪辑台入口与状态管理。
+
 ## 6. 未验证项
 
 - BeefTV 的各模式、节点状态、悬浮栏和动效在运行时的全部显示条件；必须读具体组件和条件分支后确认。

@@ -3,6 +3,11 @@ title: Pending Tests
 description: Implemented changes that still need manual verification
 ---
 
+## Desktop-only cleanup (removed web proxy & web/Docker/npm deploy configs)
+
+- Open Model Config (`/config?tab=channels`): confirm the "Local proxy" tab is gone (only Channels, Preferences, and Pending Tasks remain) and the Channel Editor drawer no longer shows the browser-only Proxy Mode toggle.
+- Verify `cd web && pnpm verify && pnpm build` and Windows `pnpm tauri:build` continue to pass cleanly.
+
 ## Custom passwordless desktop updater (Scheme A)
 
 - On Windows desktop, run `cd web && pnpm tauri:build && node scripts/generate-update-manifest.mjs`: confirm the build succeeds with zero signing keys/passwords and outputs `update.json` with a 64-char SHA-256 alongside `*-setup.exe`.

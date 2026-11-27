@@ -3,6 +3,12 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## 纯桌面端清理（移除 Web 代理与 Web/Docker/npm 部署配置）
+
+- 打开模型配置（`/config?tab=channels`）：确认「本地代理」标签页已移除（仅剩渠道、使用偏好、待核实任务），渠道编辑抽屉不再显示浏览器专用的「出网方式」开关。
+- 确认 `cd web && pnpm verify && pnpm build` 与 Windows `pnpm tauri:build` 均正常通过。
+- 确认桌面端生成请求统一走 Rust `tauriFetch`，无 CORS 问题；渠道底层 `proxyMode` 字段保留兼容，不影响已有配置与快照。
+
 ## 自研免密码桌面更新器（方案 A）
 
 - 在 Windows 桌面执行 `cd web && pnpm tauri:build && node scripts/generate-update-manifest.mjs`：确认零签名密钥/密码即可打包成功，`update.json` 与 `*-setup.exe` 同目录产出且含 64 位 SHA-256。

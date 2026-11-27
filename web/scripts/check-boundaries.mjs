@@ -15,7 +15,6 @@ const API_DIR = join(ROOT, "src", "services", "api");
 const FETCH_ALLOWED = new Set([
     "provider-transport.ts", // 浏览器端实现本身
     "canvas-agent.ts", // 本机 Agent 的对话与画布接口
-    "local-proxy.ts", // 本地代理探活
     "model-plugin.ts", // 命中的是给用户看的脚本模板字符串，不是真实请求
 ]);
 
