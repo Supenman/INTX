@@ -4,7 +4,9 @@
 
 - [发版] INTX v0.2.3 桌面端发版：同步 `VERSION` / `tauri.conf.json` / `Cargo.toml`(含 `Cargo.lock`) 至 0.2.3，推送 `v0.2.3` tag 触发 Windows NSIS 自动打包与零 Secret 发版，产出安装包与含 SHA-256 的 `update.json`，供自研免密码更新器校验升级。本版包含 v9 修复的跨平台 npm 探测与发版 CI sidecar 资源校验。
 
-## Unreleased
+## v0.2.4（测试版）
+
+- [发版] INTX v0.2.4 测试版：同步 `VERSION` / `tauri.conf.json` / `Cargo.toml`(含 `Cargo.lock`) 至 0.2.4，推送 `v0.2.4` tag 触发 Windows NSIS 打包与零 Secret 发版，产出安装包与含 SHA-256 的 `update.json`；Release 标记为预发布（pre-release），仅供测试验收，不作为稳定版推送给普通用户自动更新。
 
 - [发版验证] v0.2.3 Windows 真机发版流水线全绿：`Release Desktop (Windows)` 从版本校验、依赖安装、sidecar 资源准备、NSIS 打包、SHA-256 清单到 Release 发布全部 success，`INTX_0.2.3_x64-setup.exe`（约 40.75 MB）与 `update.json` 已发布至 GitHub Release。v9 修复的跨平台 npm 探测与 CI sidecar 校验在真实 Windows 环境验证通过。
 
