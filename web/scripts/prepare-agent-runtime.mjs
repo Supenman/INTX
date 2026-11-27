@@ -34,15 +34,43 @@ await fs.copyFile(process.execPath, bundledNode);
 if (process.platform !== "win32") await fs.chmod(bundledNode, (await fs.stat(process.execPath)).mode);
 const nodeLicense = path.join(nodeSource, "LICENSE");
 if (await exists(nodeLicense)) await fs.copyFile(nodeLicense, path.join(nodeTarget, "Node-LICENSE.txt"));
-await fs.cp(path.join(nodeSource, "node_modules", "npm"), path.join(nodeTarget, "node_modules", "npm"), { recursive: true });
+
+const npmSourceDir = await resolveNpmPackageDir(nodeSource);
+if (!npmSourceDir) {
+    throw new Error(`Could not locate bundled npm directory next to Node (${process.execPath}).`);
+}
+await fs.cp(npmSourceDir, path.join(nodeTarget, "node_modules", "npm"), { recursive: true, dereference: true });
+
 for (const file of process.platform === "win32" ? ["npm", "npm.cmd", "npx", "npx.cmd"] : ["npm", "npx"]) {
     const source = path.join(nodeSource, file);
+    if (!await exists(source)) continue;
     const bundled = path.join(nodeTarget, file);
-    await fs.copyFile(source, bundled);
-    if (process.platform !== "win32") await fs.chmod(bundled, (await fs.stat(source)).mode);
+    const resolvedSource = await fs.realpath(source).catch(() => source);
+    await fs.copyFile(resolvedSource, bundled);
+    if (process.platform !== "win32") await fs.chmod(bundled, (await fs.stat(resolvedSource)).mode);
 }
 
 console.log(`Prepared bundled Canvas Agent runtime at ${target}`);
+
+async function resolveNpmPackageDir(execDir) {
+    const candidates = [
+        path.join(execDir, "node_modules", "npm"),
+        path.resolve(execDir, "..", "lib", "node_modules", "npm"),
+        path.resolve(execDir, "..", "node_modules", "npm"),
+    ];
+    for (const candidate of candidates) {
+        if (await exists(path.join(candidate, "package.json"))) return candidate;
+    }
+    const probe = spawnSync("npm", ["root", "-g"], {
+        encoding: "utf8",
+        shell: process.platform === "win32",
+    });
+    if (probe.status === 0 && probe.stdout) {
+        const globalNpm = path.join(probe.stdout.trim(), "npm");
+        if (await exists(path.join(globalNpm, "package.json"))) return globalNpm;
+    }
+    return null;
+}
 
 function run(command, args, cwd) {
     const result = spawnSync(command, args, { cwd, stdio: "inherit", shell: process.platform === "win32" });

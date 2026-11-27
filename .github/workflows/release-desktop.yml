@@ -70,6 +70,21 @@ jobs:
         working-directory: web
         run: pnpm install --frozen-lockfile
 
+      - name: Prepare & verify bundled sidecar resources
+        working-directory: web
+        shell: pwsh
+        run: |
+          node scripts/prepare-agent-runtime.mjs
+          node scripts/prepare-comfyui-gateway.mjs
+          if (-not (Test-Path "src-tauri/resources/canvas-agent-runtime/canvas-agent/dist/index.js")) {
+            Write-Error "Missing bundled canvas-agent runtime"
+            exit 1
+          }
+          if (-not (Test-Path "src-tauri/resources/comfyui-gateway/src/server.js")) {
+            Write-Error "Missing bundled comfyui-gateway runtime"
+            exit 1
+          }
+
       - name: Build Windows NSIS installer
         working-directory: web
         run: pnpm tauri:build

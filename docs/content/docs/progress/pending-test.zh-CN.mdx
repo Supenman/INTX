@@ -3,6 +3,12 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## 发版 sidecar 资源准备与 CI 加固
+
+- 在 Windows CI 上手动触发 `release-desktop` 工作流：确认 `Prepare & verify bundled sidecar resources` 步骤先执行两个准备脚本，且 `canvas-agent/dist/index.js`、`comfyui-gateway/src/server.js` 校验通过后才有 `pnpm tauri:build`。
+- 用 nvm / 官方安装 / 便携版 Node 分别运行 `node scripts/prepare-agent-runtime.mjs`：确认均能定位到内嵌 npm 目录、解引用软链并产出 `node/node` 与 `canvas-agent` 运行时，不再报 `ENOENT .../node_modules/npm`。
+- Linux 沙箱已实测：干净环境（无临时软链）下准备脚本一次跑通、两个 sidecar 校验路径均存在、workflow YAML 语法与 11 个 step 正确。（Windows NSIS 打包仍需 Windows 环境验证。）
+
 ## 纯桌面端清理（移除 Web 代理与 Web/Docker/npm 部署配置）
 
 - 打开模型配置（`/config?tab=channels`）：确认「本地代理」标签页已移除（仅剩渠道、使用偏好、待核实任务），渠道编辑抽屉不再显示浏览器专用的「出网方式」开关。

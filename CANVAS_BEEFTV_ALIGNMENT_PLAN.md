@@ -280,6 +280,15 @@
 
 静态门禁：typecheck 0、边界通过、tokens 130/145、结构 6438/6442；vitest 89 文件 954 例全绿；前端 build 成功、无循环分包警告。删除后通过 typecheck 确认无悬空引用。Windows `pnpm tauri:build` 仍需在 Windows 环境实测；未触碰画布、快照 codec/schema、OpenCut、剪辑台入口与状态管理。
 
+## v9 批次：发版 sidecar 资源准备与 CI 加固
+
+修复 v0.2.3 试跑中暴露的两个真实发版阻塞点（补丁 `intx-release-prep-fix-v9`）：
+
+- **跨平台 npm 探测**：`prepare-agent-runtime.mjs` 从「node 执行文件同级的 `node_modules/npm`」改为多候选路径（同级、`../lib/node_modules/npm`、`../node_modules/npm`）+ `npm root -g` 兜底；`fs.cp` 用 `dereference: true`、npm/npx 软链用 `realpath` 解引用拷贝，兼容 Windows/Linux/macOS 与 nvm 等版本管理器。
+- **CI 显式准备与校验**：`release-desktop.yml` 在 `tauri:build` 前新增步骤，先跑两个 `prepare-*.mjs`，再校验 `canvas-agent/dist/index.js` 与 `comfyui-gateway/src/server.js` 存在，缺失即失败。
+
+Linux 沙箱实测：干净环境（删掉试跑时的临时软链）下 `prepare-agent-runtime.mjs` 一次跑通，两个 sidecar 校验路径均存在、workflow YAML 语法与 11 个 step 正确；上次该脚本报 `ENOENT .../node_modules/npm`，本次通过，回归验证成立。静态门禁 typecheck 0、tokens 130/145、结构 6438/6442、vitest 89 文件 954 例全绿。Windows NSIS 打包与真实安装升级仍需 Windows 环境实测。
+
 ## 6. 未验证项
 
 - BeefTV 的各模式、节点状态、悬浮栏和动效在运行时的全部显示条件；必须读具体组件和条件分支后确认。
