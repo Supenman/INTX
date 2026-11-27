@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Alert, App, Button, Input, Modal, Spin } from "antd";
-import { FileUp, Pencil, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
+import { FileUp, Pencil, Plus, RefreshCw, Search, Sparkles, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useShallow } from "zustand/react/shallow";
 
+import { BUILTIN_SKILL_TEMPLATES, type BuiltinSkillTemplate } from "@/lib/agent/skill-templates";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { AgentApiError, createOpencodeSkill, deleteOpencodeSkill, fetchOpencodeSkill, updateOpencodeSkill, type AgentSkillDetail, type AgentSkillInput } from "@/services/api/canvas-agent";
 import { useAgentSkillStore } from "@/stores/use-agent-skill-store";
@@ -33,6 +34,10 @@ export function AgentSkillManagerView({ theme, endpoint, token, connected, fullP
     }, [connected, endpoint, token, loadSkills]);
 
     const refresh = () => void loadSkills(endpoint, token, true);
+    const openTemplate = (tpl: BuiltinSkillTemplate) => {
+        setRevisionConflict(false);
+        setEditing({ ...tpl, revision: "" });
+    };
     const importFile = async (file: File) => {
         try {
             if (file.size > 256 * 1024) throw new Error(t("agent.skillManager.importTooLarge"));
@@ -130,6 +135,33 @@ export function AgentSkillManagerView({ theme, endpoint, token, connected, fullP
                             </div>)}
                         </div>
                     ) : <div className="py-10 text-center text-sm" style={{ color: theme.node.muted }}>{skills.length ? t("agent.skillManager.noMatch") : t("agent.skillManager.empty")}</div>}
+                    {fullPage ? (
+                        <section className="pt-4">
+                            <div className="mb-2.5 flex items-center gap-1.5 text-xs font-medium" style={{ color: theme.node.muted }}>
+                                <Sparkles className="size-3.5" />
+                                <span>{t("agent.skillManager.templatesTitle")}</span>
+                            </div>
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                                {BUILTIN_SKILL_TEMPLATES.map((tpl) => {
+                                    const exists = skills.some((item) => item.name === tpl.name);
+                                    return (
+                                        <div key={tpl.name} className="flex flex-col justify-between rounded-xl border border-border bg-[var(--surface-card)] p-3.5">
+                                            <div>
+                                                <div className="text-sm font-medium text-foreground">{tpl.displayName}</div>
+                                                <p className="mt-1 text-xs leading-5 text-muted-foreground">{tpl.shortDescription}</p>
+                                            </div>
+                                            <div className="mt-3 flex items-center justify-between gap-2">
+                                                <span className="font-mono typ-label text-muted-foreground">/{tpl.name}</span>
+                                                <Button size="small" disabled={exists} onClick={() => openTemplate(tpl)}>
+                                                    {exists ? t("agent.skillManager.templateInstalled") : t("agent.skillManager.useTemplate")}
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </section>
+                    ) : null}
                 </div>
             )}
             <Modal

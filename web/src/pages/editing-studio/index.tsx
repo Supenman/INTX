@@ -22,6 +22,9 @@ import { usePreviewStore } from "@/lib/opencut/preview/preview-store";
 import { getGuidePreviewOverlaySource } from "@/lib/opencut/guides";
 import { bookmarkNotesPreviewOverlay, getBookmarkPreviewOverlaySource } from "@/lib/opencut/timeline/bookmarks";
 import { processMediaAssets } from "@/lib/opencut/media/processing";
+import { DEFAULT_NEW_ELEMENT_DURATION } from "@/lib/opencut/timeline/creation";
+import { buildElementFromMedia } from "@/lib/opencut/timeline/element-utils";
+import { mediaTimeFromSeconds } from "@/lib/opencut/wasm";
 import { storageService } from "@/lib/opencut/services/storage/service";
 import type { TProjectMetadata } from "@/lib/opencut/project/types";
 import { getImageBlob } from "@/services/image-storage";
@@ -146,6 +149,7 @@ function EditorWorkspace({
     const [libraryQuery, setLibraryQuery] = useState("");
     const [libraryKind, setLibraryKind] = useState<(typeof libraryKinds)[number]>("all");
     const [canvasOnly, setCanvasOnly] = useState(false);
+    const [addToTimeline, setAddToTimeline] = useState(true);
     const [importProgress, setImportProgress] = useState<{ done: number; total: number } | null>(null);
     const importing = importProgress !== null;
     const importInFlight = useRef(false);
@@ -267,6 +271,7 @@ function EditorWorkspace({
         setImportProgress({ done: 0, total: chosenAssets.length });
         let imported = 0;
         let completed = false;
+        let timelineCursor = addToTimeline ? editor.timeline.getTotalDuration() : 0;
         try {
             for (const asset of chosenAssets) {
                 const blob = asset.storageKey ? await (asset.kind === "image" ? getImageBlob(asset.storageKey) : getMediaBlob(asset.storageKey)) : await readLibraryBlob(asset.url);
@@ -278,6 +283,18 @@ function EditorWorkspace({
                 if (!processed) throw new Error(t("editingStudio.assetImportFailed", { name: asset.title }));
                 const saved = await editor.media.addMediaAsset({ projectId: activeProject.metadata.id, asset: { ...processed, sourceAssetId: asset.id } });
                 if (!saved) throw new Error(t("editingStudio.assetImportFailed", { name: asset.title }));
+                if (addToTimeline) {
+                    const duration = saved.duration != null ? mediaTimeFromSeconds({ seconds: saved.duration }) : DEFAULT_NEW_ELEMENT_DURATION;
+                    const element = buildElementFromMedia({
+                        mediaId: saved.id,
+                        mediaType: saved.type,
+                        name: saved.name,
+                        duration,
+                        startTime: timelineCursor,
+                    });
+                    editor.timeline.insertElement({ element, placement: { mode: "auto" } });
+                    timelineCursor += duration;
+                }
                 imported += 1;
                 setImportProgress({ done: imported, total: chosenAssets.length });
                 setSelectedIds((ids) => ids.filter((id) => id !== asset.id));
@@ -373,6 +390,7 @@ function EditorWorkspace({
                     <Input ref={librarySearchRef} className="!w-auto min-w-40 flex-1" disabled={importing} allowClear value={libraryQuery} aria-label={t("assets.search")} placeholder={t("assets.search")} prefix={<Search className="size-4 text-muted-foreground" />} onChange={(event) => setLibraryQuery(event.target.value)} />
                     <Segmented<(typeof libraryKinds)[number]> disabled={importing} value={libraryKind} onChange={setLibraryKind} options={libraryKinds.map((value) => ({ value, label: t(value === "all" ? "common.all" : `assets.kinds.${value}`) }))} />
                     {fromCanvasCount > 0 && <Checkbox disabled={importing} checked={canvasOnly} onChange={(event) => setCanvasOnly(event.target.checked)}>{t("editingStudio.thisCanvasOnly")}</Checkbox>}
+                    <Checkbox disabled={importing} checked={addToTimeline} onChange={(event) => setAddToTimeline(event.target.checked)}>{t("editingStudio.addToTimelineOnImport")}</Checkbox>
                 </div>
                 <div aria-busy={importing} className="max-h-[48vh] divide-y divide-border overflow-y-auto overscroll-contain">
                     {visibleLibraryAssets.map((asset) => {
