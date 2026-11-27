@@ -847,10 +847,10 @@ function InfiniteCanvasPage() {
             }),
         [connections, displayNodeById, viewBounds],
     );
-    // The node toolbar follows hover, while multi-selection keeps its own toolbar only.
-    const toolbarCandidateId = selectedNodeIds.size > 1 ? null : hoveredNodeId;
-    const toolbarNode = toolbarCandidateId ? displayNodeById.get(toolbarCandidateId) ?? null : null;
+    // 对齐 BeefTV：节点悬浮栏仅在单选节点时显示，悬停不再误弹出。
     const singleSelectedNodeId = selectedNodeIds.size === 1 ? Array.from(selectedNodeIds)[0] : null;
+    const toolbarCandidateId = singleSelectedNodeId;
+    const toolbarNode = toolbarCandidateId ? displayNodeById.get(toolbarCandidateId) ?? null : null;
     const activeDialogNode = dialogNodeId ? nodeById.get(dialogNodeId) ?? null : null;
     const activeDialogIsMediaResult = Boolean(activeDialogNode?.metadata?.content || activeDialogNode?.metadata?.storageKey);
     const isMediaGeneratingToolbarNode = Boolean(
@@ -887,7 +887,7 @@ function InfiniteCanvasPage() {
     const storyboardInitialScript = useMemo(() => selectedNodes.filter((node) => node.type === CanvasNodeType.Text).map((node) => node.metadata?.content || node.metadata?.prompt || "").filter(Boolean).join("\n"), [selectedNodes]);
     const canGroupSelection = canGroupSelectedNodes(selectedNodeIds, nodes);
     const canUngroupSelection = canUngroupSelectedNodes(selectedNodeIds, nodes);
-    const activeNodeId = hasMultipleSelectedNodes ? null : hoveredNodeId || (selectedNodeIds.size === 1 ? Array.from(selectedNodeIds)[0] : null);
+    const activeNodeId = hasMultipleSelectedNodes ? null : singleSelectedNodeId;
     const groupChildCountById = useMemo(() => {
         const map = new Map<string, number>();
         nodes.forEach((node) => {
@@ -1948,9 +1948,10 @@ function InfiniteCanvasPage() {
                     rafRef.current = requestAnimationFrame(() => {
                         const snap = dragSnapRef.current?.({ x: dx, y: dy }, currentViewport.k);
                         const offset = snapToGrid ? snapCanvasOffsetToGrid(snap?.offset ?? { x: dx, y: dy }, initialPositions) : snap?.offset ?? { x: dx, y: dy };
-                        const previewNodes = moveDraggedNodes(nodesRef.current, initialPositions, offset);
+                        const hasGroup = nodesRef.current.some((n) => n.type === CanvasNodeType.Group);
+                        const nextGroupId = hasGroup ? findGroupDropTarget(movedIds, moveDraggedNodes(nodesRef.current, initialPositions, offset))?.id || null : null;
                         setDragGuides(snapToGrid ? {} : snap?.guides ?? {});
-                        setDropTargetGroupId(findGroupDropTarget(movedIds, previewNodes)?.id || null);
+                        setDropTargetGroupId((prev) => (prev === nextGroupId ? prev : nextGroupId));
                         setDragPreview({ initialPositions, offset });
                         rafRef.current = null;
                     });
@@ -3879,6 +3880,7 @@ function InfiniteCanvasPage() {
         setContextMenu({ type: "node", x: event.clientX, y: event.clientY, nodeId });
     }, [referencePickerNodeId]);
 
+    const handleOpenNodeVersions = useCallback((node: CanvasNodeData) => setVersionCompareRootId(versionRootIdOf(node)), []);
     const renderNodePanel = useCallback(
         (panelNode: CanvasNodeData) =>
             getNodeDefinition(panelNode.type)?.Panel ? (
@@ -3905,10 +3907,11 @@ function InfiniteCanvasPage() {
                     onReplaceReference={replaceNodeReference}
                     onStartReferenceSelection={startNodeReferenceSelection}
                     modeOverride={getNodeDefinition(panelNode.type)?.useBuiltinPanel?.mode}
+                    onNodePointerDown={handleNodePointerDown}
                     onSettingsOpenChange={setNodeSettingsPopoverOpen}
                 />
             ),
-        [confirmStopGeneration, connectedNodesByNodeId, connections, disconnectNodeReference, exitNodeReferenceSelection, handleConfigNodeChange, handleGenerateNode, handleNodePromptChange, mentionReferencesByNodeId, moveNodeReference, nodes, pollComfyImageNode, pollVideoNodeTask, referencePickerNodeId, referencePromptUpdate, renderPluginPanel, replaceNodeReference, runningNodeId, startNodeReferenceSelection],
+        [confirmStopGeneration, connectedNodesByNodeId, connections, disconnectNodeReference, exitNodeReferenceSelection, handleConfigNodeChange, handleGenerateNode, handleNodePromptChange, mentionReferencesByNodeId, moveNodeReference, nodes, pollComfyImageNode, pollVideoNodeTask, referencePickerNodeId, referencePromptUpdate, handleNodePointerDown, renderPluginPanel, replaceNodeReference, runningNodeId, startNodeReferenceSelection],
     );
 
     const hoverPreviewNode = hoverPreviewNodeId ? nodeById.get(hoverPreviewNodeId) || null : null;
@@ -4097,7 +4100,7 @@ function InfiniteCanvasPage() {
                             onDeleteBatchImage={deleteBatchImage}
                             onRetry={handleNodeRetry}
                             onViewImage={handleNodeViewImage}
-                            onOpenVersions={(node) => setVersionCompareRootId(versionRootIdOf(node))}
+                            onOpenVersions={handleOpenNodeVersions}
                             onSelectReference={selectNodeReference}
                             onContextMenu={handleNodeContextMenu}
                         />
@@ -4126,7 +4129,7 @@ function InfiniteCanvasPage() {
                         onClose={cancelPendingConnectionCreate}
                     />
                 ) : null}
-                {activePanelNodeId && !selectionBox && !isNodeResizing && (() => {
+                {activePanelNodeId && !selectionBox && !isNodeResizing && !(isNodeDragging && dragPreview) && (() => {
                     const panelNode = displayNodeById.get(activePanelNodeId);
                     if (!panelNode || panelNode.type === CanvasNodeType.Group || getNodeDefinition(panelNode.type)?.hidePanel) return null;
                     const center = viewport.x + (panelNode.position.x + panelNode.width / 2) * viewport.k;
@@ -4189,7 +4192,7 @@ function InfiniteCanvasPage() {
                 </div>
 
                 <CanvasNodeHoverToolbar
-                    node={isNodeResizing || nodeSettingsPopoverOpen || Boolean(referencePickerNodeId) || expandedBatchNodeIds.has(toolbarNode?.id || "") || isEmptyContentToolbarNode || isMediaGeneratingToolbarNode || (Boolean(dialogNodeId) && !activeDialogIsMediaResult) ? null : toolbarNode}
+                    node={(isNodeDragging && Boolean(dragPreview)) || isNodeResizing || nodeSettingsPopoverOpen || Boolean(referencePickerNodeId) || expandedBatchNodeIds.has(toolbarNode?.id || "") || isEmptyContentToolbarNode || isMediaGeneratingToolbarNode || (Boolean(dialogNodeId) && !activeDialogIsMediaResult) ? null : toolbarNode}
                     panelNodeId={dialogNodeId}
                     viewport={viewport}
                     onKeep={handleNodeHoverStart}

@@ -3,6 +3,13 @@ title: Pending Tests
 description: Implemented changes that still need manual verification
 ---
 
+## V-key fix, click-selected node toolbar, drag-hide overlays, BeefTV composer & runtime perf
+
+- Press `V` and `H` on the canvas: `V` should only switch to Select/Move without creating a Video node (Video quick-create is now `M`).
+- Hover across multiple populated nodes without clicking: the node hover toolbar should stay hidden until a single node is clicked/selected.
+- Drag a selected node that has both its toolbar and prompt panel open: both overlays should hide as soon as dragging starts (> 3px) and cleanly reappear upon release. Simple clicks without dragging should not flicker.
+- Inspect the redesigned node prompt panel on Image/Video/Audio/Text nodes: verify the seamless unified surface, dragging the node by the composer header, borderless settings trigger, and circular monochrome Generate button.
+
 ## Media node dragging, reset view, bottom controls & composer/settings alignment
 
 - Drag a populated Video node by its video frame (above the bottom 48px control bar): the node should move smoothly like an Image node, while clicking play/scrub/volume in the bottom 48px still controls playback. Verify Audio node card dragging and wheel-zooming over both Video and Audio nodes.

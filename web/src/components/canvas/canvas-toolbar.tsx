@@ -141,6 +141,7 @@ export function CanvasToolbar({
             const key = event.key.toLowerCase();
             if (key !== "v" && key !== "h") return;
             event.preventDefault();
+            event.stopImmediatePropagation();
             onCanvasToolChange(key === "h" ? "pan" : "select");
             setToolMenuOpen(false);
         };

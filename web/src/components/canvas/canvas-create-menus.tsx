@@ -27,7 +27,7 @@ export type PendingConnectionCreate = {
 export const NODE_CREATE_SHORTCUTS: Readonly<Record<string, string>> = {
     [CanvasNodeType.Text]: "T",
     [CanvasNodeType.Image]: "I",
-    [CanvasNodeType.Video]: "V",
+    [CanvasNodeType.Video]: "M",
     [CanvasNodeType.Audio]: "A",
 };
 

@@ -37,11 +37,10 @@ export function CanvasSettingsTrigger({
                 title={`${title} · ${summary}`}
                 className={
                     buttonClassName ||
-                    "focus-ring inline-flex h-[var(--control-h-sm)] max-w-[220px] cursor-pointer items-center gap-1.5 rounded-full border px-2.5 text-[length:var(--fs-caption)] font-medium transition hover:opacity-90"
+                    "focus-ring inline-flex h-7 max-w-[210px] cursor-pointer items-center gap-1.5 rounded-[var(--r-md)] px-2 text-[length:var(--fs-caption)] font-normal tabular-nums transition hover:opacity-90"
                 }
                 style={{
                     background: open ? theme.toolbar.activeBg : theme.toolbar.itemHover,
-                    borderColor: open ? theme.node.activeStroke : theme.toolbar.border,
                     color: theme.node.text,
                     width: buttonWidth === null ? undefined : "100%",
                 }}

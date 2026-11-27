@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { ArrowUp, AudioLines, FileText, Film, Image as ImageIcon, LoaderCircle, Maximize2, RefreshCw, Square } from "lucide-react";
-import { App, Button, Modal, Tooltip } from "antd";
+import { App, Modal, Tooltip } from "antd";
 import { useTranslation } from "react-i18next";
 
 import { ModelPicker } from "@/components/model-picker";
@@ -42,6 +42,7 @@ type CanvasNodePromptPanelProps = {
     onMoveReference?: (sourceId: string, targetId: string, delta: -1 | 1) => void;
     onReplaceReference?: (sourceId: string, targetId: string, replacementId: string) => void;
     onStartReferenceSelection?: (nodeId: string) => void;
+    onNodePointerDown?: (event: ReactPointerEvent, nodeId: string) => void;
     onSettingsOpenChange?: (open: boolean) => void;
     modeOverride?: CanvasNodeGenerationMode; // Plugin nodes set their generation type through useBuiltinPanel.mode.
 };
@@ -53,7 +54,29 @@ const COMPOSER_MODE_META: Record<CanvasGenerationMode, { labelKey: string; icon:
     text: { labelKey: "canvas.nodeTypes.text", icon: FileText },
 };
 
-export function CanvasNodePromptPanel({ node, nodes, connections, selectingReferences = false, referencePromptUpdateId, onFinishReferenceSelection, isRunning, onPromptChange, onConfigChange, onGenerate, onStop, onQueryTask, mentionReferences = [], connectedNodes = [], onDisconnectReference, onMoveReference, onReplaceReference, onStartReferenceSelection, onSettingsOpenChange, modeOverride }: CanvasNodePromptPanelProps) {
+export function CanvasNodePromptPanel({
+    node,
+    nodes,
+    connections,
+    selectingReferences = false,
+    referencePromptUpdateId,
+    onFinishReferenceSelection,
+    isRunning,
+    onPromptChange,
+    onConfigChange,
+    onGenerate,
+    onStop,
+    onQueryTask,
+    mentionReferences = [],
+    connectedNodes = [],
+    onDisconnectReference,
+    onMoveReference,
+    onReplaceReference,
+    onStartReferenceSelection,
+    onNodePointerDown,
+    onSettingsOpenChange,
+    modeOverride,
+}: CanvasNodePromptPanelProps) {
     const { t } = useTranslation();
     const { message } = App.useApp();
     const globalConfig = useEffectiveConfig();
@@ -70,14 +93,13 @@ export function CanvasNodePromptPanel({ node, nodes, connections, selectingRefer
     const isEditingExistingContent = hasTextContent || hasImageContent;
     const [prompt, setPrompt] = useState(node.metadata?.composerContent ?? node.metadata?.prompt ?? "");
     const [expanded, setExpanded] = useState(false);
-    const [promptHeight, setPromptHeight] = useState(124);
+    const [promptHeight, setPromptHeight] = useState(112);
     const [expandedPromptHeight, setExpandedPromptHeight] = useState(420);
     const [promptFontSize, setPromptFontSize] = useState(() => {
         const stored = typeof window === "undefined" ? Number.NaN : Number(window.localStorage.getItem("intx-canvas-prompt-font-size"));
         return Number.isFinite(stored) && stored >= 12 && stored <= 28 ? stored : 14;
     });
 
-    // Restore the stored draft when switching nodes or inserting a reference from the canvas.
     useEffect(() => {
         setPrompt(node.metadata?.composerContent ?? node.metadata?.prompt ?? "");
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -122,45 +144,48 @@ export function CanvasNodePromptPanel({ node, nodes, connections, selectingRefer
         <div
             data-canvas-no-zoom
             data-canvas-prompt-panel
-            className="rounded-[var(--r-xl)] border p-3 shadow-[var(--shadow-lg)] backdrop-blur-xl"
-            style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text }}
+            className="rounded-[var(--r-xl)] border px-3 pb-2.5 pt-2 backdrop-blur-xl"
+            style={{ background: theme.node.panel, borderColor: theme.toolbar.border, color: theme.node.text, boxShadow: theme.node.shadow }}
             onMouseDown={(event) => event.stopPropagation()}
             onPointerDown={(event) => event.stopPropagation()}
             onWheel={(event) => event.stopPropagation()}
         >
-            {/* 顶部模式头栏：对齐 BeefTV 的 composer 层次，明确当前生成模式并把字号/放大收在右侧 */}
-            <div className="mb-2 flex items-center justify-between gap-2">
-                <div className="flex min-w-0 items-center gap-1.5">
-                    <span
-                        className="grid size-6 shrink-0 place-items-center rounded-[var(--r-sm)]"
-                        style={{ background: theme.toolbar.itemHover, color: theme.node.text }}
-                        aria-hidden
-                    >
+            {/* 顶部轻盈模式头栏（参考 BeefTV）：支持直接拖拽移动所属节点，右侧收口字号与放大编辑 */}
+            <div
+                className="mb-1 flex h-7 cursor-grab select-none items-center justify-between gap-2 active:cursor-grabbing"
+                data-canvas-node-drag-handle
+                onPointerDown={(event) => {
+                    const target = event.target instanceof Element ? event.target : null;
+                    if (!target?.closest("button,input,textarea,select,a,[contenteditable='true']")) {
+                        onNodePointerDown?.(event, node.id);
+                    }
+                }}
+            >
+                <div className="flex min-w-0 items-center gap-1.5 text-[length:var(--fs-caption)]">
+                    <span className="grid size-3.5 shrink-0 place-items-center" style={{ color: theme.node.activeStroke }} aria-hidden>
                         <ModeIcon className="size-3.5" />
                     </span>
-                    <span className="truncate text-[length:var(--fs-caption)] font-semibold" style={{ color: theme.node.text }}>
+                    <span className="truncate font-medium" style={{ color: theme.node.text }}>
                         {t(COMPOSER_MODE_META[mode].labelKey)}
                     </span>
                     {connectedNodes.length > 0 ? (
-                        <span
-                            className="inline-flex h-5 shrink-0 items-center rounded-full px-2 text-[length:var(--fs-label)] tabular-nums"
-                            style={{ background: theme.toolbar.itemHover, color: theme.node.muted }}
-                        >
-                            @{connectedNodes.length}
+                        <span className="truncate text-[length:var(--fs-label)] tabular-nums" style={{ color: theme.node.muted }}>
+                            · @{connectedNodes.length}
                         </span>
                     ) : null}
                 </div>
                 <div className="flex shrink-0 items-center gap-0.5">
                     <CanvasPromptFontControl value={promptFontSize} onChange={setPromptFontSize} />
                     <Tooltip title={t("canvas.promptPanel.expandEditor")}>
-                        <Button
-                            type="text"
-                            className="!h-7 !w-7 !min-w-7 !p-0"
+                        <button
+                            type="button"
+                            className="focus-ring grid size-6 cursor-pointer place-items-center rounded-[var(--r-sm)] transition hover:bg-[var(--surface-card-hover)]"
                             style={{ color: theme.node.muted }}
-                            icon={<Maximize2 className="size-3.5" />}
                             onClick={() => setExpanded(true)}
                             aria-label={t("canvas.promptPanel.expandEditor")}
-                        />
+                        >
+                            <Maximize2 className="size-3.5" />
+                        </button>
                     </Tooltip>
                 </div>
             </div>
@@ -180,12 +205,12 @@ export function CanvasNodePromptPanel({ node, nodes, connections, selectingRefer
             />
 
             {(inputStatus.length > 0 || missingFields.length > 0) && (
-                <div className="mb-2 space-y-1" role="status">
+                <div className="mb-1.5 space-y-1" role="status">
                     <div className="flex flex-wrap gap-1.5">
                         {inputStatus.map(({ id, kind, actual, needed }, index) => {
                             const short = actual < needed;
                             return (
-                                <span key={`${id}:${index}`} className="inline-flex h-6 items-center gap-1 rounded-[var(--r-sm)] px-2 tabular-nums text-[length:var(--fs-label)]" style={{ background: theme.toolbar.activeBg, color: short ? "var(--destructive)" : theme.node.muted }}>
+                                <span key={`${id}:${index}`} className="inline-flex h-5 items-center gap-1 rounded-[var(--r-sm)] px-2 tabular-nums text-[length:var(--fs-label)]" style={{ background: theme.toolbar.itemHover, color: short ? "var(--destructive)" : theme.node.muted }}>
                                     {t(`canvas.promptPanel.requiredMedia.${kind}`, { actual: Math.min(actual, needed), needed })}
                                 </span>
                             );
@@ -196,34 +221,31 @@ export function CanvasNodePromptPanel({ node, nodes, connections, selectingRefer
                 </div>
             )}
 
-            {/* 输入表面采用轻描边 + 节点表面色，摆脱厚重不透明底块，输入区更通透 */}
-            <div
-                className="relative overflow-hidden rounded-[var(--r-lg)] border transition-colors focus-within:border-[var(--workspace-accent)]"
-                style={{ height: promptHeight, background: theme.node.fill, borderColor: theme.toolbar.border }}
-            >
+            {/* 一体化无缝输入区（参考 BeefTV）：去掉嵌套重边框与厚底块，直接铺在面板表面 */}
+            <div className="relative overflow-hidden" style={{ height: promptHeight }}>
                 <CanvasPromptChipInput
                     value={prompt}
                     references={mentionReferences}
                     onChange={updatePrompt}
                     onSubmit={submit}
-                    className="thin-scrollbar h-full w-full cursor-text resize-none rounded-[var(--r-lg)] px-3 py-2.5 pb-6 leading-6 outline-none"
+                    className="thin-scrollbar h-full w-full cursor-text resize-none bg-transparent px-0.5 py-1 pb-5 leading-6 outline-none"
                     style={{ background: "transparent", color: theme.node.text, fontSize: promptFontSize }}
                     placeholder={t(`canvas.promptPanel.${mode === "image" && hasImageContent ? "editImage" : mode === "text" && hasTextContent ? "editText" : mode}`)}
                 />
-                <CanvasPromptResizeHandle height={promptHeight} min={84} max={360} onResize={setPromptHeight} />
+                <CanvasPromptResizeHandle height={promptHeight} min={72} max={360} onResize={setPromptHeight} />
             </div>
 
-            {/* 底部操作栏：左侧模型选择器，右侧统一参数胶囊 + 高对比圆角提交按钮 */}
-            <div className="mt-2.5 flex min-w-0 flex-wrap items-center gap-2">
+            {/* 底部轻盈操作尾栏（参考 BeefTV）：左侧模型选择，右侧无描边参数胶囊 + 圆形单色高亮提交按钮 */}
+            <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5 pt-1">
                 <ModelPicker
                     config={config}
                     value={config.model}
                     onChange={(model) => onConfigChange(node.id, { model })}
                     capability={mode}
                     onMissingConfig={() => openConfigDialog(true)}
-                    className="min-w-0 max-w-[230px] grow basis-28"
+                    className="min-w-0 max-w-[210px] grow basis-28"
                 />
-                <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1.5">
+                <div className="ml-auto flex min-w-0 items-center justify-end gap-1.5">
                     <div className="min-w-0">
                         {workflow ? (
                             <CanvasWorkflowSettings config={config} onChange={(workflowValues) => onConfigChange(node.id, { workflowValues })} onOpenChange={onSettingsOpenChange} />
@@ -263,36 +285,29 @@ export function CanvasNodePromptPanel({ node, nodes, connections, selectingRefer
                             disabled={submitDisabled}
                             onClick={() => (isRunning ? onStop(node.id) : canQuery ? onQueryTask(node) : submit())}
                             aria-label={actionLabel}
-                            className="focus-ring inline-flex h-[var(--control-h-sm)] shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-full px-3 text-[length:var(--fs-caption)] font-medium transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-45"
+                            className={`focus-ring inline-flex h-7 shrink-0 cursor-pointer items-center justify-center gap-1 rounded-full text-[length:var(--fs-caption)] font-medium transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-45 ${isRunning || canQuery ? "px-2.5" : "w-7 p-0"}`}
                             style={
                                 isRunning
                                     ? { background: "var(--destructive)", color: "var(--destructive-foreground)" }
                                     : submitDisabled
                                         ? { background: theme.toolbar.itemHover, color: theme.node.muted }
-                                        : { background: theme.node.text, color: theme.node.panel }
+                                        : { background: theme.node.activeStroke, color: theme.canvas.background }
                             }
                         >
                             {isRunning ? (
                                 <>
                                     <LoaderCircle aria-hidden className="size-3.5 motion-safe:animate-spin" />
-                                    <Square className="size-3 fill-current" />
-                                    <span>{t("canvas.promptPanel.stop")}</span>
+                                    <Square className="size-2.5 fill-current" />
                                 </>
                             ) : waiting ? (
-                                <>
-                                    <LoaderCircle aria-hidden className="size-3.5 motion-safe:animate-spin" />
-                                    <span>{t("canvas.node.generating")}</span>
-                                </>
+                                <LoaderCircle aria-hidden className="size-3.5 motion-safe:animate-spin" />
                             ) : canQuery ? (
                                 <>
                                     <RefreshCw className="size-3.5" />
                                     <span>{actionLabel}</span>
                                 </>
                             ) : (
-                                <>
-                                    <ArrowUp className="size-3.5" strokeWidth={2.4} />
-                                    <span>{actionLabel}</span>
-                                </>
+                                <ArrowUp className="size-3.5" strokeWidth={2.4} />
                             )}
                         </button>
                     </Tooltip>

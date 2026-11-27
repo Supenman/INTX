@@ -224,6 +224,18 @@
 | 视觉组件 | 现有 Tailwind 4、antd、canvas theme | 已在项目安装并与主题/交互状态集成，不增加第二套视觉体系 | `web/src/components/canvas/`、`web/src/lib/app-theme.ts`、canvas theme 相关文件 | 不新增库；各阶段 1–5 |
 | 视频剪辑 | 已集成 OpenCut Classic（MIT） | 当前作为 INTX `/editing-studio` 页面使用，可沿用素材库与项目入口 | `web/src/lib/opencut/`、路由及剪辑台页面 | 0 人日移植；本轮只统一入口/回流 |
 
+## v4 批次：快捷键冲突、拖拽隐藏浮层、composer 重排与运行时性能
+
+对照 BeefTV 的画布交互与 composer 布局，在不改快照 codec/schema、不引入第二套状态、不复制源码的前提下完成本批源码级对齐（补丁 `intx-canvas-ux-perf-v4`）：
+
+- **V 键冲突**：视频节点 quick-create 单键由 `V` 改为 `M`（`NODE_CREATE_SHORTCUTS`），`CanvasToolbar` 的 `V`/`H` 切换加 `stopImmediatePropagation`，避免先切工具又插入视频节点。快捷键作用域测试仍通过。
+- **悬浮栏单选化**：`project.tsx` 的 `toolbarNode` 与 `activeNodeId` 只跟随单选节点，不再跟随 hover，悬停不再误弹悬浮栏。
+- **拖拽隐藏浮层**：`isNodeDragging && dragPreview` 期间隐藏节点悬浮栏与提示词面板，松手恢复；拖拽分组落点改为仅在结果变化时更新 state，减少每帧重渲染。
+- **composer 深度对齐**：提示词面板改为一体化无缝 `theme.node.panel` 表面、可拖拽头栏（`data-canvas-node-drag-handle` 经 `onNodePointerDown` 直接移动节点）、无内边框输入区、无描边参数胶囊与圆形单色高亮提交按钮；模式头栏沿用 `canvas.nodeTypes.*` i18n key（保留 v3 修复，补丁旧上下文 `canvas.node.text` 已就地校正）。
+- **运行时性能**：`CanvasNode` 拖拽改用 `translate3d` + `willChange: transform` 合成层；`onOpenVersions` 改为 `useCallback` 修复 `React.memo` 失效；无分组时跳过拖拽 RAF 每帧的全量分组碰撞计算。
+
+静态门禁：typecheck 0、边界通过、tokens 139/145、结构 6429/6442；vitest 87 文件 948 例全绿。交互、视觉与性能收益需在 Windows WebView2 上实测；Linux 沙箱只做静态与单测验证，不声称帧率/视觉已测量。
+
 ## 6. 未验证项
 
 - BeefTV 的各模式、节点状态、悬浮栏和动效在运行时的全部显示条件；必须读具体组件和条件分支后确认。

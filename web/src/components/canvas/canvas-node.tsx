@@ -321,7 +321,7 @@ export const CanvasNode = React.memo(function CanvasNode({
             data-node-id={data.id} data-node-status={data.metadata?.status || "idle"} data-resizing={resizeRef.current.isResizing ? "true" : undefined} data-resize-label={`${Math.round(data.width)} × ${Math.round(data.height)}`} role="group" aria-label={data.title || t("canvas.node.untitled")} tabIndex={-1}
             className={`node-element group/node absolute flex select-none flex-col transition-shadow duration-200 ${isGroup ? "z-[5]" : isSelected ? "z-50" : "z-10"} ${isDragging ? "cursor-grabbing" : referenceSelectionState === "available" ? "cursor-pointer" : referenceSelectionState ? "cursor-not-allowed" : ""}`}
             style={{
-                transform: `translate(${data.position.x}px, ${data.position.y}px)`,
+                transform: `translate3d(${data.position.x}px, ${data.position.y}px, 0)`, willChange: isDragging ? "transform" : undefined,
                 width: data.width,
                 height: data.height,
                 contain: "layout style",

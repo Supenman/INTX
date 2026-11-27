@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- [修复] 画布快捷键冲突、选中态悬浮栏、拖拽隐藏浮层、BeefTV 风格输入框与运行时性能优化：① 修复按 `V` 键误往画布插入视频节点的问题：将新建视频节点单键快捷键由 `V` 调整为 `M` 并在工具栏 `V`/`H` 切换时阻断冒泡，彻底消除与移动工具 `V` 的冲突；② 节点悬浮栏对齐 BeefTV：改为仅在单选节点时显示，鼠标悬停节点不再误弹出悬浮栏；③ 拖拽节点期间（移动超过 3px 后）同时隐藏节点悬浮栏与底部提示词输入框，松手后自动恢复，避免拖拽遮挡与高频重排；④ 节点提示词输入框深度对齐 BeefTV：采用一体化无缝 `theme.node.panel` 表面、顶部可拖拽模式头栏（拖动头栏直接移动节点）、无冗余内边框的通透输入区，以及无描边参数胶囊与圆形单色高亮提交按钮；⑤ 画布运行时性能优化：将 `CanvasNode` 的 `onOpenVersions` 改为 `useCallback` 修复 `React.memo` 失效问题，拖拽节点升级 `translate3d` + `willChange: transform` 合成层，无分组节点时跳过拖拽 RAF 每帧的全量分组碰撞计算。
+
 - [修复] 画布真实体验四项修复与 BeefTV 深度对齐：① 修复有内容的视频/音频节点拖不动的问题：移除 `<video>`/`<audio>` 上的 `data-canvas-no-zoom`，通过 `isNativeMediaControlHit` 仅保留视频底部 48px 原生播放控制条与音频条交互，视频画面主体与音频卡片区域可像图片节点一样直接拖拽并支持滚轮缩放；② 重置视图逻辑对齐 BeefTV：`computeResetViewport` 在画布存在节点时以 88px 留白居中适配全部节点并平滑过渡，仅空画布回落世界原点；③ 画布底部控件对齐 BeefTV：底部居中工具栏新增 `V`（移动框选）/ `H`（抓手平移）快捷键及菜单按键提示，左下角缩放坞统一为 `h-12 rounded-2xl` 与居中工具栏齐平，新增网格吸附开关、一键自动整理直达按钮与可编辑百分比缩放弹层；④ 节点提示词输入框与四类高级设置浮层统一升级：输入框新增模式头栏、轻盈描边输入表面与高对比圆角提交按钮，抽取 `CanvasSettingsPortalShell` 统一图片/视频/音频/文本四类设置触发胶囊与带标题摘要关闭栏的玻璃态浮层，统一四类内部面板紧凑高度与选中边框（补 4 例单测，全量 87 文件 948 例通过，令牌降至 139/145，修复 Vite `vendor-motion` 循环分包告警）。
 
 - [优化] 首屏主包二次瘦身、`project.tsx` 结构减负与画布活跃任务/专注模式：`AppConfigModal`（含 `CodeMirror` 513 KB）与 `OpencodeAgentPanel`（含 `streamdown` 510 KB）改为按需懒加载，并配 Vite `manualChunks` 拆分重型依赖，首页主入口再从 3.17 MB 压低且零循环依赖警告；从 `project.tsx` 抽离网格吸附与辅助函数至 `canvas-drag-snap.ts` / `canvas-project-helpers.ts`，结构预算从 6432 降至 6405（基线 6442，净减 37，补 3 例网格吸附单测至 944 例全绿）；对照 BeefTV 新增画布内「活跃生成任务浮标」（`CanvasActiveTaskPill`，平移远离生成中节点时一键定位）与「专注模式」（`CanvasFocusModeBar`，隐藏外围 chrome 沉浸看图/演示，按 `Esc` 退出）。
