@@ -318,7 +318,7 @@ Linux 沙箱实测：干净环境（删掉试跑时的临时软链）下 `prepar
 - **功能**：渠道编辑器一键供应商预设；任务页资产缩略图/内联媒体预览；剪辑台多项目切换与直接导入未归档画布媒体；ComfyUI 异步多输出扩展到 chain/mask/upscale/angle/preset（新增 `lib/canvas/comfy-image-runner.ts`，`canvas/project.tsx` 接入）。
 - 修复补丁源码笔误：`editing-studio/index.tsx` 的 `TProjectMetadata` import 误写为 `@/lib/opencut/types/project`（路径段顺序反了），改为项目实际使用的 `@/lib/opencut/project/types`，否则 typecheck 报 TS2307。
 
-静态门禁 typecheck 0、tokens 130/145、结构 6429/6442、boundaries/overflow 通过、vitest 88 文件 951 例 + bun 19 例全绿。这批改动在 v0.2.4-beta.1 打包之后合入，需随下一版发布生效。所有功能项已记入 pending-test 中英清单待人工验收。
+静态门禁 typecheck 0、tokens 130/145、结构 6429/6442、boundaries/overflow 通过、vitest 88 文件 951 例 + bun 19 例全绿。这批改动已在 v0.2.4-beta.2 测试版打包生效。所有功能项已记入 pending-test 中英清单待人工验收。
 
 ## 6. 未验证项
 

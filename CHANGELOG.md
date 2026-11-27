@@ -1,6 +1,8 @@
 # CHANGELOG
 
-## Unreleased
+## v0.2.4-beta.2（测试版）
+
+- [发版] INTX v0.2.4-beta.2 测试版：同步 `VERSION` / `tauri.conf.json` / `Cargo.toml`(含 `Cargo.lock`) 至 0.2.4-beta.2，推送 `v0.2.4-beta.2` tag 触发 Windows NSIS 打包与零 Secret 发版，产出安装包与含 SHA-256 的 `update.json`；Release 标记为预发布（pre-release），仅供测试验收。本版打包 v12 批次的渠道预设、任务媒体预览、剪辑台多项目、ComfyUI 多输出流程与发版/媒体拉取修复。
 
 - [修复] 发布说明解析媒体链接与状态检查：`release.ts` 的 `parseChangelog` 正则兼容 `-`/`+` 两种列表前缀（此前只识别 `+`，导致 CHANGELOG 的 `-` 条目解析不到）；`file-storage.ts` 桌面端拉取 HTTP 媒体改用 `@tauri-apps/plugin-http` 的 `fetch` 绕过 WebView2 CORS，并检查 `response.ok`，非 2xx 显式抛错，避免把错误响应当成媒体写入。
 - [功能] 渠道编辑器新增一键供应商预设：常用模型供应商可一键填入地址/模型/能力配置，减少手工配置；`use-config-store` 扩展预设数据。
