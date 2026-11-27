@@ -1,5 +1,5 @@
 import type { AiConfig, ModelCapability, ModelChannel } from "@/stores/use-config-store";
-import { selectableModelsByCapability } from "@/stores/use-config-store";
+import { findChannelModel, selectableModelsByCapability } from "@/stores/use-config-store";
 
 export type ChannelReadinessStatus = "ready" | "missing-url" | "missing-key" | "missing-models";
 
@@ -39,12 +39,14 @@ export function diagnoseCapabilityCoverage(config: AiConfig): CapabilityCoverage
     return CAPABILITY_MODEL_KEYS.map(({ capability, modelKey }) => {
         const available = selectableModelsByCapability(config, capability);
         const configuredModel = config[modelKey] || "";
+        const matched = configuredModel ? findChannelModel(config, configuredModel) : null;
+        const channelReady = matched ? diagnoseChannel(matched.channel).ready : false;
         return {
             capability,
             modelKey,
             configuredModel,
             availableCount: available.length,
-            ready: available.length > 0 && Boolean(configuredModel),
+            ready: available.length > 0 && Boolean(configuredModel) && channelReady,
         };
     });
 }

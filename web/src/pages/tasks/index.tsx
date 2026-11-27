@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router-dom";
 
+import { ConfigTasks } from "@/components/layout/config-tasks";
 import { PageHeader, PageShell } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/layout/empty-state";
 import { TASK_KINDS, type Task, type TaskKind } from "@/domain/task/model";
@@ -14,11 +15,11 @@ import { useSaveFile } from "@/hooks/use-save-file";
 import { loadTaskLog, useTaskLogStore } from "@/services/generation";
 import { useAssetStore } from "@/stores/use-asset-store";
 
-type Bucket = "all" | "running" | "succeeded" | "ended";
+type Bucket = "all" | "running" | "verify" | "succeeded" | "ended";
 
-const BUCKETS: Bucket[] = ["all", "running", "succeeded", "ended"];
+const BUCKETS: Bucket[] = ["all", "running", "verify", "succeeded", "ended"];
 
-function bucketOf(task: Task): Exclude<Bucket, "all"> {
+function bucketOf(task: Task): Exclude<Bucket, "all" | "verify"> {
     if (task.status === "queued" || task.status === "running") return "running";
     if (task.status === "succeeded") return "succeeded";
     return "ended";
@@ -66,7 +67,7 @@ export default function TasksPage() {
     }, []);
 
     const counts = useMemo(() => {
-        const out: Record<Bucket, number> = { all: tasks.length, running: 0, succeeded: 0, ended: 0 };
+        const out: Record<Exclude<Bucket, "verify">, number> = { all: tasks.length, running: 0, succeeded: 0, ended: 0 };
         for (const task of tasks) out[bucketOf(task)] += 1;
         return out;
     }, [tasks]);
@@ -74,7 +75,7 @@ export default function TasksPage() {
     const filtered = useMemo(() => {
         const q = keyword.trim().toLowerCase();
         return tasks.filter((task) => {
-            if (bucket !== "all" && bucketOf(task) !== bucket) return false;
+            if (bucket !== "all" && bucket !== "verify" && bucketOf(task) !== bucket) return false;
             if (kind !== "all" && task.kind !== kind) return false;
             if (!q) return true;
             const haystack = [task.params.prompt, task.params.model, task.id, task.upstreamRef ?? ""].join(" ").toLowerCase();
@@ -112,7 +113,7 @@ export default function TasksPage() {
                         onChange={(value) => setBucket(value)}
                         options={BUCKETS.map((value) => ({
                             value,
-                            label: `${t(`tasks.filter.${value}`)} ${counts[value]}`,
+                            label: value === "verify" ? t("tasks.filter.verify") : `${t(`tasks.filter.${value}`)} ${counts[value]}`,
                         }))}
                     />
                     <div className="flex w-full flex-wrap items-center gap-2 @min-[760px]/workspace:w-auto">
@@ -136,6 +137,10 @@ export default function TasksPage() {
                 </div>
 
                 <div className="mt-4 pb-6">
+                    {bucket === "verify" ? (
+                        <ConfigTasks />
+                    ) : (
+                    <>
                     {loadError ? (
                         <div role="alert" className="mb-3 rounded-lg border border-red-200 px-4 py-3 text-sm text-red-600 dark:border-red-900/60 dark:text-red-400">
                             {loadError}{" "}
@@ -178,7 +183,7 @@ export default function TasksPage() {
                                                     <span className={`inline-block size-1.5 rounded-full ${task.status === "running" ? "bg-emerald-500" : task.status === "failed" ? "bg-red-500" : task.status === "canceled" ? "bg-muted-foreground/50" : task.status === "succeeded" ? "bg-muted-foreground" : "bg-amber-500"}`} />
                                                     <span>{t(`tasks.kind.${task.kind}`, { defaultValue: task.kind })}</span>
                                                     <span>·</span>
-                                                    <span className="min-w-0 break-all">{task.params.model || "—"}</span>
+                                                    <span className="min-w-0 break-all">{task.params.model?.split("::").pop() || "—"}</span>
                                                     <span>·</span>
                                                     <span>{t(`tasks.status.${task.status}`)}</span>
                                                     {task.status === "running" && task.phase ? <span>· {t(`tasks.phase.${task.phase}`)}</span> : null}
@@ -188,7 +193,7 @@ export default function TasksPage() {
                                                 <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                                                     <span>{dayjs(task.createdAt).format("MM-DD HH:mm")}</span>
                                                     <span>{t("tasks.detail.duration")} {formatDuration(durationMs(task))}</span>
-                                                    {task.params.count ? <span>{t("tasks.detail.count")} {task.params.count}</span> : null}
+                                                    {task.kind === "image" && task.params.count ? <span>{t("tasks.detail.count")} {task.params.count}</span> : null}
                                                     {task.resultAssetIds.length ? <span>{t("tasks.detail.results")} {task.resultAssetIds.length}</span> : null}
                                                     {task.cost ? <span>{task.cost.amount} {task.cost.currency}</span> : null}
                                                 </div>
@@ -212,6 +217,8 @@ export default function TasksPage() {
                                 );
                             })}
                         </div>
+                    )}
+                    </>
                     )}
                 </div>
             </main>

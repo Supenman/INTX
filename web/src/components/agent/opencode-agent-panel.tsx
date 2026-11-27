@@ -152,7 +152,7 @@ export function OpencodeAgentPanel() {
         (event: AgentEventPayload, text: string) => {
             const itemId = event.item?.id;
             if (!itemId || !text) return;
-            const scoped = scopeEventItem(event, { role: "assistant", title: "opencode", text, streamId: itemId }, itemId);
+            const scoped = scopeEventItem(event, { role: "assistant", title: "INTX Agent", text, streamId: itemId }, itemId);
             const messages = useAgentStore.getState().messages;
             const index = messages.findIndex((item) => item.id === scoped.id);
             if (index < 0) {
@@ -169,7 +169,7 @@ export function OpencodeAgentPanel() {
             const itemId = event.item?.id;
             if (!itemId) return;
             const text = stringText(event.item?.text);
-            const scoped = scopeEventItem(event, { role: "assistant", title: "opencode", text }, itemId);
+            const scoped = scopeEventItem(event, { role: "assistant", title: "INTX Agent", text }, itemId);
             const messages = useAgentStore.getState().messages;
             const index = messages.findIndex((item) => item.id === scoped.id);
             if (index < 0) {

@@ -2,13 +2,13 @@ import { BookOpen, Clapperboard, HardDrive, Images, ListChecks, Maximize2, Setti
 import type { ConfigTabKey } from "@/stores/use-config-store";
 
 /**
- * 设置分区收口（对齐 BeefTV 的「模型配置 / 存储设置」双入口）：
- * - 模型配置：统一承载渠道、使用偏好（默认模型与生成参数）与待核实任务；
- * - 存储设置：统一承载本地存储与 WebDAV 同步。
+ * 设置分区收口：
+ * - 模型配置：统一承载渠道与使用偏好（默认模型与生成参数）；
+ * - 存储设置：承载本地文件夹备份/恢复、工程包导入导出与存储空间清理。
  */
 const configSections = [
-    { slug: "config-channels", tabs: ["channels", "preferences", "tasks"], icon: Settings2 },
-    { slug: "config-storage", tabs: ["local-storage", "webdav"], icon: HardDrive },
+    { slug: "config-channels", tabs: ["channels", "preferences"], icon: Settings2 },
+    { slug: "config-storage", tabs: ["local-storage"], icon: HardDrive },
 ] as const satisfies ReadonlyArray<{ slug: string; tabs: readonly ConfigTabKey[]; icon: typeof Settings2 }>;
 
 export function configSectionForTab(tab: string | null) {

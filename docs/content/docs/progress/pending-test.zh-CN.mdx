@@ -3,6 +3,17 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## 本地文件夹备份与工作区整包（替代 WebDAV）
+
+- 打开「存储设置」（`/config?tab=local-storage`）：确认原 WebDAV 云同步入口已移除，改为「导出工作区整包 / 导入整包」与「备份到本地文件夹 / 从文件夹恢复」四组操作，并带进度提示。
+- 点「导出工作区整包」：确认生成的 zip 含画布、资产、生图工作台、视频工作台四域数据与清单（`app=intx`），且不含 AI API Key；把 zip 改坏清单后导入，应明确报「清单格式无效」而非崩溃。
+- 点「备份到本地文件夹」选择空目录：确认写入分业务目录与 `files/`，再次「从文件夹恢复」到干净环境后四域数据完整还原；中途取消应能被 `AbortSignal` 干净中止。
+- 确认模型配置弹窗大幅精简后，原「验证任务」入口已并入任务中心、各页面无遗留 WebDAV 文案残留（i18n 里未引用的 `webdav` 文案块为死代码，待下轮清理）。
+
+## UI/i18n 细节修复
+
+- 剪辑台导出按钮在深浅主题下对比度清晰；技能管理中英文切换无原始 key；模型就绪诊断、Agent 错误提示、画布顶栏与主题、拖拽遮罩、空态、项目迁移与技能页文案均本地化正确。
+
 ## 发版 sidecar 资源准备与 CI 加固
 
 - 在 Windows CI 上手动触发 `release-desktop` 工作流：确认 `Prepare & verify bundled sidecar resources` 步骤先执行两个准备脚本，且 `canvas-agent/dist/index.js`、`comfyui-gateway/src/server.js` 校验通过后才有 `pnpm tauri:build`。

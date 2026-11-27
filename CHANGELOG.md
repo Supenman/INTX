@@ -6,6 +6,12 @@
 
 ## Unreleased
 
+- [发版验证] v0.2.3 Windows 真机发版流水线全绿：`Release Desktop (Windows)` 从版本校验、依赖安装、sidecar 资源准备、NSIS 打包、SHA-256 清单到 Release 发布全部 success，`INTX_0.2.3_x64-setup.exe`（约 40.75 MB）与 `update.json` 已发布至 GitHub Release。v9 修复的跨平台 npm 探测与 CI sidecar 校验在真实 Windows 环境验证通过。
+
+- [调整] 存储模块从 WebDAV 云同步切换为本地文件夹备份与工作区整包：移除 `webdav-sync.ts` / `app-sync.ts` 及其测试，新增 `workspace-archive.ts`（导出/导入工作区 zip 包、备份/恢复到本地文件夹，覆盖画布/资产/生图/视频四域并含清单校验），配置 tab 从 `webdav` 改为 `local-storage`、导航合并为「存储设置」。修复补丁源码中 `parseManifest` 的类型窄化（TS2352）与 `config-file.test.ts` 缺失的 `localStorage` mock。
+
+- [修复] 一批 UI/i18n 细节：导出按钮对比度、技能管理 i18n、模型就绪诊断文案、Agent 错误格式化、画布主题与顶栏、剪辑台导出/拖拽遮罩/空态、项目迁移与技能页文案；验证任务并入任务中心、模型配置弹窗大幅精简、页面遗留文案清理。
+
 - [修复] 桌面端 sidecar 资源准备与发版 CI 加固：`web/scripts/prepare-agent-runtime.mjs` 的 `npm` 目录探测改为跨平台多候选路径（支持 Windows/Linux/macOS 及各类 Node 版本管理器并解引用软链）；`.github/workflows/release-desktop.yml` 在构建安装包前显式执行并校验 `canvas-agent-runtime` 与 `comfyui-gateway` 资源目录。
 
 - [调整] 彻底收口为纯桌面端主线，清理历史网页版与冗余发布包袱：移除 `canvas-proxy/` 跨域代理包、设置页「本地代理」标签页与渠道「出网方式」开关（桌面端请求统一走 Rust `tauriFetch`，天然无 CORS）；删除 `vercel.json`、`render.yaml`、`nginx.conf`、`Dockerfile`、`docker-compose*.yml` 与 `github-pages` / `docker-image` / `docs-docker-image` / `publish-npm` 工作流，保留桌面端构建发版、质量门禁与插件发布。

@@ -282,9 +282,11 @@ export default function AssetsPage() {
                         description={t("assets.description")}
                         actions={
                             <>
-                                <Button type="text" loading={exportPending} onClick={() => void exportAssetSelection(validAssets)}>
-                                    {t("assets.export")}
-                                </Button>
+                                {validAssets.length > 0 ? (
+                                    <Button type="text" loading={exportPending} onClick={() => void exportAssetSelection(validAssets)}>
+                                        {t("assets.export")}
+                                    </Button>
+                                ) : null}
                                 <Button type="text" onClick={() => assetInputRef.current?.click()}>
                                     {t("assets.import")}
                                 </Button>
@@ -341,20 +343,22 @@ export default function AssetsPage() {
                         </div>
                     </div>
 
-                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                            <Checkbox
-                                checked={allVisibleSelected}
-                                indeterminate={!allVisibleSelected && visibleAssets.some((asset) => selectedIds.has(asset.id))}
-                                disabled={!visibleAssets.length}
-                                onChange={(event) => setAssetsSelected(visibleAssets, event.target.checked)}
-                            >
-                                {t("assets.selectPage")}
-                            </Checkbox>
-                            <span className="text-xs text-muted-foreground">{t("assets.resultCount", { count: filteredAssets.length })}</span>
+                    {filteredAssets.length > 0 ? (
+                        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <Checkbox
+                                    checked={allVisibleSelected}
+                                    indeterminate={!allVisibleSelected && visibleAssets.some((asset) => selectedIds.has(asset.id))}
+                                    disabled={!visibleAssets.length}
+                                    onChange={(event) => setAssetsSelected(visibleAssets, event.target.checked)}
+                                >
+                                    {t("assets.selectPage")}
+                                </Checkbox>
+                                <span className="text-xs text-muted-foreground">{t("assets.resultCount", { count: filteredAssets.length })}</span>
+                            </div>
+                            <SnapshotStorageStatus kind="assets" />
                         </div>
-                        <SnapshotStorageStatus kind="assets" />
-                    </div>
+                    ) : null}
 
                     {selectedAssets.length > 0 && (
                         <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-[var(--surface-card)] px-3 py-2">

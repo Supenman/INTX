@@ -15,7 +15,6 @@ import {
     type LucideIcon,
 } from "lucide-react";
 
-import { SnapshotStorageStatus } from "@/components/layout/snapshot-storage-status";
 import { CanvasProjectPreview } from "@/components/canvas/canvas-project-card";
 import { isImeComposing } from "@/lib/keyboard-event";
 import { useCanvasStore, type CanvasProject } from "@/stores/canvas/use-canvas-store";
@@ -94,9 +93,6 @@ export default function HomePage() {
                     >
                         <span className="intx-home-dot-grid" aria-hidden />
                         <span className="intx-home-dot-glow" aria-hidden />
-                        <div className="absolute right-4 top-3 z-10">
-                            <SnapshotStorageStatus kind="projects" />
-                        </div>
 
                         <div className="relative z-10 mx-auto flex max-w-3xl flex-col items-center">
                             <div className="inline-flex items-center gap-1.5 rounded-full border border-border bg-[var(--surface-card)] px-3 py-1 text-xs font-medium text-muted-foreground">

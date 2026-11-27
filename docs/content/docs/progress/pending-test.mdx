@@ -3,6 +3,17 @@ title: Pending Tests
 description: Implemented changes that still need manual verification
 ---
 
+## Local folder backup & workspace package (replaces WebDAV)
+
+- Open Storage Settings (`/config?tab=local-storage`): confirm the WebDAV cloud-sync entry is gone, replaced by four actions — Export workspace package / Import package, and Backup to local folder / Restore from folder — each with progress feedback.
+- Click Export workspace package: confirm the produced zip contains the four domains (canvas, assets, image workbench, video workbench) plus a manifest (`app=intx`) and excludes AI API keys; corrupt the manifest and import — it should report an explicit "invalid manifest" error rather than crash.
+- Click Backup to local folder on an empty directory: confirm per-domain directories and `files/` are written, then Restore from folder into a clean environment and verify all four domains round-trip; cancelling mid-way should abort cleanly via `AbortSignal`.
+- Confirm the slimmer Model Config modal, that "Verify Tasks" have merged into the Task Center, and that no WebDAV copy remains in the pages (the unreferenced `webdav` i18n block is dead code, slated for next-round cleanup).
+
+## UI/i18n polish fixes
+
+- Verify export-button contrast in both themes, skill-manager i18n with no raw keys on locale switch, and localized model-readiness diagnostics, agent error formatting, canvas top bar/theme, drag overlay, empty states, project migration and skills page copy.
+
 ## Desktop-only cleanup (removed web proxy & web/Docker/npm deploy configs)
 
 - Open Model Config (`/config?tab=channels`): confirm the "Local proxy" tab is gone (only Channels, Preferences, and Pending Tasks remain) and the Channel Editor drawer no longer shows the browser-only Proxy Mode toggle.

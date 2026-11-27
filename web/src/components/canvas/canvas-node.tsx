@@ -793,7 +793,7 @@ function VideoNodeContent({ node, theme }: NodeContentRendererProps) {
                 {broken ? <span className="text-[10px] opacity-70">{t("canvas.node.videoRetryHint")}</span> : null}
             </div>
         );
-    return <video src={node.metadata?.content} controls className="h-full w-full rounded-[var(--r-lg)] object-contain" style={{ background: theme.node.fill, filter: colorGradeFilter(node.metadata?.colorGrade) }} data-canvas-video={node.id} onError={() => setPlaybackFailed(true)} />;
+    return <video src={node.metadata?.content} controls preload="metadata" playsInline className="h-full w-full rounded-[var(--r-lg)] object-contain" style={{ background: theme.node.fill, filter: colorGradeFilter(node.metadata?.colorGrade) }} data-canvas-video={node.id} onError={() => setPlaybackFailed(true)} />;
 }
 
 function AudioNodeContent({ node, theme }: NodeContentRendererProps) {

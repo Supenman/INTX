@@ -67,7 +67,7 @@ export function agentAttachmentToChatAttachment(item: AgentMessageAttachment, en
 
 export function formatAgentEvent(event: AgentEventPayload): Omit<AgentChatItem, "id"> | null {
     const item = event.item;
-    if (event.type === "item.completed" && item?.type === "agent_message") return { role: "assistant", title: "OpenCode", text: stringText(item.text) };
+    if (event.type === "item.completed" && item?.type === "agent_message") return { role: "assistant", title: "INTX Agent", text: stringText(item.text) };
     return null;
 }
 
@@ -292,6 +292,7 @@ function turnSummary(event: AgentEventPayload) {
 export function agentErrorView(value: unknown) {
     const text = normalizeText(value);
     if (/selected model is at capacity/i.test(text)) return { title: tr("modelBusy"), text: tr("modelBusyDescription") };
+    if (/fetch failed|failed to fetch|econnrefused|networkerror/i.test(text)) return { title: tr("networkFailed"), text: tr("networkFailedDescription") };
     return { title: tr("taskFailed"), text: text || tr("taskFailedDescription") };
 }
 

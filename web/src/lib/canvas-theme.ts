@@ -44,7 +44,7 @@ export const canvasThemes = {
             // 上游采样基线为 #141414，不是纯黑；点阵保持低对比度。
             background: "#141414",
             dot: "rgba(175,175,175,.24)",
-            line: "rgba(175,175,175,.10)",
+            line: "rgba(210,210,210,.30)",
             selectionStroke: "#f1f1f1",
             selectionFill: "rgba(255,255,255,.12)",
         },

@@ -289,6 +289,18 @@
 
 Linux 沙箱实测：干净环境（删掉试跑时的临时软链）下 `prepare-agent-runtime.mjs` 一次跑通，两个 sidecar 校验路径均存在、workflow YAML 语法与 11 个 step 正确；上次该脚本报 `ENOENT .../node_modules/npm`，本次通过，回归验证成立。静态门禁 typecheck 0、tokens 130/145、结构 6438/6442、vitest 89 文件 954 例全绿。Windows NSIS 打包与真实安装升级仍需 Windows 环境实测。
 
+**v0.2.3 真机发版验证（2026-11-27）**：推送 `v0.2.3` tag 后 `Release Desktop (Windows)`（run `45967328811`，windows-latest）全绿——版本校验、依赖安装、sidecar 资源准备与校验、`pnpm tauri:build` NSIS 打包、SHA-256 清单、Release 发布全部 success。`INTX_0.2.3_x64-setup.exe`（40,753,754 B）与 `update.json`（351 B）已发布。v9 修的两个发版阻塞点在真实 Windows CI 上验证通过，Linux 沙箱不可验证项已由真机补齐（安装覆盖升级、子进程回收仍需人工在桌面端验收）。
+
+## v10 批次：本地文件夹备份替代 WebDAV 与 UI/i18n 收尾
+
+补丁 `intx-desktop-polish-and-local-storage`（3 个 PATCH，约 31 个文件，整体 `git apply --check` 一次通过、无实体转义）：
+
+- **存储改造（PATCH 1）**：删除 `webdav-sync.ts` / `app-sync.ts` 及其测试，新增 `workspace-archive.ts`（导出/导入 zip 整包、备份/恢复本地文件夹，覆盖 canvas/assets/image-workbench/video-workbench 四域 + 清单校验 + `AbortSignal` 取消）；配置 tab `webdav` → `local-storage`，导航收口为「存储设置」。
+- **UI 修复（PATCH 2）**：导出按钮对比度、技能 i18n、模型就绪诊断、Agent 错误格式化、画布主题/顶栏、剪辑台导出/拖拽遮罩/空态、项目迁移与技能页文案。
+- **重构（PATCH 3）**：验证任务并入任务中心、模型配置弹窗大幅精简（约 -260 行）、页面遗留文案清理。
+
+静态门禁实测：typecheck 0（修复补丁源码 `parseManifest` 的 TS2352 类型窄化 + `config-file.test.ts` 缺失的 localStorage mock 后）、tokens 130/145、结构 6438/6442、boundaries/overflow 全绿、vitest 88 文件 951 例全绿。i18n 中未引用的 `webdav` 文案块为死代码（不影响功能/门禁，未在本轮删除，留待下轮清理）。本地文件夹备份/整包导入导出与桌面安装升级需人工验收，见 pending-test。
+
 ## 6. 未验证项
 
 - BeefTV 的各模式、节点状态、悬浮栏和动效在运行时的全部显示条件；必须读具体组件和条件分支后确认。

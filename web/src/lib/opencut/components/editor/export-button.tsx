@@ -64,7 +64,7 @@ export function ExportButton() {
 			onOpenChange={(open) => handlePopoverOpenChange({ open })}
 		>
 			<PopoverTrigger asChild>
-				<Button type="button" className="h-8 gap-2 px-3" disabled={!hasProject} aria-label="导出项目">
+				<Button type="button" className="h-8 gap-2 !bg-primary px-3 !text-primary-foreground hover:!bg-primary/90" disabled={!hasProject} aria-label="导出项目">
 					<Download className="size-4" />
 					导出
 				</Button>

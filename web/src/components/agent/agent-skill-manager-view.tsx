@@ -107,7 +107,6 @@ export function AgentSkillManagerView({ theme, endpoint, token, connected, fullP
         <div className={`thin-scrollbar min-h-0 flex-1 overflow-y-auto ${fullPage ? "pt-5" : "p-3"}`}>
             {!connected ? <div className="py-10 text-center text-sm" style={{ color: theme.node.muted }}>{t("agent.skillManager.connectHint")}</div> : (
                 <div className="space-y-3">
-                    {fullPage ? <div className="flex gap-6 border-b" style={{ borderColor: theme.node.stroke }}><div className="border-b-2 px-1 pb-3 text-sm font-medium" style={{ borderColor: theme.node.text, color: theme.node.text }}>{t("agent.skillManager.mySkills")}</div></div> : null}
                     <div className="flex flex-wrap items-center justify-between gap-3">
                         {fullPage ? <Input allowClear prefix={<Search className="size-4" />} className="max-w-xl" placeholder={t("agent.skillManager.search")} value={keyword} onChange={(event) => setKeyword(event.target.value)} /> : <div className="text-sm" style={{ color: theme.node.muted }}>{t("agent.skillManager.description", { count: skills.length })}</div>}
                         <div className="flex gap-2">
