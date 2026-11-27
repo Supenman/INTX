@@ -3,6 +3,13 @@ title: Pending Tests
 description: Implemented changes that still need manual verification
 ---
 
+## Route lazy-loading, gesture degradation, video/audio version compare & connection reconnect
+
+- Navigate across Home (`/`), Canvas (`/canvas/:id`), Editing Studio (`/editing-studio`), Assets, Tasks, Skills, and Config: each lazy route should load cleanly without blank flicker or console errors.
+- On a canvas with active/hovered connections, pan or wheel-zoom continuously: the flow dash and outer halo should pause/hide smoothly during the gesture and return right after stopping (~140ms).
+- Regenerate an existing video or audio node in place: the previous output should be saved as a version snapshot (+36px), the version button should appear on the node hover toolbar, and the Version Compare modal should play audio/video previews and return keyboard focus to the canvas on close.
+- Hover or select an existing connection, grab either its start or end circle handle, and drag it onto another valid node: the connection should rewire atomically in place (undoable in one step). Dragging to an invalid target or pressing Escape should restore the original connection intact.
+
 ## Canvas polish: flow wires, loading pulse, auto arrange, search, nudge
 
 - Hover or select an existing connection, or drag a new wire out of a port: a flowing dashed layer should travel along it toward the target, and stop entirely under "reduce motion".

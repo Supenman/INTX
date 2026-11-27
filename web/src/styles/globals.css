@@ -682,3 +682,9 @@
     animation: none;
   }
 }
+
+[data-canvas-interacting="true"] .canvas-connection-flow,
+[data-canvas-interacting="true"] .canvas-connection-halo {
+  animation: none;
+  opacity: 0;
+}

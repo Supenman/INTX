@@ -1,9 +1,10 @@
 import { Button, Modal } from "antd";
-import { Check, Star } from "lucide-react";
+import { Check, Music2, Star } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { previewUrlFor } from "@/services/image-storage";
 import { canvasThemes } from "@/lib/canvas-theme";
+import { restoreCanvasFocus } from "@/lib/canvas/canvas-node-focus";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { CanvasNodeType, type CanvasNodeData } from "@/types/canvas";
 
@@ -12,7 +13,7 @@ export function CanvasVersionCompareModal({ open, versions, onClose, onSetPrimar
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const width = Math.min(1180, Math.max(560, 112 + versions.length * 340));
     return (
-        <Modal title={t("canvas.versionCompare.title")} open={open} onCancel={onClose} footer={null} width={width} destroyOnHidden>
+        <Modal title={t("canvas.versionCompare.title")} open={open} onCancel={onClose} afterClose={restoreCanvasFocus} footer={null} width={width} destroyOnHidden>
             {versions.length === 0 ? <div className="rounded-lg border border-dashed border-border px-4 py-12 text-center text-sm text-muted-foreground">{t("canvas.versionCompare.empty")}</div> : null}
             <div className="thin-scrollbar flex max-h-[70vh] gap-3 overflow-x-auto pb-2">
                 {versions.map((node) => {
@@ -28,9 +29,18 @@ export function CanvasVersionCompareModal({ open, versions, onClose, onSetPrimar
                                 </div>
                                 {primary ? <span className="inline-flex shrink-0 items-center gap-1 text-xs" style={{ color: theme.node.activeStroke }}><Check className="size-3" />{t("canvas.versionCompare.currentPrimary")}</span> : null}
                             </div>
-                            <button type="button" className="block h-52 w-full overflow-hidden" style={{ background: theme.node.fill }} title={t("canvas.versionCompare.focus")} onClick={() => onFocus(node.id)}>
-                                {node.type === CanvasNodeType.Image && src ? <img src={src} alt={node.title || t("canvas.versionCompare.imageAlt")} className="size-full object-contain" /> : node.type === CanvasNodeType.Video && src ? <video src={src} muted preload="metadata" className="size-full object-contain" /> : <span className="grid size-full place-items-center px-4 text-center text-xs text-muted-foreground">{t("canvas.versionCompare.focus")}</span>}
-                            </button>
+                            {node.type === CanvasNodeType.Audio && src ? (
+                                <div className="flex h-52 w-full flex-col items-center justify-center gap-3 px-4" style={{ background: theme.node.fill }}>
+                                    <button type="button" className="grid size-11 place-items-center rounded-full border transition hover:scale-105" style={{ background: theme.node.panel, borderColor: theme.node.stroke, color: theme.node.activeStroke }} title={t("canvas.versionCompare.focus")} onClick={() => onFocus(node.id)}>
+                                        <Music2 className="size-5" aria-hidden />
+                                    </button>
+                                    <audio src={src} controls preload="metadata" className="w-full" />
+                                </div>
+                            ) : (
+                                <button type="button" className="block h-52 w-full overflow-hidden" style={{ background: theme.node.fill }} title={t("canvas.versionCompare.focus")} onClick={() => onFocus(node.id)}>
+                                    {node.type === CanvasNodeType.Image && src ? <img src={src} alt={node.title || t("canvas.versionCompare.imageAlt")} className="size-full object-contain" /> : node.type === CanvasNodeType.Video && src ? <video src={src} muted controls preload="metadata" className="size-full object-contain" onClick={(event) => event.stopPropagation()} /> : <span className="grid size-full place-items-center px-4 text-center text-xs text-muted-foreground">{t("canvas.versionCompare.focus")}</span>}
+                                </button>
+                            )}
                             <div className="space-y-2 p-3 text-xs">
                                 <Info label={t("canvas.versionCompare.model")} value={node.metadata?.model || "—"} />
                                 <Info label={t("canvas.versionCompare.size")} value={node.metadata?.size || "—"} />

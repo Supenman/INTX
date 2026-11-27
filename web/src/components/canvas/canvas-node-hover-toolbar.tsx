@@ -339,7 +339,7 @@ export function CanvasNodeHoverToolbar({
                 {toolbarTools.map((tool) => (
                     <ToolbarAction key={tool.id} {...tool} showLabel={isImage ? showImageToolLabels : true} />
                 ))}
-                {hasImage && node.metadata?.versionLabel ? <ToolbarAction id="node-versions" title={t("canvas.node.openVersions")} label={t("canvas.node.openVersions")} icon={<Layers className="size-4" />} onClick={() => onOpenVersions(node)} showLabel={showImageToolLabels} /> : null}
+                {(hasImage || hasVideo || hasAudio) && node.metadata?.versionLabel ? <ToolbarAction id="node-versions" title={t("canvas.node.openVersions")} label={t("canvas.node.openVersions")} icon={<Layers className="size-4" />} onClick={() => onOpenVersions(node)} showLabel={isImage ? showImageToolLabels : true} /> : null}
                 {hasImage ? <ToolbarAction id="more" title={t("canvas.imageTools.configure")} label={t("canvas.imageTools.more")} icon={<Ellipsis className="size-4" />} active={imageToolSettingsOpen} onClick={openImageToolSettings} showLabel={showImageToolLabels} /> : null}
             </div>
             {hasImage ? (

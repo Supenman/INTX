@@ -59,6 +59,8 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
     const nextViewportRef = useRef<ViewportTransform | null>(null);
     const [isSpacePressed, setIsSpacePressed] = useState(false);
     const [isPanning, setIsPanning] = useState(false);
+    const [isWheelInteracting, setIsWheelInteracting] = useState(false);
+    const wheelTimerRef = useRef<number | null>(null);
 
     useLayoutEffect(() => {
         viewportRef.current = viewport;
@@ -67,6 +69,7 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
     useEffect(
         () => () => {
             if (frameRef.current) cancelAnimationFrame(frameRef.current);
+            if (wheelTimerRef.current !== null) window.clearTimeout(wheelTimerRef.current);
         },
         [],
     );
@@ -144,6 +147,9 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
         }
         // Rapid wheel events can arrive before React renders the previous update.
         viewportRef.current = next;
+        setIsWheelInteracting(true);
+        if (wheelTimerRef.current !== null) window.clearTimeout(wheelTimerRef.current);
+        wheelTimerRef.current = window.setTimeout(() => { wheelTimerRef.current = null; setIsWheelInteracting(false); }, 140);
         onViewportChange(next);
     };
 
@@ -347,6 +353,7 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
             ref={containerRef}
             tabIndex={-1}
             data-canvas-root
+            data-canvas-interacting={isPanning || isWheelInteracting || Boolean(pinchRef.current) ? "true" : undefined}
             className="relative h-full w-full touch-none select-none overflow-hidden"
             style={{ background: theme.canvas.background, cursor }}
             onPointerDownCapture={handlePointerDownCapture}

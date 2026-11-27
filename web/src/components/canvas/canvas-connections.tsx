@@ -1,4 +1,4 @@
-import React, { useState, type MouseEvent as ReactMouseEvent } from "react";
+import React, { useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 
 import { canvasThemes, type CanvasTheme } from "@/lib/canvas-theme";
 import type { DragGuides } from "@/lib/canvas/canvas-drag-snap";
@@ -17,6 +17,7 @@ export const ConnectionPath = React.memo(function ConnectionPath({
     active,
     onSelect,
     onContextMenu,
+    onReconnectStart,
 }: {
     connection: CanvasConnection;
     from: CanvasNodeData;
@@ -24,6 +25,7 @@ export const ConnectionPath = React.memo(function ConnectionPath({
     active: boolean;
     onSelect: () => void;
     onContextMenu?: (event: ReactMouseEvent<SVGPathElement>) => void;
+    onReconnectStart?: (event: ReactPointerEvent<SVGCircleElement>, endpoint: "start" | "end") => void;
 }) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const [hovered, setHovered] = useState(false);
@@ -67,10 +69,16 @@ export const ConnectionPath = React.memo(function ConnectionPath({
                 className="motion-safe:transition-[stroke,stroke-width,stroke-opacity] motion-safe:duration-150"
                 style={{ pointerEvents: "none" }}
             />
-            {highlighted ? <path d={pathD} stroke={theme.node.activeStroke} strokeWidth={active ? 7 : 5} vectorEffect="non-scaling-stroke" strokeOpacity={active ? 0.18 : 0.12} fill="none" strokeLinecap="round" style={{ pointerEvents: "none" }} /> : null}
+            {highlighted ? <path className="canvas-connection-halo" d={pathD} stroke={theme.node.activeStroke} strokeWidth={active ? 7 : 5} vectorEffect="non-scaling-stroke" strokeOpacity={active ? 0.18 : 0.12} fill="none" strokeLinecap="round" style={{ pointerEvents: "none" }} /> : null}
             {highlighted ? <path className="canvas-connection-flow" d={pathD} stroke={theme.node.activeStroke} strokeWidth={active ? 2.4 : 2} vectorEffect="non-scaling-stroke" strokeOpacity={active ? 0.92 : 0.72} strokeDasharray="10 18" fill="none" strokeLinecap="round" style={{ pointerEvents: "none" }} /> : null}
             <circle cx={startX} cy={startY} r={highlighted ? 3.5 : 2} fill={strokeColor} fillOpacity={highlighted ? 0.9 : 0.56} vectorEffect="non-scaling-stroke" style={{ pointerEvents: "none" }} />
             <circle cx={endX} cy={endY} r={highlighted ? 3.5 : 2} fill={strokeColor} fillOpacity={highlighted ? 0.9 : 0.56} vectorEffect="non-scaling-stroke" style={{ pointerEvents: "none" }} />
+            {highlighted && onReconnectStart ? (
+                <>
+                    <circle cx={startX} cy={startY} r={10} fill="transparent" vectorEffect="non-scaling-stroke" style={{ cursor: "grab", pointerEvents: "all" }} onPointerDown={(event) => onReconnectStart(event, "start")} />
+                    <circle cx={endX} cy={endY} r={10} fill="transparent" vectorEffect="non-scaling-stroke" style={{ cursor: "grab", pointerEvents: "all" }} onPointerDown={(event) => onReconnectStart(event, "end")} />
+                </>
+            ) : null}
             {highlighted ? <path d={`M ${endX - 9} ${endY - 4.5} L ${endX - 2} ${endY} L ${endX - 9} ${endY + 4.5}`} stroke={theme.node.activeStroke} strokeWidth={2} vectorEffect="non-scaling-stroke" fill="none" strokeLinecap="round" strokeLinejoin="round" style={{ pointerEvents: "none" }} /> : null}
         </g>
     );

@@ -75,7 +75,7 @@ import { createStoryboardShotGraph } from "@/lib/canvas/storyboard";
 import { applyNodeConfigPatch, audioMetadata, buildAudioGenerationMetadata, buildImageGenerationMetadata, createCanvasNode, imageMetadata, videoMetadata } from "@/lib/canvas/canvas-node-factory";
 import { applyGroupSelection, applyUngroupSelection, canGroupSelectedNodes, canUngroupSelectedNodes, collectGroupMemberNodes, findContainingGroupId, findGroupDropTarget, fitViewportForNodes, focusViewportForNode, getConnectionTargetAnchor, getGroupWrapRect, nodeBounds, normalizeConnection, placeAssetNodes, revealNodesInViewport, snapNodesIntoGroup, warnConnectionRejected } from "@/lib/canvas/canvas-node-geometry";
 import { createDragSnap, moveDraggedNodes, type DragGuides } from "@/lib/canvas/canvas-drag-snap";
-import { alignNodes, distributeNodes, type AlignAxis, type DistributeAxis } from "@/lib/canvas/canvas-align";
+import { alignNodes, distributeNodes, type AlignAxis, type DistributeAxis } from "@/lib/canvas/canvas-align"; import { reconnectCanvasConnection } from "@/lib/canvas/canvas-reconnect";
 import { CanvasNodeSearchLayer } from "@/components/canvas/canvas-node-search-modal";
 import {
     audioExtension,
@@ -282,7 +282,7 @@ function InfiniteCanvasPage() {
     const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
     const nodeHoverHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const nodeHoverSuspendedRef = useRef(false); // 「配置快捷工具」弹窗盖住画布时，遮罩会让节点收到 mouseleave；先别收悬浮栏，否则弹窗跟着卸载
-    const [connectingParams, setConnectingParams] = useState<ConnectionHandle | null>(null);
+    const [connectingParams, setConnectingParams] = useState<ConnectionHandle | null>(null); const [reconnectingConnectionId, setReconnectingConnectionId] = useState<string | null>(null); const reconnectingConnectionIdRef = useRef<string | null>(null);
     const [connectionTargetNodeId, setConnectionTargetNodeId] = useState<string | null>(null);
     const [pendingConnectionCreate, setPendingConnectionCreate] = useState<PendingConnectionCreate | null>(null);
     const [mouseWorld, setMouseWorld] = useState<Position>({ x: 0, y: 0 });
@@ -729,8 +729,8 @@ function InfiniteCanvasPage() {
         connectingParamsRef.current = next;
         setConnectingParams(next);
         if (!next) {
-            connectionTargetNodeIdRef.current = null;
-            setConnectionTargetNodeId(null);
+            connectionTargetNodeIdRef.current = null; setConnectionTargetNodeId(null);
+            reconnectingConnectionIdRef.current = null; setReconnectingConnectionId(null);
         }
     }, []);
 
@@ -741,10 +741,9 @@ function InfiniteCanvasPage() {
             const connection = normalizeConnection(current, targetNodeId, nodesRef.current);
             if (!connection) return warnConnectionRejected(targetNodeId, nodesRef.current, message.warning);
             const { fromNodeId, toNodeId } = connection;
-            const exists = connectionsRef.current.some((conn) => conn.fromNodeId === fromNodeId && conn.toNodeId === toNodeId);
-            if (!exists) {
-                setConnections((prev) => [...prev, { id: `conn-${Date.now()}`, fromNodeId, toNodeId }]);
-            }
+            const reconnectingId = reconnectingConnectionIdRef.current;
+            if (reconnectingId) { setConnections((prev) => reconnectCanvasConnection(prev, reconnectingId, fromNodeId, toNodeId)); }
+            else if (!connectionsRef.current.some((conn) => conn.fromNodeId === fromNodeId && conn.toNodeId === toNodeId)) { setConnections((prev) => [...prev, { id: `conn-${Date.now()}`, fromNodeId, toNodeId }]); }
             setContextMenu(null);
         },
         [message, t],
@@ -3355,7 +3354,7 @@ function InfiniteCanvasPage() {
                 if (mode === "video") {
                     const spec = nodeSizeFromRatio(generationConfig.size, NODE_DEFAULT_SIZE[CanvasNodeType.Video].width, NODE_DEFAULT_SIZE[CanvasNodeType.Video].height) || NODE_DEFAULT_SIZE[CanvasNodeType.Video];
                     const isEmptyVideoNode = sourceNode?.type === CanvasNodeType.Video && !sourceNode.metadata?.content;
-                    const reuseVideoNode = sourceNode?.type === CanvasNodeType.Video && (overwriteExisting || isEmptyVideoNode);
+                    const reuseVideoNode = sourceNode?.type === CanvasNodeType.Video && (overwriteExisting || isEmptyVideoNode); const videoVersionPlan = reuseVideoNode ? prepareMediaGenerationVersion(nodesRef.current, nodeId, nanoid()) : null;
                     const videoId = reuseVideoNode ? nodeId : nanoid();
                     const parent = sourceNode?.position || { x: 0, y: 0 };
                     const videoNode: CanvasNodeData = {
@@ -3377,15 +3376,11 @@ function InfiniteCanvasPage() {
                             generateAudio: generationConfig.videoGenerateAudio,
                             watermark: generationConfig.videoWatermark,
                             videoMode: generationConfig.videoMode,
-                            references: generationReferenceUrls(generationContext),
+                            references: generationReferenceUrls(generationContext), ...(videoVersionPlan?.currentMetadata || {}),
                         },
                     };
                     pendingChildIds = [videoId];
-                    setNodes((prev) =>
-                        reuseVideoNode
-                            ? prev.map((node) => (node.id === nodeId ? { ...node, ...videoNode } : node))
-                            : [...prev, videoNode],
-                    );
+                    setNodes((prev) => reuseVideoNode ? (videoVersionPlan ? videoVersionPlan.nodes : prev).map((node) => (node.id === nodeId ? { ...node, ...videoNode } : node)) : [...prev, videoNode]);
                     if (!reuseVideoNode) setConnections((prev) => [...prev, { id: nanoid(), fromNodeId: nodeId, toNodeId: videoId }]);
                     const controller = startGenerationRequest(videoId, nodeId, nodeId, runController);
                     try {
@@ -3407,7 +3402,7 @@ function InfiniteCanvasPage() {
                 if (mode === "audio") {
                     const spec = NODE_DEFAULT_SIZE[CanvasNodeType.Audio];
                     const isEmptyAudioNode = sourceNode?.type === CanvasNodeType.Audio && !sourceNode.metadata?.content;
-                    const reuseAudioNode = sourceNode?.type === CanvasNodeType.Audio && (overwriteExisting || isEmptyAudioNode);
+                    const reuseAudioNode = sourceNode?.type === CanvasNodeType.Audio && (overwriteExisting || isEmptyAudioNode); const audioVersionPlan = reuseAudioNode ? prepareMediaGenerationVersion(nodesRef.current, nodeId, nanoid()) : null;
                     const audioId = reuseAudioNode ? nodeId : nanoid();
                     const parent = sourceNode?.position || { x: 0, y: 0 };
                     const audioNode: CanvasNodeData = {
@@ -3417,14 +3412,10 @@ function InfiniteCanvasPage() {
                         position: reuseAudioNode ? sourceNode.position : { x: parent.x + (sourceNode?.width || spec.width) + 96, y: parent.y + ((sourceNode?.height || spec.height) - spec.height) / 2 },
                         width: reuseAudioNode ? sourceNode.width : spec.width,
                         height: reuseAudioNode ? sourceNode.height : spec.height,
-                        metadata: { prompt: effectivePrompt, status: NODE_STATUS_LOADING, retrySourceId: nodeId, inputPrompt: prompt, ...buildAudioGenerationMetadata(generationConfig) },
+                        metadata: { prompt: effectivePrompt, status: NODE_STATUS_LOADING, retrySourceId: nodeId, inputPrompt: prompt, ...buildAudioGenerationMetadata(generationConfig), ...(audioVersionPlan?.currentMetadata || {}) },
                     };
                     pendingChildIds = [audioId];
-                    setNodes((prev) =>
-                        reuseAudioNode
-                            ? prev.map((node) => (node.id === nodeId ? { ...node, ...audioNode } : node))
-                            : [...prev, audioNode],
-                    );
+                    setNodes((prev) => reuseAudioNode ? (audioVersionPlan ? audioVersionPlan.nodes : prev).map((node) => (node.id === nodeId ? { ...node, ...audioNode } : node)) : [...prev, audioNode]);
                     if (!reuseAudioNode) setConnections((prev) => [...prev, { id: nanoid(), fromNodeId: nodeId, toNodeId: audioId }]);
                     const controller = startGenerationRequest(audioId, nodeId, nodeId, runController);
                     try {
@@ -4047,18 +4038,15 @@ function InfiniteCanvasPage() {
                     emptyNodeCount={nodes.length}
                 >
                     <svg className="absolute left-0 top-0 h-[10000px] w-[10000px] overflow-visible" style={{ pointerEvents: "none", transform: "translateZ(0)", zIndex: 0 }}>
-                        {visibleConnections.map(({ connection, from, to }) => (
+                        {visibleConnections.filter(({ connection }) => connection.id !== reconnectingConnectionId).map(({ connection, from, to }) => (
                             <ConnectionPath
                                 key={connection.id}
                                 connection={connection}
                                 from={from}
                                 to={to}
                                 active={selectedConnectionId === connection.id || relatedHighlight.connectionIds.has(connection.id)}
-                                onSelect={() => {
-                                    setSelectedConnectionId(connection.id);
-                                    setSelectedNodeIds(new Set());
-                                    setContextMenu(null);
-                                }}
+                                onReconnectStart={(event, endpoint) => { if (event.button !== 0) return; reconnectingConnectionIdRef.current = connection.id; setReconnectingConnectionId(connection.id); handleConnectStart(event, endpoint === "end" ? connection.fromNodeId : connection.toNodeId, endpoint === "end" ? "source" : "target"); }}
+                                onSelect={() => { setSelectedConnectionId(connection.id); setSelectedNodeIds(new Set()); setContextMenu(null); }}
                                 onContextMenu={(event) => {
                                     if (referencePickerNodeId) return;
                                     setSelectedConnectionId(connection.id);
