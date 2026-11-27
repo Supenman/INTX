@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## v0.2.3
+
+- [发版] INTX v0.2.3 桌面端发版：同步 `VERSION` / `tauri.conf.json` / `Cargo.toml`(含 `Cargo.lock`) 至 0.2.3，推送 `v0.2.3` tag 触发 Windows NSIS 自动打包与零 Secret 发版，产出安装包与含 SHA-256 的 `update.json`，供自研免密码更新器校验升级。本版包含 v9 修复的跨平台 npm 探测与发版 CI sidecar 资源校验。
+
 ## Unreleased
 
 - [修复] 桌面端 sidecar 资源准备与发版 CI 加固：`web/scripts/prepare-agent-runtime.mjs` 的 `npm` 目录探测改为跨平台多候选路径（支持 Windows/Linux/macOS 及各类 Node 版本管理器并解引用软链）；`.github/workflows/release-desktop.yml` 在构建安装包前显式执行并校验 `canvas-agent-runtime` 与 `comfyui-gateway` 资源目录。
