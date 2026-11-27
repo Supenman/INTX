@@ -8,7 +8,7 @@ description: 当前版本已实现但仍需人工验证的变更项
 - 从 beta.1 升级到 beta.2、beta.2 升级到 beta.N：桌面端打开版本弹窗应自动检测到更新（beta 之间版本号按 SemVer 正确比较，如 beta.10 > beta.2）。
 - beta 版从 GitHub Releases API 拉取含 `update.json` 的最新 release（含 pre-release），不要只落到 `/releases/latest` 的正式版清单；正式版用户不应被 beta 版误触发升级。
 - 自定义清单 URL（localStorage 覆盖）优先级仍生效；更新下载与 SHA-256 校验、安装覆盖流程正常。
-- 此修复在 v0.2.4-beta.2 打包之后合入，需随下一版生效。
+- 此修复已在 v0.2.4-beta.3 打包生效：从 beta.3 起 beta 之间可自动检测更新；beta.2 存量版需手动下载安装一次 beta.3。
 
 ## 渠道预设、任务媒体预览、剪辑台多项目与 ComfyUI 多输出流程
 

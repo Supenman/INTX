@@ -1,8 +1,10 @@
 # CHANGELOG
 
-## Unreleased
+## v0.2.4-beta.3（测试版）
 
-- [修复] 自研更新器支持预发布版 SemVer 比较与 beta 通道更新：`updater.ts` 的 `isNewerSemver` 从只比较主次修订号重写为完整 SemVer 2.0.0 规则（支持 `-beta.N` 等预发布后缀，正式版高于同号预发布版、beta.10 高于 beta.2），新增 `isPrereleaseVersion`、`extractPrereleaseManifestUrl`、`getCustomUpdateManifestUrl`；桌面端检测更新时若当前为预发布版，经 GitHub Releases API 拉取含 `update.json` 的最新 release（含 pre-release），修复此前 beta 版之间无法互相检测更新的问题。此修复在 v0.2.4-beta.2 打包之后合入，需随下一版生效。
+- [发版] INTX v0.2.4-beta.3 测试版：同步 `VERSION` / `tauri.conf.json` / `Cargo.toml`(含 `Cargo.lock`) 至 0.2.4-beta.3，推送 `v0.2.4-beta.3` tag 触发 Windows NSIS 打包与零 Secret 发版，产出安装包与含 SHA-256 的 `update.json`；Release 标记为预发布（pre-release），仅供测试验收。本版打包 beta 更新器修复——从 beta.3 起，后续 beta 版本之间可按 SemVer 正确自动检测更新；beta.2 存量版需手动下载安装一次 beta.3。
+
+- [修复] 自研更新器支持预发布版 SemVer 比较与 beta 通道更新：`updater.ts` 的 `isNewerSemver` 从只比较主次修订号重写为完整 SemVer 2.0.0 规则（支持 `-beta.N` 等预发布后缀，正式版高于同号预发布版、beta.10 高于 beta.2），新增 `isPrereleaseVersion`、`extractPrereleaseManifestUrl`、`getCustomUpdateManifestUrl`；桌面端检测更新时若当前为预发布版，经 GitHub Releases API 拉取含 `update.json` 的最新 release（含 pre-release），修复此前 beta 版之间无法互相检测更新的问题。
 
 ## v0.2.4-beta.2（测试版）
 

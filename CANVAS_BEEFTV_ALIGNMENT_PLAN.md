@@ -327,7 +327,7 @@ Linux 沙箱实测：干净环境（删掉试跑时的临时软链）下 `prepar
 - **SemVer 2.0.0 比较**：`isNewerSemver` 从 `parseVersionParts` 只取 `major.minor.patch` 重写为 `parseSemver` 解析 `core + prerelease[]`，按规范逐标识符比较（数字按数值、数字低于字母、前缀短者更低）；同号时正式版高于预发布版（`0.2.4 > 0.2.4-beta.2`），`beta.10 > beta.2`。修正了此前 `0.2.4-beta.N` 被解析为 `[0,2,4]` 与正式版相等、导致 beta 之间无法检测更新的问题。
 - **beta 通道清单发现**：新增 `DEFAULT_RELEASES_API_URL`、`extractPrereleaseManifestUrl`（从 Releases API 列表取首个非草稿且含合法 HTTPS `update.json` 的 release，含 pre-release）、`isPrereleaseVersion`、`getCustomUpdateManifestUrl`（拆出 localStorage 覆盖逻辑，返回 null 表示未覆盖）。`use-version-check.ts` 当前版本为预发布版时先查 Releases API 拿 beta 清单，否则回退默认 `latest/download/update.json`；自定义清单 URL 优先级最高。
 
-静态门禁 typecheck 0、tokens 130/145、结构 6429/6442、boundaries/overflow 通过、vitest 88 文件 952 例（新增 prerelease 清单提取测试）+ bun 19 例全绿。此补丁在 v0.2.4-beta.2 打包之后合入，需随下一版发布生效；验收项已记入 pending-test 中英清单。
+静态门禁 typecheck 0、tokens 130/145、结构 6429/6442、boundaries/overflow 通过、vitest 88 文件 952 例（新增 prerelease 清单提取测试）+ bun 19 例全绿。此补丁已在 v0.2.4-beta.3 测试版打包生效：从 beta.3 起后续 beta 之间可按 SemVer 正确自动检测更新；beta.2 存量版需手动下载安装一次 beta.3。验收项已记入 pending-test 中英清单。
 
 ## 6. 未验证项
 

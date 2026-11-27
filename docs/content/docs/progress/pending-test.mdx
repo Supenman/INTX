@@ -8,7 +8,7 @@ description: Implemented changes that still need manual verification
 - Upgrading beta.1 → beta.2 and beta.2 → beta.N: the desktop Version modal should auto-detect the update (betas compare by SemVer, e.g. beta.10 > beta.2).
 - Beta builds should resolve the latest release containing `update.json` via the GitHub Releases API (including pre-releases), not fall back to the `/releases/latest` stable-only manifest; stable users must not be prompted to upgrade to a beta.
 - A custom manifest URL (localStorage override) should still take priority; download, SHA-256 verification and install-over-update flow should work.
-- This fix landed after the v0.2.4-beta.2 build and takes effect in the next release.
+- This fix shipped in v0.2.4-beta.3: from beta.3 onward betas auto-detect each other; beta.2 installs need one manual download of beta.3.
 
 ## Provider presets, task media previews, studio multi-project & ComfyUI multi-output flows
 
