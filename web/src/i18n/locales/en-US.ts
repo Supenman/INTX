@@ -14,6 +14,15 @@ export default {
         description: "An infinite canvas creation tool",
     },
     theme: { toggle: "Toggle theme" },
+    errorBoundary: {
+        title: "Something went wrong",
+        description: "Your local projects and assets are safe. You can retry rendering, return home, or export redacted diagnostics.",
+        retry: "Retry",
+        goHome: "Go home",
+        copyError: "Copy error",
+        exportDiagnostics: "Export diagnostics",
+        nodeTitle: "Node render error",
+    },
     storage: { loading: "Loading local data", saving: "Saving locally", unsaved: "Unsaved changes", saved: "Saved", failed: "Local save failed", retrySave: "Retry local save", reload: "Reload", stay: "Stay in this project", leaveFailed: "Save failed; leaving was blocked and the draft remains here" },
     common: {
         cancel: "Cancel",

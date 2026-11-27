@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- [稳定性] 新增 app/route/node 三级 ErrorBoundary 与脱敏诊断日志导出：`app-error-boundary.tsx` 包裹应用与路由、节点级错误隔离，避免单点异常白屏；`diagnostics-log.ts` 捕获 window.error/unhandledrejection，自动脱敏（Bearer / sk- key）后导出含应用版本、运行时与错误摘要的诊断报告，不含画布内容与密钥。
+- [优化] agent / assets 视图硬编码字号与单色工具类替换为设计令牌（令牌违规 106→78、结构预算 6375→6375 区间内）。
+- [存储] 本地文件夹备份与 `.intx.zip` 工作区整包纳入 OpenCut 剪辑台项目。
+- [测试] comfyui-gateway 新增 loopback 安全 / URL 重定基 / 任务持久化 / 清理 / 路径穿越防护单测，修正任务存储测试以匹配真实 API 语义。
+
 - [修复] BeefTV 画布面部润色：空文本节点隐藏内容操作按钮，减少设计令牌违规（130→106）、结构预算（6442→6372），清理已废弃的 WebDAV i18n 文案，同步 `features.mdx` / `todo.mdx` 的存储描述为本地文件夹备份与 `.intx.zip` 工作区整包。
 - [功能] 画布节点进度/错误状态卡片：新增 `canvas-node-status-cards.tsx`，在节点上直接展示生成进度与失败原因；增强视频预览、活动任务可停止、项目页文件夹卡片；`canvas-node.tsx` 相关逻辑外移以收敛结构预算。
 

@@ -45,10 +45,10 @@ function AgentLinkModal({ isOpen, onClose, onConfirm, url }: LinkSafetyModalProp
     };
     return (
         <Modal destroyOnHidden open={isOpen} onCancel={onClose} footer={null} centered width={420} title={t(localPath ? "agent.message.openLocal" : "agent.message.openExternal")}>
-            <div className="text-sm text-black/55 dark:text-white/55">
+            <div className="text-sm text-muted-foreground">
                 {t(localPath ? "agent.message.localDescription" : "agent.message.externalDescription")}
             </div>
-            <div className="mt-4 max-h-32 overflow-auto break-all rounded-lg bg-black/[.035] px-3 py-2.5 font-mono text-xs leading-5 dark:bg-white/[.06]">{localPath || url}</div>
+            <div className="mt-4 max-h-32 overflow-auto break-all rounded-lg bg-[var(--surface-sunken)] px-3 py-2.5 font-mono text-xs leading-5">{localPath || url}</div>
             <div className="mt-5 flex justify-end gap-2">
                 <Button type="text" icon={<Copy className="size-4" />} onClick={() => copyText(localPath || url, t(localPath ? "agent.message.pathCopied" : "agent.message.linkCopied"))}>
                     {t(localPath ? "agent.message.copyPath" : "agent.message.copyLink")}
@@ -132,7 +132,7 @@ export function AgentChatMessage({ item, theme, onRejectTool, onApproveTool }: {
                     <Streamdown {...streamdownProps()} animated={streamdownAnimation} isAnimating={!!item.streamId}>{item.text}</Streamdown>
                 )}
                 {item.attachments?.length ? <AgentMessageAttachments attachments={item.attachments} alignRight={isUser} /> : null}
-                {item.meta ? <div className={`mt-1 text-[11px] tabular-nums opacity-55 ${isUser ? "text-right" : ""}`}>{item.meta}</div> : null}
+                {item.meta ? <div className={`mt-1 typ-label tabular-nums opacity-55 ${isUser ? "text-right" : ""}`}>{item.meta}</div> : null}
             </div>
         </div>
     );
@@ -227,7 +227,7 @@ export function AgentApprovalCard({ approval, theme, onDecision }: { approval: A
                 <div className="min-w-0 flex-1">
                     <div className="text-sm font-medium">{title}</div>
                     {approval.reason ? <div className="mt-1 text-xs leading-5" style={{ color: theme.node.muted }}>{approval.reason}</div> : null}
-                    {target ? <div className="mt-1.5 break-all rounded-lg px-2.5 py-2 font-mono text-[11px] leading-4" style={{ background: theme.toolbar.panel, color: theme.node.text }}>{target}</div> : null}
+                    {target ? <div className="mt-1.5 break-all rounded-lg px-2.5 py-2 font-mono typ-label leading-4" style={{ background: theme.toolbar.panel, color: theme.node.text }}>{target}</div> : null}
                 </div>
             </div>
             <div className="mt-3 flex flex-wrap justify-end gap-1.5 border-t pt-3" style={{ borderColor: theme.node.stroke }}>
@@ -255,11 +255,11 @@ export function AgentToolCard({ title, text, detail, theme }: { title: string; t
             <div className="flex min-w-0 items-center gap-2 text-sm leading-5">
                 <span className="shrink-0" style={{ color: state.color }}>{toolIcon(kind, state.icon)}</span>
                 <span className="min-w-0 truncate font-medium">{title}</span>
-                <span className="shrink-0 text-[11px]" style={{ color: state.color }}>{state.label}</span>
+                <span className="shrink-0 typ-label" style={{ color: state.color }}>{state.label}</span>
                 {view ? <ChevronDown className="ml-auto size-3.5 shrink-0 transition-transform group-open:rotate-180" style={{ color: theme.node.muted }} /> : null}
             </div>
             {showText ? (
-                <div className={`mt-1 whitespace-pre-wrap break-words pl-6 text-sm leading-5 ${kind === "command" ? "font-mono text-[12px]" : ""}`} style={{ color: state.isError ? state.color : theme.node.muted }}>
+                <div className={`mt-1 whitespace-pre-wrap break-words pl-6 text-sm leading-5 ${kind === "command" ? "font-mono text-xs" : ""}`} style={{ color: state.isError ? state.color : theme.node.muted }}>
                     {text}
                 </div>
             ) : null}
@@ -327,7 +327,7 @@ function AgentSingleCommand({ item, theme }: { item: AgentCommandItem; theme: (t
     const view = userDetail(item.detail);
     return (
         <div className="ml-6 pb-1">
-            {item.text ? <div className="mt-1.5 whitespace-pre-wrap break-all font-mono text-[11px] leading-5" style={{ color: theme.node.text }}>{item.text}</div> : null}
+            {item.text ? <div className="mt-1.5 whitespace-pre-wrap break-all font-mono typ-label leading-5" style={{ color: theme.node.text }}>{item.text}</div> : null}
             {view ? <AgentDetailBlock detail={view} theme={theme} /> : null}
         </div>
     );
@@ -343,8 +343,8 @@ function AgentCommandEntry({ item, index, theme }: { item: AgentCommandItem; ind
     const color = state.failed ? "#dc2626" : state.running ? "#d97706" : "#16a34a";
     const content = (
         <>
-            <span className="w-4 shrink-0 text-center text-[10px] tabular-nums opacity-50" style={{ color: theme.node.muted }}>{index + 1}</span>
-            <code className="min-w-0 flex-1 truncate text-[11px] leading-5" style={{ color: theme.node.text }} title={item.text}>{item.text || t("agent.message.command")}</code>
+            <span className="w-4 shrink-0 text-center typ-label tabular-nums opacity-50" style={{ color: theme.node.muted }}>{index + 1}</span>
+            <code className="min-w-0 flex-1 truncate typ-label leading-5" style={{ color: theme.node.text }} title={item.text}>{item.text || t("agent.message.command")}</code>
             <span className="shrink-0" style={{ color }} title={status} aria-label={status}>
                 {state.running ? <LoaderCircle className="size-3.5 animate-spin" /> : state.failed ? <XCircle className="size-3.5" /> : <CheckCircle2 className="size-3.5" />}
             </span>
@@ -378,8 +378,8 @@ function AgentPlanCard({ title, plan, theme }: { title: string; plan: PlanDetail
             <summary className="flex min-w-0 cursor-pointer list-none items-center gap-2.5">
                 <ListChecks className="size-4 shrink-0" style={{ color: state.color }} />
                 <span className="min-w-0 flex-1 truncate text-sm font-medium">{title}</span>
-                <span className="shrink-0 text-[11px]" style={{ color: state.color }}>{state.label}</span>
-                <span aria-live="polite" className="shrink-0 text-[11px] tabular-nums" style={{ color: theme.node.muted }}>{completed}/{plan.tasks.length}</span>
+                <span className="shrink-0 typ-label" style={{ color: state.color }}>{state.label}</span>
+                <span aria-live="polite" className="shrink-0 typ-label tabular-nums" style={{ color: theme.node.muted }}>{completed}/{plan.tasks.length}</span>
                 <ChevronDown className="size-3.5 shrink-0 transition-transform group-open:rotate-180" style={{ color: theme.node.muted }} />
             </summary>
             {plan.explanation ? <div className="mt-1.5 text-xs leading-5" style={{ color: theme.node.muted }}>{plan.explanation}</div> : null}
@@ -390,7 +390,7 @@ function AgentPlanCard({ title, plan, theme }: { title: string; plan: PlanDetail
                         <div key={`${index}-${item.step}`} className="flex items-start gap-2 text-sm leading-5">
                             <span className="mt-0.5 shrink-0" style={{ color: task.color }}>{task.icon}</span>
                             <span className={`min-w-0 flex-1 ${item.status === "completed" ? "opacity-55" : item.status === "inProgress" ? "font-medium" : ""}`} style={{ color: item.status === "inProgress" ? theme.node.text : theme.node.muted }}>{item.step}</span>
-                            <span className="shrink-0 text-[11px]" style={{ color: task.color }}>{task.label}</span>
+                            <span className="shrink-0 typ-label" style={{ color: task.color }}>{task.label}</span>
                         </div>
                     );
                 })}
@@ -413,7 +413,7 @@ export function AgentWorkingMessage({ text, detail, status = "running", mcpStatu
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm" style={{ color: theme.node.muted }}>
                 {status === "running" ? <LoaderCircle className="size-3.5 shrink-0 animate-spin" /> : status === "ready" ? <CheckCircle2 className="size-3.5 shrink-0 text-emerald-600" /> : <XCircle className="size-3.5 shrink-0 text-red-600" />}
                 <span className="min-w-0">{text}</span>
-                {status === "running" && elapsed >= 5 ? <span className="shrink-0 text-[11px] tabular-nums opacity-60">{waitingTime(elapsed)}</span> : null}
+                {status === "running" && elapsed >= 5 ? <span className="shrink-0 typ-label tabular-nums opacity-60">{waitingTime(elapsed)}</span> : null}
             </div>
             {detail ? <div className="ml-5.5 mt-1 text-xs leading-5 opacity-65" style={{ color: theme.node.muted }}>{detail}</div> : null}
             {mcpStatuses.length ? (
@@ -485,7 +485,7 @@ function AgentDetailBlock({ detail, theme }: { detail: UserDetail; theme: (typeo
             {detail.output ? (
                 <div className="space-y-1.5">
                     <div className="opacity-60">{t(detail.status === "failed" || detail.status === "error" ? "agent.message.errorInfo" : "agent.message.output")}</div>
-                    <pre className="thin-scrollbar max-h-56 overflow-auto whitespace-pre-wrap break-words rounded-lg px-3 py-2 font-mono text-[11px] leading-4" style={{ background: theme.toolbar.panel, color: theme.node.text }}>{detail.output}</pre>
+                    <pre className="thin-scrollbar max-h-56 overflow-auto whitespace-pre-wrap break-words rounded-lg px-3 py-2 font-mono typ-label leading-4" style={{ background: theme.toolbar.panel, color: theme.node.text }}>{detail.output}</pre>
                 </div>
             ) : null}
         </div>

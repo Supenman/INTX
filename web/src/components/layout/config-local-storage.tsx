@@ -3,7 +3,9 @@ import type { TFunction } from "i18next";
 import { Archive, Database, Download, FolderDown, FolderUp, HardDrive, Layers3, RefreshCw, Sparkles, Trash2, Upload } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { useSaveNotice } from "@/hooks/use-save-file";
 
+import { exportDiagnosticsReport } from "@/services/diagnostics-log";
 import { clearOrphanMedia, clearPreviewCache, readLocalStorageUsage, type LocalStorageUsage } from "@/services/local-storage-usage";
 import { backupWorkspaceToFolder, exportWorkspacePackage, importWorkspacePackage, restoreWorkspaceFromFolder } from "@/services/workspace-archive";
 
@@ -21,6 +23,7 @@ const storeLabelKeys: Record<string, string> = {
 export function ConfigLocalStorage({ active }: { active: boolean }) {
     const { t } = useTranslation();
     const { message } = App.useApp();
+    const saveNotice = useSaveNotice();
     const packageInputRef = useRef<HTMLInputElement>(null);
     const [usage, setUsage] = useState<LocalStorageUsage | null>(null);
     const [loading, setLoading] = useState(false);
@@ -203,6 +206,9 @@ export function ConfigLocalStorage({ active }: { active: boolean }) {
                                 {t("config.localStorage.clearOrphans")}
                             </Button>
                         </Popconfirm>
+                        <Button icon={<Download className="size-4" />} disabled={busy} onClick={() => void exportDiagnosticsReport().then(saveNotice)}>
+                            {t("errorBoundary.exportDiagnostics")}
+                        </Button>
                         <Button icon={<RefreshCw className="size-4" />} loading={loading} disabled={busy} onClick={() => void refresh()}>
                             {t("config.localStorage.refresh")}
                         </Button>

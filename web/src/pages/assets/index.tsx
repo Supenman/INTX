@@ -564,16 +564,16 @@ function AssetCard({ asset, selected, onSelect, onOpen, onEdit, onCopy, onDownlo
                             <h2 className="typ-body-compact line-clamp-1 font-medium text-foreground">{asset.title}</h2>
                             <p className="typ-caption mt-0.5 line-clamp-1 text-muted-foreground">{asset.source || t("assets.unknownSource")}</p>
                         </div>
-                        <Tag className="m-0 shrink-0 text-[11px]">{t(`assets.kinds.${asset.kind}`)}</Tag>
+                        <Tag className="m-0 shrink-0 typ-label">{t(`assets.kinds.${asset.kind}`)}</Tag>
                     </div>
                     {asset.kind === "image" || asset.kind === "video" ? <p className="typ-caption mt-2 line-clamp-1 text-muted-foreground">{summary}</p> : null}
                     <div className="mt-2.5 flex flex-wrap gap-1.5">
                         {(asset.tags || []).slice(0, 3).map((tag) => (
-                            <Tag key={tag} className="m-0 text-[11px]">
+                            <Tag key={tag} className="m-0 typ-label">
                                 {tag}
                             </Tag>
                         ))}
-                        {!asset.tags?.length ? <Tag className="m-0 text-[11px]">{t("assets.noTags")}</Tag> : null}
+                        {!asset.tags?.length ? <Tag className="m-0 typ-label">{t("assets.noTags")}</Tag> : null}
                     </div>
                 </div>
             </button>

@@ -338,6 +338,18 @@ Linux 沙箱实测：干净环境（删掉试跑时的临时软链）下 `prepar
 
 静态门禁 typecheck 0、tokens 106/145、结构 6372/6442、boundaries/overflow 通过、vitest 88 文件 952 例 + bun 19 例全绿。这批改动在 v0.2.4-beta.3 打包之后合入，需随下一版发布生效；验收项已记入 pending-test 中英清单。
 
+## v15 批次：成熟度补全（错误边界 / 令牌 / gateway 测试 / OpenCut 归档）
+
+补丁 `intx-maturity-complete-pack`（5 个 PATCH，16 文件，`git apply --check` 一次通过、无实体转义、含 4 新文件）：
+
+- **PATCH 1 稳定性**：新增 `app-error-boundary.tsx`（app/route/node 三级 ErrorBoundary）与 `diagnostics-log.ts`（捕获 window.error / unhandledrejection，脱敏 Bearer/`sk-` 密钥后导出含版本/运行时/错误摘要的报告，不含画布内容），`router.tsx` / `client-root-init.tsx` / `config-local-storage.tsx` 接入。
+- **PATCH 2 令牌**：agent-chat-message / agent-history-view / agent-log-view / assets 页硬编码字号与单色工具类替换为设计令牌。
+- **PATCH 3 gateway 测试**：新增 `config-and-url.test.js`（loopback 绑定安全、URL 重定基），移除 `use-config-store` 无用 proxy 常量。
+- **PATCH 4 存储**：`workspace-archive.ts` 把 OpenCut 剪辑台项目纳入文件夹备份与 `.intx.zip` 归档。
+- **PATCH 5 gateway 测试**：新增 `tasks-store.test.js`（持久化恢复、cleanup 淘汰删盘、路径穿越防护）。
+
+静态门禁 typecheck 0、tokens 78/145、结构 6375/6442、boundaries/overflow 通过、vitest 88 文件 952 例 + bun 19 例全绿；gateway `npm test` 15/15 通过。**修复补丁自带测试缺陷**：PATCH 5 原测试按错误的 `saveOutput(id, buffer, filename, mime)` 四参数签名与 `contentPath` 自动可用假设编写，与真实 API（`saveOutput(id, buffer, ext)` 返回 `{file}` 且不写回 task，`contentPath` 依赖 load 时按 id 找回 `<id>.mp4`）不符，2 例失败；已重写为按真实执行流程（写输出 → persistNow → load 恢复 → cleanup）验证相同行为意图。这批改动在 v0.2.4-beta.3 打包之后合入，需随下一版发布生效；验收项已记入 pending-test 中英清单。
+
 ## 6. 未验证项
 
 - BeefTV 的各模式、节点状态、悬浮栏和动效在运行时的全部显示条件；必须读具体组件和条件分支后确认。

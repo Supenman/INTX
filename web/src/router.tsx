@@ -3,6 +3,7 @@ import { createBrowserRouter, Outlet } from "react-router-dom";
 import { Spin } from "antd";
 
 import { AnalyticsTracker } from "@/components/layout/analytics-tracker";
+import { AppErrorBoundary, RouteErrorFallback } from "@/components/layout/app-error-boundary";
 import UserLayout from "@/layouts/user-layout";
 import HomePage from "@/pages/home";
 
@@ -26,10 +27,13 @@ function LazyRoute({ children }: { children: ReactNode }) {
 
 export const router = createBrowserRouter([
     {
+        errorElement: <RouteErrorFallback />,
         element: (
             <UserLayout>
                 <AnalyticsTracker />
-                <Outlet />
+                <AppErrorBoundary>
+                    <Outlet />
+                </AppErrorBoundary>
             </UserLayout>
         ),
         children: [

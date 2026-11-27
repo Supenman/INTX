@@ -3,6 +3,12 @@ title: Pending Tests
 description: Implemented changes that still need manual verification
 ---
 
+## Stability: error boundaries & diagnostic log export
+
+- Force an error in canvas/route/node: the app-level ErrorBoundary should show a friendly error page instead of a blank screen, and a node-level error should not take down the whole canvas.
+- Trigger a runtime error then export the diagnostic report: confirm the JSON has version/runtime/error summary, Bearer tokens and `sk-` keys are `[REDACTED]`, and no canvas content is included.
+- Local backup / `.intx.zip` archive: confirm it includes OpenCut editing-studio projects and a re-import restores them.
+
 ## BeefTV canvas status cards & polish
 
 - Empty text nodes: hide content actions (copy/edit etc.); nodes with content show them normally.

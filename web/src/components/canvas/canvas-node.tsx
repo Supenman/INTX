@@ -11,6 +11,7 @@ import { previewUrlFor, subscribeImagePreviews, getImagePreviewRevision } from "
 import { getNodeDefinition } from "@/lib/canvas/node-registry";
 import { buildNodeContext } from "@/lib/canvas/plugin-node-context";
 import { useThemeStore } from "@/stores/use-theme-store";
+import { CanvasNodeErrorBoundary } from "@/components/layout/app-error-boundary";
 import { CanvasNodeErrorCard, CanvasNodeLoadingCard, CanvasVideoPreview } from "./canvas-node-status-cards";
 import { CanvasResourceMentionTextarea } from "./canvas-resource-mention-textarea";
 import { CanvasNodeType, type CanvasNodeData, type CanvasNodeImage, type CanvasNodeText, type Position } from "@/types/canvas";
@@ -434,6 +435,7 @@ export const CanvasNode = React.memo(function CanvasNode({
                         } as React.CSSProperties
                     }
                 >
+                    <CanvasNodeErrorBoundary nodeId={data.id}>
                     <NodeContent
                         node={data}
                         theme={theme}
@@ -457,6 +459,7 @@ export const CanvasNode = React.memo(function CanvasNode({
                         onViewBatchImage={(imageId) => onViewImage?.(data, imageId)}
                         groupChildCount={groupChildCount}
                     />
+                    </CanvasNodeErrorBoundary>
                 </div>
 
                 {showImageInfo && hasImageContent ? <ImageInfoBar node={data} /> : null}

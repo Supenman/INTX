@@ -104,7 +104,6 @@ export const CHANNEL_PROVIDER_PRESETS: readonly ChannelProviderPreset[] = [
     { id: "openrouter", name: "OpenRouter", apiFormat: "openai", baseUrl: "https://openrouter.ai/api" },
     { id: "runninghub", name: "RunningHub", apiFormat: "runninghub", baseUrl: "https://www.runninghub.cn" },
 ];
-export const LOCAL_PROXY_PACKAGE = "@supenman/canvas-proxy";
 export const DEFAULT_LOCAL_PROXY_URL = "http://127.0.0.1:23210";
 
 export const defaultConfig: AiConfig = {

@@ -14,6 +14,15 @@ export default {
         description: "一个无限画布创作工具",
     },
     theme: { toggle: "切换主题" },
+    errorBoundary: {
+        title: "页面遇到意外错误",
+        description: "你的本地项目与资产数据未受影响。你可以尝试重新渲染、返回首页，或导出脱敏诊断日志用于排查。",
+        retry: "重试",
+        goHome: "返回首页",
+        copyError: "复制错误",
+        exportDiagnostics: "导出诊断日志",
+        nodeTitle: "节点渲染异常",
+    },
     storage: { loading: "正在加载本地数据", saving: "正在保存到本地", unsaved: "有未保存的修改", saved: "已保存", failed: "本地保存失败", retrySave: "重试本地保存", reload: "重新加载", stay: "留在当前项目", leaveFailed: "保存失败，已阻止离开；草稿仍保留在当前页面" },
     common: {
         cancel: "取消",

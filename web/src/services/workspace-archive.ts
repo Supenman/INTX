@@ -1,6 +1,7 @@
 import { unzipSync, zipSync, type Zippable } from "fflate";
 import localforage from "localforage";
 
+import type { TProject } from "@/lib/opencut/project/types";
 import { isDesktopApp } from "@/lib/runtime/capabilities";
 import { saveFile, type SaveFileOutcome } from "@/lib/runtime/save-file";
 import { getMediaBlob, resolveMediaUrl, setMediaBlob } from "@/services/file-storage";
@@ -9,10 +10,11 @@ import { useAssetStore, type Asset } from "@/stores/use-asset-store";
 import { useCanvasStore, type CanvasDeletedProject, type CanvasProject } from "@/stores/canvas/use-canvas-store";
 
 type StoredLog = Record<string, unknown> & { id?: string };
-export type ArchiveDomainKey = "canvas" | "assets" | "image-workbench" | "video-workbench";
+export type ArchiveDomainKey = "canvas" | "assets" | "image-workbench" | "video-workbench" | "editing-studio";
 type CanvasDomainData = { projects: CanvasProject[]; deleted: CanvasDeletedProject[] };
 type AssetDomainData = { assets: Asset[] };
 type LogDomainData = { logs: StoredLog[] };
+type EditingStudioDomainData = { activeProjectId: string | null; projects: Record<string, unknown>[] };
 
 type ArchiveFileEntry = {
     storageKey: string;
@@ -30,6 +32,7 @@ type WorkspaceManifest = {
         assets: AssetDomainData;
         "image-workbench": LogDomainData;
         "video-workbench": LogDomainData;
+        "editing-studio"?: EditingStudioDomainData;
     };
     files: ArchiveFileEntry[];
 };
@@ -50,6 +53,63 @@ const ARCHIVE_MANIFEST_NAME = "manifest.json";
 const STORAGE_KEY_PATTERN = /^(image|video|audio|file|video-reference|audio-reference):/;
 const imageLogStore = localforage.createInstance({ name: "infinite-canvas", storeName: "image_generation_logs" });
 const videoLogStore = localforage.createInstance({ name: "infinite-canvas", storeName: "video_generation_logs" });
+const editingProjectStore = localforage.createInstance({ name: "intx-editing-studio", storeName: "project" });
+
+async function readEditingStudioDomain(): Promise<EditingStudioDomainData> {
+    try {
+        const [{ storageService }, activeProjectId] = await Promise.all([
+            import("@/lib/opencut/services/storage/service"),
+            editingProjectStore.getItem<string>("active-project"),
+        ]);
+        const projects = await storageService.loadAllProjects();
+        return {
+            activeProjectId: activeProjectId || null,
+            projects: JSON.parse(JSON.stringify(projects)) as Record<string, unknown>[],
+        };
+    } catch {
+        return { activeProjectId: null, projects: [] };
+    }
+}
+
+async function mergeEditingStudioDomain(remote?: EditingStudioDomainData) {
+    if (!remote?.projects?.length) return;
+    try {
+        const { storageService } = await import("@/lib/opencut/services/storage/service");
+        const existingList = await storageService.loadAllProjectsMetadata();
+        const existingById = new Map(existingList.map((item) => [item.id, item.updatedAt.getTime()]));
+        for (const raw of remote.projects) {
+            const project = reviveEditingProject(raw);
+            if (!project) continue;
+            const localTime = existingById.get(project.metadata.id) ?? -1;
+            if (project.metadata.updatedAt.getTime() > localTime) {
+                await storageService.saveProject({ project });
+            }
+        }
+        const currentActive = await editingProjectStore.getItem<string>("active-project");
+        if (!currentActive && remote.activeProjectId) {
+            await editingProjectStore.setItem("active-project", remote.activeProjectId);
+        }
+    } catch {
+        // 剪辑工程恢复失败不阻断画布与资产主数据恢复
+    }
+}
+
+function reviveEditingProject(raw: Record<string, unknown>): TProject | null {
+    const meta = raw?.metadata as Record<string, unknown> | undefined;
+    if (!meta || typeof meta.id !== "string") return null;
+    const toDate = (v: unknown) => (v instanceof Date ? v : new Date(typeof v === "string" || typeof v === "number" ? v : Date.now()));
+    const scenes = Array.isArray(raw.scenes)
+        ? raw.scenes.map((scene) => {
+              const s = scene as Record<string, unknown>;
+              return { ...s, createdAt: toDate(s.createdAt), updatedAt: toDate(s.updatedAt) };
+          })
+        : [];
+    return {
+        ...raw,
+        metadata: { ...meta, createdAt: toDate(meta.createdAt), updatedAt: toDate(meta.updatedAt) },
+        scenes,
+    } as unknown as TProject;
+}
 
 type DirectoryHandleLike = {
     name: string;
@@ -86,13 +146,18 @@ async function buildSnapshot(onProgress?: ArchiveProgress) {
     await Promise.all([useCanvasStore.getState().load(), useAssetStore.getState().load()]);
     const { projects, deletedProjects } = useCanvasStore.getState();
     const { assets } = useAssetStore.getState();
-    const [imageLogs, videoLogs] = await Promise.all([readStoredLogs(imageLogStore), readStoredLogs(videoLogStore)]);
+    const [imageLogs, videoLogs, editingStudio] = await Promise.all([
+        readStoredLogs(imageLogStore),
+        readStoredLogs(videoLogStore),
+        readEditingStudioDomain(),
+    ]);
 
     const domains: WorkspaceManifest["domains"] = {
         canvas: { projects, deleted: deletedProjects },
         assets: { assets },
         "image-workbench": { logs: imageLogs },
         "video-workbench": { logs: videoLogs },
+        "editing-studio": editingStudio,
     };
 
     const storageKeys = collectStorageKeys(domains);
@@ -163,7 +228,11 @@ async function applyImportedSnapshot(
     const [localImgLogs, localVidLogs] = await Promise.all([readStoredLogs(imageLogStore), readStoredLogs(videoLogStore)]);
     const mergedImgLogs = mergeById(localImgLogs, manifest.domains["image-workbench"]?.logs || [], "createdAt");
     const mergedVidLogs = mergeById(localVidLogs, manifest.domains["video-workbench"]?.logs || [], "createdAt");
-    await Promise.all([replaceStoredLogs(imageLogStore, mergedImgLogs), replaceStoredLogs(videoLogStore, mergedVidLogs)]);
+    await Promise.all([
+        replaceStoredLogs(imageLogStore, mergedImgLogs),
+        replaceStoredLogs(videoLogStore, mergedVidLogs),
+        mergeEditingStudioDomain(manifest.domains["editing-studio"]),
+    ]);
 
     return {
         projects: mergedCanvas.projects.length,
@@ -404,6 +473,7 @@ function parseManifest(raw: string): WorkspaceManifest {
             assets: parsed.domains.assets || { assets: [] },
             "image-workbench": parsed.domains["image-workbench"] || { logs: [] },
             "video-workbench": parsed.domains["video-workbench"] || { logs: [] },
+            ...(parsed.domains["editing-studio"] ? { "editing-studio": parsed.domains["editing-studio"] } : {}),
         },
         files: Array.isArray(parsed.files) ? parsed.files : [],
     };

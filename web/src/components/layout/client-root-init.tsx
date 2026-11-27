@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 import { App } from "antd";
 import { useTranslation } from "react-i18next";
 
+import { installGlobalErrorCapture } from "@/services/diagnostics-log";
 import { useConfigStore } from "@/stores/use-config-store";
 
 export function ClientRootInit({ children }: { children: ReactNode }) {
@@ -11,6 +12,10 @@ export function ClientRootInit({ children }: { children: ReactNode }) {
     const handledConfigParams = useRef(false);
     const importChannelCredentials = useConfigStore((state) => state.importChannelCredentials);
     const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
+
+    useEffect(() => {
+        installGlobalErrorCapture();
+    }, []);
 
     useEffect(() => {
         if (handledConfigParams.current) return;
