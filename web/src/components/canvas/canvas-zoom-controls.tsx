@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Compass, Focus, HelpCircle, Images, LayoutGrid, LocateFixed, Minus, Plus, Search } from "lucide-react";
+import { Compass, Focus, HelpCircle, Images, LayoutGrid, LocateFixed, Maximize2, Minus, Plus, Search } from "lucide-react";
 import { useState } from "react";
 import { Button, Modal, Popover, Tooltip } from "antd";
 import { useTranslation } from "react-i18next";
@@ -19,6 +19,7 @@ type CanvasZoomControlsProps = {
     onFitCanvas?: () => void;
     onAutoArrange?: () => void;
     onOpenNodeSearch?: () => void;
+    onEnterFocusMode?: () => void;
     isMiniMapOpen: boolean;
     onToggleMiniMap: () => void;
     onOpenAssets: () => void;
@@ -27,7 +28,7 @@ type CanvasZoomControlsProps = {
     onFocusImage: (id: string) => void;
 };
 
-export function CanvasZoomControls({ scale, onScaleChange, onReset, onFitCanvas, onAutoArrange, onOpenNodeSearch, isMiniMapOpen, onToggleMiniMap, onOpenAssets, onInsertAsset, canvasImages, onFocusImage }: CanvasZoomControlsProps) {
+export function CanvasZoomControls({ scale, onScaleChange, onReset, onFitCanvas, onAutoArrange, onOpenNodeSearch, onEnterFocusMode, isMiniMapOpen, onToggleMiniMap, onOpenAssets, onInsertAsset, canvasImages, onFocusImage }: CanvasZoomControlsProps) {
     const [shortcutsOpen, setShortcutsOpen] = useState(false);
     const [assetsOpen, setAssetsOpen] = useState(false);
     const [zoomMenuOpen, setZoomMenuOpen] = useState(false);
@@ -117,6 +118,7 @@ export function CanvasZoomControls({ scale, onScaleChange, onReset, onFitCanvas,
                 <Tooltip title={`${t("canvas.sidePanel.searchNodes")} (Ctrl+F)`}>
                     <Button type="text" className="!h-8 !w-8 !min-w-8 !p-0" style={{ color: theme.toolbar.item }} icon={<Search className="size-4" />} onClick={onOpenNodeSearch ?? openCanvasNodeSearch} aria-label={t("canvas.sidePanel.searchNodes")} />
                 </Tooltip>
+                {onEnterFocusMode ? <Tooltip title={t("canvas.toolbar.focusMode")}><Button type="text" className="!h-8 !w-8 !min-w-8 !p-0" style={{ color: theme.toolbar.item }} icon={<Maximize2 className="size-4" />} onClick={onEnterFocusMode} aria-label={t("canvas.toolbar.focusMode")} /></Tooltip> : null}
                 <Tooltip title={t("canvas.shortcuts")}>
                     <Button type="text" className="!h-8 !w-8 !min-w-8 !p-0" style={shortcutsOpen ? activeStyle : { color: theme.toolbar.item }} icon={<HelpCircle className="size-4" />} onClick={() => setShortcutsOpen(true)} aria-label={t("canvas.shortcuts")} />
                 </Tooltip>

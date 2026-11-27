@@ -1,3 +1,4 @@
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, House, Plus, Search, type LucideIcon } from "lucide-react";
 import { Button } from "antd";
 import { motion, useReducedMotion } from "motion/react";
@@ -5,13 +6,14 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import { configSectionForTab, navigationTools } from "@/constant/navigation-tools";
-import { AppConfigModal } from "@/components/layout/app-config-modal";
 import { UserStatusActions } from "@/components/layout/user-status-actions";
 import { isDesktopApp } from "@/lib/agent/agent-client";
 import { cn } from "@/lib/utils";
-import { useEffect, useRef, useState } from "react";
+import { useConfigStore } from "@/stores/use-config-store";
 import { useAgentStore } from "@/stores/use-agent-store";
 import { CommandPalette } from "@/components/layout/command-palette";
+
+const AppConfigModal = lazy(() => import("@/components/layout/app-config-modal").then((mod) => ({ default: mod.AppConfigModal })));
 
 const sidebarPreference = "intx:sidebar-collapsed";
 
@@ -21,6 +23,7 @@ export function AppTopNav() {
     const navigate = useNavigate();
     const autoConnectRef = useRef(false);
     const [paletteOpen, setPaletteOpen] = useState(false);
+    const isConfigOpen = useConfigStore((state) => state.isConfigOpen);
     const [collapsed, setCollapsed] = useState(() => {
         try {
             return localStorage.getItem(sidebarPreference) === "1";
@@ -120,7 +123,7 @@ export function AppTopNav() {
                     </footer>
                 </aside>
             ) : null}
-            <AppConfigModal />
+            {isConfigOpen ? <Suspense fallback={null}><AppConfigModal /></Suspense> : null}
             <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
         </>
     );

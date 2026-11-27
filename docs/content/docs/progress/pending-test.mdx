@@ -3,6 +3,12 @@ title: Pending Tests
 description: Implemented changes that still need manual verification
 ---
 
+## Secondary bundle split, active task pill & canvas focus mode
+
+- Open Home (`/`), then open Config modal and Agent panel separately: both should load on demand without console errors and function normally (including script editor and markdown streaming).
+- Trigger generation on a canvas node and pan away from it: the top-right "Generating · N" pill should appear, expand to list active nodes with model info, and jump straight to the node on click.
+- Click the Focus Mode button (`Maximize2`) in the bottom-left zoom bar: top bar, bottom dock, and zoom bar should hide, leaving only the minimal top-center Focus Mode pill (`Esc` to exit, zoom `-`/`+`, Fit all).
+
 ## Route lazy-loading, gesture degradation, video/audio version compare & connection reconnect
 
 - Navigate across Home (`/`), Canvas (`/canvas/:id`), Editing Studio (`/editing-studio`), Assets, Tasks, Skills, and Config: each lazy route should load cleanly without blank flicker or console errors.

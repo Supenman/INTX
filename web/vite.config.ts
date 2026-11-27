@@ -84,5 +84,20 @@ export default defineConfig({
         __APP_VERSION__: JSON.stringify(localVersion),
         __APP_RELEASES__: JSON.stringify(parseChangelog(localChangelog)),
     },
-    build: { target: "esnext" },
+    build: {
+        target: "esnext",
+        rollupOptions: {
+            output: {
+                manualChunks(id) {
+                    if (!id.includes("node_modules")) return;
+                    if (id.includes("@codemirror") || id.includes("@uiw/react-codemirror") || id.includes("@lezer")) return "vendor-codemirror";
+                    if (id.includes("streamdown") || id.includes("shiki") || id.includes("mermaid") || id.includes("katex")) return "vendor-streamdown";
+                    // rc-motion 是 antd 的内部依赖，必须跟 antd 同块，否则 vendor-motion 与 vendor-antd 互相引用产生循环 chunk。
+                    if (id.includes("rc-motion")) return "vendor-antd";
+                    if (id.includes("antd") || id.includes("@ant-design") || id.includes("rc-")) return "vendor-antd";
+                    if (id.includes("framer-motion") || /node_modules\/motion(?:-dom)?\//.test(id)) return "vendor-motion";
+                },
+            },
+        },
+    },
 });

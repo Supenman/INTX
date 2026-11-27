@@ -1,7 +1,9 @@
+import { lazy, Suspense } from "react";
+import { Spin } from "antd";
 import { motion, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
 
-import { OpencodeAgentPanel } from "./opencode-agent-panel";
+const OpencodeAgentPanel = lazy(() => import("./opencode-agent-panel").then((mod) => ({ default: mod.OpencodeAgentPanel })));
 import { usePanelResize } from "@/hooks/use-panel-resize";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { CANVAS_AGENT_PANEL_MOTION_MS, useAgentStore } from "@/stores/use-agent-store";
@@ -40,7 +42,7 @@ export function AgentPanel() {
                 style={{ width, background: theme.node.panel, borderColor: theme.node.stroke, color: theme.node.text }}
             >
                 <button type="button" className="absolute inset-y-0 left-0 z-40 w-4 -translate-x-1/2 touch-none cursor-col-resize" {...resizeHandle} tabIndex={-1} aria-label={t("agent.panel.resize")} />
-                <OpencodeAgentPanel />
+                <Suspense fallback={<div className="flex h-full items-center justify-center"><Spin size="small" /></div>}><OpencodeAgentPanel /></Suspense>
             </motion.aside>
         </motion.div>
     );

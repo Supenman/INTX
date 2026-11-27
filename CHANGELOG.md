@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- [优化] 首屏主包二次瘦身、`project.tsx` 结构减负与画布活跃任务/专注模式：`AppConfigModal`（含 `CodeMirror` 513 KB）与 `OpencodeAgentPanel`（含 `streamdown` 510 KB）改为按需懒加载，并配 Vite `manualChunks` 拆分重型依赖，首页主入口再从 3.17 MB 压低且零循环依赖警告；从 `project.tsx` 抽离网格吸附与辅助函数至 `canvas-drag-snap.ts` / `canvas-project-helpers.ts`，结构预算从 6432 降至 6405（基线 6442，净减 37，补 3 例网格吸附单测至 944 例全绿）；对照 BeefTV 新增画布内「活跃生成任务浮标」（`CanvasActiveTaskPill`，平移远离生成中节点时一键定位）与「专注模式」（`CanvasFocusModeBar`，隐藏外围 chrome 沉浸看图/演示，按 `Esc` 退出）。
+
 - [优化] 首屏分包瘦身、大画布手势降级、音视频版本对比与连线端点重连：路由改为按需 `React.lazy` 拆分，`/editing-studio`（1.14 MB）与 `/canvas/:id`（427 KB）脱离首屏，主 bundle 从 5.77 MB 降至 3.17 MB（gzip 1.77 MB → 1.03 MB，降幅约 45%）；画布平移、滚轮缩放与双指捏合期间通过 `data-canvas-interacting` 临时隐藏连线流光与外晕装饰层以稳住大画布帧率；视频与音频节点的原地重生成接入 `prepareMediaGenerationVersion` 快照，版本对比弹窗新增音频播放器与视频可控预览并补齐关闭回焦，悬浮工具栏向音视频开放版本入口；高亮/悬停连线的起止端点支持直接拖拽改接到其他节点（取消或非法落点自动恢复原连线，新建 `canvas-reconnect.test.ts` 共 4 例单测；`typecheck`、`vitest` 86/86 941 例、`vite build`、令牌 140/145、结构预算 6432/6442 全绿）。
 
 - [新增] 画布效率与视觉细节一轮补齐：① 选中/悬停/拖拽中的连线加了一层沿连线流动的虚线（`prefers-reduced-motion` 下静止），拖动新建连线时虚线也会跑动指示方向；② 生成中的节点用画布主题色做呼吸光晕，并顺手把这处缩放胶囊的阴影从裸值收口为 `var(--shadow-sm)`；③ 一键「自动整理」接入多选浮栏与缩放菜单，按连线水平分层排列，锁定节点原位不动、组节点带动子节点同步偏移，四例单测钉住；④ 新增画布内搜索浮层（Ctrl/Cmd+F 或缩放栏搜索按钮），↑↓/Home/End 选择、Enter 居中并聚焦、Esc 关闭且焦点还给画布；⑤ 补齐 Ctrl/Cmd + = / + / - / 0 缩放与重置、Shift + 1 / 2 适配全部与聚焦选区、方向键微调选中节点（1px，Shift 16px，锁定节点跳过）；⑥ 拖动时 X、Y 同时吸附会在交叉处画一个实心点。实测微调 545→546→547 逐像素生效、Shift+Down 步进 16px（275→291）、锁定后不再移动；缩放 1→1.15→1 并重置回 1；搜索 2 条结果、↓ 选中第二项、Enter 关闭浮层并居中；自动整理把重叠的两节点排到 275/685；双向吸附渲染 2 条线 + 1 个圆点。

@@ -56,3 +56,14 @@ export function moveDraggedNodes(nodes: CanvasNodeData[], initial: ReadonlyMap<s
         return start ? { ...node, position: { x: start.x + offset.x, y: start.y + offset.y } } : node;
     });
 }
+
+export function snapCanvasOffsetToGrid(offset: Position, initialPositions: ReadonlyMap<string, Position>, gridSize = 16): Position {
+    const positions = [...initialPositions.values()];
+    if (!positions.length) return offset;
+    const left = Math.min(...positions.map((position) => position.x));
+    const top = Math.min(...positions.map((position) => position.y));
+    return {
+        x: Math.round((left + offset.x) / gridSize) * gridSize - left,
+        y: Math.round((top + offset.y) / gridSize) * gridSize - top,
+    };
+}

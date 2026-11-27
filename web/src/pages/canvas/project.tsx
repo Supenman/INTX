@@ -74,8 +74,8 @@ import { missingWorkflowFields, placeCanvasSubgraph, readCanvasWorkflow, selectW
 import { createStoryboardShotGraph } from "@/lib/canvas/storyboard";
 import { applyNodeConfigPatch, audioMetadata, buildAudioGenerationMetadata, buildImageGenerationMetadata, createCanvasNode, imageMetadata, videoMetadata } from "@/lib/canvas/canvas-node-factory";
 import { applyGroupSelection, applyUngroupSelection, canGroupSelectedNodes, canUngroupSelectedNodes, collectGroupMemberNodes, findContainingGroupId, findGroupDropTarget, fitViewportForNodes, focusViewportForNode, getConnectionTargetAnchor, getGroupWrapRect, nodeBounds, normalizeConnection, placeAssetNodes, revealNodesInViewport, snapNodesIntoGroup, warnConnectionRejected } from "@/lib/canvas/canvas-node-geometry";
-import { createDragSnap, moveDraggedNodes, type DragGuides } from "@/lib/canvas/canvas-drag-snap";
-import { alignNodes, distributeNodes, type AlignAxis, type DistributeAxis } from "@/lib/canvas/canvas-align"; import { reconnectCanvasConnection } from "@/lib/canvas/canvas-reconnect";
+import { createDragSnap, moveDraggedNodes, snapCanvasOffsetToGrid, type DragGuides } from "@/lib/canvas/canvas-drag-snap";
+import { alignNodes, distributeNodes, type AlignAxis, type DistributeAxis } from "@/lib/canvas/canvas-align"; import { reconnectCanvasConnection } from "@/lib/canvas/canvas-reconnect"; import { applyGeneratedVideo, measureFocusFrame } from "@/lib/canvas/canvas-project-helpers"; import { CanvasActiveTaskPill } from "@/components/canvas/canvas-active-task-pill"; import { CanvasFocusModeBar } from "@/components/canvas/canvas-focus-mode-bar";
 import { CanvasNodeSearchLayer } from "@/components/canvas/canvas-node-search-modal";
 import {
     audioExtension,
@@ -155,27 +155,7 @@ const NODE_STATUS_LOADING = "loading" as const;
 const NODE_STATUS_SUCCESS = "success" as const;
 const NODE_STATUS_ERROR = "error" as const;
 
-function snapCanvasOffsetToGrid(offset: Position, initialPositions: ReadonlyMap<string, Position>, gridSize = 16): Position {
-    const positions = [...initialPositions.values()];
-    if (!positions.length) return offset;
-    const left = Math.min(...positions.map((position) => position.x));
-    const top = Math.min(...positions.map((position) => position.y));
-    return {
-        x: Math.round((left + offset.x) / gridSize) * gridSize - left,
-        y: Math.round((top + offset.y) / gridSize) * gridSize - top,
-    };
-}
 
-function applyGeneratedVideo(item: CanvasNodeData, video: UploadedFile, extra: CanvasNodeData["metadata"] = {}): CanvasNodeData {
-    const videoSize = fitNodeSize(video.width || item.width, video.height || item.height, VIDEO_NODE_MAX_WIDTH, VIDEO_NODE_MAX_HEIGHT);
-    return {
-        ...item,
-        width: videoSize.width,
-        height: videoSize.height,
-        position: { x: item.position.x + item.width / 2 - videoSize.width / 2, y: item.position.y + item.height / 2 - videoSize.height / 2 },
-        metadata: { ...item.metadata, ...videoMetadata(video), ...extra },
-    };
-}
 
 export default function CanvasPage() {
     const [mounted, setMounted] = useState(false);
@@ -189,16 +169,7 @@ export default function CanvasPage() {
     return <InfiniteCanvasPage />;
 }
 
-function measureFocusFrame(container: HTMLDivElement | null, nodeId: string) {
-    if (!container) return {};
-    const nodeRect = container.querySelector<HTMLElement>(`[data-node-id="${nodeId}"]`)?.getBoundingClientRect();
-    const panelRect = container.parentElement?.querySelector<HTMLElement>(`[data-node-panel="${nodeId}"]`)?.getBoundingClientRect();
-    const toolbarRect = document.querySelector<HTMLElement>(`[data-node-toolbar="${nodeId}"]`)?.getBoundingClientRect();
-    const dockRect = document.querySelector<HTMLElement>("[data-canvas-bottom-toolbar]")?.getBoundingClientRect();
-    const below = panelRect ? panelRect.height + 12 : 0;
-    const above = nodeRect && toolbarRect ? nodeRect.top - toolbarRect.top : 0;
-    return { above, below, bottomInset: dockRect && below > 0 ? Math.max(0, container.getBoundingClientRect().bottom - dockRect.top) : 0 };
-}
+
 
 /** 由菜单同一份快捷键表反查「按键 → 节点类型」，键盘处理不再自己抄一遍。 */
 const NODE_CREATE_BY_SHORTCUT: Readonly<Record<string, CanvasNodeTypeId>> = Object.fromEntries(Object.entries(NODE_CREATE_SHORTCUTS).map(([type, key]) => [key, type as CanvasNodeTypeId]));
@@ -291,7 +262,7 @@ function InfiniteCanvasPage() {
     const [nodeCreatePosition, setNodeCreatePosition] = useState<Position | null>(null);
     const [nodeCreateDockAnchor, setNodeCreateDockAnchor] = useState<Position | null>(null);
     const [runningNodeId, setRunningNodeId] = useState<string | null>(null);
-    const [isMiniMapOpen, setIsMiniMapOpen] = useState(false);
+    const [isMiniMapOpen, setIsMiniMapOpen] = useState(false); const [focusMode, setFocusMode] = useState(false);
     // 时间线播放联动：当前播放头命中的镜头节点 id，驱动画布高亮。
     const [storyboardOpen, setStoryboardOpen] = useState(false);
     const [backgroundMode, setBackgroundMode] = useState<CanvasBackgroundMode>("lines");
@@ -2153,6 +2124,13 @@ function InfiniteCanvasPage() {
 
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
+            // 专注模式的 Esc 要在浮层/输入守卫之前处理：浮标按钮带 data-canvas-no-zoom，
+            // 焦点停在浮标上时若先被守卫拦掉，Esc 就退不出专注模式。
+            if (focusMode && event.key === "Escape" && !openOverlayOwnsKeyboard(event.target)) {
+                event.preventDefault();
+                setFocusMode(false);
+                return;
+            }
             if (openOverlayOwnsKeyboard(event.target)) return; // 浮层（弹窗/抽屉）开着时键盘归它，Esc 不能顺带清掉画布选中
             const target = event.target instanceof Element ? event.target : null;
             if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement || target?.closest("[contenteditable='true'],[data-canvas-no-zoom],[data-canvas-shortcuts-ignore]")) return;
@@ -2267,7 +2245,7 @@ function InfiniteCanvasPage() {
 
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [cancelPendingConnectionCreate, contextMenu, copySelectedNodes, createNode, deleteConnection, deleteNodes, finishNodeDrag, groupSelection, message, nodeCreatePosition, pasteCopiedNodes, pasteSystemClipboard, redoCanvas, selectedConnectionId, setConnecting, t, undoCanvas, ungroupSelection]);
+    }, [cancelPendingConnectionCreate, contextMenu, copySelectedNodes, createNode, deleteConnection, deleteNodes, finishNodeDrag, focusMode, groupSelection, message, nodeCreatePosition, pasteCopiedNodes, pasteSystemClipboard, redoCanvas, selectedConnectionId, setConnecting, t, undoCanvas, ungroupSelection]);
 
     const handleConnectStart = useCallback(
         (event: ReactPointerEvent, nodeId: string, handleType: "source" | "target") => {
@@ -3963,7 +3941,7 @@ function InfiniteCanvasPage() {
                 <Modal destroyOnHidden open={Boolean(saveBarrier.error)} title={t("storage.leaveFailed")} onCancel={saveBarrier.stay} footer={<><Button onClick={saveBarrier.stay}>{t("storage.stay")}</Button><Button onClick={() => void saveBarrier.retry()}>{t("storage.retrySave")}</Button></>}>
                     <p>{saveBarrier.error}</p>
                 </Modal>
-                <CanvasTopBar
+                {focusMode ? <CanvasFocusModeBar scale={viewport.k} onZoomIn={() => setZoomScale(Math.min(5, viewportRef.current.k * 1.15))} onZoomOut={() => setZoomScale(Math.max(0.05, viewportRef.current.k / 1.15))} onFitAll={fitCanvasViewport} onExit={() => setFocusMode(false)} /> : <CanvasTopBar
                     title={currentProject?.title || t("canvas.projectPage.untitledCanvas")}
                     titleDraft={titleDraft}
                     isTitleEditing={titleEditing}
@@ -3998,7 +3976,8 @@ function InfiniteCanvasPage() {
                     agentOpen={agentPanelOpen}
                     compactAgentStatus={{ connected: localAgentConnected, enabled: localAgentEnabled, activity: localAgentActivity }}
                     onToggleAgent={toggleAgentPanel}
-                />
+                />}
+                <CanvasActiveTaskPill nodes={nodes} topOffsetClass={focusMode ? "top-3" : "top-16"} onFocusNode={focusNode} />
 
                 <CanvasStoryboardDialog
                     open={storyboardOpen}
@@ -4248,7 +4227,7 @@ function InfiniteCanvasPage() {
                     />
                 ) : null}
 
-                <CanvasToolbar
+                {!focusMode ? <CanvasToolbar
                     selectedCount={selectedNodeIds.size}
                     canvasTool={canvasTool}
                     addMenuActive={Boolean(nodeCreatePosition)}
@@ -4282,17 +4261,17 @@ function InfiniteCanvasPage() {
                         setSnapToGrid(enabled);
                     }}
                     onShowImageInfoChange={setShowImageInfo}
-                />
+                /> : null}
 
                 {isMiniMapOpen ? <Minimap nodes={displayNodes} selectedNodeIds={selectedNodeIds} viewport={viewport} viewportSize={size} onViewportChange={setViewport} /> : null}
                 <CanvasNodeSearchLayer nodes={nodes} onSelectNode={focusNode} />
 
-                <CanvasZoomControls
+                {!focusMode ? <CanvasZoomControls
                     canvasImages={nodes.filter((node) => node.type === CanvasNodeType.Image && Boolean(node.metadata?.content || node.metadata?.images?.length))}
                     onFocusImage={focusNode}
                     scale={viewport.k}
                     onScaleChange={setZoomScale}
-                    onReset={resetViewport} onFitCanvas={fitCanvasViewport}
+                    onReset={resetViewport} onFitCanvas={fitCanvasViewport} onEnterFocusMode={() => setFocusMode(true)}
                     isMiniMapOpen={isMiniMapOpen}
                     onToggleMiniMap={() => setIsMiniMapOpen((value) => !value)}
                     onInsertAsset={handleAssetInsert}
@@ -4300,7 +4279,7 @@ function InfiniteCanvasPage() {
                         assetPickerPositionRef.current = null;
                         setAssetPickerOpen(true);
                     }}
-                />
+                /> : null}
 
                 {contextMenu?.type === "canvas" ? (
                     <CanvasBackgroundContextMenu
