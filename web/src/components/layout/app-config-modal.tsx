@@ -1,7 +1,7 @@
 import { useReducedMotion } from "motion/react";
-import { App, Button, Form, Input, Modal, Progress, Radio, Select, Switch, Tabs } from "antd";
+import { App, Button, Form, Input, Modal, Popconfirm, Progress, Radio, Select, Switch, Tabs } from "antd";
 import type { TFunction } from "i18next";
-import { Cloud, Download, Ellipsis, Pencil, Plus, RefreshCw, Trash2, Upload, Wifi } from "lucide-react";
+import { AlertCircle, CheckCircle2, Cloud, Copy, Download, Ellipsis, Pencil, Plus, RefreshCw, Trash2, Upload, Wifi } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -15,6 +15,8 @@ import { ConfigLocalProxy } from "@/components/layout/config-local-proxy";
 import { ConfigLocalStorage } from "@/components/layout/config-local-storage";
 import { ConfigTasks } from "@/components/layout/config-tasks";
 import type { AppLocale } from "@/i18n";
+import { diagnoseCapabilityCoverage, diagnoseChannel } from "@/lib/config/channel-diagnostics";
+import { fetchChannelModels } from "@/services/api/image";
 import { exportAppConfig, importAppConfig } from "@/services/config-file";
 import { syncAppDataToWebdav, type AppSyncDomainKey, type AppSyncProgressEvent } from "@/services/app-sync";
 import { testWebdavConnection, WEBDAV_MANIFEST_FILE_NAME } from "@/services/webdav-sync";
@@ -62,6 +64,7 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
     const [localTab, setLocalTab] = useState<ConfigTabKey>(initialTab);
     const activeTab = onTabChange ? initialTab : localTab;
     const [editingChannelId, setEditingChannelId] = useState("");
+    const [testingChannelId, setTestingChannelId] = useState("");
     const [testingWebdav, setTestingWebdav] = useState(false);
     const [syncingWebdav, setSyncingWebdav] = useState(false);
     const [webdavSyncStatus, setWebdavSyncStatus] = useState("");
@@ -121,6 +124,37 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
     const saveChannel = (channel: ModelChannel) => {
         updateChannels(config.channels.map((item) => (item.id === channel.id ? channel : item)));
     };
+
+    const duplicateChannel = (source: ModelChannel) => {
+        const copy = createModelChannel({
+            ...source,
+            id: undefined,
+            name: `${source.name || t("config.channels.unnamed")} (${t("common.copy")})`,
+            models: source.models.map((item) => ({ ...item, pricing: item.pricing ? { ...item.pricing } : undefined })),
+        });
+        updateChannels([...config.channels, copy]);
+        setEditingChannelId(copy.id);
+    };
+
+    const testChannel = async (channel: ModelChannel) => {
+        if (!channel.baseUrl.trim() || !channel.apiKey.trim()) {
+            message.error(t("config.modelSelect.missingConfig"));
+            return;
+        }
+        setTestingChannelId(channel.id);
+        const startedAt = performance.now();
+        try {
+            const models = await fetchChannelModels(channel);
+            const ms = Math.max(1, Math.round(performance.now() - startedAt));
+            message.success(t("config.channelEditor.testSuccess", { count: models.length, ms }));
+        } catch (error) {
+            message.error(error instanceof Error ? error.message : t("config.modelSelect.fetchFailed"));
+        } finally {
+            setTestingChannelId("");
+        }
+    };
+
+    const capabilityCoverage = diagnoseCapabilityCoverage(config);
 
     const testWebdav = async () => {
         if (!webdavReady) {
@@ -203,30 +237,87 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
                         key: "channels",
                         label: t("config.tabs.channels"),
                         children: (
-                            <div>
-                                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                            <div className="space-y-4">
+                                <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+                                    {capabilityCoverage.map((item) => (
+                                        <button
+                                            key={item.capability}
+                                            type="button"
+                                            onClick={() => (onTabChange ? onTabChange("preferences") : setLocalTab("preferences"))}
+                                            className="focus-ring flex min-w-0 cursor-pointer flex-col gap-1 rounded-[var(--r-lg)] border border-border bg-[var(--surface-sunken)] px-3 py-2.5 text-left transition hover:bg-[var(--surface-card-hover)]"
+                                        >
+                                            <div className="flex items-center justify-between gap-2">
+                                                <span className="text-xs font-medium text-foreground">{t(`config.channelEditor.capabilities.${item.capability}`)}</span>
+                                                {item.ready ? (
+                                                    <CheckCircle2 className="size-3.5 shrink-0 text-[var(--status-success)]" aria-hidden />
+                                                ) : (
+                                                    <AlertCircle className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                                                )}
+                                            </div>
+                                            <div className="truncate text-xs text-muted-foreground">
+                                                {item.ready ? item.configuredModel.split("::").pop() : t("config.channels.unconfigured")}
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+
+                                <div className="flex flex-wrap items-center justify-between gap-3">
                                     <div className="text-xs text-muted-foreground">{t("config.channels.description")}</div>
                                     <Button type="primary" icon={<Plus className="size-4" />} onClick={addChannel}>
                                         {t("config.channels.add")}
                                     </Button>
                                 </div>
-                                <div className="space-y-2">
-                                    {config.channels.map((channel) => (
-                                        <div key={channel.id} className="flex items-center justify-between gap-3 rounded-[var(--r-lg)] border border-border px-4 py-3">
-                                            <div className="min-w-0">
-                                                <div className="truncate text-sm font-semibold">{channel.name || t("config.channels.unnamed")}</div>
-                                                <div className="mt-1 truncate text-xs text-muted-foreground">
-                                                    {apiFormatLabel(channel.apiFormat)} · {t("config.channels.modelCount", { count: channel.models.length })} · {channel.baseUrl || t("config.channels.missingUrl")}
+                                <div className="space-y-2.5">
+                                    {config.channels.map((channel) => {
+                                        const diag = diagnoseChannel(channel);
+                                        const capSummary = (["image", "video", "text", "audio"] as const)
+                                            .filter((cap) => diag.counts[cap] > 0)
+                                            .map((cap) => `${t(`config.channelEditor.capabilities.${cap}`)} ${diag.counts[cap]}`);
+                                        return (
+                                            <div key={channel.id} className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--r-lg)] border border-border bg-[var(--surface-card)] px-4 py-3 transition hover:bg-[var(--surface-card-hover)]">
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex flex-wrap items-center gap-2">
+                                                        <span className="truncate text-sm font-semibold">{channel.name || t("config.channels.unnamed")}</span>
+                                                        <span className="rounded bg-[var(--surface-sunken)] px-1.5 py-0.5 text-[length:var(--fs-label)] text-muted-foreground">
+                                                            {apiFormatLabel(channel.apiFormat)}
+                                                        </span>
+                                                        <span
+                                                            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[length:var(--fs-label)] font-medium ${
+                                                                diag.ready ? "bg-[var(--surface-sunken)] text-[var(--status-success)]" : "bg-[var(--surface-sunken)] text-muted-foreground"
+                                                            }`}
+                                                        >
+                                                            {t(`config.channels.status.${diag.status}`)}
+                                                        </span>
+                                                    </div>
+                                                    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 truncate text-xs text-muted-foreground">
+                                                        <span>{t("config.channels.modelCount", { count: channel.models.length })}</span>
+                                                        {capSummary.length ? <span>· {capSummary.join(" / ")}</span> : null}
+                                                        <span className="truncate">· {channel.baseUrl || t("config.channels.missingUrl")}</span>
+                                                    </div>
+                                                </div>
+                                                <div className="flex shrink-0 items-center gap-1.5">
+                                                    {channel.apiFormat === "runninghub" ? null : (
+                                                        <Button
+                                                            size="small"
+                                                            icon={<Wifi className="size-3.5" />}
+                                                            loading={testingChannelId === channel.id}
+                                                            disabled={!channel.baseUrl.trim() || !channel.apiKey.trim()}
+                                                            onClick={() => void testChannel(channel)}
+                                                        >
+                                                            {t("config.channelEditor.testConnection")}
+                                                        </Button>
+                                                    )}
+                                                    <Button size="small" icon={<Copy className="size-3.5" />} aria-label={t("config.channels.duplicate")} title={t("config.channels.duplicate")} onClick={() => duplicateChannel(channel)} />
+                                                    <Button size="small" icon={<Pencil className="size-3.5" />} onClick={() => setEditingChannelId(channel.id)}>
+                                                        {t("common.edit")}
+                                                    </Button>
+                                                    <Popconfirm title={t("config.channels.deleteConfirm")} okText={t("common.delete")} cancelText={t("common.cancel")} onConfirm={() => deleteChannel(channel.id)}>
+                                                        <Button size="small" danger icon={<Trash2 className="size-3.5" />} aria-label={t("common.delete")} />
+                                                    </Popconfirm>
                                                 </div>
                                             </div>
-                                            <div className="flex shrink-0 gap-2">
-                                                <Button size="small" icon={<Pencil className="size-3.5" />} onClick={() => setEditingChannelId(channel.id)}>
-                                                    {t("common.edit")}
-                                                </Button>
-                                                <Button size="small" danger icon={<Trash2 className="size-3.5" />} onClick={() => deleteChannel(channel.id)} />
-                                            </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             </div>
                         ),

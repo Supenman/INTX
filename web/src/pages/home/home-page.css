@@ -1,0 +1,74 @@
+/* 首页氛围点阵与骨架屏动效（纯设计令牌，零裸色值） */
+.intx-home-hero {
+    position: relative;
+    overflow: hidden;
+    background: var(--surface-sunken);
+}
+
+.intx-home-dot-grid {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image: radial-gradient(circle, color-mix(in srgb, var(--foreground) 14%, transparent) 1px, transparent 1.4px);
+    background-size: 20px 20px;
+    mask-image: radial-gradient(ellipse 80% 75% at 50% 45%, var(--foreground) 35%, transparent 100%);
+}
+
+.intx-home-dot-glow {
+    position: absolute;
+    left: 50%;
+    top: 38%;
+    width: 680px;
+    height: 680px;
+    margin: -340px 0 0 -340px;
+    border-radius: var(--r-full);
+    pointer-events: none;
+    background: radial-gradient(
+        circle,
+        transparent 18%,
+        color-mix(in srgb, var(--foreground) 7%, transparent) 46%,
+        color-mix(in srgb, var(--foreground) 12%, transparent) 56%,
+        transparent 74%
+    );
+    opacity: 0.22;
+    animation: intx-home-ripple 3.6s cubic-bezier(0.33, 0, 0.2, 1) 1 forwards;
+}
+
+.intx-home-skeleton {
+    background: linear-gradient(
+        100deg,
+        var(--surface-card) 30%,
+        var(--surface-card-hover) 50%,
+        var(--surface-card) 70%
+    );
+    background-size: 200% 100%;
+    animation: intx-home-shimmer 1.4s linear infinite;
+}
+
+@keyframes intx-home-ripple {
+    0% {
+        opacity: 0;
+        transform: scale(0.22);
+    }
+    35% {
+        opacity: 0.34;
+    }
+    100% {
+        opacity: 0.2;
+        transform: scale(1);
+    }
+}
+
+@keyframes intx-home-shimmer {
+    to {
+        background-position: -200% 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .intx-home-dot-glow,
+    .intx-home-skeleton {
+        animation: none;
+        transform: none;
+    }
+}

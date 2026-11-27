@@ -185,6 +185,7 @@ function InfiniteCanvasPage() {
     const navigate = useNavigate();
     const { state: locationState, pathname, search, hash } = useLocation();
     const homeAgentPrompt: unknown = locationState?.homeAgentPrompt;
+    const homeInitialNodeType: unknown = locationState?.homeInitialNodeType;
     const [searchParams] = useSearchParams();
     const projectId = params.id || "";
     const localAgentConnected = useAgentStore((state) => state.connected);
@@ -581,6 +582,14 @@ function InfiniteCanvasPage() {
         openAgentPanel();
         navigate({ pathname, search, hash }, { replace: true, state: null });
     }, [hash, homeAgentPrompt, navigate, openAgentPanel, pathname, projectLoaded, search]);
+    useEffect(() => {
+        if (!projectLoaded || typeof homeInitialNodeType !== "string" || !Object.values(CanvasNodeType).includes(homeInitialNodeType as CanvasNodeType)) return;
+        const node = createCanvasNode(homeInitialNodeType as CanvasNodeType, { x: 0, y: 0 });
+        setNodes((prev) => (prev.length ? prev : [node]));
+        setSelectedNodeIds(new Set([node.id]));
+        setDialogNodeId(node.id);
+        navigate({ pathname, search, hash }, { replace: true, state: null });
+    }, [hash, homeInitialNodeType, navigate, pathname, projectLoaded, search]);
 
     useEffect(() => {
         if (!projectLoaded || !["new", "recent", "choose"].includes(searchParams.get("mode") || "")) return;
