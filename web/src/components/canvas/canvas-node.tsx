@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { AlertCircle, ChevronRight, Copy, Download, FileText, Group, Image as ImageIcon, Lock, Music2, Pencil, Play, Plus, Puzzle, RefreshCw, Star, Trash2, Video } from "lucide-react";
 
 import { canvasThemes } from "@/lib/canvas-theme";
+import { isNativeMediaControlHit } from "@/lib/canvas/canvas-project-helpers";
 import { colorGradeFilter } from "@/lib/canvas/color-grade";
 import { isBrokenVideoContent } from "@/lib/media-blob";
 import { hasResumableImageTask, hasResumableVideoTask } from "@/lib/canvas/canvas-generation-helpers";
@@ -396,7 +397,7 @@ export const CanvasNode = React.memo(function CanvasNode({
                 }}
                 onPointerDown={(event) => {
                     const target = event.target instanceof Element ? event.target : null;
-                    if (target?.closest("[data-canvas-node-control],[data-canvas-node-resize],button,input,textarea,select,[contenteditable='true'],[data-canvas-no-zoom]")) {
+                    if (target?.closest("[data-canvas-node-control],[data-canvas-node-resize],button,input,textarea,select,[contenteditable='true'],[data-canvas-no-zoom]") || isNativeMediaControlHit(target, event.clientY)) {
                         event.stopPropagation();
                         return;
                     }
@@ -792,24 +793,19 @@ function VideoNodeContent({ node, theme }: NodeContentRendererProps) {
                 {broken ? <span className="text-[10px] opacity-70">{t("canvas.node.videoRetryHint")}</span> : null}
             </div>
         );
-    return <video src={node.metadata?.content} controls className="h-full w-full rounded-[var(--r-lg)] bg-black object-contain" style={{ filter: colorGradeFilter(node.metadata?.colorGrade) }} data-canvas-video={node.id} data-canvas-no-zoom onError={() => setPlaybackFailed(true)} />;
+    return <video src={node.metadata?.content} controls className="h-full w-full rounded-[var(--r-lg)] object-contain" style={{ background: theme.node.fill, filter: colorGradeFilter(node.metadata?.colorGrade) }} data-canvas-video={node.id} onError={() => setPlaybackFailed(true)} />;
 }
 
 function AudioNodeContent({ node, theme }: NodeContentRendererProps) {
     const { t } = useTranslation();
-    if (!node.metadata?.content)
-        return (
-            <div role="img" aria-label={t("canvas.node.emptyAudio")} className="grid h-full w-full place-items-center" style={{ color: theme.node.muted }}>
-                <Music2 aria-hidden className="size-14 opacity-30" strokeWidth={1.25} />
-            </div>
-        );
+    if (!node.metadata?.content) return <div role="img" aria-label={t("canvas.node.emptyAudio")} className="grid h-full w-full place-items-center" style={{ color: theme.node.muted }}><Music2 aria-hidden className="size-14 opacity-30" strokeWidth={1.25} /></div>;
     return (
         <div className="flex h-full w-full flex-col justify-center gap-3 px-4" style={{ background: theme.node.fill, color: theme.node.text }}>
             <div className="flex min-w-0 items-center gap-2 text-sm opacity-70">
                 <Music2 className="size-4 shrink-0" />
                 <span className="truncate">{t("canvas.node.audio")}</span>
             </div>
-            <audio src={node.metadata.content} controls className="w-full" data-canvas-no-zoom />
+            <audio src={node.metadata.content} controls className="w-full" />
         </div>
     );
 }

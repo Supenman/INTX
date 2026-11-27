@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- [修复] 画布真实体验四项修复与 BeefTV 深度对齐：① 修复有内容的视频/音频节点拖不动的问题：移除 `<video>`/`<audio>` 上的 `data-canvas-no-zoom`，通过 `isNativeMediaControlHit` 仅保留视频底部 48px 原生播放控制条与音频条交互，视频画面主体与音频卡片区域可像图片节点一样直接拖拽并支持滚轮缩放；② 重置视图逻辑对齐 BeefTV：`computeResetViewport` 在画布存在节点时以 88px 留白居中适配全部节点并平滑过渡，仅空画布回落世界原点；③ 画布底部控件对齐 BeefTV：底部居中工具栏新增 `V`（移动框选）/ `H`（抓手平移）快捷键及菜单按键提示，左下角缩放坞统一为 `h-12 rounded-2xl` 与居中工具栏齐平，新增网格吸附开关、一键自动整理直达按钮与可编辑百分比缩放弹层；④ 节点提示词输入框与四类高级设置浮层统一升级：输入框新增模式头栏、轻盈描边输入表面与高对比圆角提交按钮，抽取 `CanvasSettingsPortalShell` 统一图片/视频/音频/文本四类设置触发胶囊与带标题摘要关闭栏的玻璃态浮层，统一四类内部面板紧凑高度与选中边框（补 4 例单测，全量 87 文件 948 例通过，令牌降至 139/145，修复 Vite `vendor-motion` 循环分包告警）。
+
 - [优化] 首屏主包二次瘦身、`project.tsx` 结构减负与画布活跃任务/专注模式：`AppConfigModal`（含 `CodeMirror` 513 KB）与 `OpencodeAgentPanel`（含 `streamdown` 510 KB）改为按需懒加载，并配 Vite `manualChunks` 拆分重型依赖，首页主入口再从 3.17 MB 压低且零循环依赖警告；从 `project.tsx` 抽离网格吸附与辅助函数至 `canvas-drag-snap.ts` / `canvas-project-helpers.ts`，结构预算从 6432 降至 6405（基线 6442，净减 37，补 3 例网格吸附单测至 944 例全绿）；对照 BeefTV 新增画布内「活跃生成任务浮标」（`CanvasActiveTaskPill`，平移远离生成中节点时一键定位）与「专注模式」（`CanvasFocusModeBar`，隐藏外围 chrome 沉浸看图/演示，按 `Esc` 退出）。
 
 - [优化] 首屏分包瘦身、大画布手势降级、音视频版本对比与连线端点重连：路由改为按需 `React.lazy` 拆分，`/editing-studio`（1.14 MB）与 `/canvas/:id`（427 KB）脱离首屏，主 bundle 从 5.77 MB 降至 3.17 MB（gzip 1.77 MB → 1.03 MB，降幅约 45%）；画布平移、滚轮缩放与双指捏合期间通过 `data-canvas-interacting` 临时隐藏连线流光与外晕装饰层以稳住大画布帧率；视频与音频节点的原地重生成接入 `prepareMediaGenerationVersion` 快照，版本对比弹窗新增音频播放器与视频可控预览并补齐关闭回焦，悬浮工具栏向音视频开放版本入口；高亮/悬停连线的起止端点支持直接拖拽改接到其他节点（取消或非法落点自动恢复原连线，新建 `canvas-reconnect.test.ts` 共 4 例单测；`typecheck`、`vitest` 86/86 941 例、`vite build`、令牌 140/145、结构预算 6432/6442 全绿）。

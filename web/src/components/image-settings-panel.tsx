@@ -87,7 +87,7 @@ export function ImageSettingsPanel({ config, onConfigChange, theme, showTitle = 
                     之前并列成三块，看着像三个独立参数，实际互相覆盖。 */}
                 <div className="space-y-2.5">
                     <SettingTitle color={theme.node.muted}>{t("settingsPanels.image.size")}</SettingTitle>
-                    <div className="grid grid-cols-4 gap-2.5">
+                    <div className="grid grid-cols-4 gap-1.5">
                         {mediaRatioOptions.map((item) => (
                             <button
                                 key={item.value}
@@ -95,8 +95,8 @@ export function ImageSettingsPanel({ config, onConfigChange, theme, showTitle = 
                                 disabled={!sizeEnabled}
                                 aria-disabled={!sizeEnabled}
                                 aria-pressed={selectedRatio === item.value}
-                                className={`flex h-[72px] flex-col items-center justify-center gap-1.5 rounded-[var(--r-md)] border bg-transparent text-[length:var(--fs-body)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${sizeEnabled ? "cursor-pointer hover:opacity-80" : "cursor-not-allowed opacity-50"}`}
-                                style={{ borderColor: selectedRatio === item.value ? theme.node.text : theme.node.stroke, background: selectedRatio === item.value ? theme.toolbar.activeBg : "transparent", color: theme.node.text }}
+                                className={`flex h-14 flex-col items-center justify-center gap-1 rounded-[var(--r-md)] border bg-transparent text-[length:var(--fs-body)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${sizeEnabled ? "cursor-pointer hover:opacity-80" : "cursor-not-allowed opacity-50"}`}
+                                style={{ borderColor: selectedRatio === item.value ? theme.node.activeStroke : theme.node.stroke, background: selectedRatio === item.value ? theme.toolbar.activeBg : "transparent", color: theme.node.text }}
                                 onMouseDown={(event) => event.stopPropagation()}
                                 onClick={() => selectRatio(item.value)}
                             >
@@ -105,7 +105,7 @@ export function ImageSettingsPanel({ config, onConfigChange, theme, showTitle = 
                             </button>
                         ))}
                     </div>
-                    <div className="grid grid-cols-4 gap-2.5">
+                    <div className="grid grid-cols-4 gap-1.5">
                         {mediaScaleOptions.map((value) => (
                             <OptionPill key={value} selected={selectedScale === value} disabled={!sizeEnabled} theme={theme} onClick={() => selectScale(value)}>
                                 {value === "auto" ? t("settingsPanels.common.auto") : value}
@@ -147,7 +147,7 @@ export function ImageSettingsPanel({ config, onConfigChange, theme, showTitle = 
                 </div>
                 <div className="space-y-2.5">
                     <SettingTitle color={theme.node.muted}>{t("settingsPanels.image.count")}</SettingTitle>
-                    <div className="grid grid-cols-4 gap-2.5">
+                    <div className="grid grid-cols-4 gap-1.5">
                         {Array.from({ length: quickCount }, (_, index) => index + 1).map((value) => (
                             <OptionPill key={value} selected={count === value} theme={theme} onClick={() => onConfigChange("count", String(value))}>
                                 {t("settingsPanels.image.images", { count: value })}
@@ -163,7 +163,7 @@ export function ImageSettingsPanel({ config, onConfigChange, theme, showTitle = 
                 </div>
                 <div className="space-y-2.5">
                     <SettingTitle color={theme.node.muted}>{t("settingsPanels.image.output")}</SettingTitle>
-                    <div className="grid grid-cols-3 gap-2.5">
+                    <div className="grid grid-cols-3 gap-1.5">
                         {qualityOptions.map((item) => (
                             <OptionPill key={item.value} selected={quality === item.value} disabled={!qualityEnabled} theme={theme} onClick={() => onConfigChange("quality", item.value)}>
                                 {t(`settingsPanels.common.${item.labelKey}`)}
@@ -222,8 +222,8 @@ function OptionPill({ selected, theme, onClick, disabled = false, children }: { 
             disabled={disabled}
             aria-disabled={disabled}
             aria-pressed={selected}
-            className={`h-9 rounded-[var(--r-md)] border px-2 text-[length:var(--fs-body)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:opacity-80"}`}
-            style={{ background: selected ? theme.toolbar.activeBg : "transparent", borderColor: selected ? theme.node.text : theme.node.stroke, color: theme.node.text }}
+            className={`h-8 rounded-[var(--r-md)] border px-2 text-[length:var(--fs-caption)] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:opacity-80"}`}
+            style={{ background: selected ? theme.toolbar.activeBg : "transparent", borderColor: selected ? theme.node.activeStroke : theme.node.stroke, color: theme.node.text }}
             onMouseDown={(event) => event.stopPropagation()}
             onClick={onClick}
         >
@@ -263,7 +263,7 @@ function DimensionInput({ prefix, value, disabled, theme, alignToStep, onChange 
 
 function CountInput({ value, max, label, theme, onChange }: { value: number; max: number; label: string; theme: CanvasTheme; onChange: (value: number | null) => void }) {
     return (
-        <label className="col-span-2 flex h-9 overflow-hidden rounded-[var(--r-md)] border text-[length:var(--fs-body)]" style={{ borderColor: theme.node.stroke, color: theme.node.text }}>
+        <label className="col-span-2 flex h-8 overflow-hidden rounded-[var(--r-md)] border text-[length:var(--fs-caption)]" style={{ borderColor: theme.node.stroke, color: theme.node.text }}>
             <input
                 type="number"
                 aria-label={label}

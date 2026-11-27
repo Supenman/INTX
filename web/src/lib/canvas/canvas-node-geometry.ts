@@ -218,3 +218,10 @@ export function fitViewportForNodes(nodes: CanvasNodeData[], size: { width: numb
         k,
     };
 }
+
+/** Reset viewport by framing all existing nodes (aligned with BeefTV), falling back to origin only when empty. */
+export function computeResetViewport(nodes: CanvasNodeData[], size: { width: number; height: number }, padding = 88): ViewportTransform {
+    const fitted = fitViewportForNodes(nodes, size, padding);
+    if (fitted) return fitted;
+    return { x: size.width / 2, y: size.height / 2, k: 1 };
+}

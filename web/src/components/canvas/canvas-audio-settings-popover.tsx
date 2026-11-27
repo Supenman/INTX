@@ -1,16 +1,14 @@
-import { type RefObject } from "react";
-import { createPortal } from "react-dom";
-import { Settings2 } from "lucide-react";
-import { Button } from "antd";
+import { AudioLines } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { AudioSettingsPanel } from "@/components/audio-settings-panel";
 import { audioFormatLabel, audioSpeedLabel, audioVoiceLabel } from "@/lib/audio-generation";
 import { canvasThemes } from "@/lib/canvas-theme";
-import { resolvePopoverPosition, type PopoverPlacement } from "@/lib/canvas/popover-position";
-import { useAnchoredPopover, type AnchoredPopover } from "@/hooks/use-anchored-popover";
+import type { PopoverPlacement } from "@/lib/canvas/popover-position";
+import { useAnchoredPopover } from "@/hooks/use-anchored-popover";
 import { useThemeStore } from "@/stores/use-theme-store";
 import type { AiConfig } from "@/stores/use-config-store";
+import { CanvasSettingsPortalShell, CanvasSettingsTrigger } from "./canvas-settings-popover-shell";
 
 export type CanvasAudioSettingKey = "audioVoice" | "audioFormat" | "audioSpeed" | "audioInstructions";
 
@@ -25,79 +23,41 @@ type CanvasAudioSettingsPopoverProps = {
 export function CanvasAudioSettingsPopover({ config, onConfigChange, onOpenChange, buttonClassName, placement = "topLeft" }: CanvasAudioSettingsPopoverProps) {
     const { t } = useTranslation();
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
-    const { buttonRef, panelRef, panelProps, open, setOpen, buttonRect, anchorRect, buttonWidth, panelHeight, layer } = useAnchoredPopover({ onOpenChange, label: t("settingsPanels.audio.title") });
+    const title = t("settingsPanels.audio.title");
+    const { buttonRef, panelRef, panelProps, open, setOpen, buttonRect, anchorRect, buttonWidth, panelHeight, layer } = useAnchoredPopover({ onOpenChange, label: title });
 
-    // 位置由 Portal 内部按按钮实测矩形算；这里不要求 buttonRect 先就绪，
-    // 否则首帧 buttonRect 还是 null，面板要等下一次 setState 才出现。
     const summary = `${audioVoiceLabel(config.audioVoice)} · ${audioFormatLabel(config.audioFormat)} · ${audioSpeedLabel(config.audioSpeed)}`;
-    const panel = open ? <AudioSettingsPortal buttonRect={buttonRect} anchorRect={anchorRect} panelHeight={panelHeight} panelRef={panelRef} panelProps={panelProps} placement={placement} layer={layer} theme={theme} config={config} onConfigChange={onConfigChange} /> : null;
 
     return (
         <>
-            <span ref={buttonRef} className="inline-flex min-w-0" style={buttonWidth === null ? undefined : { width: buttonWidth }}>
-                <Button size="small" type="text" aria-expanded={open} aria-label={`${t("settingsPanels.audio.title")}: ${summary}`} title={`${t("settingsPanels.audio.title")} · ${summary}`} className={buttonClassName || "!h-[var(--control-h-sm)] !max-w-[180px] !justify-start !rounded-full !px-2.5"} style={{ background: open ? theme.toolbar.activeBg : theme.toolbar.itemHover, color: theme.node.text, width: buttonWidth === null ? undefined : "100%" }} icon={<Settings2 className="size-3.5" />} onClick={() => setOpen(!open)}>
-                    <span className="truncate">{summary}</span>
-                </Button>
-            </span>
-            {panel}
+            <CanvasSettingsTrigger
+                buttonRef={buttonRef}
+                buttonWidth={buttonWidth}
+                open={open}
+                title={title}
+                summary={summary}
+                theme={theme}
+                buttonClassName={buttonClassName}
+                onToggle={() => setOpen(!open)}
+            />
+            {open ? (
+                <CanvasSettingsPortalShell
+                    buttonRect={buttonRect}
+                    anchorRect={anchorRect}
+                    panelHeight={panelHeight}
+                    panelRef={panelRef}
+                    panelProps={panelProps}
+                    placement={placement}
+                    layer={layer}
+                    theme={theme}
+                    title={title}
+                    summary={summary}
+                    icon={<AudioLines className="size-3.5" />}
+                    onClose={() => setOpen(false)}
+                >
+                    <AudioSettingsPanel config={config} onConfigChange={(key, value) => onConfigChange(key, value)} theme={theme} showTitle={false} className="space-y-3.5" />
+                </CanvasSettingsPortalShell>
+            ) : null}
         </>
-    );
-}
-
-function AudioSettingsPortal({
-    buttonRect,
-    anchorRect,
-    panelHeight,
-    panelRef,
-    panelProps,
-    placement,
-    layer,
-    theme,
-    config,
-    onConfigChange,
-}: {
-    /** 首帧可能还没测量到按钮位置；为 null 时先不渲染，等首次测量即可。 */
-    buttonRect: DOMRect | null;
-    /** 触发按钮所属的生成面板，水平避让以它为界。 */
-    anchorRect: DOMRect | null;
-    /** 浮层上一次实测高度，用来判断向上还是向下展开。 */
-    panelHeight: number | null;
-    panelRef: RefObject<HTMLDivElement | null>;
-    panelProps: AnchoredPopover["panelProps"];
-    placement: PopoverPlacement;
-    layer: number;
-    theme: (typeof canvasThemes)[keyof typeof canvasThemes];
-    config: AiConfig;
-    onConfigChange: (key: CanvasAudioSettingKey, value: string) => void;
-}) {
-    if (!buttonRect) return null;
-    const position = resolvePopoverPosition({ buttonRect, anchorRect, placement, panelHeight, viewport: { width: window.innerWidth, height: window.innerHeight } });
-    const style = {
-        position: "fixed",
-        zIndex: layer,
-        ...position,
-        background: theme.toolbar.panel,
-        borderRadius: "var(--r-xl)",
-        boxShadow: "var(--shadow-lg), var(--hairline)",
-        padding: "var(--space-4)",
-        overflowY: "auto",
-        overscrollBehavior: "contain",
-        color: theme.node.text,
-    } as const;
-
-    return createPortal(
-        <div
-            ref={panelRef}
-            {...panelProps}
-            className="canvas-image-settings-popover"
-            data-node-settings-panel
-            style={style}
-            onPointerDown={(event) => event.stopPropagation()}
-            onMouseDown={(event) => event.stopPropagation()}
-            onClick={(event) => event.stopPropagation()}
-        >
-            <AudioSettingsPanel config={config} onConfigChange={(key, value) => onConfigChange(key, value)} theme={theme} className="space-y-4" />
-        </div>,
-        document.body,
     );
 }

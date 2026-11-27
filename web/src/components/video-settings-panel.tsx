@@ -56,14 +56,14 @@ export function VideoSettingsPanel({ config, onConfigChange, theme, showTitle = 
                 {/* 尺寸先行：比例和清晰度共同决定出图尺寸，之前清晰度排在最前、比例排第三，
                     中间夹着精确像素，读起来像三个互不相干的参数。 */}
                 <SettingGroup title={t("settingsPanels.video.ratio")} color={theme.node.muted}>
-                    <div className="grid grid-cols-4 gap-2.5">
+                    <div className="grid grid-cols-4 gap-1.5">
                         {videoRatioOptions.map((item) => (
                             <button
                                 key={item.value}
                                 type="button"
                                 aria-pressed={selectedRatio === item.value}
-                                className="flex h-[72px] cursor-pointer flex-col items-center justify-center gap-1.5 rounded-[var(--r-md)] border bg-transparent text-[length:var(--fs-body)] transition hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                style={{ borderColor: selectedRatio === item.value ? theme.node.text : theme.node.stroke, background: selectedRatio === item.value ? theme.toolbar.activeBg : "transparent", color: theme.node.text }}
+                                className="flex h-14 cursor-pointer flex-col items-center justify-center gap-1 rounded-[var(--r-md)] border bg-transparent text-[length:var(--fs-body)] transition hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                style={{ borderColor: selectedRatio === item.value ? theme.node.activeStroke : theme.node.stroke, background: selectedRatio === item.value ? theme.toolbar.activeBg : "transparent", color: theme.node.text }}
                                 onMouseDown={(event) => event.stopPropagation()}
                                 onClick={() => applySize(resolution, item.value)}
                             >
@@ -74,7 +74,7 @@ export function VideoSettingsPanel({ config, onConfigChange, theme, showTitle = 
                     </div>
                 </SettingGroup>
                 <SettingGroup title={t("settingsPanels.video.quality")} color={theme.node.muted}>
-                    <div className="grid grid-cols-4 gap-2.5">
+                    <div className="grid grid-cols-4 gap-1.5">
                         {resolutionOptions.map((item) => (
                             <OptionPill key={item.value} selected={resolution === item.value} theme={theme} onClick={() => selectResolution(item.value)}>
                                 {item.label}
@@ -117,7 +117,7 @@ export function VideoSettingsPanel({ config, onConfigChange, theme, showTitle = 
                     </div>
                 </SettingGroup>
                 <SettingGroup title={t("settingsPanels.video.mode")} color={theme.node.muted}>
-                    <div className="grid grid-cols-2 gap-2.5">
+                    <div className="grid grid-cols-2 gap-1.5">
                         {videoModeOptions.map((item) => (
                             <OptionPill key={item.value} selected={videoMode === item.value} theme={theme} onClick={() => onConfigChange("videoMode", item.value)}>
                                 {t(`settingsPanels.video.modes.${item.labelKey}`)}
@@ -170,7 +170,7 @@ function updateDimension(key: "width" | "height", value: number | null, dimensio
 
 function OptionPill({ selected, disabled = false, theme, onClick, children }: { selected: boolean; disabled?: boolean; theme: CanvasTheme; onClick: () => void; children: ReactNode }) {
     return (
-        <button type="button" disabled={disabled} aria-pressed={selected} className="h-9 cursor-pointer rounded-full border px-2 text-sm transition hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-35" style={{ background: selected ? theme.toolbar.activeBg : "transparent", borderColor: selected ? theme.node.text : theme.node.stroke, color: theme.node.text }} onMouseDown={(event) => event.stopPropagation()} onClick={onClick}>
+        <button type="button" disabled={disabled} aria-pressed={selected} className="h-8 cursor-pointer rounded-[var(--r-md)] border px-2 text-[length:var(--fs-caption)] font-medium transition hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-35" style={{ background: selected ? theme.toolbar.activeBg : "transparent", borderColor: selected ? theme.node.activeStroke : theme.node.stroke, color: theme.node.text }} onMouseDown={(event) => event.stopPropagation()} onClick={onClick}>
             {children}
         </button>
     );
@@ -190,7 +190,7 @@ function SettingGroup({ title, color, children }: { title: string; color: string
 function ResolutionInput({ value, theme, onChange }: { value: string; theme: CanvasTheme; onChange: (value: string) => void }) {
     const { t } = useTranslation();
     return (
-        <label className="flex h-9 w-full overflow-hidden rounded-lg border border-dashed text-sm" title={t("settingsPanels.video.customQuality")} aria-label={t("settingsPanels.video.customQuality")} style={{ borderColor: theme.node.stroke, color: theme.node.text }}>
+        <label className="flex h-8 w-full overflow-hidden rounded-[var(--r-md)] border border-dashed text-[length:var(--fs-caption)]" title={t("settingsPanels.video.customQuality")} aria-label={t("settingsPanels.video.customQuality")} style={{ borderColor: theme.node.stroke, color: theme.node.text }}>
             <input type="number" min={1} className="min-w-0 flex-1 bg-transparent px-3 text-center outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" value={value} onChange={(event) => onChange(event.target.value)} onMouseDown={(event) => event.stopPropagation()} />
             <span className="grid w-7 place-items-center pr-1" style={{ color: theme.node.muted }}>
                 p

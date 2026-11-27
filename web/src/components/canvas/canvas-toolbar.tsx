@@ -16,8 +16,8 @@ import { useTranslation } from "react-i18next";
 
 /** 工具菜单的两项。顺序即菜单顺序，「移动」在前，与默认工具一致。 */
 const CANVAS_TOOL_OPTIONS = [
-    { value: "select", labelKey: "canvas.toolbar.select", hintKey: "canvas.toolbar.selectHint" },
-    { value: "pan", labelKey: "canvas.toolbar.pan", hintKey: "canvas.toolbar.panHint" },
+    { value: "select", labelKey: "canvas.toolbar.select", hintKey: "canvas.toolbar.selectHint", shortcut: "V" },
+    { value: "pan", labelKey: "canvas.toolbar.pan", hintKey: "canvas.toolbar.panHint", shortcut: "H" },
 ] as const;
 
 export function CanvasToolbar({
@@ -131,6 +131,22 @@ export function CanvasToolbar({
         window.addEventListener("keydown", handleKeyDown, true);
         return () => window.removeEventListener("keydown", handleKeyDown, true);
     }, [toolMenuOpen, extensionsOpen, appearanceOpen]);
+
+    // 对齐 BeefTV：V 切换选择/框选，H 切换抓手平移（输入态不拦截）。
+    useEffect(() => {
+        const handleToolShortcut = (event: KeyboardEvent) => {
+            if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+            const target = event.target instanceof HTMLElement ? event.target : null;
+            if (target?.isContentEditable || target?.closest("input, textarea, select, [contenteditable='true']")) return;
+            const key = event.key.toLowerCase();
+            if (key !== "v" && key !== "h") return;
+            event.preventDefault();
+            onCanvasToolChange(key === "h" ? "pan" : "select");
+            setToolMenuOpen(false);
+        };
+        window.addEventListener("keydown", handleToolShortcut);
+        return () => window.removeEventListener("keydown", handleToolShortcut);
+    }, [onCanvasToolChange]);
 
     return (
         <div ref={rootRef} className="pointer-events-none absolute bottom-4 left-1/2 z-50 flex max-w-[calc(100%-2rem)] -translate-x-1/2 justify-center @max-[1040px]:bottom-20" data-canvas-bottom-toolbar>
@@ -326,7 +342,7 @@ export function CanvasToolbar({
                     </div>
                     <button
                         type="button"
-                        className="mt-2 flex w-full items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-left text-xs transition hover:bg-black/5 dark:hover:bg-white/5"
+                        className="mt-2 flex w-full items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-left text-xs transition hover:bg-[var(--surface-card-hover)]"
                         style={{ color: theme.toolbar.item }}
                         onClick={() => {
                             setAppearanceOpen(false);
@@ -395,7 +411,7 @@ export function CanvasToolbar({
                                     <span className="block truncate">{t(option.labelKey)}</span>
                                     <span className="block truncate text-[length:var(--fs-label)] opacity-55">{t(option.hintKey)}</span>
                                 </span>
-                                {selected ? <Check className="size-3.5 shrink-0" /> : null}
+                                <kbd className="rounded px-1.5 py-0.5 text-[length:var(--fs-label)] opacity-60" style={{ background: theme.toolbar.itemHover }}>{option.shortcut}</kbd>{selected ? <Check className="size-3.5 shrink-0" /> : null}
                             </button>
                         );
                     })}

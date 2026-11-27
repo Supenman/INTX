@@ -1,10 +1,11 @@
 import { videoMetadata } from "@/lib/canvas/canvas-node-factory";
+import { fitNodeSize } from "@/lib/canvas/canvas-node-size";
+import type { UploadedFile } from "@/services/file-storage";
+import type { CanvasNodeData } from "@/types/canvas";
 
 const VIDEO_NODE_MAX_WIDTH = 420;
 const VIDEO_NODE_MAX_HEIGHT = 420;
-import { fitNodeSize } from "@/lib/canvas/canvas-node-size";
-import type { UploadedFile } from "@/services/file-storage";
-import type { CanvasNodeData, Position } from "@/types/canvas";
+const VIDEO_NATIVE_CONTROL_BAR_HEIGHT = 48;
 
 export function applyGeneratedVideo(item: CanvasNodeData, video: UploadedFile, extra: CanvasNodeData["metadata"] = {}): CanvasNodeData {
     const videoSize = fitNodeSize(video.width || item.width, video.height || item.height, VIDEO_NODE_MAX_WIDTH, VIDEO_NODE_MAX_HEIGHT);
@@ -15,6 +16,23 @@ export function applyGeneratedVideo(item: CanvasNodeData, video: UploadedFile, e
         position: { x: item.position.x + item.width / 2 - videoSize.width / 2, y: item.position.y + item.height / 2 - videoSize.height / 2 },
         metadata: { ...item.metadata, ...videoMetadata(video), ...extra },
     };
+}
+
+/**
+ * 判定指针是否落在原生音视频控件的可交互条上：
+ * - `<audio>` 控件本身保留播放/进度交互，点击音频卡片其余区域可正常拖拽节点；
+ * - `<video>` 仅保留底部 48px 原生播放控制条（播放/暂停/进度/音量/全屏），视频画面主体支持像图片节点一样直接拖拽。
+ */
+export function isNativeMediaControlHit(target: Element | null, clientY: number): boolean {
+    if (!target) return false;
+    const tag = target.tagName?.toUpperCase();
+    if (tag === "AUDIO") return true;
+    if (tag === "VIDEO") {
+        const rect = target.getBoundingClientRect();
+        if (rect.height <= 0) return false;
+        return rect.bottom - clientY <= VIDEO_NATIVE_CONTROL_BAR_HEIGHT;
+    }
+    return false;
 }
 
 export function measureFocusFrame(container: HTMLDivElement | null, nodeId: string) {

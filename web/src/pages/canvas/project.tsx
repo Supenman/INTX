@@ -73,7 +73,7 @@ import { exportCanvasProjects } from "@/lib/canvas/canvas-export";
 import { missingWorkflowFields, placeCanvasSubgraph, readCanvasWorkflow, selectWorkflow, type CanvasSubgraph } from "@/lib/canvas/canvas-workflow";
 import { createStoryboardShotGraph } from "@/lib/canvas/storyboard";
 import { applyNodeConfigPatch, audioMetadata, buildAudioGenerationMetadata, buildImageGenerationMetadata, createCanvasNode, imageMetadata, videoMetadata } from "@/lib/canvas/canvas-node-factory";
-import { applyGroupSelection, applyUngroupSelection, canGroupSelectedNodes, canUngroupSelectedNodes, collectGroupMemberNodes, findContainingGroupId, findGroupDropTarget, fitViewportForNodes, focusViewportForNode, getConnectionTargetAnchor, getGroupWrapRect, nodeBounds, normalizeConnection, placeAssetNodes, revealNodesInViewport, snapNodesIntoGroup, warnConnectionRejected } from "@/lib/canvas/canvas-node-geometry";
+import { applyGroupSelection, applyUngroupSelection, canGroupSelectedNodes, canUngroupSelectedNodes, collectGroupMemberNodes, findContainingGroupId, findGroupDropTarget, computeResetViewport, fitViewportForNodes, focusViewportForNode, getConnectionTargetAnchor, getGroupWrapRect, nodeBounds, normalizeConnection, placeAssetNodes, revealNodesInViewport, snapNodesIntoGroup, warnConnectionRejected } from "@/lib/canvas/canvas-node-geometry";
 import { createDragSnap, moveDraggedNodes, snapCanvasOffsetToGrid, type DragGuides } from "@/lib/canvas/canvas-drag-snap";
 import { alignNodes, distributeNodes, type AlignAxis, type DistributeAxis } from "@/lib/canvas/canvas-align"; import { reconnectCanvasConnection } from "@/lib/canvas/canvas-reconnect"; import { applyGeneratedVideo, measureFocusFrame } from "@/lib/canvas/canvas-project-helpers"; import { CanvasActiveTaskPill } from "@/components/canvas/canvas-active-task-pill"; import { CanvasFocusModeBar } from "@/components/canvas/canvas-focus-mode-bar";
 import { CanvasNodeSearchLayer } from "@/components/canvas/canvas-node-search-modal";
@@ -1524,23 +1524,42 @@ function InfiniteCanvasPage() {
         message.success(t("canvas.storyboard.created", { count: graph.nodes.length }));
     };
 
-    const resetViewport = useCallback(() => {
-        setViewport({ x: size.width / 2, y: size.height / 2, k: 1 });
-        setContextMenu(null);
-    }, [size.height, size.width]);
-
-    const fitCanvasViewport = useCallback(() => {
-        const container = containerRef.current;
-        const viewportSize = container ? { width: container.clientWidth, height: container.clientHeight } : size;
-        const target = fitViewportForNodes(nodesRef.current, viewportSize);
-        if (!target) return;
+    const animateViewportTo = useCallback((target: ViewportTransform, duration = 280) => {
         if (focusAnimRef.current !== null) {
             cancelAnimationFrame(focusAnimRef.current);
             focusAnimRef.current = null;
         }
-        setViewport(target);
+        if (reducedMotion) {
+            setViewport(target);
+            return;
+        }
+        const start = { ...viewportRef.current };
+        let startTime: number | null = null;
+        const step = (now: number) => {
+            if (startTime === null) startTime = now;
+            const p = Math.min((now - startTime) / duration, 1);
+            const t = 1 - Math.pow(1 - p, 3);
+            setViewport({ x: start.x + (target.x - start.x) * t, y: start.y + (target.y - start.y) * t, k: start.k + (target.k - start.k) * t });
+            focusAnimRef.current = p < 1 ? requestAnimationFrame(step) : null;
+        };
+        focusAnimRef.current = requestAnimationFrame(step);
+    }, [reducedMotion]);
+
+    const resetViewport = useCallback(() => {
+        const container = containerRef.current;
+        const viewportSize = container ? { width: container.clientWidth, height: container.clientHeight } : size;
+        animateViewportTo(computeResetViewport(nodesRef.current, viewportSize));
         setContextMenu(null);
-    }, [size]);
+    }, [animateViewportTo, size]);
+
+    const fitCanvasViewport = useCallback(() => {
+        const container = containerRef.current;
+        const viewportSize = container ? { width: container.clientWidth, height: container.clientHeight } : size;
+        const target = fitViewportForNodes(nodesRef.current, viewportSize, 88);
+        if (!target) return;
+        animateViewportTo(target);
+        setContextMenu(null);
+    }, [animateViewportTo, size]);
 
     const focusNode = useCallback(
         (nodeId: string) => {
@@ -4271,7 +4290,7 @@ function InfiniteCanvasPage() {
                     onFocusImage={focusNode}
                     scale={viewport.k}
                     onScaleChange={setZoomScale}
-                    onReset={resetViewport} onFitCanvas={fitCanvasViewport} onEnterFocusMode={() => setFocusMode(true)}
+                    onReset={resetViewport} onFitCanvas={fitCanvasViewport} snapToGrid={snapToGrid} onSnapToGridChange={(enabled) => { window.localStorage.setItem("canvas:snap-to-grid", enabled ? "1" : "0"); setSnapToGrid(enabled); }} onEnterFocusMode={() => setFocusMode(true)}
                     isMiniMapOpen={isMiniMapOpen}
                     onToggleMiniMap={() => setIsMiniMapOpen((value) => !value)}
                     onInsertAsset={handleAssetInsert}

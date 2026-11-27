@@ -3,6 +3,13 @@ title: Pending Tests
 description: Implemented changes that still need manual verification
 ---
 
+## Media node dragging, reset view, bottom controls & composer/settings alignment
+
+- Drag a populated Video node by its video frame (above the bottom 48px control bar): the node should move smoothly like an Image node, while clicking play/scrub/volume in the bottom 48px still controls playback. Verify Audio node card dragging and wheel-zooming over both Video and Audio nodes.
+- Pan or zoom far away from nodes and click Reset View (`Focus` icon) or press `Ctrl+0` / `Shift+1`: the viewport should smoothly animate to frame all canvas nodes instead of jumping to empty `(0, 0)`. Verify empty canvas still centers `(0, 0)` at 100%.
+- Press `V` and `H` on the canvas (outside text inputs) to switch between Select and Hand tools; open the tool menu to confirm `V`/`H` key hints. Confirm the bottom-left zoom bar aligns cleanly with the bottom-center toolbar (`h-12`), test the direct Snap-to-Grid and Auto-Arrange buttons, and type a custom zoom percentage inside the zoom popover (`Enter` to apply, `Esc` to cancel).
+- Open Image, Video, Audio, and Text node prompt panels: verify the new mode header, clean input surface, monochrome circular/pill Generate button, and open each of the 4 bottom-right advanced settings popovers to confirm unified header, compact cards/pills, and quick count buttons on Text settings.
+
 ## Secondary bundle split, active task pill & canvas focus mode
 
 - Open Home (`/`), then open Config modal and Agent panel separately: both should load on demand without console errors and function normally (including script editor and markdown streaming).

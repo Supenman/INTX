@@ -1,15 +1,15 @@
-import { type RefObject } from "react";
-import { createPortal } from "react-dom";
-import { Settings2 } from "lucide-react";
-import { Button, InputNumber } from "antd";
+import { FileText } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { reasoningEffortLabel, TextSettingsPanel } from "@/components/text-settings-panel";
 import { canvasThemes } from "@/lib/canvas-theme";
-import { resolvePopoverPosition, type PopoverPlacement } from "@/lib/canvas/popover-position";
-import { useAnchoredPopover, type AnchoredPopover } from "@/hooks/use-anchored-popover";
+import type { PopoverPlacement } from "@/lib/canvas/popover-position";
+import { useAnchoredPopover } from "@/hooks/use-anchored-popover";
 import { useThemeStore } from "@/stores/use-theme-store";
 import type { AiConfig, ReasoningEffort } from "@/stores/use-config-store";
+import { CanvasSettingsPortalShell, CanvasSettingsTrigger } from "./canvas-settings-popover-shell";
+
+const QUICK_TEXT_COUNTS = [1, 2, 3, 4] as const;
 
 type CanvasTextSettingsPopoverProps = {
     config: AiConfig;
@@ -21,79 +21,85 @@ type CanvasTextSettingsPopoverProps = {
     placement?: PopoverPlacement;
 };
 
-export function CanvasTextSettingsPopover({ config, onConfigChange, count, onCountChange, onOpenChange, buttonClassName, placement = "topLeft" }: CanvasTextSettingsPopoverProps) {
+export function CanvasTextSettingsPopover({ config, onConfigChange, count = 1, onCountChange, onOpenChange, buttonClassName, placement = "topLeft" }: CanvasTextSettingsPopoverProps) {
     const { t } = useTranslation();
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
-    const { buttonRef, panelRef, panelProps, open, setOpen, buttonRect, anchorRect, buttonWidth, panelHeight, layer } = useAnchoredPopover({ onOpenChange, label: t("settingsPanels.text.title") });
+    const title = t("settingsPanels.text.title");
+    const { buttonRef, panelRef, panelProps, open, setOpen, buttonRect, anchorRect, buttonWidth, panelHeight, layer } = useAnchoredPopover({ onOpenChange, label: title });
 
-    // 同 image/audio/video：只按 open 渲染，定位在 Portal 内部处理。
-    const summary = `${t("canvas.controls.reasoning")} · ${reasoningEffortLabel(config.reasoningEffort)}${onCountChange ? ` · ${t("canvas.controls.generations", { count })}` : ""}`;
-    const panel = open ? <TextSettingsPortal buttonRect={buttonRect} anchorRect={anchorRect} panelHeight={panelHeight} panelRef={panelRef} panelProps={panelProps} placement={placement} layer={layer} theme={theme} config={config} count={count} onConfigChange={onConfigChange} onCountChange={onCountChange} /> : null;
+    const safeCount = Math.max(1, Math.min(15, Math.floor(Math.abs(Number(count)) || 1)));
+    const summary = `${t("canvas.controls.reasoning")} · ${reasoningEffortLabel(config.reasoningEffort)}${onCountChange ? ` · ${t("canvas.controls.generations", { count: safeCount })}` : ""}`;
 
     return (
         <>
-            <span ref={buttonRef} className="inline-flex min-w-0" style={buttonWidth === null ? undefined : { width: buttonWidth }}>
-                <Button size="small" type="text" aria-expanded={open} aria-label={`${t("settingsPanels.text.title")}: ${summary}`} title={`${t("settingsPanels.text.title")} · ${summary}`} className={buttonClassName || "!h-[var(--control-h-sm)] !max-w-[180px] !justify-start !rounded-full !px-2.5"} style={{ background: open ? theme.toolbar.activeBg : theme.toolbar.itemHover, color: theme.node.text, width: buttonWidth === null ? undefined : "100%" }} icon={<Settings2 className="size-3.5" />} onClick={() => setOpen(!open)}>
-                    <span className="truncate">{summary}</span>
-                </Button>
-            </span>
-            {panel}
-        </>
-    );
-}
-
-function TextSettingsPortal({ buttonRect, anchorRect, panelHeight, panelRef, panelProps, placement, layer, theme, config, count, onConfigChange, onCountChange }: {
-    /** 首帧可能还没测量到按钮位置；为 null 时先不渲染，等首次测量即可。 */
-    buttonRect: DOMRect | null;
-    /** 触发按钮所属的生成面板，水平避让以它为界。 */
-    anchorRect: DOMRect | null;
-    /** 浮层上一次实测高度，用来判断向上还是向下展开。 */
-    panelHeight: number | null;
-    panelRef: RefObject<HTMLDivElement | null>;
-    panelProps: AnchoredPopover["panelProps"];
-    placement: PopoverPlacement;
-    layer: number;
-    theme: (typeof canvasThemes)[keyof typeof canvasThemes];
-    config: AiConfig;
-    count?: number;
-    onConfigChange: CanvasTextSettingsPopoverProps["onConfigChange"];
-    onCountChange?: (count: number) => void;
-}) {
-    const { t } = useTranslation();
-    if (!buttonRect) return null;
-    const position = resolvePopoverPosition({ buttonRect, anchorRect, placement, panelHeight, viewport: { width: window.innerWidth, height: window.innerHeight } });
-    const style = {
-        position: "fixed",
-        zIndex: layer,
-        ...position,
-        background: theme.toolbar.panel,
-        borderRadius: "var(--r-xl)",
-        boxShadow: "var(--shadow-lg), var(--hairline)",
-        padding: "var(--space-4)",
-        overflowY: "auto",
-        overscrollBehavior: "contain",
-        color: theme.node.text,
-    } as const;
-
-    return createPortal(
-        <div
-            ref={panelRef}
-            {...panelProps}
-            className="canvas-image-settings-popover"
-            data-node-settings-panel
-            style={style}
-            onPointerDown={(event) => event.stopPropagation()}
-            onMouseDown={(event) => event.stopPropagation()}
-            onClick={(event) => event.stopPropagation()}
-        >
-            <TextSettingsPanel config={config} onConfigChange={onConfigChange} theme={theme} />
-            {onCountChange ? (
-                <div className="mt-4 space-y-2.5">
-                    <div className="text-sm font-medium" style={{ color: theme.node.muted }}>{t("settingsPanels.text.count")}</div>
-                    <InputNumber className="w-full" aria-label={t("settingsPanels.text.count")} min={1} max={15} precision={0} value={count} onChange={(value) => onCountChange(value || 1)} />
-                </div>
+            <CanvasSettingsTrigger
+                buttonRef={buttonRef}
+                buttonWidth={buttonWidth}
+                open={open}
+                title={title}
+                summary={summary}
+                theme={theme}
+                buttonClassName={buttonClassName}
+                onToggle={() => setOpen(!open)}
+            />
+            {open ? (
+                <CanvasSettingsPortalShell
+                    buttonRect={buttonRect}
+                    anchorRect={anchorRect}
+                    panelHeight={panelHeight}
+                    panelRef={panelRef}
+                    panelProps={panelProps}
+                    placement={placement}
+                    layer={layer}
+                    theme={theme}
+                    title={title}
+                    summary={summary}
+                    icon={<FileText className="size-3.5" />}
+                    onClose={() => setOpen(false)}
+                >
+                    <TextSettingsPanel config={config} onConfigChange={onConfigChange} theme={theme} showTitle={false} className="space-y-3.5" />
+                    {onCountChange ? (
+                        <div className="mt-3.5 space-y-2 border-t pt-3" style={{ borderColor: theme.toolbar.border }}>
+                            <div className="text-[length:var(--fs-caption)] font-medium" style={{ color: theme.node.muted }}>
+                                {t("settingsPanels.text.count")}
+                            </div>
+                            <div className="grid grid-cols-5 gap-1.5">
+                                {QUICK_TEXT_COUNTS.map((value) => {
+                                    const selected = safeCount === value;
+                                    return (
+                                        <button
+                                            key={value}
+                                            type="button"
+                                            aria-pressed={selected}
+                                            className="focus-ring h-8 cursor-pointer rounded-[var(--r-md)] border px-2 text-[length:var(--fs-caption)] font-medium transition hover:opacity-85"
+                                            style={{
+                                                background: selected ? theme.toolbar.activeBg : "transparent",
+                                                borderColor: selected ? theme.node.activeStroke : theme.node.stroke,
+                                                color: theme.node.text,
+                                            }}
+                                            onMouseDown={(event) => event.stopPropagation()}
+                                            onClick={() => onCountChange(value)}
+                                        >
+                                            {value}
+                                        </button>
+                                    );
+                                })}
+                                <input
+                                    type="number"
+                                    aria-label={t("settingsPanels.text.count")}
+                                    min={1}
+                                    max={15}
+                                    className="focus-ring h-8 w-full rounded-[var(--r-md)] border bg-transparent px-2 text-center text-[length:var(--fs-caption)] tabular-nums outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                    style={{ borderColor: theme.node.stroke, color: theme.node.text }}
+                                    value={safeCount}
+                                    onChange={(event) => onCountChange(Math.max(1, Math.min(15, Math.floor(Math.abs(Number(event.target.value)) || 1))))}
+                                    onMouseDown={(event) => event.stopPropagation()}
+                                />
+                            </div>
+                        </div>
+                    ) : null}
+                </CanvasSettingsPortalShell>
             ) : null}
-        </div>,
-        document.body,
+        </>
     );
 }
