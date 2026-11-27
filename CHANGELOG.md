@@ -4,11 +4,11 @@
 
 - [发版] INTX v0.2.3 桌面端发版：同步 `VERSION` / `tauri.conf.json` / `Cargo.toml`(含 `Cargo.lock`) 至 0.2.3，推送 `v0.2.3` tag 触发 Windows NSIS 自动打包与零 Secret 发版，产出安装包与含 SHA-256 的 `update.json`，供自研免密码更新器校验升级。本版包含 v9 修复的跨平台 npm 探测与发版 CI sidecar 资源校验。
 
-## v0.2.4（测试版）
+## v0.2.4-beta.1（测试版）
 
-- [发版] INTX v0.2.4 测试版：同步 `VERSION` / `tauri.conf.json` / `Cargo.toml`(含 `Cargo.lock`) 至 0.2.4，推送 `v0.2.4` tag 触发 Windows NSIS 打包与零 Secret 发版，产出安装包与含 SHA-256 的 `update.json`；Release 标记为预发布（pre-release），仅供测试验收，不作为稳定版推送给普通用户自动更新。
+- [发版] INTX v0.2.4-beta.1 测试版：同步 `VERSION` / `tauri.conf.json` / `Cargo.toml`(含 `Cargo.lock`) 至 0.2.4-beta.1，推送 `v0.2.4-beta.1` tag 触发 Windows NSIS 打包与零 Secret 发版，产出安装包与含 SHA-256 的 `update.json`；Release 标记为预发布（pre-release），仅供测试验收，不作为稳定版推送给普通用户自动更新。此前误命名的 `v0.2.4` tag / Release 已删除，以 beta.1 语义重新打包。
 
-- [修复] 桌面端更新检测绕过 CORS：`use-version-check.ts` 的 `checkAppUpdate` 改用 `@tauri-apps/plugin-http` 的 `tauriFetch` 经 Rust 侧拉取 `update.json`，规避 `github.com/releases/latest/download` 的 302 跳转在 WebView2 中触发的 CORS 拦截；桌面端挂载后自动检测更新，并将检测失败原因写入 `updateError`，在版本弹窗中提示「检测到新版本但暂无可自动安装包」并给出前往 Releases 的入口（中英文案齐全）。此修复在 v0.2.4 打包之后合入，需随下一版发布生效。
+- [修复] 桌面端更新检测绕过 CORS：`use-version-check.ts` 的 `checkAppUpdate` 改用 `@tauri-apps/plugin-http` 的 `tauriFetch` 经 Rust 侧拉取 `update.json`，规避 `github.com/releases/latest/download` 的 302 跳转在 WebView2 中触发的 CORS 拦截；桌面端挂载后自动检测更新，并将检测失败原因写入 `updateError`，在版本弹窗中提示「检测到新版本但暂无可自动安装包」并给出前往 Releases 的入口（中英文案齐全）。此修复已包含在 v0.2.4-beta.1 中。
 
 - [发版验证] v0.2.3 Windows 真机发版流水线全绿：`Release Desktop (Windows)` 从版本校验、依赖安装、sidecar 资源准备、NSIS 打包、SHA-256 清单到 Release 发布全部 success，`INTX_0.2.3_x64-setup.exe`（约 40.75 MB）与 `update.json` 已发布至 GitHub Release。v9 修复的跨平台 npm 探测与 CI sidecar 校验在真实 Windows 环境验证通过。
 

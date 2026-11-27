@@ -308,7 +308,7 @@ Linux 沙箱实测：干净环境（删掉试跑时的临时软链）下 `prepar
 - **CORS 根因与修复**：`update.json` 托管在 GitHub Release，`fetch` 跟随 `github.com/releases/latest/download` 的 302 跳到 `objects.githubusercontent.com`，在 WebView2 里触发 CORS 拦截导致更新检测失败。`checkAppUpdate` 改用 `@tauri-apps/plugin-http` 的 `tauriFetch` 经 Rust 侧发出请求（Cargo 已含 `tauri-plugin-http`、capability 已有 `http:default` + `https://**`、前端 `provider-transport.ts` 已有同款用法，依赖齐备）。
 - **可观测性**：新增 `updateError` 状态记录检测失败原因，版本弹窗在「有新版但无自动安装包」时显示提示与前往 Releases 的链接（中英文案齐全）；桌面端挂载后 `useEffect` 自动 `checkAppUpdate`，与 `checkLatestRelease` 里的手动调用不冲突（后者仅用户主动检查时触发）。
 
-静态门禁 typecheck 0、tokens 130/145、结构 6438/6442、vitest 88 文件 951 例全绿。**时序提醒**：此补丁在 v0.2.4 打包发布之后合入，v0.2.4 安装包仍为修复前行为，需随下一版发布才生效。
+静态门禁 typecheck 0、tokens 130/145、结构 6438/6442、vitest 88 文件 951 例全绿。此补丁已随 v0.2.4-beta.1 测试版打包生效（此前误命名的 v0.2.4 tag/Release 已删除，以 beta.1 语义重新打包）。`isNewerSemver` 用 `^v?(\d+)\.(\d+)\.(\d+)` 只取主版本数字，`0.2.4-beta.1` 解析为 `[0,2,4]`，与 `0.2.4` 视为相等，beta 版不会误触发正式用户自动升级，符合预期。
 
 ## 6. 未验证项
 

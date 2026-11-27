@@ -7,7 +7,7 @@ description: Implemented changes that still need manual verification
 
 - On Windows desktop, open the Version modal: confirm it auto-checks for updates on open (no manual click needed) and fetches `update.json` via Rust `tauriFetch` successfully, no longer blocked by WebView2 CORS on the 302 redirect.
 - Point `intx-update-manifest-url` at a 404 URL: confirm the modal shows "a detected version but no auto-installable package yet" with a link to Releases, correct in both locales, with no uncaught console errors.
-- This fix landed after the v0.2.4 build; it takes effect in the next release — v0.2.4 installer still has the pre-fix behavior.
+- This fix is included in the v0.2.4-beta.1 test build (the earlier v0.2.4 tag/release was renamed and repackaged as beta.1).
 
 ## Local folder backup & workspace package (replaces WebDAV)
 
