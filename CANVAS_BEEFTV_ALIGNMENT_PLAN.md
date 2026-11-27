@@ -329,6 +329,15 @@ Linux 沙箱实测：干净环境（删掉试跑时的临时软链）下 `prepar
 
 静态门禁 typecheck 0、tokens 130/145、结构 6429/6442、boundaries/overflow 通过、vitest 88 文件 952 例（新增 prerelease 清单提取测试）+ bun 19 例全绿。此补丁已在 v0.2.4-beta.3 测试版打包生效：从 beta.3 起后续 beta 之间可按 SemVer 正确自动检测更新；beta.2 存量版需手动下载安装一次 beta.3。验收项已记入 pending-test 中英清单。
 
+## v14 批次：BeefTV P0/P1 润色与节点状态卡片
+
+补丁 `intx-beeftv-p0-p1-and-polish`（2 个 PATCH，13 文件，`git apply --check` 一次通过、无实体转义、含 1 新文件）：
+
+- **PATCH 1 润色**：空文本节点隐藏内容操作按钮；`image-generation-pending` / `github-link` / `user-status-actions` 等消除裸样式值，设计令牌违规 130→106、结构预算 6442→6372；清理 i18n 中已废弃的 webdav 文案；`features.mdx` / `todo.mdx` 存储描述从 WebDAV 同步为本地文件夹备份与 `.intx.zip` 工作区整包（补上了此前发现的遗留死文案）。
+- **PATCH 2 功能**：新增 `canvas-node-status-cards.tsx`（节点进度/错误卡片），增强视频预览、`canvas-active-task-pill` 支持停止任务、项目页文件夹卡片；`canvas-node.tsx` 逻辑外移到状态卡片组件以收敛结构预算；`canvas/index.tsx` / `project.tsx` 接入。
+
+静态门禁 typecheck 0、tokens 106/145、结构 6372/6442、boundaries/overflow 通过、vitest 88 文件 952 例 + bun 19 例全绿。这批改动在 v0.2.4-beta.3 打包之后合入，需随下一版发布生效；验收项已记入 pending-test 中英清单。
+
 ## 6. 未验证项
 
 - BeefTV 的各模式、节点状态、悬浮栏和动效在运行时的全部显示条件；必须读具体组件和条件分支后确认。

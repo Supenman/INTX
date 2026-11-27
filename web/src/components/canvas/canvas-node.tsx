@@ -1,18 +1,17 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactNode } from "react";
-import { AlertCircle, ChevronRight, Copy, Download, FileText, Group, Image as ImageIcon, Lock, Music2, Pencil, Play, Plus, Puzzle, RefreshCw, Star, Trash2, Video } from "lucide-react";
+import { AlertCircle, ChevronRight, Copy, Download, FileText, Group, Image as ImageIcon, Lock, Music2, Pencil, Plus, Puzzle, RefreshCw, Star, Trash2, Video } from "lucide-react";
 
 import { canvasThemes } from "@/lib/canvas-theme";
 import { isNativeMediaControlHit } from "@/lib/canvas/canvas-project-helpers";
 import { colorGradeFilter } from "@/lib/canvas/color-grade";
-import { isBrokenVideoContent } from "@/lib/media-blob";
-import { hasResumableImageTask, hasResumableVideoTask } from "@/lib/canvas/canvas-generation-helpers";
 import { formatBytes } from "@/lib/image-utils";
 import { pickImageSource } from "@/lib/image-thumbnail";
 import { previewUrlFor, subscribeImagePreviews, getImagePreviewRevision } from "@/services/image-storage";
 import { getNodeDefinition } from "@/lib/canvas/node-registry";
 import { buildNodeContext } from "@/lib/canvas/plugin-node-context";
 import { useThemeStore } from "@/stores/use-theme-store";
+import { CanvasNodeErrorCard, CanvasNodeLoadingCard, CanvasVideoPreview } from "./canvas-node-status-cards";
 import { CanvasResourceMentionTextarea } from "./canvas-resource-mention-textarea";
 import { CanvasNodeType, type CanvasNodeData, type CanvasNodeImage, type CanvasNodeText, type Position } from "@/types/canvas";
 import type { CanvasNodeContext, CanvasPluginHost } from "@/types/canvas-plugin";
@@ -515,14 +514,14 @@ function NodeContent(props: NodeContentRendererProps) {
                     <AlertCircle aria-hidden className="size-3" />
                     <span className="text-[10px] font-medium leading-none">{t("canvas.node.failed")}</span>
                 </div>
-                <div className="absolute inset-x-3 bottom-3 z-30 rounded-xl border p-2.5 shadow-lg backdrop-blur-md" style={{ background: props.theme.toolbar.panel, borderColor: "var(--destructive)", color: props.theme.node.text }}>
-                    <ErrorContent node={props.node} theme={props.theme} onRetry={props.onRetry} />
+                <div className="absolute inset-x-3 bottom-3 z-30 flex justify-center rounded-xl border p-1 shadow-lg backdrop-blur-md" style={{ background: props.theme.toolbar.panel, borderColor: "var(--destructive)", color: props.theme.node.text }}>
+                    <CanvasNodeErrorCard node={props.node} theme={props.theme} onRetry={props.onRetry} />
                 </div>
             </div>
         ) : null;
     }
-    if (props.node.metadata?.status === "loading") return <LoadingContent theme={props.theme} />;
-    if (props.node.metadata?.status === "error") return <ErrorContent node={props.node} theme={props.theme} onRetry={props.onRetry} />;
+    if (props.node.metadata?.status === "loading") return <CanvasNodeLoadingCard node={props.node} theme={props.theme} />;
+    if (props.node.metadata?.status === "error") return <CanvasNodeErrorCard node={props.node} theme={props.theme} onRetry={props.onRetry} />;
 
     const Renderer = nodeContentRenderers[props.node.type as CanvasNodeType];
     if (Renderer) return <Renderer {...props} />;
@@ -555,45 +554,6 @@ function GroupNodeContent({ node, theme, groupChildCount }: NodeContentRendererP
                     {t("canvas.node.nodeCount", { count: groupChildCount })}
                 </span>
             </div>
-        </div>
-    );
-}
-
-function LoadingContent({ theme }: Pick<NodeContentRendererProps, "theme">) {
-    const { t } = useTranslation();
-    return (
-        <div role="status" className="flex h-full w-full flex-col items-center justify-center gap-3" style={{ color: theme.node.activeStroke }}>
-            <div aria-hidden className="size-8 rounded-full border-2 motion-safe:animate-spin" style={{ borderColor: theme.node.stroke, borderTopColor: theme.node.activeStroke }} />
-            <span className="rounded-full border border-current px-2.5 py-0.5 text-xs">{t("canvas.node.generating")}</span>
-        </div>
-    );
-}
-
-function ErrorContent({ node, theme, onRetry }: Pick<NodeContentRendererProps, "node" | "theme" | "onRetry">) {
-    const { t } = useTranslation();
-    const canQueryTask = hasResumableImageTask(node) || hasResumableVideoTask(node);
-    return (
-        <div className="flex max-w-[260px] flex-col items-center gap-3 px-5 text-center">
-            <div role="alert" className="text-xs leading-5 text-red-300">{node.metadata?.errorDetails || t("canvas.node.failed")}</div>
-            {node.metadata?.retryBlocked && !canQueryTask ? (
-                <span className="text-[11px] leading-4" style={{ color: theme.node.muted }}>
-                    {t("canvas.node.retryBlockedHint")}
-                </span>
-            ) : (
-                <button
-                    type="button"
-                    className="inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition hover:scale-[1.02]"
-                    style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text }}
-                    onClick={(event) => {
-                        event.stopPropagation();
-                        onRetry?.(node);
-                    }}
-                    onMouseDown={(event) => event.stopPropagation()}
-                >
-                    <RefreshCw className="size-3.5" />
-                    {t(canQueryTask ? "canvas.nodeToolbar.queryVideoTask" : "canvas.node.retry")}
-                </button>
-            )}
         </div>
     );
 }
@@ -775,25 +735,8 @@ function EmptyImageContent({ theme }: NodeContentRendererProps) {
     );
 }
 
-function VideoNodeContent({ node, theme }: NodeContentRendererProps) {
-    const { t } = useTranslation();
-    const [playbackFailed, setPlaybackFailed] = useState(false);
-    useEffect(() => setPlaybackFailed(false), [node.metadata?.content]);
-    const broken = isBrokenVideoContent(node.metadata);
-    if (!node.metadata?.content && !broken) return (
-        <div role="img" aria-label={t("canvas.node.emptyVideo")} className="grid h-full w-full place-items-center" style={{ color: theme.node.muted }}>
-            <Play aria-hidden className="size-14 fill-current opacity-30" strokeWidth={1.2} />
-        </div>
-    );
-    if (broken || playbackFailed)
-        return (
-            <div className="flex h-full w-full flex-col items-center justify-center gap-3 px-4 text-center" style={{ color: theme.node.activeStroke }}>
-                <Video className="size-7 opacity-60" />
-                <span className="text-xs">{t("canvas.node.videoLoadFailed")}</span>
-                {broken ? <span className="text-[10px] opacity-70">{t("canvas.node.videoRetryHint")}</span> : null}
-            </div>
-        );
-    return <video src={node.metadata?.content} controls preload="metadata" playsInline className="h-full w-full rounded-[var(--r-lg)] object-contain" style={{ background: theme.node.fill, filter: colorGradeFilter(node.metadata?.colorGrade) }} data-canvas-video={node.id} onError={() => setPlaybackFailed(true)} />;
+function VideoNodeContent({ node, theme, onRetry }: NodeContentRendererProps) {
+    return <CanvasVideoPreview node={node} theme={theme} onRetry={onRetry} />;
 }
 
 function AudioNodeContent({ node, theme }: NodeContentRendererProps) {

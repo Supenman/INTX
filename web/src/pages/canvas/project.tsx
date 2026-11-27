@@ -3999,7 +3999,7 @@ function InfiniteCanvasPage() {
                     compactAgentStatus={{ connected: localAgentConnected, enabled: localAgentEnabled, activity: localAgentActivity }}
                     onToggleAgent={toggleAgentPanel}
                 />}
-                <CanvasActiveTaskPill nodes={nodes} topOffsetClass={focusMode ? "top-3" : "top-16"} onFocusNode={focusNode} />
+                <CanvasActiveTaskPill nodes={nodes} topOffsetClass={focusMode ? "top-3" : "top-16"} onFocusNode={focusNode} onStopNode={(id) => confirmStopGeneration(generationRequestsRef.current.get(id)?.runningNodeId ?? id)} />
 
                 <CanvasStoryboardDialog
                     open={storyboardOpen}

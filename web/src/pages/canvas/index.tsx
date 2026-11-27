@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { App, Button, Input, Modal, Select } from "antd";
-import { Download, FileUp, Folder, Plus, RotateCcw, Search, Trash2 } from "lucide-react";
+import { ArrowLeft, Download, FileUp, Folder, FolderPlus, Plus, RotateCcw, Search, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { useSaveNotice } from "@/hooks/use-save-file";
@@ -43,7 +43,27 @@ export default function CanvasPage() {
     const [keyword, setKeyword] = useState("");
     const [batchFolder, setBatchFolder] = useState<string[]>([]);
     const [showTrash, setShowTrash] = useState(false);
-    const folderNames = useMemo(() => [...new Set(projects.map((project) => project.folder?.trim()).filter((folder): folder is string => Boolean(folder)))].sort((a, b) => a.localeCompare(b)), [projects]);
+    const [customFolders, setCustomFolders] = useState<string[]>([]);
+    const [folderModalOpen, setFolderModalOpen] = useState(false);
+    const [newFolderName, setNewFolderName] = useState("");
+    const folderNames = useMemo(() => [...new Set([...customFolders, ...projects.map((project) => project.folder?.trim()).filter((folder): folder is string => Boolean(folder))])].sort((a, b) => a.localeCompare(b)), [customFolders, projects]);
+    const folderCards = useMemo(
+        () =>
+            folderNames.map((name) => {
+                const items = projects.filter((project) => project.folder === name);
+                return { name, count: items.length, latestUpdatedAt: items[0]?.updatedAt || "" };
+            }),
+        [folderNames, projects],
+    );
+    const createFolder = () => {
+        const trimmed = newFolderName.trim();
+        if (!trimmed) return;
+        setCustomFolders((prev) => (prev.includes(trimmed) ? prev : [...prev, trimmed]));
+        setFolderFilter(trimmed);
+        setNewFolderName("");
+        setFolderModalOpen(false);
+        message.success(t("canvas.folderCreated", { name: trimmed }));
+    };
     const trashProjects = useMemo(() => deletedProjects.filter((item) => item.project), [deletedProjects]);
     const unavailableTrashCount = deletedProjects.length - trashProjects.length;
     const visibleProjects = useMemo(() => {
@@ -166,6 +186,9 @@ export default function CanvasPage() {
                                     {showTrash ? t("canvas.trash.backToLibrary") : t("canvas.trash.entry", { count: trashProjects.length })}
                                 </Button>
                                 {!showTrash ? <>
+                                    <Button type="text" disabled={!hydrated} icon={<FolderPlus className="size-4" />} onClick={() => setFolderModalOpen(true)}>
+                                        {t("canvas.newFolder")}
+                                    </Button>
                                     <Button type="text" disabled={!hydrated} icon={<FileUp className="size-4" />} onClick={() => inputRef.current?.click()}>
                                         {t("canvas.import")}
                                     </Button>
@@ -229,7 +252,40 @@ export default function CanvasPage() {
                                 </article>)}
                             </div> : <EmptyState icon={Trash2} title={t("canvas.trash.empty")} className="mt-4" />}
                         </>
-                    ) : visibleProjects.length ? (
+                    ) : (
+                        <>
+                            {folderFilter ? (
+                                <div className="mt-4 flex items-center gap-2 text-sm">
+                                    <Button type="text" size="small" icon={<ArrowLeft className="size-3.5" />} onClick={() => setFolderFilter(undefined)}>
+                                        {t("canvas.allFolders")}
+                                    </Button>
+                                    <span className="text-muted-foreground">/</span>
+                                    <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
+                                        <Folder className="size-4 text-muted-foreground" />
+                                        {folderFilter}
+                                    </span>
+                                </div>
+                            ) : !keyword.trim() && folderCards.length > 0 ? (
+                                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                                    {folderCards.map((folder) => (
+                                        <button
+                                            key={folder.name}
+                                            type="button"
+                                            onClick={() => setFolderFilter(folder.name)}
+                                            className="surface-card-interactive focus-ring flex items-center gap-3 rounded-xl border border-border px-3.5 py-3 text-left transition hover:bg-[var(--surface-card-hover)]"
+                                        >
+                                            <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-[var(--surface-sunken)] text-muted-foreground">
+                                                <Folder className="size-4" />
+                                            </span>
+                                            <span className="min-w-0 flex-1">
+                                                <span className="block truncate text-sm font-medium text-foreground">{folder.name}</span>
+                                                <span className="block text-xs text-muted-foreground">{t("canvas.folderProjectCount", { count: folder.count })}</span>
+                                            </span>
+                                        </button>
+                                    ))}
+                                </div>
+                            ) : null}
+                            {visibleProjects.length ? (
                         <div className="mt-4 grid grid-cols-1 gap-4 @min-[480px]/workspace:grid-cols-2 @min-[760px]/workspace:grid-cols-3">
                             {visibleProjects.map((project) => (
                                 <CanvasProjectCard key={project.id} project={project} folderNames={folderNames} />
@@ -250,8 +306,29 @@ export default function CanvasPage() {
                             }
                         />
                     )}
+                        </>
+                    )}
                 </div>
 
+                <Modal
+                    title={t("canvas.newFolder")}
+                    open={folderModalOpen}
+                    okText={t("common.confirm")}
+                    cancelText={t("common.cancel")}
+                    okButtonProps={{ disabled: !newFolderName.trim() }}
+                    onOk={createFolder}
+                    onCancel={() => { setFolderModalOpen(false); setNewFolderName(""); }}
+                    destroyOnHidden
+                >
+                    <Input
+                        autoFocus
+                        maxLength={40}
+                        value={newFolderName}
+                        placeholder={t("canvas.newFolderPlaceholder")}
+                        onChange={(event) => setNewFolderName(event.target.value)}
+                        onPressEnter={createFolder}
+                    />
+                </Modal>
                 <input ref={inputRef} type="file" accept="application/zip,.zip" className="hidden" onChange={(event) => void importCanvas(event.target.files?.[0])} />
                 <CanvasDeleteProjectsDialog />
             </main>
