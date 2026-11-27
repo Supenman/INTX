@@ -258,6 +258,17 @@
 
 静态门禁：typecheck 0、边界通过、tokens 130/145、结构 6438/6442；vitest 88 文件 951 例全绿。Agent 对话交互、设置浮层本地化、深浅主题与窄屏布局需在 Windows WebView2 上实测；Linux 沙箱只做静态与单测验证，不声称视觉/帧率已测量。
 
+## v7 批次：自研免密码桌面更新器与零密钥 Windows 发版 CI
+
+替换 Tauri 官方签名更新器（需 minisign 私钥/密码）为自研 SHA-256 校验更新器，实现零密钥自动发版（补丁 `intx-custom-updater-v7`）：
+
+- **后端更新器**：新增 `src-tauri/src/updater.rs` 的 `download_and_install_update` 命令——仅接受 HTTPS 主源与镜像、流式下载并实时推送 `intx-update-progress`、下载后校验 64 位 SHA-256（校验通过才拉起 NSIS，失败删除临时包）、安装前回收 Agent/ComfyUI 子进程；内置零依赖 SHA-256 实现（NIST 向量已独立编译验证通过）。`lib.rs` 注册模块与命令，`ManagedCanvasAgent`/`ManagedLocalGateway` 及其 `stop` 提升为 `pub(crate)` 供更新器调用。
+- **移除官方 updater**：`Cargo.toml` 去 `tauri-plugin-updater`、`capabilities/default.json` 去 `updater:default`、`tauri.conf.json` 去 updater 插件配置并把 `createUpdaterArtifacts` 置 false。
+- **前端更新链路**：新增 `lib/updater.ts`（解析 `update.json`：版本比较、HTTPS 地址、64 位 SHA-256、镜像白名单，支持 localStorage 自定义清单地址）与 3 例单测；`use-version-check.ts` 改用原生命令 + 进度事件监听替代 `@tauri-apps/plugin-updater`。
+- **发版 CI**：新增 `.github/workflows/release-desktop.yml`（推 `v*` Tag 或手动触发，校验 tag/VERSION/tauri.conf 版本一致，windows-latest 编译 NSIS），配套 `scripts/generate-update-manifest.mjs` 扫描安装包算 SHA-256 生成 `update.json`。
+
+静态门禁：typecheck 0、边界通过、tokens 130/145、结构 6438/6442；vitest 89 文件 954 例全绿；前端 build 成功、manifest 脚本语法与优雅降级、workflow YAML 语法、版本号一致性均已验证；补丁内 Rust SHA-256 源码独立编译跑 NIST 向量通过。未验证：完整 `cargo check`/`tauri:build` 因 Linux 缺 webkit2gtk、crates.io 网络受限无法执行；Windows NSIS 打包、Release 发布、安装覆盖升级与子进程回收需 Windows 环境实测，不声称已验证。
+
 ## 6. 未验证项
 
 - BeefTV 的各模式、节点状态、悬浮栏和动效在运行时的全部显示条件；必须读具体组件和条件分支后确认。

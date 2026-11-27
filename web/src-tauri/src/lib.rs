@@ -12,6 +12,8 @@
 //! 不会被打开，门禁会把正常打包挡掉。改成启动前检查，裸 cargo build
 //! --release 打出来的包一运行就会给出明确报错。
 
+mod updater;
+
 use tauri::Manager;
 
 #[derive(serde::Serialize)]
@@ -21,7 +23,7 @@ struct AgentConfig {
 }
 
 #[derive(Default)]
-struct ManagedCanvasAgent(std::sync::Mutex<Option<std::process::Child>>);
+pub(crate) struct ManagedCanvasAgent(std::sync::Mutex<Option<std::process::Child>>);
 
 impl ManagedCanvasAgent {
     fn start(app: &tauri::AppHandle) -> Self {
@@ -84,7 +86,7 @@ impl ManagedCanvasAgent {
         }
     }
 
-    fn stop(&self) {
+    pub(crate) fn stop(&self) {
         let Ok(mut process) = self.0.lock() else { return };
         let Some(mut child) = process.take() else { return };
         #[cfg(windows)]
@@ -202,7 +204,7 @@ fn child_log_file(app: &tauri::AppHandle, name: &str) -> Option<std::fs::File> {
 /// 本地 ComfyUI 网关：把 ComfyUI 的节点协议翻译成 OpenAI 兼容接口，
 /// INTX 只需按普通 OpenAI 渠道连它。随 INTX 启动、退出时回收。
 #[derive(Default)]
-struct ManagedLocalGateway(std::sync::Mutex<Option<std::process::Child>>);
+pub(crate) struct ManagedLocalGateway(std::sync::Mutex<Option<std::process::Child>>);
 
 const LOCAL_GATEWAY_URL: &str = "http://127.0.0.1:8190";
 
@@ -298,7 +300,7 @@ impl ManagedLocalGateway {
         }
     }
 
-    fn stop(&self) {
+    pub(crate) fn stop(&self) {
         let Ok(mut process) = self.0.lock() else { return };
         let Some(mut child) = process.take() else { return };
         #[cfg(windows)]
@@ -342,13 +344,12 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             app.manage(ManagedCanvasAgent::start(app.handle()));
             app.manage(ManagedLocalGateway::start(app.handle()));
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![read_agent_config, check_comfy_connections])
+        .invoke_handler(tauri::generate_handler![read_agent_config, check_comfy_connections, updater::download_and_install_update])
         .build(tauri::generate_context!())
         .expect("启动 INTX 窗口失败")
         .run(|app, event| {

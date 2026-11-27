@@ -1,32 +1,27 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { App } from "antd";
 import { getVersion } from "@tauri-apps/api/app";
+import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { useTranslation } from "react-i18next";
 import { APP_VERSION } from "@/constant/env";
 import { parseChangelog, type ReleaseInfo } from "@/lib/release";
 import { runtime } from "@/lib/runtime/capabilities";
+import { getUpdateManifestUrl, isNewerSemver, resolveAvailableUpdate, type AvailableAppUpdate } from "@/lib/updater";
 
-// 版本与更新日志读本仓库，不能读上游项目——否则用户看到的是别人的版本号，点击更新跳到别人仓库。
-// 注意：仓库目前是 private，raw / jsDelivr 都会 404，本 hook 只能等仓库转公开后才真正生效。
-// 这不是代码问题，转公开前不去伪造一个假成功。见 docs/品牌去上游-发布清单.md。
 const REPO_RAW = "https://raw.githubusercontent.com/Supenman/INTX/dev";
 const latestVersionUrl = `${REPO_RAW}/VERSION`;
 const latestChangelogUrl = `${REPO_RAW}/CHANGELOG.md`;
 
+type NativeUpdateProgress = {
+    stage: string;
+    downloaded: number;
+    total: number;
+    percent: number;
+};
+
 function readLocalReleases(): ReleaseInfo[] {
     return __APP_RELEASES__ || [];
-}
-
-function toVersionParts(version: string) {
-    const match = version.trim().match(/^v?(\d+)\.(\d+)\.(\d+)/);
-    return match ? match.slice(1).map(Number) : null;
-}
-
-function isNewerVersion(latestVersion: string, currentVersion: string) {
-    const latest = toVersionParts(latestVersion);
-    const current = toVersionParts(currentVersion);
-    if (!latest || !current) return false;
-    return latest.some((value, index) => value > current[index] && latest.slice(0, index).every((part, prevIndex) => part === current[prevIndex]));
 }
 
 export function useVersionCheck() {
@@ -39,7 +34,7 @@ export function useVersionCheck() {
     const [releases, setReleases] = useState<ReleaseInfo[]>(localReleases);
     const [checking, setChecking] = useState(false);
     const [open, setOpen] = useState(false);
-    const hasNewVersion = isNewerVersion(latestVersion, currentVersion);
+    const hasNewVersion = isNewerSemver(latestVersion, currentVersion);
 
     useEffect(() => {
         if (runtime !== "desktop") return;
@@ -50,29 +45,30 @@ export function useVersionCheck() {
         return () => { active = false; };
     }, []);
 
-    // 桌面端真实更新链路：Tauri updater 校验签名后下载安装。
-    // update 对象用 ref 持有（含下载所需元数据），不进 state。
-    const updateRef = useRef<import("@tauri-apps/plugin-updater").Update | null>(null);
+    // 桌面端自研免密码更新链路（方案 A）：拉取 HTTPS update.json → 校验 SHA-256 → 拉起 NSIS 安装。
+    const updateRef = useRef<AvailableAppUpdate | null>(null);
     const [updatable, setUpdatable] = useState(false);
     const [updatableVersion, setUpdatableVersion] = useState("");
     const [installing, setInstalling] = useState(false);
     const [progress, setProgress] = useState(0);
 
-    // 检测真实可安装更新。浏览器 dev、未配 pubkey、未发布 release 都会失败，
-    // 一律静默降级为「无可安装更新」——查看更新日志的功能不受影响。
     const checkAppUpdate = useCallback(async () => {
         if (runtime !== "desktop") return;
         try {
-            const { check } = await import("@tauri-apps/plugin-updater");
-            const update = await check();
-            updateRef.current = update && update.available ? update : null;
-            setUpdatable(updateRef.current !== null);
+            const manifestUrl = getUpdateManifestUrl();
+            const response = await fetch(manifestUrl, { cache: "no-store" });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const raw: unknown = await response.json();
+            const update = resolveAvailableUpdate(raw, currentVersion);
+            updateRef.current = update;
+            setUpdatable(update !== null);
             setUpdatableVersion(update?.version || "");
         } catch {
             updateRef.current = null;
             setUpdatable(false);
+            setUpdatableVersion("");
         }
-    }, []);
+    }, [currentVersion]);
 
     const checkLatestVersion = useCallback(async () => {
         try {
@@ -96,6 +92,7 @@ export function useVersionCheck() {
                 const [version, changelog] = await Promise.all([versionResponse.text(), changelogResponse.text()]);
                 setRemoteVersion(version.trim() || undefined);
                 if (changelog.trim()) setReleases(parseChangelog(changelog));
+                void checkAppUpdate();
                 if (showMessage) message.success(t("version.updated"));
                 return true;
             } catch {
@@ -107,29 +104,29 @@ export function useVersionCheck() {
                 setChecking(false);
             }
         },
-        [localReleases, message, t],
+        [checkAppUpdate, localReleases, message, t],
     );
 
     useEffect(() => {
         void checkLatestVersion();
     }, [checkLatestVersion]);
 
-    // 下载并安装更新。带进度回调；完成后需用户手动重启 INTX 才生效。
     const installUpdate = useCallback(async () => {
         const update = updateRef.current;
         if (!update || installing) return false;
         setInstalling(true);
         setProgress(0);
+        let unlisten: (() => void) | null = null;
         try {
-            let total = 0;
-            let downloaded = 0;
-            await update.downloadAndInstall((event) => {
-                if (event.event === "Started" && event.data.contentLength) {
-                    total = event.data.contentLength;
-                } else if (event.event === "Progress" && total > 0) {
-                    downloaded += event.data.chunkLength;
-                    setProgress(Math.min(100, Math.round((downloaded / total) * 100)));
+            unlisten = await listen<NativeUpdateProgress>("intx-update-progress", (event) => {
+                if (typeof event.payload?.percent === "number") {
+                    setProgress(Math.max(0, Math.min(100, event.payload.percent)));
                 }
+            });
+            await invoke("download_and_install_update", {
+                url: update.url,
+                expectedSha256: update.sha256,
+                mirrors: update.mirrors,
             });
             setProgress(100);
             updateRef.current = null;
@@ -138,6 +135,7 @@ export function useVersionCheck() {
         } catch {
             return false;
         } finally {
+            unlisten?.();
             setInstalling(false);
         }
     }, [installing]);
@@ -145,8 +143,7 @@ export function useVersionCheck() {
     const openReleaseModal = useCallback(() => {
         setOpen(true);
         void checkLatestRelease();
-        void checkAppUpdate();
-    }, [checkLatestRelease, checkAppUpdate]);
+    }, [checkLatestRelease]);
 
     return {
         open,

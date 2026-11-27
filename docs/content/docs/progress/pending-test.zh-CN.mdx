@@ -3,6 +3,13 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## 自研免密码桌面更新器（方案 A）
+
+- 在 Windows 桌面执行 `cd web && pnpm tauri:build && node scripts/generate-update-manifest.mjs`：确认零签名密钥/密码即可打包成功，`update.json` 与 `*-setup.exe` 同目录产出且含 64 位 SHA-256。
+- 推送 `v*` Tag 或手动触发 Release 工作流：确认 Windows CI 自动编译 NSIS、生成清单并发布 Release；版本不一致（tag/VERSION/tauri.conf）时应明确报错退出。
+- 发布测试 Release（或用 HTTPS 托管 `update.json` + `.exe` 并设 `localStorage['intx-update-manifest-url']`）：用旧版桌面客户端打开版本弹窗，确认能检测到更新、实时显示下载进度、校验 SHA-256、干净回收本地 Agent/ComfyUI 子进程并拉起 NSIS 安装。校验失败时必须删除临时包且不安装。
+- Linux 沙箱无法验证：真实 NSIS 打包、Release 发布、安装覆盖升级与子进程回收；SHA-256 实现已用 NIST 向量独立编译验证通过。
+
 ## 首页聚焦 Agent、设置入口收口与 Agent 面板 UI 升级
 
 - 打开首页（`/`）：确认已移除与侧栏重复的「新建画布创作」Hero 按钮，Agent 输入框置于主视觉中心，禁用态提交按钮在深浅主题下都清晰可见，`Ctrl+Enter` 提示齐全。

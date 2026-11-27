@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- [优化] 桌面端应用内更新切换为自研免密码更新器（方案 A）：移除 `tauri-plugin-updater` 与 minisign 私钥/密码依赖；新增 Rust 侧 `updater.rs`（复用 `tauri_plugin_http::reqwest` 流式下载安装包、实时推送 `intx-update-progress` 进度、零依赖内置 SHA-256 校验、支持 HTTPS 多镜像自动回退、回收子进程后拉起 NSIS 安装程序），前端 `updater.ts` + `use-version-check.ts` 接入 `update.json` 清单解析（补 3 例单测），新增 `generate-update-manifest.mjs` 自动计算 SHA-256 生成 `update.json`，并同步将 `.github/workflows/release-desktop.yml` 改为零 Secret 免密码自动发版。
+
+- [新增] Windows Tauri 桌面端云端自动签名发版流水线（`.github/workflows/release-desktop.yml`）：支持推送 `v*` Tag 自动触发或手动 `workflow_dispatch`（可选先建 Draft 草稿），自动校验 `VERSION` 与 `tauri.conf.json` 版本号一致、使用仓库 Secrets 完成 updater 私钥签名、自动生成并上传 `latest.json` 与 NSIS 安装包到 GitHub Release。
+
 - [优化] 首页聚焦 Agent 主舞台、统一设置入口收口与 Agent 面板全套 UI 升级：① 首页移除与侧栏重复的「新建画布创作」按钮，Hero 直接聚焦 INTX Agent 对话输入框（修复禁用态提交按钮暗色对比度不可见的问题，补齐 `Ctrl+Enter` 提示）；② 侧栏设置入口对照 BeefTV 收口为「模型配置 / 存储设置」两项，将「使用偏好」合并进「模型配置」标签页并以分组卡片呈现，同时修复渠道卡片「测试连接」缺失文案键显示为原始 key 的问题；③ Agent 侧栏全套视觉升级：顶栏升级为胶囊分段切换条、空对话区新增 INTX Agent 欢迎态与 3 条一键画布快捷指令卡片（消除大面积空白黑屏感）、底部输入框在 340px 侧栏宽度下即展示权限与模型标签并统一高对比圆形发送按钮。
 
 - [优化] 首页全面重构并与 BeefTV 视觉/动线对齐：新增点阵呼吸氛围 Hero（纯设计令牌、`prefers-reduced-motion` 适配）与居中高触感「新建画布创作」主入口，融合 Agent 快捷启动栏与 3 条一键灵感示例；下方精简去重为 6 列创作能力直达砖（图片生成 / 视频生成 / 音频生成 / 剪辑台 / 项目库 / 资产库，去除与新建画布重复的入口），点击图片/视频/音频生成直接新建画布并自动创建、选中且打开对应节点输入框；最近项目升级为 4 列横向圆角卡片（含缩略图、更新时间、节点数与悬停箭头），补齐 4 卡骨架屏与可点击「创建第一个画布」空态首卡；同步深度优化模型配置链路：渠道页新增图/视/文/音四类能力覆盖概览、渠道就绪状态诊断（缺少地址/密钥/模型/已就绪）、卡片直达一键测试连接/复制渠道/删除二次确认，渠道编辑抽屉新增内联连通测试（含耗时与模型数）、回车快速添加模型与按能力筛选，模型拉取弹窗新增按能力分类过滤与推断标签（补 3 例单测，全量 88 文件 951 例通过，令牌降至 133/145）。

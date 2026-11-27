@@ -3,6 +3,11 @@ title: Pending Tests
 description: Implemented changes that still need manual verification
 ---
 
+## Custom passwordless desktop updater (Scheme A)
+
+- On Windows desktop, run `cd web && pnpm tauri:build && node scripts/generate-update-manifest.mjs`: confirm the build succeeds with zero signing keys/passwords and outputs `update.json` with a 64-char SHA-256 alongside `*-setup.exe`.
+- Publish a test Release (or host `update.json` + `.exe` over HTTPS and set `localStorage['intx-update-manifest-url']`): open the Version modal in an older INTX desktop build, verify it detects the update, displays real-time download progress, verifies SHA-256, cleanly stops local Agent/ComfyUI sidecars, and launches the NSIS installer.
+
 ## Agent-focused home hero, unified model/preferences hub & Agent panel UI overhaul
 
 - Open Home (`/`): confirm the redundant "Create a canvas" hero button is removed, the Agent composer is front-and-center, and the disabled submit button remains clearly legible in dark and light themes.

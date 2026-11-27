@@ -1,0 +1,95 @@
+name: Release Desktop (Windows)
+
+# Windows Tauri 桌面端免密码自动打包与发版（方案 A 自研更新器）：
+# - 无需任何 minisign 私钥或密码 Secret；
+# - 推送 v* Tag（如 v0.2.3）或手动点击 Run workflow，自动编译 NSIS 安装包、
+#   计算 SHA-256 生成 update.json，并发布到 GitHub Release。
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      draft:
+        description: "Create as draft release first"
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-desktop-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Resolve and verify release version
+        id: meta
+        shell: pwsh
+        run: |
+          $versionFile = (Get-Content -Raw VERSION).Trim().TrimStart("v")
+          $tauriConf = (Get-Content -Raw web/src-tauri/tauri.conf.json | ConvertFrom-Json).version
+          if ("${{ github.ref }}".StartsWith("refs/tags/v")) {
+            $tagVersion = "${{ github.ref_name }}".TrimStart("v")
+            if ($versionFile -ne $tagVersion -or $tauriConf -ne $tagVersion) {
+              Write-Error "Version mismatch: tag ($tagVersion), VERSION ($versionFile), and web/src-tauri/tauri.conf.json ($tauriConf) must match."
+              exit 1
+            }
+          }
+          "version=$versionFile" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "tag=v$versionFile" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: web/package.json
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Setup Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build artifacts
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: web/src-tauri -> target
+
+      - name: Install web dependencies
+        working-directory: web
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Windows NSIS installer
+        working-directory: web
+        run: pnpm tauri:build
+
+      - name: Generate update.json with SHA-256
+        working-directory: web
+        run: node scripts/generate-update-manifest.mjs
+
+      - name: Publish GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = "${{ steps.meta.outputs.tag }}"
+          $nsisDir = "web/src-tauri/target/release/bundle/nsis"
+          $installer = Get-ChildItem -Path $nsisDir -Filter "*-setup.exe" | Sort-Object Name | Select-Object -Last 1
+          $manifest = Join-Path $nsisDir "update.json"
+          if (-not $installer) { Write-Error "NSIS installer not found in $nsisDir"; exit 1 }
+          $args = @("release", "create", $tag, $installer.FullName, $manifest, "--title", "INTX $tag", "--notes", "Windows 安装包及自研免密码更新清单（含 SHA-256 校验）。")
+          if ("${{ github.event_name }}" -eq "workflow_dispatch" -and "${{ inputs.draft }}" -eq "true") {
+            $args += "--draft"
+          }
+          gh @args
