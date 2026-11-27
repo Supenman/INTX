@@ -301,6 +301,15 @@ Linux 沙箱实测：干净环境（删掉试跑时的临时软链）下 `prepar
 
 静态门禁实测：typecheck 0（修复补丁源码 `parseManifest` 的 TS2352 类型窄化 + `config-file.test.ts` 缺失的 localStorage mock 后）、tokens 130/145、结构 6438/6442、boundaries/overflow 全绿、vitest 88 文件 951 例全绿。i18n 中未引用的 `webdav` 文案块为死代码（不影响功能/门禁，未在本轮删除，留待下轮清理）。本地文件夹备份/整包导入导出与桌面安装升级需人工验收，见 pending-test。
 
+## v11 批次：桌面端更新检测 CORS 修复
+
+补丁 `intx-fix-updater-cors`（单 PATCH，4 文件，`git apply --check` 一次通过、无实体转义）：
+
+- **CORS 根因与修复**：`update.json` 托管在 GitHub Release，`fetch` 跟随 `github.com/releases/latest/download` 的 302 跳到 `objects.githubusercontent.com`，在 WebView2 里触发 CORS 拦截导致更新检测失败。`checkAppUpdate` 改用 `@tauri-apps/plugin-http` 的 `tauriFetch` 经 Rust 侧发出请求（Cargo 已含 `tauri-plugin-http`、capability 已有 `http:default` + `https://**`、前端 `provider-transport.ts` 已有同款用法，依赖齐备）。
+- **可观测性**：新增 `updateError` 状态记录检测失败原因，版本弹窗在「有新版但无自动安装包」时显示提示与前往 Releases 的链接（中英文案齐全）；桌面端挂载后 `useEffect` 自动 `checkAppUpdate`，与 `checkLatestRelease` 里的手动调用不冲突（后者仅用户主动检查时触发）。
+
+静态门禁 typecheck 0、tokens 130/145、结构 6438/6442、vitest 88 文件 951 例全绿。**时序提醒**：此补丁在 v0.2.4 打包发布之后合入，v0.2.4 安装包仍为修复前行为，需随下一版发布才生效。
+
 ## 6. 未验证项
 
 - BeefTV 的各模式、节点状态、悬浮栏和动效在运行时的全部显示条件；必须读具体组件和条件分支后确认。

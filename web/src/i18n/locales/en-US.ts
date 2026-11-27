@@ -565,6 +565,8 @@ export default {
         cancel: "Cancel",
         installDone: "Installed. Restart INTX to use the new version",
         installFailed: "Installation failed. Try again later or download the installer manually",
+        packagePending: "{{version}} detected, but an auto-installable package is not available yet{{detail}}.",
+        openReleases: "Open Releases",
         types: { added: "Added", fixed: "Fixed", changed: "Changed", optimized: "Optimized", docs: "Docs" },
     },
     config: {

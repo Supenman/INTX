@@ -564,6 +564,8 @@ export default {
         cancel: "取消",
         installDone: "安装完成，请重启 INTX 以使用新版本",
         installFailed: "安装失败，请稍后重试或手动下载安装包",
+        packagePending: "检测到 {{version}}，暂未获取到可自动安装的桌面更新包{{detail}}。",
+        openReleases: "前往 Releases",
         types: { added: "新增", fixed: "修复", changed: "调整", optimized: "优化", docs: "文档" },
     },
     config: {

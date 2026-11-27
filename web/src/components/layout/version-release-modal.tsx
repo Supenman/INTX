@@ -26,7 +26,7 @@ type VersionReleaseModalProps = {
 export function VersionReleaseModal({ className, style }: VersionReleaseModalProps) {
     const { t } = useTranslation();
     const { message, modal } = AntApp.useApp();
-    const { open, setOpen, openReleaseModal, currentVersion, latestVersion, releases, checking, hasNewVersion, checkLatestRelease, updatable, updatableVersion, installing, progress, installUpdate } = useVersionCheck();
+    const { open, setOpen, openReleaseModal, currentVersion, latestVersion, releases, checking, hasNewVersion, checkLatestRelease, updatable, updatableVersion, updateError, installing, progress, installUpdate } = useVersionCheck();
 
     const handleInstall = () => {
         modal.confirm({
@@ -91,6 +91,18 @@ export function VersionReleaseModal({ className, style }: VersionReleaseModalPro
                             </Button>
                         </div>
                         {installing ? <Progress percent={progress} size="small" className="mt-2" /> : null}
+                    </div>
+                ) : hasNewVersion ? (
+                    <div className="mb-4 flex items-center justify-between gap-3 rounded-[var(--r-lg)] border border-border bg-[var(--surface-sunken)] p-3 text-xs text-muted-foreground">
+                        <span className="min-w-0 flex-1">{t("version.packagePending", { version: latestVersion, detail: updateError ? ` (${updateError})` : "" })}</span>
+                        <a
+                            href="https://github.com/Supenman/INTX/releases"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="shrink-0 font-medium text-foreground underline underline-offset-2"
+                        >
+                            {t("version.openReleases")}
+                        </a>
                     </div>
                 ) : null}
                 <div className="max-h-[56vh] overflow-y-auto pr-2">

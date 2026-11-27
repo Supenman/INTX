@@ -8,6 +8,8 @@
 
 - [发版] INTX v0.2.4 测试版：同步 `VERSION` / `tauri.conf.json` / `Cargo.toml`(含 `Cargo.lock`) 至 0.2.4，推送 `v0.2.4` tag 触发 Windows NSIS 打包与零 Secret 发版，产出安装包与含 SHA-256 的 `update.json`；Release 标记为预发布（pre-release），仅供测试验收，不作为稳定版推送给普通用户自动更新。
 
+- [修复] 桌面端更新检测绕过 CORS：`use-version-check.ts` 的 `checkAppUpdate` 改用 `@tauri-apps/plugin-http` 的 `tauriFetch` 经 Rust 侧拉取 `update.json`，规避 `github.com/releases/latest/download` 的 302 跳转在 WebView2 中触发的 CORS 拦截；桌面端挂载后自动检测更新，并将检测失败原因写入 `updateError`，在版本弹窗中提示「检测到新版本但暂无可自动安装包」并给出前往 Releases 的入口（中英文案齐全）。此修复在 v0.2.4 打包之后合入，需随下一版发布生效。
+
 - [发版验证] v0.2.3 Windows 真机发版流水线全绿：`Release Desktop (Windows)` 从版本校验、依赖安装、sidecar 资源准备、NSIS 打包、SHA-256 清单到 Release 发布全部 success，`INTX_0.2.3_x64-setup.exe`（约 40.75 MB）与 `update.json` 已发布至 GitHub Release。v9 修复的跨平台 npm 探测与 CI sidecar 校验在真实 Windows 环境验证通过。
 
 - [调整] 存储模块从 WebDAV 云同步切换为本地文件夹备份与工作区整包：移除 `webdav-sync.ts` / `app-sync.ts` 及其测试，新增 `workspace-archive.ts`（导出/导入工作区 zip 包、备份/恢复到本地文件夹，覆盖画布/资产/生图/视频四域并含清单校验），配置 tab 从 `webdav` 改为 `local-storage`、导航合并为「存储设置」。修复补丁源码中 `parseManifest` 的类型窄化（TS2352）与 `config-file.test.ts` 缺失的 `localStorage` mock。

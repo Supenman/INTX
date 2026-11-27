@@ -49,6 +49,7 @@ export function useVersionCheck() {
     const updateRef = useRef<AvailableAppUpdate | null>(null);
     const [updatable, setUpdatable] = useState(false);
     const [updatableVersion, setUpdatableVersion] = useState("");
+    const [updateError, setUpdateError] = useState("");
     const [installing, setInstalling] = useState(false);
     const [progress, setProgress] = useState(0);
 
@@ -56,17 +57,22 @@ export function useVersionCheck() {
         if (runtime !== "desktop") return;
         try {
             const manifestUrl = getUpdateManifestUrl();
-            const response = await fetch(manifestUrl, { cache: "no-store" });
+            // 桌面端经 Rust 侧 plugin-http 拉取，避免 github.com/releases/latest/download 302 跳转触发 WebView2 CORS 拦截。
+            const { fetch: tauriFetch } = await import("@tauri-apps/plugin-http");
+            const response = await tauriFetch(manifestUrl, { method: "GET", headers: { "Cache-Control": "no-cache" } });
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const raw: unknown = await response.json();
             const update = resolveAvailableUpdate(raw, currentVersion);
             updateRef.current = update;
             setUpdatable(update !== null);
             setUpdatableVersion(update?.version || "");
-        } catch {
+            setUpdateError("");
+            if (update?.version) setRemoteVersion(`v${update.version}`);
+        } catch (err) {
             updateRef.current = null;
             setUpdatable(false);
             setUpdatableVersion("");
+            setUpdateError(err instanceof Error ? err.message : "unknown");
         }
     }, [currentVersion]);
 
@@ -110,6 +116,10 @@ export function useVersionCheck() {
     useEffect(() => {
         void checkLatestVersion();
     }, [checkLatestVersion]);
+
+    useEffect(() => {
+        void checkAppUpdate();
+    }, [checkAppUpdate]);
 
     const installUpdate = useCallback(async () => {
         const update = updateRef.current;
@@ -157,6 +167,7 @@ export function useVersionCheck() {
         checkLatestRelease,
         updatable,
         updatableVersion,
+        updateError,
         installing,
         progress,
         installUpdate,
