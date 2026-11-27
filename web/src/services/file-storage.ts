@@ -1,6 +1,7 @@
 import localforage from "localforage";
 import { nanoid } from "nanoid";
 
+import { runtime } from "@/lib/runtime/capabilities";
 import { withLocalProxy } from "@/stores/use-config-store";
 
 export type UploadedFile = { url: string; storageKey: string; bytes: number; mimeType: string; width?: number; height?: number; durationMs?: number };
@@ -8,8 +9,18 @@ export type UploadedFile = { url: string; storageKey: string; bytes: number; mim
 const store = localforage.createInstance({ name: "infinite-canvas", storeName: "media_files" });
 const objectUrls = new Map<string, string>();
 
+async function fetchMediaBlob(input: string): Promise<Blob> {
+    const isHttp = /^https?:\/\//i.test(input);
+    const response =
+        runtime === "desktop" && isHttp
+            ? await (await import("@tauri-apps/plugin-http")).fetch(input)
+            : await fetch(withLocalProxy(input));
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.blob();
+}
+
 export async function uploadMediaFile(input: string | Blob, prefix = "file"): Promise<UploadedFile> {
-    const blob = typeof input === "string" ? await (await fetch(withLocalProxy(input))).blob() : input;
+    const blob = typeof input === "string" ? await fetchMediaBlob(input) : input;
     const storageKey = `${prefix}:${nanoid()}`;
     await store.setItem(storageKey, blob);
     const url = URL.createObjectURL(blob);

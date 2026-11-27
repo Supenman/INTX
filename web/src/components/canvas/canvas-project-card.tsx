@@ -1,7 +1,7 @@
-import { Check, Download, FolderKanban, Pencil, Trash2, X } from "lucide-react";
+import { Check, Download, Ellipsis, FolderKanban, Pencil, Trash2, X } from "lucide-react";
 import { useEffect, useSyncExternalStore } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { App, Button, Input, Select } from "antd";
+import { App, Button, Dropdown, Input, Select } from "antd";
 import { useTranslation } from "react-i18next";
 
 import { useSaveNotice } from "@/hooks/use-save-file";
@@ -79,7 +79,7 @@ export function CanvasProjectCard({ project, folderNames }: { project: CanvasPro
                     checked={selected}
                     onClick={(event) => event.stopPropagation()}
                     onChange={(event) => toggleSelected(project.id, event.target.checked)}
-                    className="mt-1 size-4 accent-foreground"
+                    className={cn("mt-1 size-4 accent-foreground transition-opacity", selected ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100")}
                     aria-label={t("canvas.project.select", { name: project.title })}
                 />
                 {editing ? (
@@ -122,11 +122,35 @@ export function CanvasProjectCard({ project, folderNames }: { project: CanvasPro
                             <Button type="text" size="small" shape="circle" icon={<X className="size-4" />} onClick={stopEditing} aria-label={t("canvas.project.cancelRename")} />
                         </>
                     ) : (
-                        <>
-                            <Button type="text" size="small" shape="circle" icon={<Download className="size-4" />} onClick={() => void exportCanvasProjects([project], project.title || t("canvas.title")).then(saveNotice).catch((error) => saveNotice({ status: "failed", error }))} aria-label={t("canvas.project.export")} />
-                            <Button type="text" size="small" shape="circle" icon={<Pencil className="size-4" />} onClick={() => startEditing(project.id, project.title)} aria-label={t("canvas.project.rename")} />
-                            <Button type="text" size="small" shape="circle" icon={<Trash2 className="size-4" />} onClick={() => setDeleteIds([project.id])} aria-label={t("canvas.project.delete")} />
-                        </>
+                        <Dropdown
+                            trigger={["click"]}
+                            menu={{
+                                items: [
+                                    {
+                                        key: "export",
+                                        icon: <Download className="size-3.5" />,
+                                        label: t("canvas.project.export"),
+                                        onClick: () => void exportCanvasProjects([project], project.title || t("canvas.title")).then(saveNotice).catch((error) => saveNotice({ status: "failed", error })),
+                                    },
+                                    {
+                                        key: "rename",
+                                        icon: <Pencil className="size-3.5" />,
+                                        label: t("canvas.project.rename"),
+                                        onClick: () => startEditing(project.id, project.title),
+                                    },
+                                    { type: "divider" },
+                                    {
+                                        key: "delete",
+                                        danger: true,
+                                        icon: <Trash2 className="size-3.5" />,
+                                        label: t("canvas.project.delete"),
+                                        onClick: () => setDeleteIds([project.id]),
+                                    },
+                                ],
+                            }}
+                        >
+                            <Button type="text" size="small" shape="circle" icon={<Ellipsis className="size-4" />} aria-label={t("common.more")} />
+                        </Dropdown>
                     )}
                 </div>
             </div>

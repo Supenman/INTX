@@ -3,6 +3,14 @@ title: Pending Tests
 description: Implemented changes that still need manual verification
 ---
 
+## Provider presets, task media previews, studio multi-project & ComfyUI multi-output flows
+
+- Channel editor: selecting a provider preset should prefill URL/models/capabilities correctly, and manual edits should still save.
+- Tasks page: image/video task cards should show asset thumbnails and inline previews; clicking a preview should open the full image/player.
+- Editing studio: switching among multiple projects should preserve each timeline; importing unarchived canvas images/videos directly to the timeline should work and media should be playable.
+- ComfyUI: the chain / mask / upscale / angle / preset async multi-output image flows should return results and land on canvas nodes correctly, with clear errors on failure.
+- Release notes: the version modal should parse `-` list items correctly; failed HTTP media fetches (e.g. 404) on desktop should raise explicit errors instead of showing a black screen.
+
 ## Desktop update-check CORS fix
 
 - On Windows desktop, open the Version modal: confirm it auto-checks for updates on open (no manual click needed) and fetches `update.json` via Rust `tauriFetch` successfully, no longer blocked by WebView2 CORS on the 302 redirect.

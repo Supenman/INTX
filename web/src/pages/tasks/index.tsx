@@ -13,7 +13,7 @@ import { readTaskOutcome, type OutcomeReason } from "@/domain/task/outcome";
 import { useCopyText } from "@/hooks/use-copy-text";
 import { useSaveFile } from "@/hooks/use-save-file";
 import { loadTaskLog, useTaskLogStore } from "@/services/generation";
-import { useAssetStore } from "@/stores/use-asset-store";
+import { assetCoverUrl, useAssetStore, type Asset } from "@/stores/use-asset-store";
 
 type Bucket = "all" | "running" | "verify" | "succeeded" | "ended";
 
@@ -45,6 +45,8 @@ export default function TasksPage() {
     const copyText = useCopyText();
     const saveFileWithNotice = useSaveFile();
     const tasks = useTaskLogStore((state) => state.tasks);
+    const assets = useAssetStore((state) => state.assets);
+    const assetById = useMemo(() => new Map(assets.map((item) => [item.id, item])), [assets]);
     const loading = useTaskLogStore((state) => state.loading);
     const hydrated = useTaskLogStore((state) => state.hydrated);
     const loadError = useTaskLogStore((state) => state.loadError);
@@ -64,6 +66,7 @@ export default function TasksPage() {
 
     useEffect(() => {
         void loadTaskLog();
+        void useAssetStore.getState().load();
     }, []);
 
     const counts = useMemo(() => {
@@ -167,6 +170,8 @@ export default function TasksPage() {
                             {filtered.map((task) => {
                                 const outcome = readTaskOutcome(task);
                                 const needsConfirm = outcome?.regenerate === "confirm";
+                                const previewAsset = task.resultAssetIds.map((id) => assetById.get(id)).find((item): item is Asset => Boolean(item && (item.kind === "image" || item.kind === "video")));
+                                const previewUrl = previewAsset ? assetCoverUrl(previewAsset) : "";
                                 return (
                                     <button
                                         key={task.id}
@@ -178,6 +183,15 @@ export default function TasksPage() {
                                         className="focus-ring block w-full rounded-xl border border-border bg-[var(--surface-card)] px-4 py-3 text-left hover:bg-[var(--surface-card-hover)] focus-visible:bg-[var(--surface-card-hover)] motion-safe:transition motion-safe:active:scale-[0.995]"
                                     >
                                         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+                                            {previewAsset && previewUrl ? (
+                                                <div className="size-12 shrink-0 overflow-hidden rounded-lg border border-border bg-[var(--surface-sunken)]">
+                                                    {previewAsset.kind === "video" ? (
+                                                        <video src={`${previewUrl}#t=0.1`} muted playsInline preload="metadata" className="size-full object-cover" />
+                                                    ) : (
+                                                        <img src={previewUrl} alt="" loading="lazy" className="size-full object-cover" />
+                                                    )}
+                                                </div>
+                                            ) : null}
                                             <div className="min-w-0 flex-1">
                                                 <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                                                     <span className={`inline-block size-1.5 rounded-full ${task.status === "running" ? "bg-emerald-500" : task.status === "failed" ? "bg-red-500" : task.status === "canceled" ? "bg-muted-foreground/50" : task.status === "succeeded" ? "bg-muted-foreground" : "bg-amber-500"}`} />
@@ -336,11 +350,29 @@ function TaskDetail({
                             return (
                                 <li key={id}>
                                     {asset ? (
-                                        <Link to={`/assets?${new URLSearchParams({ asset: id })}`} className="flex items-center gap-2 rounded-md border border-border px-3 py-2 hover:bg-[var(--surface-card-hover)]">
-                                            <span className="min-w-0 flex-1 truncate">{asset.title}</span>
-                                            <span className="shrink-0 text-xs text-muted-foreground">{t(`assets.kinds.${asset.kind}`)}</span>
-                                            <ArrowUpRight aria-hidden className="size-3.5 shrink-0" />
-                                        </Link>
+                                        <div className="overflow-hidden rounded-lg border border-border">
+                                            {(asset.kind === "image" || asset.kind === "video") && assetCoverUrl(asset) ? (
+                                                <div className="max-h-48 overflow-hidden bg-[var(--surface-sunken)]">
+                                                    {asset.kind === "video" ? (
+                                                        <video src={asset.data.url || assetCoverUrl(asset)} controls preload="metadata" playsInline className="max-h-48 w-full object-contain" />
+                                                    ) : (
+                                                        <img src={assetCoverUrl(asset)} alt={asset.title} loading="lazy" className="max-h-48 w-full object-contain" />
+                                                    )}
+                                                </div>
+                                            ) : null}
+                                            <div className="flex flex-wrap items-center gap-2 px-3 py-2">
+                                                <Link to={`/assets?${new URLSearchParams({ asset: id })}`} className="flex min-w-0 flex-1 items-center gap-2 hover:underline">
+                                                    <span className="min-w-0 flex-1 truncate">{asset.title}</span>
+                                                    <span className="shrink-0 text-xs text-muted-foreground">{t(`assets.kinds.${asset.kind}`)}</span>
+                                                    <ArrowUpRight aria-hidden className="size-3.5 shrink-0" />
+                                                </Link>
+                                                {asset.metadata?.canvasProjectId ? (
+                                                    <Link to={`/canvas/${asset.metadata.canvasProjectId}`} className="shrink-0 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">
+                                                        {t("tasks.openCanvas")}
+                                                    </Link>
+                                                ) : null}
+                                            </div>
+                                        </div>
                                     ) : <span className="break-all font-mono text-xs text-muted-foreground">{id}</span>}
                                 </li>
                             );

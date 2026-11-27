@@ -87,6 +87,23 @@ export const CONFIG_STORE_KEY = "infinite-canvas:ai_config_store";
 const CHANNEL_MODEL_SEPARATOR = "::";
 const OPENAI_BASE_URL = "https://api.openai.com";
 const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com";
+
+export type ChannelProviderPreset = {
+    id: string;
+    name: string;
+    apiFormat: ApiCallFormat;
+    baseUrl: string;
+};
+
+export const CHANNEL_PROVIDER_PRESETS: readonly ChannelProviderPreset[] = [
+    { id: "openai", name: "OpenAI", apiFormat: "openai", baseUrl: OPENAI_BASE_URL },
+    { id: "gemini", name: "Gemini", apiFormat: "gemini", baseUrl: GEMINI_BASE_URL },
+    { id: "modelscope", name: "ModelScope", apiFormat: "openai", baseUrl: "https://api-inference.modelscope.cn" },
+    { id: "siliconflow", name: "SiliconFlow", apiFormat: "openai", baseUrl: "https://api.siliconflow.cn" },
+    { id: "deepseek", name: "DeepSeek", apiFormat: "openai", baseUrl: "https://api.deepseek.com" },
+    { id: "openrouter", name: "OpenRouter", apiFormat: "openai", baseUrl: "https://openrouter.ai/api" },
+    { id: "runninghub", name: "RunningHub", apiFormat: "runninghub", baseUrl: "https://www.runninghub.cn" },
+];
 export const LOCAL_PROXY_PACKAGE = "@supenman/canvas-proxy";
 export const DEFAULT_LOCAL_PROXY_URL = "http://127.0.0.1:23210";
 

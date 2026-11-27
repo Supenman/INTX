@@ -6,6 +6,7 @@ import { useLocation, useNavigate, useParams, useSearchParams } from "react-rout
 import { Group, Video } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { generateNodeImages } from "@/lib/canvas/comfy-image-runner";
 import { ComfyImageTaskFailed, isLocalComfyImageWorkflow, requestImageQuestion, requestSingleImage, submitComfyImageTask, waitForComfyImageTask } from "@/services/api/image";
 import { browserTaskLog, loadTaskLog, runImageSlots, useTaskLogStore } from "@/services/generation";
 import { runChainSteps, type ChainRunStep } from "@/services/generation/run-chain";
@@ -1466,11 +1467,10 @@ function InfiniteCanvasPage() {
                                 check();
                                 const options = { signal: controller.signal };
                                 if (params.kind === "image") {
-                                    const image = await requestSingleImage(config, context.prompt, context.referenceImages, options);
-                                    const stored = await uploadImage(image.dataUrl, options);
+                                    const generated = await generateNodeImages(config, context.prompt, context.referenceImages, controller.signal, (taskId) => saveNode(nodeId, (node) => ({ ...node, metadata: { ...node.metadata, imageTaskId: taskId, model: config.model, status: NODE_STATUS_LOADING } })));
                                     await saveResult(nodeId, (node) => {
-                                        const dimensions = fitNodeSize(stored.width, stored.height, node.width, node.height);
-                                        return { ...node, ...dimensions, metadata: { ...node.metadata, ...imageMetadata(stored), model: config.model } };
+                                        const dimensions = fitNodeSize(generated.first.width, generated.first.height, node.width, node.height);
+                                        return { ...node, ...dimensions, metadata: { ...node.metadata, ...generated.metadataPatch, model: config.model } };
                                     });
                                 } else if (params.kind === "video") {
                                     const task = await createVideoGenerationTask(config, context.prompt, context.referenceImages, {
@@ -2720,10 +2720,9 @@ function InfiniteCanvasPage() {
             setRunningNodeId(childId);
             const controller = startGenerationRequest(childId, node.id, childId);
             try {
-                const image = await requestSingleImage(generationConfig, prompt, references, { signal: controller.signal });
-                const uploaded = await uploadImage(image.dataUrl, { signal: controller.signal });
-                const size = fitNodeSize(uploaded.width, uploaded.height, node.width, node.height);
-                setNodes((prev) => prev.map((item) => (item.id === childId ? { ...item, width: size.width, height: size.height, metadata: { ...item.metadata, ...imageMetadata(uploaded), prompt, ...generationMetadata } } : item)));
+                const generated = await generateNodeImages(generationConfig, prompt, references, controller.signal);
+                const size = fitNodeSize(generated.first.width, generated.first.height, node.width, node.height);
+                setNodes((prev) => prev.map((item) => (item.id === childId ? { ...item, width: size.width, height: size.height, metadata: { ...item.metadata, ...generated.metadataPatch, prompt, ...generationMetadata } } : item)));
             } catch (error) {
                 if (isGenerationCanceled(error)) return;
                 const errorDetails = error instanceof Error ? error.message : t("canvas.projectPage.maskFailed");
@@ -2787,10 +2786,9 @@ function InfiniteCanvasPage() {
         setRunningNodeId(childId);
         const controller = startGenerationRequest(childId, node.id, childId);
         try {
-            const result = await requestSingleImage(generationConfig, prompt, reference, { signal: controller.signal });
-            const image = await uploadImage(result.dataUrl, { signal: controller.signal });
-            const size = fitNodeSize(image.width, image.height, node.width, node.height);
-            setNodes((previous) => previous.map((item) => item.id === childId ? { ...item, width: size.width, height: size.height, metadata: { ...item.metadata, ...imageMetadata(image), prompt, ...generationMetadata } } : item));
+            const generated = await generateNodeImages(generationConfig, prompt, reference, controller.signal);
+            const size = fitNodeSize(generated.first.width, generated.first.height, node.width, node.height);
+            setNodes((previous) => previous.map((item) => item.id === childId ? { ...item, width: size.width, height: size.height, metadata: { ...item.metadata, ...generated.metadataPatch, prompt, ...generationMetadata } } : item));
         } catch (error) {
             if (isGenerationCanceled(error)) return;
             const errorDetails = error instanceof Error ? error.message : t("canvas.projectPage.generationFailed");
@@ -2836,15 +2834,9 @@ function InfiniteCanvasPage() {
             setDialogNodeId(childId);
             const controller = startGenerationRequest(childId, node.id, childId);
             try {
-                const image = await requestSingleImage(
-                    generationConfig,
-                    prompt,
-                    [{ id: node.id, name: `${node.title || node.id}.png`, type: node.metadata.mimeType || "image/png", dataUrl: node.metadata.content, storageKey: node.metadata.storageKey }],
-                    { signal: controller.signal },
-                );
-                const uploaded = await uploadImage(image.dataUrl, { signal: controller.signal });
-                const size = fitNodeSize(uploaded.width, uploaded.height, imageConfig.width, imageConfig.height);
-                setNodes((prev) => prev.map((item) => (item.id === childId ? { ...item, width: size.width, height: size.height, metadata: { ...item.metadata, ...imageMetadata(uploaded), prompt, ...generationMetadata } } : item)));
+                const generated = await generateNodeImages(generationConfig, prompt, [{ id: node.id, name: `${node.title || node.id}.png`, type: node.metadata.mimeType || "image/png", dataUrl: node.metadata.content, storageKey: node.metadata.storageKey }], controller.signal);
+                const size = fitNodeSize(generated.first.width, generated.first.height, imageConfig.width, imageConfig.height);
+                setNodes((prev) => prev.map((item) => (item.id === childId ? { ...item, width: size.width, height: size.height, metadata: { ...item.metadata, ...generated.metadataPatch, prompt, ...generationMetadata } } : item)));
             } catch (error) {
                 if (isGenerationCanceled(error)) return;
                 const errorDetails = error instanceof Error ? error.message : t("canvas.projectPage.generationFailed");
@@ -2923,10 +2915,9 @@ function InfiniteCanvasPage() {
                 const controller = startGenerationRequest(childId, node.id, childId);
                 setRunningNodeId(childId);
                 try {
-                    const image = await requestSingleImage(generationConfig, prompt, reference, { signal: controller.signal });
-                    const uploaded = await uploadImage(image.dataUrl, { signal: controller.signal });
-                    const size = fitNodeSize(uploaded.width, uploaded.height, imageConfig.width, imageConfig.height);
-                    setNodes((prev) => prev.map((item) => (item.id === childId ? { ...item, width: size.width, height: size.height, metadata: { ...item.metadata, ...imageMetadata(uploaded), prompt, ...generationMetadata } } : item)));
+                    const generated = await generateNodeImages(generationConfig, prompt, reference, controller.signal);
+                    const size = fitNodeSize(generated.first.width, generated.first.height, imageConfig.width, imageConfig.height);
+                    setNodes((prev) => prev.map((item) => (item.id === childId ? { ...item, width: size.width, height: size.height, metadata: { ...item.metadata, ...generated.metadataPatch, prompt, ...generationMetadata } } : item)));
                 } catch (error) {
                     // 用户取消就停手：后面几张还没买，不该继续花。
                     if (isGenerationCanceled(error)) break;

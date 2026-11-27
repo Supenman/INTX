@@ -1,8 +1,12 @@
 # CHANGELOG
 
-## v0.2.3
+## Unreleased
 
-- [发版] INTX v0.2.3 桌面端发版：同步 `VERSION` / `tauri.conf.json` / `Cargo.toml`(含 `Cargo.lock`) 至 0.2.3，推送 `v0.2.3` tag 触发 Windows NSIS 自动打包与零 Secret 发版，产出安装包与含 SHA-256 的 `update.json`，供自研免密码更新器校验升级。本版包含 v9 修复的跨平台 npm 探测与发版 CI sidecar 资源校验。
+- [修复] 发布说明解析媒体链接与状态检查：`release.ts` 的 `parseChangelog` 正则兼容 `-`/`+` 两种列表前缀（此前只识别 `+`，导致 CHANGELOG 的 `-` 条目解析不到）；`file-storage.ts` 桌面端拉取 HTTP 媒体改用 `@tauri-apps/plugin-http` 的 `fetch` 绕过 WebView2 CORS，并检查 `response.ok`，非 2xx 显式抛错，避免把错误响应当成媒体写入。
+- [功能] 渠道编辑器新增一键供应商预设：常用模型供应商可一键填入地址/模型/能力配置，减少手工配置；`use-config-store` 扩展预设数据。
+- [功能] 任务页展示资产缩略图与内联媒体预览：生图/视频任务卡片直接预览产物，无需逐个打开。
+- [功能] 剪辑台支持多项目切换与直接导入未归档的画布媒体：项目列表/切换交互重做，可从画布资产直接导入图片/视频到时间线。
+- [功能] ComfyUI 异步多输出图像执行扩展到 chain / mask / upscale / angle / preset 流程：新增 `comfy-image-runner.ts` 统一编排，`canvas/project.tsx` 接入。
 
 ## v0.2.4-beta.1（测试版）
 
@@ -238,6 +242,9 @@
 - [修复] 打包版视频生成任务显示已完成但画布视频节点黑屏：任务产物写到 `DATA_DIR/outputs`（用户数据目录），而 `/files/:name` 只从安装目录的 `data/outputs` 查找，导致视频地址 404；现在默认输出目录跟随 `DATA_DIR`，且 `/files` 路由兼容两个目录。
 - [修复] 视频下载失败被两层 catch 吞掉后把坏直链写进节点（`storageKey` 为空），节点显示黑屏 0:00 且无任何重试入口；现在本地网关地址下载失败直接报错、HTML 错误响应不再被当成视频，历史坏节点显示加载失败并可通过工具栏「查询视频任务」自动重下。
 
+## v0.2.3
+
+- [发版] INTX v0.2.3 桌面端发版：同步 `VERSION` / `tauri.conf.json` / `Cargo.toml`(含 `Cargo.lock`) 至 0.2.3，推送 `v0.2.3` tag 触发 Windows NSIS 自动打包与零 Secret 发版，产出安装包与含 SHA-256 的 `update.json`，供自研免密码更新器校验升级。本版包含 v9 修复的跨平台 npm 探测与发版 CI sidecar 资源校验。
 ## v0.2.2
 
 - 用于验证从 Windows 桌面版 v0.2.1 下载、验签、安装和重启的完整更新流程。

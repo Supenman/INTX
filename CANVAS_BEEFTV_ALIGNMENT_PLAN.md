@@ -310,6 +310,16 @@ Linux 沙箱实测：干净环境（删掉试跑时的临时软链）下 `prepar
 
 静态门禁 typecheck 0、tokens 130/145、结构 6438/6442、vitest 88 文件 951 例全绿。此补丁已随 v0.2.4-beta.1 测试版打包生效（此前误命名的 v0.2.4 tag/Release 已删除，以 beta.1 语义重新打包）。`isNewerSemver` 用 `^v?(\d+)\.(\d+)\.(\d+)` 只取主版本数字，`0.2.4-beta.1` 解析为 `[0,2,4]`，与 `0.2.4` 视为相等，beta 版不会误触发正式用户自动升级，符合预期。
 
+## v12 批次：主线工作流与功能修复（渠道预设 / 任务预览 / 剪辑台 / ComfyUI）
+
+补丁 `intx-mainline-workflow-and-fixes`（5 个 PATCH，12 文件，`git apply --check` 一次通过、无实体转义、含 1 新文件）：
+
+- **修复**：`release.ts` 的 `parseChangelog` 正则从 `^\+` 放宽为 `^[-+]`，兼容 CHANGELOG 的 `-` 列表项；`file-storage.ts` 桌面端拉取 HTTP 媒体改用 `@tauri-apps/plugin-http` 的 `fetch` 绕过 WebView2 CORS，并校验 `response.ok`，避免错误响应被当成媒体。
+- **功能**：渠道编辑器一键供应商预设；任务页资产缩略图/内联媒体预览；剪辑台多项目切换与直接导入未归档画布媒体；ComfyUI 异步多输出扩展到 chain/mask/upscale/angle/preset（新增 `lib/canvas/comfy-image-runner.ts`，`canvas/project.tsx` 接入）。
+- 修复补丁源码笔误：`editing-studio/index.tsx` 的 `TProjectMetadata` import 误写为 `@/lib/opencut/types/project`（路径段顺序反了），改为项目实际使用的 `@/lib/opencut/project/types`，否则 typecheck 报 TS2307。
+
+静态门禁 typecheck 0、tokens 130/145、结构 6429/6442、boundaries/overflow 通过、vitest 88 文件 951 例 + bun 19 例全绿。这批改动在 v0.2.4-beta.1 打包之后合入，需随下一版发布生效。所有功能项已记入 pending-test 中英清单待人工验收。
+
 ## 6. 未验证项
 
 - BeefTV 的各模式、节点状态、悬浮栏和动效在运行时的全部显示条件；必须读具体组件和条件分支后确认。

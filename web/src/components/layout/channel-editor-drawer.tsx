@@ -3,7 +3,7 @@ import { CheckCircle2, ListPlus, Plus, Search, Trash2, Wifi, XCircle } from "luc
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { createModelChannel, defaultBaseUrlForApiFormat, guessCapability, normalizeChannelModels, type ApiCallFormat, type ChannelModel, type ModelCapability, type ModelChannel } from "@/stores/use-config-store";
+import { CHANNEL_PROVIDER_PRESETS, createModelChannel, defaultBaseUrlForApiFormat, guessCapability, normalizeChannelModels, type ApiCallFormat, type ChannelModel, type ChannelProviderPreset, type ModelCapability, type ModelChannel } from "@/stores/use-config-store";
 import { isRunningHubEndpoint } from "@/domain/provider/endpoints";
 import { fetchChannelModels } from "@/services/api/image";
 import { ModelScriptEditor } from "./model-script-editor";
@@ -68,6 +68,20 @@ export function ChannelEditorDrawer({ open, channel, onSave, onClose }: { open: 
         }
     };
     const setModels = (models: ChannelModel[]) => patch({ models });
+
+    const applyPreset = (preset: ChannelProviderPreset) => {
+        if (preset.apiFormat === "runninghub") {
+            patch(createModelChannel({ ...draft, name: preset.name, apiFormat: "runninghub", baseUrl: defaultBaseUrlForApiFormat("runninghub"), apiKey: isRunningHubEndpoint(draft.baseUrl) ? draft.apiKey : "" }));
+        } else {
+            patch({
+                name: preset.name,
+                apiFormat: preset.apiFormat,
+                baseUrl: preset.baseUrl,
+                ...(runningHub ? { apiKey: "", models: [] } : {}),
+            });
+        }
+        message.info(t("config.channelEditor.presetApplied", { name: preset.name }));
+    };
 
     const changeApiFormat = (apiFormat: ApiCallFormat) => {
         if (apiFormat === "runninghub") {
@@ -151,6 +165,28 @@ export function ChannelEditorDrawer({ open, channel, onSave, onClose }: { open: 
                 </Space>
             }
         >
+            <div className="mb-4">
+                <div className="mb-2 text-xs text-muted-foreground">{t("config.channelEditor.presetsLabel")}</div>
+                <div className="flex flex-wrap gap-1.5">
+                    {CHANNEL_PROVIDER_PRESETS.map((preset) => {
+                        const active = draft.apiFormat === preset.apiFormat && draft.baseUrl.trim().replace(/\/+$/, "") === preset.baseUrl;
+                        return (
+                            <button
+                                key={preset.id}
+                                type="button"
+                                onClick={() => applyPreset(preset)}
+                                className={`focus-ring cursor-pointer rounded-md border px-2.5 py-1 text-xs transition ${
+                                    active
+                                        ? "border-foreground/40 bg-[var(--surface-card-hover)] font-medium text-foreground"
+                                        : "border-border bg-[var(--surface-sunken)] text-muted-foreground hover:bg-[var(--surface-card-hover)] hover:text-foreground"
+                                }`}
+                            >
+                                {preset.name}
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
             <div className="grid grid-cols-2 gap-4">
                 <label className="block">
                     <span className="mb-1 block text-sm font-medium">{t("config.channelEditor.name")}</span>
