@@ -336,17 +336,20 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
                         key: "preferences",
                         label: t("config.tabs.preferences"),
                         children: (
-                            <Form layout="vertical" requiredMark={false}>
-                                <div className="mb-2 text-sm font-semibold">{t("config.preferences.defaultModels")}</div>
-                                <div className="mb-4 grid grid-cols-2 gap-4 xl:grid-cols-4">
-                                    {modelGroups.map((group) => (
-                                        <Form.Item key={group.modelKey} label={t(group.labelKey)} className="mb-0">
-                                            <ModelPicker config={config} value={config[group.modelKey]} onChange={(model) => updateConfig(group.modelKey, model)} capability={group.capability} fullWidth />
-                                        </Form.Item>
-                                    ))}
-                                </div>
-                                <div className="mb-2 text-sm font-semibold">{t("config.preferences.generation")}</div>
-                                <div className="grid grid-cols-4 gap-4">
+                            <Form layout="vertical" requiredMark={false} className="max-w-5xl space-y-4">
+                                <section className="rounded-[var(--r-lg)] border border-border bg-[var(--surface-card)] p-4">
+                                    <div className="mb-3 text-sm font-semibold">{t("config.preferences.defaultModels")}</div>
+                                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                                        {modelGroups.map((group) => (
+                                            <Form.Item key={group.modelKey} label={t(group.labelKey)} className="mb-0">
+                                                <ModelPicker config={config} value={config[group.modelKey]} onChange={(model) => updateConfig(group.modelKey, model)} capability={group.capability} fullWidth />
+                                            </Form.Item>
+                                        ))}
+                                    </div>
+                                </section>
+                                <section className="rounded-[var(--r-lg)] border border-border bg-[var(--surface-card)] p-4">
+                                    <div className="mb-3 text-sm font-semibold">{t("config.preferences.generation")}</div>
+                                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                                     <Form.Item label={t("config.preferences.canvasImageCount")} extra={t("config.preferences.canvasImageCountDescription")} className="mb-4">
                                         <Input
                                             type="number"
@@ -405,6 +408,7 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
                                 <Form.Item label={t("config.preferences.systemPrompt")} className="mb-0">
                                     <Input.TextArea rows={4} value={config.systemPrompt} placeholder={t("config.preferences.systemPromptPlaceholder")} onChange={(event) => updateConfig("systemPrompt", event.target.value)} />
                                 </Form.Item>
+                                </section>
                             </Form>
                         ),
                     },

@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
     ArrowRight,
+    ArrowUp,
     AudioLines,
     Clapperboard,
     FolderKanban,
@@ -50,6 +51,7 @@ export default function HomePage() {
     );
     const recentProjects = sortedProjects.slice(0, 4);
     const targetAvailable = !targetProjectId || projects.some((project) => project.id === targetProjectId);
+    const canSubmit = hydrated && Boolean(agentPrompt.trim()) && targetAvailable;
     const locale = i18n.resolvedLanguage || "zh-CN";
 
     const newProject = () => createProject(t("canvas.defaultTitle", { count: projects.length + 1 }));
@@ -85,9 +87,9 @@ export default function HomePage() {
         <div className="@container/workspace flex h-full min-w-0 flex-col overflow-hidden bg-background text-foreground">
             <main className="thin-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-8 lg:px-12 lg:py-9">
                 <div className="mx-auto flex w-full max-w-6xl flex-col gap-7">
-                    {/* 顶部点阵氛围 Hero（参考 BeefTV）：高触感「新建画布创作」主入口 + 融合式 Agent 快捷启动栏 */}
+                    {/* 顶部点阵氛围 Agent 主舞台：聚焦 INTX Agent 对话创作入口，不再重复放「新建画布」按钮 */}
                     <section
-                        className="intx-home-hero rounded-2xl border border-border px-4 py-7 sm:px-8 sm:py-9"
+                        className="intx-home-hero rounded-2xl border border-border px-4 py-8 sm:px-8 sm:py-10"
                         aria-labelledby="home-hero-title"
                     >
                         <span className="intx-home-dot-grid" aria-hidden />
@@ -97,19 +99,16 @@ export default function HomePage() {
                         </div>
 
                         <div className="relative z-10 mx-auto flex max-w-3xl flex-col items-center">
-                            <button
-                                type="button"
-                                disabled={!hydrated}
-                                onClick={() => launchCanvas()}
-                                className="group focus-ring flex cursor-pointer flex-col items-center gap-3 rounded-2xl px-4 py-1 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                                <span className="grid h-13 w-22 place-items-center rounded-2xl border border-border bg-foreground text-background shadow-[var(--shadow-lg)] motion-safe:transition motion-safe:group-hover:-translate-y-0.5 motion-safe:group-active:scale-95">
-                                    <Plus className="size-6" strokeWidth={1.9} aria-hidden />
-                                </span>
-                                <span id="home-hero-title" className="text-base font-semibold tracking-tight text-foreground">
-                                    {t("home.newCanvas")}
-                                </span>
-                            </button>
+                            <div className="inline-flex items-center gap-1.5 rounded-full border border-border bg-[var(--surface-card)] px-3 py-1 text-xs font-medium text-muted-foreground">
+                                <Sparkles className="size-3.5 text-foreground" aria-hidden />
+                                <span>INTX Agent</span>
+                            </div>
+                            <h1 id="home-hero-title" className="mt-3 text-center text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+                                {t("home.agentHeading")}
+                            </h1>
+                            <p className="mt-1.5 text-center text-xs text-muted-foreground sm:text-sm">
+                                {t("home.description")}
+                            </p>
 
                             <form
                                 className="mt-6 w-full"
@@ -118,11 +117,11 @@ export default function HomePage() {
                                     startCreation();
                                 }}
                             >
-                                <div className="rounded-2xl border border-border bg-[var(--surface-card)] p-2 shadow-[var(--shadow-sm)] focus-within:border-ring motion-safe:transition-colors">
+                                <div className="rounded-2xl border border-border bg-[var(--surface-card)] p-2.5 shadow-[var(--shadow-lg)] focus-within:border-ring motion-safe:transition-colors">
                                     <textarea
-                                        aria-label={t("home.agentHeading")}
+                                        aria-labelledby="home-hero-title"
                                         className="focus-ring block w-full resize-none rounded-xl bg-transparent px-3 py-2 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground"
-                                        rows={2}
+                                        rows={3}
                                         value={agentPrompt}
                                         placeholder={t("home.agentPlaceholder")}
                                         onChange={(event) => setAgentPrompt(event.target.value)}
@@ -133,43 +132,49 @@ export default function HomePage() {
                                             }
                                         }}
                                     />
-                                    <div className="mt-1 flex flex-wrap items-center justify-between gap-2 px-1 pb-0.5">
-                                        <label className="flex min-w-0 max-w-full items-center gap-1.5 text-xs text-muted-foreground">
-                                            <FolderKanban aria-hidden className="size-3.5 shrink-0" />
-                                            <select
-                                                aria-label={t("home.targetProject")}
-                                                className="focus-ring min-w-0 max-w-44 cursor-pointer rounded-lg border border-border bg-background px-2 py-1 text-xs text-foreground"
-                                                value={targetProjectId}
-                                                disabled={!hydrated}
-                                                onChange={(event) => setTargetProjectId(event.target.value)}
-                                            >
-                                                <option value="">{t("home.newCanvasShort")}</option>
-                                                {!targetAvailable && (
-                                                    <option value={targetProjectId} disabled>
-                                                        {t("home.projectUnavailable")}
-                                                    </option>
-                                                )}
-                                                {sortedProjects.map((project) => (
-                                                    <option key={project.id} value={project.id}>
-                                                        {project.title || t("canvas.project.untitled")}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </label>
+                                    <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-border/60 px-1 pt-2">
+                                        <div className="flex min-w-0 items-center gap-2">
+                                            <label className="flex min-w-0 max-w-full items-center gap-1.5 text-xs text-muted-foreground">
+                                                <FolderKanban aria-hidden className="size-3.5 shrink-0" />
+                                                <select
+                                                    aria-label={t("home.targetProject")}
+                                                    className="focus-ring min-w-0 max-w-48 cursor-pointer rounded-lg border border-border bg-[var(--surface-sunken)] px-2.5 py-1 text-xs text-foreground"
+                                                    value={targetProjectId}
+                                                    disabled={!hydrated}
+                                                    onChange={(event) => setTargetProjectId(event.target.value)}
+                                                >
+                                                    <option value="">{t("home.newCanvasShort")}</option>
+                                                    {!targetAvailable && (
+                                                        <option value={targetProjectId} disabled>
+                                                            {t("home.projectUnavailable")}
+                                                        </option>
+                                                    )}
+                                                    {sortedProjects.map((project) => (
+                                                        <option key={project.id} value={project.id}>
+                                                            {project.title || t("canvas.project.untitled")}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </label>
+                                            <span className="hidden text-xs text-muted-foreground/75 sm:inline">Ctrl + Enter</span>
+                                        </div>
 
                                         <button
                                             type="submit"
-                                            disabled={!hydrated || !agentPrompt.trim() || !targetAvailable}
-                                            className="focus-ring inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full bg-foreground px-3.5 text-xs font-medium text-background hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-40 motion-safe:transition motion-safe:enabled:active:scale-95"
+                                            disabled={!canSubmit}
+                                            className={`focus-ring inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full px-3.5 text-xs font-medium motion-safe:transition motion-safe:enabled:active:scale-95 ${
+                                                canSubmit
+                                                    ? "bg-foreground text-background hover:opacity-90"
+                                                    : "cursor-not-allowed bg-[var(--surface-sunken)] text-muted-foreground"
+                                            }`}
                                         >
-                                            <Sparkles aria-hidden className="size-3.5" />
                                             <span>{t("home.continueWithAgent")}</span>
-                                            <ArrowRight aria-hidden className="size-3.5" />
+                                            <ArrowUp aria-hidden className="size-3.5" strokeWidth={2.2} />
                                         </button>
                                     </div>
                                 </div>
 
-                                <div className="mt-2.5 flex flex-wrap items-center justify-center gap-1.5">
+                                <div className="mt-3 flex flex-wrap items-center justify-center gap-1.5">
                                     {starterPrompts.map((promptText) => (
                                         <button
                                             key={promptText}
@@ -185,7 +190,7 @@ export default function HomePage() {
                         </div>
                     </section>
 
-                    {/* 7 列创作能力直达砖（参考 BeefTV）：直接进入对应创作场景或节点 */}
+                    {/* 6 列非重复创作能力直达砖 */}
                     <nav aria-label={t("home.quickActions")}>
                         <div className="grid grid-cols-3 gap-2.5 @min-[760px]/workspace:grid-cols-6">
                             {capabilities.map(({ id, label, detail, icon: Icon, action }) => (
@@ -207,7 +212,7 @@ export default function HomePage() {
                         </div>
                     </nav>
 
-                    {/* 最近项目（参考 BeefTV）：4 列横向圆角卡片 + 骨架屏 + 可点击首卡空态 */}
+                    {/* 最近项目：4 列横向圆角卡片 + 骨架屏 + 可点击首卡空态 */}
                     <section aria-labelledby="home-recent-title">
                         <div className="mb-3 flex items-center justify-between gap-3 px-1">
                             <div className="flex items-center gap-2">

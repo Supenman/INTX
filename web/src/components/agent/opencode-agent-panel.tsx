@@ -623,7 +623,7 @@ export function OpencodeAgentPanel() {
                                     }}
                                 />
                             ) : (
-                                <span className="hidden text-[11px] @min-[660px]:inline" style={{ color: theme.node.muted }}>
+                                <span className="hidden text-[11px] @min-[340px]:inline" style={{ color: theme.node.muted }}>
                                     {t(modelsUnavailable ? "agent.kind.opencodeModelsUnavailable" : "agent.kind.opencodeModel")}
                                 </span>
                             )
@@ -646,12 +646,12 @@ function OpencodeModelSelect({ models, model, onChange }: { models: OpencodeMode
                 <Select value={model} open={open} onOpenChange={setOpen} onValueChange={onChange}>
                     <SelectTrigger
                         hideChevron
-                        className="h-9 w-9 min-w-9 justify-center gap-0 rounded-full border-0 bg-transparent px-0 text-xs font-medium shadow-none hover:bg-black/5 focus:ring-0 @min-[660px]:w-auto @min-[660px]:min-w-36 @min-[660px]:max-w-44 @min-[660px]:justify-start @min-[660px]:gap-1.5 @min-[660px]:px-2.5 dark:bg-transparent dark:hover:bg-white/10"
+                        className="h-9 w-9 min-w-9 justify-center gap-0 rounded-full border-0 bg-transparent px-0 text-xs font-medium shadow-none hover:bg-[var(--surface-card-hover)] focus:ring-0 @min-[340px]:w-auto @min-[340px]:min-w-36 @min-[340px]:max-w-44 @min-[340px]:justify-start @min-[340px]:gap-1.5 @min-[340px]:px-2.5 dark:bg-transparent "
                         aria-label={t("agent.kind.selectOpencodeModel", { model: current.label })}
                     >
                         <Cpu className="size-3.5 shrink-0 opacity-70" />
-                        <span className="hidden min-w-0 flex-1 truncate text-left @min-[660px]:inline">{current.label}</span>
-                        <ChevronUp className="hidden size-3 opacity-50 @min-[660px]:block" />
+                        <span className="hidden min-w-0 flex-1 truncate text-left @min-[340px]:inline">{current.label}</span>
+                        <ChevronUp className="hidden size-3 opacity-50 @min-[340px]:block" />
                     </SelectTrigger>
                     <SelectContent data-canvas-no-zoom position="popper" side="top" align="start" sideOffset={6} className="z-[1200] w-64 rounded-xl border border-border/70 bg-popover p-1 shadow-xl">
                         {models.map((item) => (

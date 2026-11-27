@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, useSpring, useTransform } from "motion/react";
+import { ArrowUpRight, Bot, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { canvasThemes } from "@/lib/canvas-theme";
@@ -18,6 +19,7 @@ export function AgentChatTimeline({ theme, sending, waiting }: {
 }) {
     const { t } = useTranslation();
     const messages = useAgentStore((state) => state.messages);
+    const setAgentState = useAgentStore((state) => state.setAgentState);
     const bootstrapStatus = useAgentStore((state) => state.bootstrapStatus);
     const mcpStartupStatuses = useAgentStore((state) => state.mcpStartupStatuses);
     const timeline = useMemo(() => groupTimelineMessages(messages), [messages]);
@@ -28,6 +30,8 @@ export function AgentChatTimeline({ theme, sending, waiting }: {
     const streaming = messages.some((message) => message.streamId);
     const showBootstrap = Boolean(bootstrapStatus && !messages.some((message) => message.role === "user" || message.role === "assistant"));
     const working = showBootstrap ? bootstrapStatus! : workingActivity(messages.at(-1));
+    const isEmpty = timeline.length === 0 && !sending && !waiting && !showBootstrap;
+
     const updateScrollState = useCallback(() => {
         const list = listRef.current;
         if (!list) return;
@@ -60,15 +64,55 @@ export function AgentChatTimeline({ theme, sending, waiting }: {
             cancelAnimationFrame(frame);
         };
     }, [scrollToBottom, updateScrollState]);
+
+    const quickPrompts = [
+        t("agent.welcome.promptOrganize"),
+        t("agent.welcome.promptExpand"),
+        t("agent.welcome.promptCharacter"),
+    ];
+
     return (
         <div className="relative min-h-0 flex-1">
             <div ref={listRef} className="thin-scrollbar h-full select-text overflow-y-auto" onScroll={updateScrollState}>
-                <div ref={contentRef} className="space-y-4 px-4 pt-4">
-                    {timeline.map((entry) => entry.type === "commands"
-                        ? <AgentCommandGroupRow key={entry.id} items={entry.items} theme={theme} />
-                        : <AgentChatMessageRow key={entry.item.id} item={entry.item} theme={theme} />)}
-                    {(sending || waiting || showBootstrap) && !streaming ? <AgentWorkingMessage text={working.text} detail={"detail" in working && typeof working.detail === "string" ? working.detail : undefined} status={showBootstrap ? bootstrapStatus?.status : undefined} mcpStatuses={showBootstrap ? Object.entries(mcpStartupStatuses).map(([name, item]) => ({ name, ...item })) : []} activityKey={working.key} theme={theme} /> : null}
-                </div>
+                {isEmpty ? (
+                    <div className="flex min-h-full flex-col items-center justify-center px-4 py-8 text-center">
+                        <div
+                            className="grid size-11 place-items-center rounded-2xl border shadow-sm"
+                            style={{ background: theme.toolbar.panel, borderColor: theme.node.stroke, color: theme.node.text }}
+                            aria-hidden
+                        >
+                            <Bot className="size-5" />
+                        </div>
+                        <div className="mt-3 flex items-center gap-1.5 text-sm font-semibold" style={{ color: theme.node.text }}>
+                            <span>INTX Agent</span>
+                            <Sparkles className="size-3.5 opacity-70" aria-hidden />
+                        </div>
+                        <p className="mt-1 max-w-xs text-xs leading-relaxed" style={{ color: theme.node.muted }}>
+                            {t("agent.welcome.subtitle")}
+                        </p>
+                        <div className="mt-5 flex w-full max-w-sm flex-col gap-2">
+                            {quickPrompts.map((text) => (
+                                <button
+                                    key={text}
+                                    type="button"
+                                    onClick={() => setAgentState({ prompt: text })}
+                                    className="focus-ring group flex w-full cursor-pointer items-center justify-between gap-2 rounded-xl border px-3 py-2.5 text-left text-xs transition hover:bg-[var(--surface-card-hover)]"
+                                    style={{ background: theme.toolbar.panel, borderColor: theme.node.stroke, color: theme.node.text }}
+                                >
+                                    <span className="min-w-0 flex-1 leading-relaxed">{text}</span>
+                                    <ArrowUpRight className="size-3.5 shrink-0 opacity-45 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:opacity-90" aria-hidden />
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                ) : (
+                    <div ref={contentRef} className="space-y-4 px-4 pt-4">
+                        {timeline.map((entry) => entry.type === "commands"
+                            ? <AgentCommandGroupRow key={entry.id} items={entry.items} theme={theme} />
+                            : <AgentChatMessageRow key={entry.item.id} item={entry.item} theme={theme} />)}
+                        {(sending || waiting || showBootstrap) && !streaming ? <AgentWorkingMessage text={working.text} detail={"detail" in working && typeof working.detail === "string" ? working.detail : undefined} status={showBootstrap ? bootstrapStatus?.status : undefined} mcpStatuses={showBootstrap ? Object.entries(mcpStartupStatuses).map(([name, item]) => ({ name, ...item })) : []} activityKey={working.key} theme={theme} /> : null}
+                    </div>
+                )}
             </div>
             {showScrollToBottom ? (
                 <AgentScrollToBottom theme={theme} title={t("agent.chat.latestMessages")} onClick={() => scrollToBottom()} />
@@ -141,7 +185,7 @@ function isCommandMessage(item: AgentChatItem) {
 export function AgentUsageBar({ usage, theme }: { usage: AgentTokenUsage; theme: (typeof canvasThemes)[keyof typeof canvasThemes] }) {
     const { t } = useTranslation();
     return (
-        <div className="flex items-center justify-center gap-4 px-4 pt-1 text-[11px] tabular-nums" style={{ color: theme.node.muted }}>
+        <div className="flex items-center justify-center gap-4 px-4 pt-1 text-[length:var(--fs-label)] tabular-nums" style={{ color: theme.node.muted }}>
             <span className="opacity-70">{t("agent.chat.latestCall")}</span>
             <UsageNumber label={t("agent.chat.input")} value={usage.input} color={theme.node.text} />
             <UsageNumber label={t("agent.chat.cached")} value={usage.cached} color={theme.node.text} />

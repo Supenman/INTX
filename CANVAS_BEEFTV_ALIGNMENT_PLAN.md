@@ -248,6 +248,16 @@
 
 静态门禁：typecheck 0、边界通过、tokens 132/145、结构 6438/6442；vitest 88 文件 951 例全绿。首页视觉动线、主题切换、窄屏溢出与配置浮层交互需在 Windows WebView2 上实测；Linux 沙箱只做静态与单测验证，不声称视觉/帧率已测量。
 
+## v6 批次：首页聚焦 Agent、设置入口收口与 Agent 面板 UI 升级
+
+在 v5 首页重构基础上继续对齐 BeefTV 的入口层级与 Agent 面板视觉（补丁 `intx-home-settings-agent-v6`）：
+
+- **首页聚焦 Agent**：`home/index.tsx` 移除与侧栏重复的「新建画布创作」Hero 按钮，Hero 直接聚焦 Agent 对话输入框；修复禁用态提交按钮暗色对比度不可见，补 `Ctrl+Enter` 提示。
+- **设置入口收口**：`navigation-tools.ts` 将侧栏设置项收口为「模型配置 / 存储设置」两项，「使用偏好」并入「模型配置」标签页以分组卡片呈现；`app-config-modal.tsx` 修复渠道卡片「测试连接」缺失文案键显示为原始 key 的问题。
+- **Agent 面板视觉升级**：顶栏改为胶囊分段切换条（`agent-panel-tabs.tsx`）；空对话区新增 INTX Agent 欢迎态与 3 条一键画布快捷指令卡片（`agent-chat.tsx`）；底部输入框在 340px 侧栏宽度下展示权限与模型标签并统一高对比圆形发送按钮（`agent-chat-composer.tsx`、`opencode-agent-panel.tsx`）；补中英文 i18n 键。
+
+静态门禁：typecheck 0、边界通过、tokens 130/145、结构 6438/6442；vitest 88 文件 951 例全绿。Agent 对话交互、设置浮层本地化、深浅主题与窄屏布局需在 Windows WebView2 上实测；Linux 沙箱只做静态与单测验证，不声称视觉/帧率已测量。
+
 ## 6. 未验证项
 
 - BeefTV 的各模式、节点状态、悬浮栏和动效在运行时的全部显示条件；必须读具体组件和条件分支后确认。
