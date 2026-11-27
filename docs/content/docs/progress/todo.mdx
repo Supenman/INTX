@@ -8,3 +8,10 @@ description: Planned follow-up work
 - 剪辑台后续：按实际素材补齐媒体格式支持。
 
 - Skill follow-up: a local Skill center and `/` mentions are connected in the opencode lane. Still to add: a Skill catalog and submission service, draft extraction, resource-file management, and controlled local-memory persistence.
+
+- 桌面壳原生加固（需本地 `cargo` / Windows 环境）：
+  - 引入 `tauri-plugin-single-instance` 实现桌面端单实例锁并同步更新 `web/src-tauri/Cargo.lock`。
+  - 将渠道 API Key 从 `localStorage` 迁移至 Windows 凭据管理器 / 系统 Keyring（通过 Tauri Rust 命令读写并兼容旧配置平滑迁移）。
+
+- 画布主页面模块化拆分（需本地 `pnpm verify` / `tsc` 校验）：
+  - 将 `web/src/pages/canvas/project.tsx` 按职责拆分为独立 hooks（视口与快捷键、节点生成编排、连线与拖拽），降低单文件维护成本。
