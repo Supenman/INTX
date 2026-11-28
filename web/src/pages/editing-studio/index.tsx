@@ -24,7 +24,7 @@ import { bookmarkNotesPreviewOverlay, getBookmarkPreviewOverlaySource } from "@/
 import { processMediaAssets } from "@/lib/opencut/media/processing";
 import { DEFAULT_NEW_ELEMENT_DURATION } from "@/lib/opencut/timeline/creation";
 import { buildElementFromMedia } from "@/lib/opencut/timeline/element-utils";
-import { mediaTimeFromSeconds } from "@/lib/opencut/wasm";
+import { addMediaTime, mediaTimeFromSeconds, ZERO_MEDIA_TIME } from "@/lib/opencut/wasm";
 import { storageService } from "@/lib/opencut/services/storage/service";
 import type { TProjectMetadata } from "@/lib/opencut/project/types";
 import { getImageBlob } from "@/services/image-storage";
@@ -271,7 +271,7 @@ function EditorWorkspace({
         setImportProgress({ done: 0, total: chosenAssets.length });
         let imported = 0;
         let completed = false;
-        let timelineCursor = addToTimeline ? editor.timeline.getTotalDuration() : 0;
+        let timelineCursor = addToTimeline ? editor.timeline.getTotalDuration() : ZERO_MEDIA_TIME;
         try {
             for (const asset of chosenAssets) {
                 const blob = asset.storageKey ? await (asset.kind === "image" ? getImageBlob(asset.storageKey) : getMediaBlob(asset.storageKey)) : await readLibraryBlob(asset.url);
@@ -293,7 +293,7 @@ function EditorWorkspace({
                         startTime: timelineCursor,
                     });
                     editor.timeline.insertElement({ element, placement: { mode: "auto" } });
-                    timelineCursor += duration;
+                    timelineCursor = addMediaTime({ a: timelineCursor, b: duration });
                 }
                 imported += 1;
                 setImportProgress({ done: imported, total: chosenAssets.length });
