@@ -3,6 +3,14 @@ title: Pending Tests
 description: Implemented changes that still need manual verification
 ---
 
+## v0.2.4 Windows 桌面端发版回归清单（汇总）
+
+- **Tauri 单实例锁**：已打开 INTX 时再次双击快捷方式或 exe，应唤起并聚焦现有窗口，不重复启动新进程或冲突占用 8190 网关端口。
+- **API Key 系统凭据库（Keyring）**：升级启动后，检查 Windows「凭据管理器 → Windows 凭据」出现 `app.intx.desktop` / `channel-api-keys`，DevTools `localStorage` 中非本地渠道的 `apiKey` 已清为空字符串，重启应用后渠道仍可正常生图/对话。
+- **剪辑室自动上轨道与 Skill 预设模板**：从画布导入素材到剪辑室时默认勾选「导入后自动追加到时间轴」，素材按顺序追加到轨道末尾并可预览播放；技能中心 3 个内置画布模板卡片可一键填充表单，已存在同名 Skill 时显示「已添加」。
+- **稳定性与完整备份**：节点/路由级 ErrorBoundary 正常兜底；诊断日志导出 JSON 已脱敏（无明文 Key/Bearer）；`.intx.zip` 导出与导入能完整恢复画布与 OpenCut 剪辑工程。
+- **发布验收**：执行 `cd web && pnpm verify` 与 `pnpm tauri:build` 全绿，验证完上述项后可按常规发版流程切出 `v0.2.4` 正式版。
+
 ## Stability: error boundaries & diagnostic log export
 
 - Force an error in canvas/route/node: the app-level ErrorBoundary should show a friendly error page instead of a blank screen, and a node-level error should not take down the whole canvas.
