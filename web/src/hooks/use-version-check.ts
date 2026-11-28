@@ -7,7 +7,16 @@ import { useTranslation } from "react-i18next";
 import { APP_VERSION } from "@/constant/env";
 import { parseChangelog, type ReleaseInfo } from "@/lib/release";
 import { runtime } from "@/lib/runtime/capabilities";
-import { DEFAULT_RELEASES_API_URL, extractPrereleaseManifestUrl, getCustomUpdateManifestUrl, getUpdateManifestUrl, isNewerSemver, isPrereleaseVersion, resolveAvailableUpdate, type AvailableAppUpdate } from "@/lib/updater";
+import {
+    buildUpdateManifestCandidates,
+    DEFAULT_RELEASES_API_URL,
+    extractPrereleaseManifestUrl,
+    getCustomUpdateManifestUrl,
+    isNewerSemver,
+    isPrereleaseVersion,
+    resolveAvailableUpdate,
+    type AvailableAppUpdate,
+} from "@/lib/updater";
 
 const REPO_RAW = "https://raw.githubusercontent.com/Supenman/INTX/dev";
 const latestVersionUrl = `${REPO_RAW}/VERSION`;
@@ -53,33 +62,65 @@ export function useVersionCheck() {
     const [installing, setInstalling] = useState(false);
     const [progress, setProgress] = useState(0);
 
-    const checkAppUpdate = useCallback(async () => {
+    const checkAppUpdate = useCallback(async (candidateVersionOverride?: string) => {
         if (runtime !== "desktop") return;
         try {
-            // 桌面端经 Rust 侧 plugin-http 拉取，避免 github.com/releases/latest/download 302 跳转触发 WebView2 CORS 拦截。
+            // 桌面端经 Rust 侧 plugin-http 拉取，避免 github.com/releases/*/download 302 跳转触发 WebView2 CORS 拦截。
             const { fetch: tauriFetch } = await import("@tauri-apps/plugin-http");
-            let manifestUrl = getCustomUpdateManifestUrl();
-            if (!manifestUrl && isPrereleaseVersion(currentVersion)) {
+            const customManifestUrl = getCustomUpdateManifestUrl();
+            const candidateVersion = candidateVersionOverride ?? remoteVersion;
+            const candidates = buildUpdateManifestCandidates({
+                currentVersion,
+                candidateVersion,
+                customManifestUrl,
+            });
+
+            let lastError = "";
+            const tryManifestUrl = async (url: string): Promise<AvailableAppUpdate | null> => {
+                try {
+                    const response = await tauriFetch(url, { method: "GET", headers: { "Cache-Control": "no-cache" } });
+                    if (!response.ok) {
+                        lastError = `HTTP ${response.status}`;
+                        return null;
+                    }
+                    const raw: unknown = await response.json();
+                    return resolveAvailableUpdate(raw, currentVersion);
+                } catch (err) {
+                    lastError = err instanceof Error ? err.message : "unknown";
+                    return null;
+                }
+            };
+
+            let update: AvailableAppUpdate | null = null;
+            for (const url of candidates) {
+                update = await tryManifestUrl(url);
+                if (update) break;
+            }
+
+            // 预发布版直连未命中时（如 VERSION 尚未到达或 tag 名称不一致），再兜底查询 GitHub Releases API。
+            if (!update && !customManifestUrl && isPrereleaseVersion(currentVersion)) {
                 try {
                     const releasesResp = await tauriFetch(DEFAULT_RELEASES_API_URL, {
                         method: "GET",
                         headers: { Accept: "application/vnd.github+json", "User-Agent": "INTX-Desktop" },
                     });
                     if (releasesResp.ok) {
-                        manifestUrl = extractPrereleaseManifestUrl(await releasesResp.json());
+                        const apiManifestUrl = extractPrereleaseManifestUrl(await releasesResp.json());
+                        if (apiManifestUrl && !candidates.includes(apiManifestUrl)) {
+                            update = await tryManifestUrl(apiManifestUrl);
+                        }
+                    } else if (!lastError) {
+                        lastError = `API HTTP ${releasesResp.status}`;
                     }
-                } catch {
-                    // 回退到默认 latest 清单地址
+                } catch (err) {
+                    if (!lastError) lastError = err instanceof Error ? err.message : "unknown";
                 }
             }
-            const response = await tauriFetch(manifestUrl ?? getUpdateManifestUrl(), { method: "GET", headers: { "Cache-Control": "no-cache" } });
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            const raw: unknown = await response.json();
-            const update = resolveAvailableUpdate(raw, currentVersion);
+
             updateRef.current = update;
             setUpdatable(update !== null);
             setUpdatableVersion(update?.version || "");
-            setUpdateError("");
+            setUpdateError(update ? "" : lastError);
             if (update?.version) setRemoteVersion(`v${update.version}`);
         } catch (err) {
             updateRef.current = null;
@@ -87,14 +128,14 @@ export function useVersionCheck() {
             setUpdatableVersion("");
             setUpdateError(err instanceof Error ? err.message : "unknown");
         }
-    }, [currentVersion]);
+    }, [currentVersion, remoteVersion]);
 
     const checkLatestVersion = useCallback(async () => {
         try {
             const response = await fetch(latestVersionUrl);
             if (!response.ok) return false;
-            const version = await response.text();
-            setRemoteVersion(version.trim() || undefined);
+            const version = (await response.text()).trim() || undefined;
+            setRemoteVersion(version);
             return true;
         } catch {
             return false;
@@ -109,9 +150,10 @@ export function useVersionCheck() {
                 if (!versionResponse.ok) throw new Error(t("version.readFailed"));
                 if (!changelogResponse.ok) throw new Error(t("version.changelogFailed"));
                 const [version, changelog] = await Promise.all([versionResponse.text(), changelogResponse.text()]);
-                setRemoteVersion(version.trim() || undefined);
+                const trimmedVersion = version.trim() || undefined;
+                setRemoteVersion(trimmedVersion);
                 if (changelog.trim()) setReleases(parseChangelog(changelog));
-                void checkAppUpdate();
+                void checkAppUpdate(trimmedVersion);
                 if (showMessage) message.success(t("version.updated"));
                 return true;
             } catch {
@@ -131,8 +173,8 @@ export function useVersionCheck() {
     }, [checkLatestVersion]);
 
     useEffect(() => {
-        void checkAppUpdate();
-    }, [checkAppUpdate]);
+        void checkAppUpdate(remoteVersion);
+    }, [checkAppUpdate, remoteVersion]);
 
     const installUpdate = useCallback(async () => {
         const update = updateRef.current;

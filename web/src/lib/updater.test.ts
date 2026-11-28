@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { extractPrereleaseManifestUrl, isNewerSemver, isPrereleaseVersion, isValidSha256Hex, resolveAvailableUpdate } from "./updater";
+import {
+    buildReleaseTagManifestUrl,
+    buildUpdateManifestCandidates,
+    DEFAULT_UPDATE_MANIFEST_URL,
+    extractPrereleaseManifestUrl,
+    isNewerSemver,
+    isPrereleaseVersion,
+    isValidSha256Hex,
+    resolveAvailableUpdate,
+} from "./updater";
 
 const VALID_SHA = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
 
@@ -17,6 +26,52 @@ describe("custom updater manifest parsing", () => {
         expect(isNewerSemver("v0.2.4-beta.2", "v0.2.4-beta.2")).toBe(false);
         expect(isPrereleaseVersion("v0.2.4-beta.1")).toBe(true);
         expect(isPrereleaseVersion("v0.2.4")).toBe(false);
+    });
+
+    it("builds deterministic tag manifest URLs and channel-safe candidate lists", () => {
+        expect(buildReleaseTagManifestUrl("0.2.4-beta.4")).toBe(
+            "https://github.com/Supenman/INTX/releases/download/v0.2.4-beta.4/update.json",
+        );
+        expect(buildReleaseTagManifestUrl("not-a-version")).toBeNull();
+
+        // Pre-release build probes direct tag manifest first (bypassing api.github.com rate limits).
+        expect(
+            buildUpdateManifestCandidates({
+                currentVersion: "v0.2.4-beta.3",
+                candidateVersion: "v0.2.4-beta.4",
+            }),
+        ).toEqual([
+            "https://github.com/Supenman/INTX/releases/download/v0.2.4-beta.4/update.json",
+            DEFAULT_UPDATE_MANIFEST_URL,
+        ]);
+
+        // Stable build must never probe prerelease tags.
+        expect(
+            buildUpdateManifestCandidates({
+                currentVersion: "v0.2.3",
+                candidateVersion: "v0.2.4-beta.4",
+            }),
+        ).toEqual([DEFAULT_UPDATE_MANIFEST_URL]);
+
+        // Stable build with newer stable candidate includes direct tag fallback after latest.
+        expect(
+            buildUpdateManifestCandidates({
+                currentVersion: "v0.2.3",
+                candidateVersion: "v0.2.4",
+            }),
+        ).toEqual([
+            DEFAULT_UPDATE_MANIFEST_URL,
+            "https://github.com/Supenman/INTX/releases/download/v0.2.4/update.json",
+        ]);
+
+        // Custom manifest override takes exclusive priority.
+        expect(
+            buildUpdateManifestCandidates({
+                currentVersion: "v0.2.4-beta.3",
+                candidateVersion: "v0.2.4-beta.4",
+                customManifestUrl: "https://mirror.example.com/update.json",
+            }),
+        ).toEqual(["https://mirror.example.com/update.json"]);
     });
 
     it("extracts update.json download URL from GitHub releases API including prereleases", () => {

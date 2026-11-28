@@ -2,6 +2,8 @@ export const DEFAULT_UPDATE_MANIFEST_URL =
     "https://github.com/Supenman/INTX/releases/latest/download/update.json";
 export const DEFAULT_RELEASES_API_URL =
     "https://api.github.com/repos/Supenman/INTX/releases?per_page=10";
+const RELEASE_TAG_DOWNLOAD_BASE =
+    "https://github.com/Supenman/INTX/releases/download";
 const CUSTOM_MANIFEST_STORAGE_KEY = "intx-update-manifest-url";
 
 export type UpdatePlatformEntry = {
@@ -78,6 +80,51 @@ export function isNewerSemver(candidate: string, current: string): boolean {
 export function isPrereleaseVersion(version: string): boolean {
     const parsed = parseSemver(version);
     return Boolean(parsed && parsed.prerelease.length > 0);
+}
+
+/** 根据合法 SemVer 版本号拼接对应 GitHub Release Tag 的 update.json 直连地址（绕开 api.github.com 限流）。 */
+export function buildReleaseTagManifestUrl(version: string): string | null {
+    const parsed = parseSemver(version);
+    if (!parsed) return null;
+    const suffix = parsed.prerelease.length ? `-${parsed.prerelease.join(".")}` : "";
+    const tag = `v${parsed.core[0]}.${parsed.core[1]}.${parsed.core[2]}${suffix}`;
+    return `${RELEASE_TAG_DOWNLOAD_BASE}/${tag}/update.json`;
+}
+
+/**
+ * 按渠道规则生成待探测的 update.json 候选地址列表：
+ * - 自定义地址始终独占最高优先级；
+ * - 预发布版优先按远端最新 VERSION 直连对应 tag 清单，避免被 api.github.com 60 次/小时限流卡住；
+ * - 正式版仅探测正式发布通道，绝不向正式版用户推送 beta 预发布包。
+ */
+export function buildUpdateManifestCandidates(options: {
+    currentVersion: string;
+    candidateVersion?: string;
+    customManifestUrl?: string | null;
+}): string[] {
+    if (options.customManifestUrl && isHttpsUrl(options.customManifestUrl)) {
+        return [options.customManifestUrl.trim()];
+    }
+    const urls: string[] = [];
+    const currentIsPre = isPrereleaseVersion(options.currentVersion);
+    const candidate = options.candidateVersion?.trim();
+    const candidateIsNewer = Boolean(candidate && isNewerSemver(candidate, options.currentVersion));
+
+    if (currentIsPre) {
+        if (candidate && candidateIsNewer) {
+            const tagUrl = buildReleaseTagManifestUrl(candidate);
+            if (tagUrl) urls.push(tagUrl);
+        }
+        urls.push(DEFAULT_UPDATE_MANIFEST_URL);
+    } else {
+        urls.push(DEFAULT_UPDATE_MANIFEST_URL);
+        if (candidate && candidateIsNewer && !isPrereleaseVersion(candidate)) {
+            const tagUrl = buildReleaseTagManifestUrl(candidate);
+            if (tagUrl) urls.push(tagUrl);
+        }
+    }
+
+    return [...new Set(urls)];
 }
 
 export function isValidSha256Hex(value: unknown): value is string {

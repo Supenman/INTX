@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- [修复] 预发布（beta）桌面端更新检测绕开 GitHub Releases API 限流：`updater.ts` 新增 `buildReleaseTagManifestUrl` 与 `buildUpdateManifestCandidates`，预发布版检测到更高 `VERSION` 时优先直连 `releases/download/<tag>/update.json`（不消耗 `api.github.com` 配额），正式版仍严格隔离在正式通道；`use-version-check.ts` 仅在直连未命中时兜底查 Releases API，并透出真实错误码而非静默回退旧版。
+
 - [体验] 对照 BeefTV 深化优化项目库、资产库与任务中心三大高频工作台页面：项目库新增多维度排序（最近更新/最早更新/按名称/按节点数）、网格/列表双视图切换、一键复制项目副本（自动重映射节点与连线 ID）、当前视图全选与回收站一键清空；资产库新增标签快捷筛选条、网格/列表双视图、16 项默认分页与一键「在新画布打开」联动（拆分 `asset-card.tsx` 与 `asset-list-row.tsx` 保持结构预算不膨胀）；任务中心新增媒体画廊/台账列表双视图切换、4 项可点击状态概览条与详情抽屉一键复制提示词（令牌违规 45→44，结构预算 6358/6358）。
 
 - [稳定性] 新增 app/route/node 三级 ErrorBoundary 与脱敏诊断日志导出：`app-error-boundary.tsx` 包裹应用与路由、节点级错误隔离，避免单点异常白屏；`diagnostics-log.ts` 捕获 window.error/unhandledrejection，自动脱敏（Bearer / sk- key）后导出含应用版本、运行时与错误摘要的诊断报告，不含画布内容与密钥。
