@@ -1,6 +1,6 @@
 [package]
 name = "intx"
-version = "0.2.4-beta.3"
+version = "0.2.4-beta.4"
 description = "INTX — 本地优先的 AI 创作画布"
 authors = ["INTX"]
 edition = "2021"

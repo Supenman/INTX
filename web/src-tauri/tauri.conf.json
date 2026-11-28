@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "INTX",
-  "version": "0.2.4-beta.3",
+  "version": "0.2.4-beta.4",
   "identifier": "app.intx.desktop",
   "build": {
     "beforeDevCommand": "node scripts/prepare-comfyui-gateway.mjs && node node_modules/vite/bin/vite.js --host 0.0.0.0 --port 3000",
