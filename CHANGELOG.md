@@ -14,6 +14,10 @@
 - [修复] BeefTV 画布面部润色：空文本节点隐藏内容操作按钮，减少设计令牌违规（130→106）、结构预算（6442→6372），清理已废弃的 WebDAV i18n 文案，同步 `features.mdx` / `todo.mdx` 的存储描述为本地文件夹备份与 `.intx.zip` 工作区整包。
 - [功能] 画布节点进度/错误状态卡片：新增 `canvas-node-status-cards.tsx`，在节点上直接展示生成进度与失败原因；增强视频预览、活动任务可停止、项目页文件夹卡片；`canvas-node.tsx` 相关逻辑外移以收敛结构预算。
 
+## v0.2.4-beta.5（测试版）
+
+- [发版] INTX v0.2.4-beta.5 测试版：同步 `VERSION` / `tauri.conf.json` / `Cargo.toml`(含 `Cargo.lock`) 至 0.2.4-beta.5，推送 `v0.2.4-beta.5` tag 触发 Windows NSIS 打包与零 Secret 发版，产出安装包与含 SHA-256 的 `update.json`；Release 标记为预发布（pre-release），供实机验收。本版核心打包 beta 更新器直连 tag 修复——预发布版检测到更高 `VERSION` 时优先直连 `releases/download/<tag>/update.json` 绕开 GitHub Releases API 限流，直连未命中才兜底查 API 并透出真实错误码，正式版严格隔离在正式通道；beta.4 存量版可自动检测并升级到本版。
+
 ## v0.2.4-beta.4（测试版）
 
 - [发版] INTX v0.2.4-beta.4 测试版：同步 `VERSION` / `tauri.conf.json` / `Cargo.toml`(含 `Cargo.lock`) 至 0.2.4-beta.4，推送 `v0.2.4-beta.4` tag 触发 Windows NSIS 打包与零 Secret 发版，产出安装包与含 SHA-256 的 `update.json`；Release 标记为预发布（pre-release），供实机验收。本版打包工作区三大页面 BeefTV 深化优化（项目库/资产库/任务中心双视图与筛选）、剪辑台导入自动上轨与技能模板、设计令牌清理、画布弹窗模块化拆分，以及桌面端渠道 API Key 系统凭据库存储（keyring 平台后端）等改动。
