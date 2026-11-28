@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { isTauri } from "@tauri-apps/api/core";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { nanoid } from "nanoid";
@@ -311,7 +312,17 @@ export const useConfigStore = create<ConfigStore>()(
         }),
         {
             name: CONFIG_STORE_KEY,
-            partialize: (state) => ({ config: state.config }),
+            partialize: (state) => ({
+                config: isTauri()
+                    ? {
+                          ...state.config,
+                          apiKey: "",
+                          channels: state.config.channels.map((channel) =>
+                              channel.id === LOCAL_COMFY_CHANNEL_ID ? channel : { ...channel, apiKey: "" },
+                          ),
+                      }
+                    : state.config,
+            }),
             merge: (persisted, current) => {
                 const persistedState = (persisted || {}) as Partial<ConfigStore>;
                 const persistedConfig = (persistedState.config || {}) as Partial<AiConfig>;

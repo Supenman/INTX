@@ -12,6 +12,7 @@
 //! 不会被打开，门禁会把正常打包挡掉。改成启动前检查，裸 cargo build
 //! --release 打出来的包一运行就会给出明确报错。
 
+mod secrets;
 mod updater;
 
 use tauri::Manager;
@@ -349,7 +350,7 @@ pub fn run() {
             app.manage(ManagedLocalGateway::start(app.handle()));
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![read_agent_config, check_comfy_connections, updater::download_and_install_update])
+        .invoke_handler(tauri::generate_handler![read_agent_config, check_comfy_connections, updater::download_and_install_update, secrets::load_channel_secrets, secrets::save_channel_secrets])
         .build(tauri::generate_context!())
         .expect("启动 INTX 窗口失败")
         .run(|app, event| {
