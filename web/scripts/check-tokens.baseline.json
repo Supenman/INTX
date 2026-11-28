@@ -1,5 +1,5 @@
 {
-    "total": 45,
+    "total": 44,
     "files": {
         "src/components/canvas/canvas-node-split-dialog.tsx": {
             "total": 3,
@@ -68,10 +68,6 @@
         "src/lib/opencut/timeline/components/timeline-element.tsx": {
             "total": 12,
             "blackwhite": 12
-        },
-        "src/pages/assets/index.tsx": {
-            "total": 1,
-            "blackwhite": 1
         }
     }
 }

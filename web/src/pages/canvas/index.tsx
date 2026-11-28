@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { App, Button, Input, Modal, Select } from "antd";
-import { ArrowLeft, Download, FileUp, Folder, FolderPlus, Plus, RotateCcw, Search, Trash2 } from "lucide-react";
+import { App, Button, Checkbox, Input, Modal, Segmented, Select } from "antd";
+import { ArrowLeft, Download, FileUp, Folder, FolderPlus, LayoutGrid, List, Plus, RotateCcw, Search, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { useSaveNotice } from "@/hooks/use-save-file";
@@ -17,12 +17,15 @@ import { useCanvasStore } from "@/stores/canvas/use-canvas-store";
 import { useAssetStore } from "@/stores/use-asset-store";
 import { useCanvasUiStore } from "@/stores/canvas/use-canvas-ui-store";
 import { exportCanvasProjects } from "@/lib/canvas/canvas-export";
+import { filterAndSortProjects, PROJECT_SORT_OPTIONS, readViewMode, writeViewMode, type LibraryViewMode, type ProjectSortOrder } from "@/lib/canvas/project-library";
 import { hasAgentUrlBootstrap } from "@/lib/agent/agent-url-bootstrap";
 import { SnapshotStorageStatus } from "@/components/layout/snapshot-storage-status";
 
+const VIEW_MODE_KEY = "intx.canvas.viewMode";
+
 export default function CanvasPage() {
     const { message, modal } = App.useApp();
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const saveNotice = useSaveNotice();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
@@ -38,9 +41,12 @@ export default function CanvasPage() {
     const permanentlyDeleteProjects = useCanvasStore((state) => state.permanentlyDeleteProjects);
     const cleanupImages = useAssetStore((state) => state.cleanupImages);
     const selectedIds = useCanvasUiStore((state) => state.selectedProjectIds);
+    const setSelectedIds = useCanvasUiStore((state) => state.setSelectedProjectIds);
     const setDeleteIds = useCanvasUiStore((state) => state.setDeleteProjectIds);
     const [folderFilter, setFolderFilter] = useState<string>();
     const [keyword, setKeyword] = useState("");
+    const [sortOrder, setSortOrder] = useState<ProjectSortOrder>("recent");
+    const [viewMode, setViewMode] = useState<LibraryViewMode>(() => readViewMode(VIEW_MODE_KEY, "grid"));
     const [batchFolder, setBatchFolder] = useState<string[]>([]);
     const [showTrash, setShowTrash] = useState(false);
     const [customFolders, setCustomFolders] = useState<string[]>([]);
@@ -66,11 +72,20 @@ export default function CanvasPage() {
     };
     const trashProjects = useMemo(() => deletedProjects.filter((item) => item.project), [deletedProjects]);
     const unavailableTrashCount = deletedProjects.length - trashProjects.length;
-    const visibleProjects = useMemo(() => {
-        const query = keyword.trim().toLowerCase();
-        return projects.filter((project) => (!folderFilter || project.folder === folderFilter) && (!query || [project.title, project.folder].some((value) => value?.toLowerCase().includes(query))));
-    }, [folderFilter, keyword, projects]);
+    const visibleProjects = useMemo(
+        () => filterAndSortProjects(projects, { keyword, folderFilter, sortOrder, locale: i18n.resolvedLanguage }),
+        [folderFilter, i18n.resolvedLanguage, keyword, projects, sortOrder],
+    );
     const visibleSelectedIds = selectedIds.filter((id) => visibleProjects.some((project) => project.id === id));
+    const allVisibleSelected = visibleProjects.length > 0 && visibleSelectedIds.length === visibleProjects.length;
+    const toggleSelectAllVisible = (checked: boolean) => {
+        if (checked) {
+            setSelectedIds([...selectedIds, ...visibleProjects.map((project) => project.id)]);
+        } else {
+            const visibleSet = new Set(visibleProjects.map((project) => project.id));
+            setSelectedIds(selectedIds.filter((id) => !visibleSet.has(id)));
+        }
+    };
     const moveSelectedToFolder = async (folder?: string) => {
         if (!visibleSelectedIds.length) return;
         moveProjectsToFolder(visibleSelectedIds, folder);
@@ -107,6 +122,26 @@ export default function CanvasPage() {
             }
         },
     });
+    const emptyTrash = () => {
+        if (!trashProjects.length) return;
+        modal.confirm({
+            title: t("canvas.trash.emptyTrashTitle"),
+            content: t("canvas.trash.emptyTrashDescription", { count: trashProjects.length }),
+            okText: t("canvas.trash.emptyTrash"),
+            okButtonProps: { danger: true },
+            cancelText: t("common.cancel"),
+            onOk: async () => {
+                permanentlyDeleteProjects(trashProjects.map((item) => item.id));
+                try {
+                    await useCanvasStore.getState().confirmSave();
+                    cleanupImages();
+                    message.success(t("canvas.trash.emptied"));
+                } catch {
+                    message.error(t("canvas.project.deleteSaveFailed"));
+                }
+            },
+        });
+    };
 
     const mode = searchParams.get("mode");
     const agentMode = mode === "new" || mode === "recent" || mode === "choose";
@@ -182,6 +217,11 @@ export default function CanvasPage() {
                                         </Button>
                                     </>
                                 ) : null}
+                                {showTrash && trashProjects.length ? (
+                                    <Button danger disabled={!hydrated} icon={<Trash2 className="size-4" />} onClick={emptyTrash}>
+                                        {t("canvas.trash.emptyTrash")}
+                                    </Button>
+                                ) : null}
                                 <Button type="text" disabled={!hydrated} icon={<Trash2 className="size-4" />} onClick={() => setShowTrash((value) => !value)}>
                                     {showTrash ? t("canvas.trash.backToLibrary") : t("canvas.trash.entry", { count: trashProjects.length })}
                                 </Button>
@@ -205,12 +245,31 @@ export default function CanvasPage() {
                         <Input allowClear aria-label={t("canvas.projectSearch")} placeholder={t("canvas.projectSearch")} className="!w-48" prefix={<Search className="size-4 text-muted-foreground" />} value={keyword} onChange={(event) => setKeyword(event.target.value)} />
                         <Select
                             aria-label={t("canvas.folderFilter")}
-                            className="min-w-44"
+                            className="min-w-40"
                             allowClear
                             placeholder={t("canvas.allFolders")}
                             value={folderFilter}
                             onChange={setFolderFilter}
                             options={folderNames.map((folder) => ({ value: folder, label: folder }))}
+                        />
+                        <Select<ProjectSortOrder>
+                            aria-label={t("canvas.sortLabel")}
+                            className="w-36"
+                            value={sortOrder}
+                            onChange={setSortOrder}
+                            options={PROJECT_SORT_OPTIONS.map((value) => ({ value, label: t(`canvas.sort.${value}`) }))}
+                        />
+                        <Segmented<LibraryViewMode>
+                            aria-label={t("canvas.viewMode.label")}
+                            value={viewMode}
+                            onChange={(next) => {
+                                setViewMode(next);
+                                writeViewMode(VIEW_MODE_KEY, next);
+                            }}
+                            options={[
+                                { value: "grid", icon: <LayoutGrid className="size-3.5" />, title: t("canvas.viewMode.grid") },
+                                { value: "list", icon: <List className="size-3.5" />, title: t("canvas.viewMode.list") },
+                            ]}
                         />
                         {visibleSelectedIds.length ? <Select
                             mode="tags"
@@ -230,6 +289,26 @@ export default function CanvasPage() {
                     </div> : null}
                         <div className="ml-auto min-w-0"><SnapshotStorageStatus kind="projects" /></div>
                     </div>
+
+                    {!showTrash && visibleProjects.length > 0 ? (
+                        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex flex-wrap items-center gap-3">
+                                <Checkbox
+                                    checked={allVisibleSelected}
+                                    indeterminate={!allVisibleSelected && visibleSelectedIds.length > 0}
+                                    onChange={(event) => toggleSelectAllVisible(event.target.checked)}
+                                >
+                                    {t("canvas.selectAllVisible")}
+                                </Checkbox>
+                                <span className="typ-caption text-muted-foreground">{t("canvas.resultCount", { count: visibleProjects.length })}</span>
+                                {visibleSelectedIds.length > 0 ? (
+                                    <Button size="small" type="text" onClick={() => setSelectedIds([])}>
+                                        {t("canvas.clearSelection")}
+                                    </Button>
+                                ) : null}
+                            </div>
+                        </div>
+                    ) : null}
 
                     {!hydrated ? (
                         <section className="surface-card mt-4 flex min-h-64 items-center justify-center">
@@ -286,26 +365,34 @@ export default function CanvasPage() {
                                 </div>
                             ) : null}
                             {visibleProjects.length ? (
-                        <div className="mt-4 grid grid-cols-1 gap-4 @min-[480px]/workspace:grid-cols-2 @min-[760px]/workspace:grid-cols-3">
-                            {visibleProjects.map((project) => (
-                                <CanvasProjectCard key={project.id} project={project} folderNames={folderNames} />
-                            ))}
-                        </div>
-                    ) : projects.length ? (
-                        <EmptyState icon={keyword.trim() ? Search : Folder} title={t(keyword.trim() ? "canvas.projectNoResults" : "canvas.emptyFolder")} className="mt-4" action={<Button onClick={() => { setKeyword(""); setFolderFilter(undefined); }}>{t("assets.clearFilters")}</Button>} />
-                    ) : (
-                        <EmptyState
-                            icon={Plus}
-                            title={t("canvas.empty")}
-                            description={t("canvas.emptyDescription")}
-                            className="mt-4"
-                            action={
-                                <Button type="primary" icon={<Plus className="size-4" />} onClick={createAndEnter}>
-                                    {t("canvas.create")}
-                                </Button>
-                            }
-                        />
-                    )}
+                                viewMode === "list" ? (
+                                    <div className="mt-4 space-y-2">
+                                        {visibleProjects.map((project) => (
+                                            <CanvasProjectCard key={project.id} project={project} folderNames={folderNames} layout="list" />
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="mt-4 grid grid-cols-1 gap-4 @min-[480px]/workspace:grid-cols-2 @min-[760px]/workspace:grid-cols-3">
+                                        {visibleProjects.map((project) => (
+                                            <CanvasProjectCard key={project.id} project={project} folderNames={folderNames} layout="grid" />
+                                        ))}
+                                    </div>
+                                )
+                            ) : projects.length ? (
+                                <EmptyState icon={keyword.trim() ? Search : Folder} title={t(keyword.trim() ? "canvas.projectNoResults" : "canvas.emptyFolder")} className="mt-4" action={<Button onClick={() => { setKeyword(""); setFolderFilter(undefined); }}>{t("assets.clearFilters")}</Button>} />
+                            ) : (
+                                <EmptyState
+                                    icon={Plus}
+                                    title={t("canvas.empty")}
+                                    description={t("canvas.emptyDescription")}
+                                    className="mt-4"
+                                    action={
+                                        <Button type="primary" icon={<Plus className="size-4" />} onClick={createAndEnter}>
+                                            {t("canvas.create")}
+                                        </Button>
+                                    }
+                                />
+                            )}
                         </>
                     )}
                 </div>

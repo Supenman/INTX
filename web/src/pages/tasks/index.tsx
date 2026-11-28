@@ -1,6 +1,6 @@
 import { Button, Drawer, Input, Segmented, Select, Spin, Tag } from "antd";
 import dayjs from "dayjs";
-import { ArrowUpRight, ClipboardList, Copy, Download, Search } from "lucide-react";
+import { ArrowUpRight, ClipboardList, Copy, Download, LayoutGrid, List, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router-dom";
@@ -8,16 +8,21 @@ import { Link, useSearchParams } from "react-router-dom";
 import { ConfigTasks } from "@/components/layout/config-tasks";
 import { PageHeader, PageShell } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/layout/empty-state";
+import { TaskGridCard } from "@/components/tasks/task-grid-card";
 import { TASK_KINDS, type Task, type TaskKind } from "@/domain/task/model";
 import { readTaskOutcome, type OutcomeReason } from "@/domain/task/outcome";
 import { useCopyText } from "@/hooks/use-copy-text";
 import { useSaveFile } from "@/hooks/use-save-file";
+import { readViewMode, writeViewMode, type LibraryViewMode } from "@/lib/canvas/project-library";
+import { cn } from "@/lib/utils";
 import { loadTaskLog, useTaskLogStore } from "@/services/generation";
 import { assetCoverUrl, useAssetStore, type Asset } from "@/stores/use-asset-store";
 
 type Bucket = "all" | "running" | "verify" | "succeeded" | "ended";
 
 const BUCKETS: Bucket[] = ["all", "running", "verify", "succeeded", "ended"];
+const SUMMARY_BUCKETS: Array<Exclude<Bucket, "verify">> = ["all", "running", "succeeded", "ended"];
+const VIEW_MODE_KEY = "intx.tasks.viewMode";
 
 function bucketOf(task: Task): Exclude<Bucket, "all" | "verify"> {
     if (task.status === "queued" || task.status === "running") return "running";
@@ -53,6 +58,7 @@ export default function TasksPage() {
     const [bucket, setBucket] = useState<Bucket>("all");
     const [kind, setKind] = useState<TaskKind | "all">("all");
     const [keyword, setKeyword] = useState("");
+    const [viewMode, setViewMode] = useState<LibraryViewMode>(() => readViewMode(VIEW_MODE_KEY, "list"));
     const [closingTask, setClosingTask] = useState<Task | null>(null);
     const detailTriggerRef = useRef<HTMLButtonElement | null>(null);
     const [searchParams, setSearchParams] = useSearchParams();
@@ -110,6 +116,31 @@ export default function TasksPage() {
                     description={t("tasks.description")}
                 />
 
+                {tasks.length > 0 ? (
+                    <div className="mb-3 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+                        {SUMMARY_BUCKETS.map((item) => {
+                            const active = bucket === item;
+                            return (
+                                <button
+                                    key={item}
+                                    type="button"
+                                    aria-pressed={active}
+                                    onClick={() => setBucket(item)}
+                                    className={cn(
+                                        "focus-ring flex items-center justify-between rounded-xl border px-3.5 py-2.5 text-left motion-safe:transition-colors",
+                                        active
+                                            ? "border-primary bg-accent text-accent-foreground"
+                                            : "border-border bg-[var(--surface-card)] text-foreground hover:bg-[var(--surface-card-hover)]",
+                                    )}
+                                >
+                                    <span className="typ-caption text-muted-foreground">{t(`tasks.filter.${item}`)}</span>
+                                    <span className="text-base font-semibold tabular-nums">{counts[item]}</span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                ) : null}
+
                 <div className="workspace-toolbar">
                     <Segmented<Bucket>
                         value={bucket}
@@ -136,6 +167,20 @@ export default function TasksPage() {
                             onChange={setKind}
                             options={[{ value: "all", label: t("tasks.allKinds") }, ...TASK_KINDS.map((value) => ({ value, label: t(`tasks.kind.${value}`) }))]}
                         />
+                        {bucket !== "verify" ? (
+                            <Segmented<LibraryViewMode>
+                                aria-label={t("tasks.viewMode.label")}
+                                value={viewMode}
+                                onChange={(next) => {
+                                    setViewMode(next);
+                                    writeViewMode(VIEW_MODE_KEY, next);
+                                }}
+                                options={[
+                                    { value: "list", icon: <List className="size-3.5" />, title: t("tasks.viewMode.list") },
+                                    { value: "grid", icon: <LayoutGrid className="size-3.5" />, title: t("tasks.viewMode.grid") },
+                                ]}
+                            />
+                        ) : null}
                     </div>
                 </div>
 
@@ -165,6 +210,25 @@ export default function TasksPage() {
                             description={t(tasks.length === 0 ? "tasks.empty.noneHint" : "tasks.empty.noMatchHint")}
                             action={tasks.length > 0 && <Button onClick={() => { setBucket("all"); setKind("all"); setKeyword(""); }}>{t("assets.clearFilters")}</Button>}
                         />
+                    ) : viewMode === "grid" ? (
+                        <div className="grid grid-cols-1 gap-4 @min-[480px]/workspace:grid-cols-2 @min-[760px]/workspace:grid-cols-3 @min-[1100px]/workspace:grid-cols-4">
+                            {filtered.map((task) => {
+                                const previewAsset = task.resultAssetIds.map((id) => assetById.get(id)).find((item): item is Asset => Boolean(item && (item.kind === "image" || item.kind === "video")));
+                                return (
+                                    <TaskGridCard
+                                        key={task.id}
+                                        task={task}
+                                        previewAsset={previewAsset}
+                                        durationLabel={formatDuration(durationMs(task))}
+                                        onOpen={(trigger) => {
+                                            detailTriggerRef.current = trigger;
+                                            setSelectedId(task.id);
+                                        }}
+                                        onCopyRef={(ref) => copyText(ref, t("tasks.actions.copied"))}
+                                    />
+                                );
+                            })}
+                        </div>
                     ) : (
                         <div className="space-y-2">
                             {filtered.map((task) => {
@@ -337,7 +401,14 @@ function TaskDetail({
             ) : null}
 
             <div>
-                <div className="text-xs text-muted-foreground">{t("tasks.detail.prompt")}</div>
+                <div className="flex items-center justify-between gap-2">
+                    <div className="text-xs text-muted-foreground">{t("tasks.detail.prompt")}</div>
+                    {task.params.prompt ? (
+                        <Button size="small" type="text" icon={<Copy className="size-3.5" />} onClick={() => onCopy(task.params.prompt, t("tasks.actions.copied"))}>
+                            {t("tasks.actions.copyPrompt")}
+                        </Button>
+                    ) : null}
+                </div>
                 <div className="mt-1 max-h-48 overflow-y-auto whitespace-pre-wrap rounded-lg border border-border px-3 py-2 text-xs text-foreground">{task.params.prompt || "—"}</div>
             </div>
 

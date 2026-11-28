@@ -1,18 +1,23 @@
-import { Copy, Download, PencilLine, Plus, Search, Trash2, Upload } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { App, Button, Card, Checkbox, Drawer, Form, Image, Input, Modal, Pagination, Select, Space, Tag, Typography } from "antd";
+import { LayoutGrid, List, Plus, Search, Upload } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { App, Button, Checkbox, Form, Input, Modal, Pagination, Segmented, Select, Space, Tag, Typography } from "antd";
 import { useTranslation } from "react-i18next";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
+import { AssetCard, AssetDrawer } from "@/components/assets/asset-card";
+import { AssetListRow } from "@/components/assets/asset-list-row";
 import { PageHeader, PageShell } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/layout/empty-state";
 import { useCopyText } from "@/hooks/use-copy-text";
 import { useSaveFile, useSaveNotice } from "@/hooks/use-save-file";
+import { buildCanvasNodeFromAsset, collectAssetTagCounts } from "@/lib/assets/asset-library";
+import { readViewMode, writeViewMode, type LibraryViewMode } from "@/lib/canvas/project-library";
 import { formatBytes, readFileAsDataUrl } from "@/lib/image-utils";
 import { getMediaBlob } from "@/services/file-storage";
-import { getImageBlob, getImagePreviewRevision, subscribeImagePreviews, uploadImage } from "@/services/image-storage";
+import { getImageBlob, uploadImage } from "@/services/image-storage";
 import { cn } from "@/lib/utils";
-import { assetCoverUrl, useAssetStore, type Asset, type AssetKind, type ImageAsset } from "@/stores/use-asset-store";
+import { useCanvasStore } from "@/stores/canvas/use-canvas-store";
+import { useAssetStore, type Asset, type AssetKind, type ImageAsset } from "@/stores/use-asset-store";
 import { exportAssets, readAssetPackage } from "./asset-transfer";
 import { SnapshotStorageStatus } from "@/components/layout/snapshot-storage-status";
 
@@ -30,10 +35,12 @@ type ImageDraft = ImageAsset["data"] | null;
 
 const kindOptions = ["all", "text", "image", "video"] as const;
 const sortOptions = ["recent", "oldest", "name"] as const;
+const VIEW_MODE_KEY = "intx.assets.viewMode";
 
 export default function AssetsPage() {
     const { message } = App.useApp();
     const { t, i18n } = useTranslation();
+    const navigate = useNavigate();
     const copyText = useCopyText();
     const saveFileWithNotice = useSaveFile();
     const saveNotice = useSaveNotice();
@@ -48,10 +55,12 @@ export default function AssetsPage() {
     const removeAsset = useAssetStore((state) => state.removeAsset);
     const [keyword, setKeyword] = useState("");
     const [kindFilter, setKindFilter] = useState<AssetKind | "all">("all");
+    const [tagFilter, setTagFilter] = useState<string | null>(null);
     const [sortOrder, setSortOrder] = useState<(typeof sortOptions)[number]>("recent");
+    const [viewMode, setViewMode] = useState<LibraryViewMode>(() => readViewMode(VIEW_MODE_KEY, "grid"));
     const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
     const [page, setPage] = useState(1);
-    const [pageSize, setPageSize] = useState(10);
+    const [pageSize, setPageSize] = useState(16);
     const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
     const [isAssetOpen, setIsAssetOpen] = useState(false);
     const [searchParams, setSearchParams] = useSearchParams();
@@ -80,10 +89,17 @@ export default function AssetsPage() {
         for (const asset of validAssets) counts[asset.kind]++;
         return counts;
     }, [validAssets]);
+    const availableTags = useMemo(() => collectAssetTagCounts(validAssets, kindFilter), [validAssets, kindFilter]);
+    useEffect(() => {
+        if (tagFilter && !availableTags.some((item) => item.tag === tagFilter)) {
+            setTagFilter(null);
+        }
+    }, [availableTags, tagFilter]);
     const filteredAssets = useMemo(() => {
         const query = keyword.trim().toLowerCase();
         return validAssets.filter((asset) => {
             if (kindFilter !== "all" && asset.kind !== kindFilter) return false;
+            if (tagFilter && !(asset.tags || []).some((tag) => tag.trim() === tagFilter)) return false;
             if (!query) return true;
             return assetSearchText(asset).includes(query);
         }).sort((a, b) => {
@@ -91,7 +107,7 @@ export default function AssetsPage() {
             const byDate = Date.parse(b.createdAt) - Date.parse(a.createdAt);
             return sortOrder === "oldest" ? -byDate : byDate;
         });
-    }, [validAssets, keyword, kindFilter, sortOrder, i18n.resolvedLanguage]);
+    }, [validAssets, keyword, kindFilter, tagFilter, sortOrder, i18n.resolvedLanguage]);
 
     const selectedAssets = useMemo(() => filteredAssets.filter((asset) => selectedIds.has(asset.id)), [filteredAssets, selectedIds]);
 
@@ -100,7 +116,7 @@ export default function AssetsPage() {
         return filteredAssets.slice(start, start + pageSize);
     }, [filteredAssets, page, pageSize]);
 
-    const hasFilter = Boolean(keyword.trim()) || kindFilter !== "all";
+    const hasFilter = Boolean(keyword.trim()) || kindFilter !== "all" || Boolean(tagFilter);
     const allVisibleSelected = visibleAssets.length > 0 && visibleAssets.every((asset) => selectedIds.has(asset.id));
     const setAssetsSelected = (items: Asset[], checked: boolean) => {
         setSelectedIds((current) => {
@@ -117,6 +133,23 @@ export default function AssetsPage() {
         const maxPage = Math.max(1, Math.ceil(filteredAssets.length / pageSize));
         setPage((value) => Math.min(value, maxPage));
     }, [filteredAssets.length, pageSize]);
+
+    const openAssetInNewCanvas = async (asset: Asset) => {
+        try {
+            const canvasStore = useCanvasStore.getState();
+            if (!canvasStore.hydrated) await canvasStore.load();
+            const node = buildCanvasNodeFromAsset(asset);
+            const projectId = useCanvasStore.getState().importProject({
+                title: asset.title || t("assets.untitled"),
+                nodes: [node],
+                connections: [],
+            });
+            await useCanvasStore.getState().confirmSave();
+            navigate(`/canvas/${projectId}`);
+        } catch {
+            message.error(t("assets.saveFailed"));
+        }
+    };
 
     const openCreate = () => {
         setEditingAsset(null);
@@ -271,6 +304,11 @@ export default function AssetsPage() {
         }
     };
 
+    const toggleTagFilter = (tag: string) => {
+        setPage(1);
+        setTagFilter((current) => (current === tag ? null : tag));
+    };
+
     if (!hydrated) return <main className="flex h-full items-center justify-center bg-background text-foreground"><SnapshotStorageStatus kind="assets" /></main>;
 
     return (
@@ -340,8 +378,55 @@ export default function AssetsPage() {
                                     setPage(1);
                                 }}
                             />
+                            <Segmented<LibraryViewMode>
+                                aria-label={t("assets.viewMode.label")}
+                                value={viewMode}
+                                onChange={(next) => {
+                                    setViewMode(next);
+                                    writeViewMode(VIEW_MODE_KEY, next);
+                                }}
+                                options={[
+                                    { value: "grid", icon: <LayoutGrid className="size-3.5" />, title: t("assets.viewMode.grid") },
+                                    { value: "list", icon: <List className="size-3.5" />, title: t("assets.viewMode.list") },
+                                ]}
+                            />
                         </div>
                     </div>
+
+                    {availableTags.length > 0 ? (
+                        <div className="mt-3 flex flex-wrap items-center gap-1.5" role="group" aria-label={t("assets.tagFilter")}>
+                            <span className="typ-overline mr-1 text-muted-foreground">{t("assets.tagFilter")}</span>
+                            <button
+                                type="button"
+                                aria-pressed={tagFilter === null}
+                                onClick={() => {
+                                    setPage(1);
+                                    setTagFilter(null);
+                                }}
+                                className={cn(
+                                    "focus-ring rounded-md px-2 py-1 text-xs motion-safe:transition-colors",
+                                    tagFilter === null ? "bg-accent font-medium text-accent-foreground" : "bg-[var(--surface-sunken)] text-muted-foreground hover:text-foreground",
+                                )}
+                            >
+                                {t("assets.allTags")}
+                            </button>
+                            {availableTags.slice(0, 16).map((item) => (
+                                <button
+                                    key={item.tag}
+                                    type="button"
+                                    aria-pressed={tagFilter === item.tag}
+                                    onClick={() => toggleTagFilter(item.tag)}
+                                    className={cn(
+                                        "focus-ring flex items-center gap-1 rounded-md px-2 py-1 text-xs motion-safe:transition-colors",
+                                        tagFilter === item.tag ? "bg-accent font-medium text-accent-foreground" : "bg-[var(--surface-sunken)] text-muted-foreground hover:text-foreground",
+                                    )}
+                                >
+                                    <span>{item.tag}</span>
+                                    <span className="tabular-nums opacity-70">{item.count}</span>
+                                </button>
+                            ))}
+                        </div>
+                    ) : null}
 
                     {filteredAssets.length > 0 ? (
                         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
@@ -369,14 +454,51 @@ export default function AssetsPage() {
                         </div>
                     )}
 
-                    {visibleAssets.length > 0 && <div className="mt-4 grid grid-cols-[repeat(auto-fill,minmax(min(100%,14rem),1fr))] gap-4">
-                        {visibleAssets.map((asset) => (
-                            <AssetCard key={asset.id} asset={asset} selected={selectedIds.has(asset.id)} onSelect={(checked) => setAssetsSelected([asset], checked)} onOpen={(trigger) => {
-                                previewTriggerRef.current = trigger;
-                                setPreviewAsset(asset);
-                            }} onEdit={() => openEdit(asset)} onCopy={copyAssetText} onDownload={downloadImage} onDelete={() => setDeletingAssets([asset])} />
-                        ))}
-                    </div>}
+                    {visibleAssets.length > 0 && (
+                        viewMode === "list" ? (
+                            <div className="mt-4 space-y-2">
+                                {visibleAssets.map((asset) => (
+                                    <AssetListRow
+                                        key={asset.id}
+                                        asset={asset}
+                                        selected={selectedIds.has(asset.id)}
+                                        onSelect={(checked) => setAssetsSelected([asset], checked)}
+                                        onOpen={(trigger) => {
+                                            previewTriggerRef.current = trigger;
+                                            setPreviewAsset(asset);
+                                        }}
+                                        onEdit={() => openEdit(asset)}
+                                        onCopy={copyAssetText}
+                                        onDownload={downloadImage}
+                                        onOpenInCanvas={(item) => void openAssetInNewCanvas(item)}
+                                        onTagClick={toggleTagFilter}
+                                        onDelete={() => setDeletingAssets([asset])}
+                                    />
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="mt-4 grid grid-cols-[repeat(auto-fill,minmax(min(100%,14rem),1fr))] gap-4">
+                                {visibleAssets.map((asset) => (
+                                    <AssetCard
+                                        key={asset.id}
+                                        asset={asset}
+                                        selected={selectedIds.has(asset.id)}
+                                        onSelect={(checked) => setAssetsSelected([asset], checked)}
+                                        onOpen={(trigger) => {
+                                            previewTriggerRef.current = trigger;
+                                            setPreviewAsset(asset);
+                                        }}
+                                        onEdit={() => openEdit(asset)}
+                                        onCopy={copyAssetText}
+                                        onDownload={downloadImage}
+                                        onOpenInCanvas={(item) => void openAssetInNewCanvas(item)}
+                                        onTagClick={toggleTagFilter}
+                                        onDelete={() => setDeletingAssets([asset])}
+                                    />
+                                ))}
+                            </div>
+                        )
+                    )}
 
                     {!visibleAssets.length ? (
                         <EmptyState
@@ -386,20 +508,21 @@ export default function AssetsPage() {
                             action={hasFilter ? <Button onClick={() => {
                                 setKeyword("");
                                 setKindFilter("all");
+                                setTagFilter(null);
                                 setPage(1);
                             }}>{t("assets.clearFilters")}</Button> : <Button type="primary" onClick={openCreate}>{t("assets.add")}</Button>}
                             className="mt-4"
                         />
                     ) : null}
 
-                    {filteredAssets.length > 10 ? (
+                    {filteredAssets.length > 16 ? (
                         <div className="mt-5 flex justify-center">
                             <Pagination
                                 current={page}
                                 pageSize={pageSize}
                                 total={filteredAssets.length}
                                 showSizeChanger
-                                pageSizeOptions={[10, 20, 50, 100]}
+                                pageSizeOptions={[16, 32, 48, 96]}
                                 onChange={(nextPage, nextPageSize) => {
                                     setPage(nextPage);
                                     setPageSize(nextPageSize);
@@ -524,7 +647,7 @@ export default function AssetsPage() {
                 const trigger = previewTriggerRef.current;
                 previewTriggerRef.current = null;
                 if (trigger?.isConnected) trigger.focus({ preventScroll: true });
-            }} onCopy={copyAssetText} onDownload={downloadImage} />
+            }} onCopy={copyAssetText} onDownload={downloadImage} onOpenInCanvas={(item) => void openAssetInNewCanvas(item)} />
 
             <input ref={assetInputRef} type="file" accept="application/zip,.zip" className="hidden" onChange={(event) => void importAssetZip(event.target.files?.[0])} />
 
@@ -532,133 +655,6 @@ export default function AssetsPage() {
                 {deletingAssets.length > 1 ? t("assets.batchDeleteConfirm", { count: deletingAssets.length }) : t("assets.deleteConfirm", { name: deletingAssets[0]?.title })}
             </Modal>
         </PageShell>
-    );
-}
-
-function AssetCard({ asset, selected, onSelect, onOpen, onEdit, onCopy, onDownload, onDelete }: { asset: Asset; selected: boolean; onSelect: (checked: boolean) => void; onOpen: (trigger: HTMLElement) => void; onEdit: () => void; onCopy: (asset: Asset) => void; onDownload: (asset: Asset) => void; onDelete: () => void }) {
-    const { t } = useTranslation();
-    useSyncExternalStore(subscribeImagePreviews, getImagePreviewRevision);
-    const cover = assetCoverUrl(asset);
-    const summary = assetSummary(asset);
-    return (
-        <Card
-            className={cn("surface-card-interactive relative overflow-hidden hover:bg-[var(--surface-card-hover)] focus-within:bg-[var(--surface-card-hover)]", selected && "ring-2 ring-primary")}
-            styles={{ body: { padding: 0 } }}
-            cover={
-                <button type="button" className="group relative block w-full overflow-hidden text-left focus-visible:z-10 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring" aria-label={asset.title} onClick={(event) => onOpen(event.currentTarget)}>
-                    {cover ? (
-                        <img src={cover} alt="" loading="lazy" className="aspect-[4/3] w-full object-cover" />
-                    ) : (
-                        <div className="line-clamp-5 aspect-[4/3] overflow-hidden bg-[var(--surface-sunken)] p-4 text-xs leading-5 break-words whitespace-pre-wrap text-muted-foreground">{asset.kind === "text" ? asset.data.content : t("assets.noCover")}</div>
-                    )}
-                </button>
-            }
-        >
-            <div className="absolute left-2 top-2 z-10 grid size-7 place-items-center rounded-md border border-border bg-card shadow-sm">
-                <Checkbox checked={selected} aria-label={t("assets.selectAsset", { name: asset.title })} onChange={(event) => onSelect(event.target.checked)} />
-            </div>
-            <button type="button" className="focus-ring block w-full text-left" onClick={(event) => onOpen(event.currentTarget)}>
-                <div className="p-3.5">
-                    <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                            <h2 className="typ-body-compact line-clamp-1 font-medium text-foreground">{asset.title}</h2>
-                            <p className="typ-caption mt-0.5 line-clamp-1 text-muted-foreground">{asset.source || t("assets.unknownSource")}</p>
-                        </div>
-                        <Tag className="m-0 shrink-0 typ-label">{t(`assets.kinds.${asset.kind}`)}</Tag>
-                    </div>
-                    {asset.kind === "image" || asset.kind === "video" ? <p className="typ-caption mt-2 line-clamp-1 text-muted-foreground">{summary}</p> : null}
-                    <div className="mt-2.5 flex flex-wrap gap-1.5">
-                        {(asset.tags || []).slice(0, 3).map((tag) => (
-                            <Tag key={tag} className="m-0 typ-label">
-                                {tag}
-                            </Tag>
-                        ))}
-                        {!asset.tags?.length ? <Tag className="m-0 typ-label">{t("assets.noTags")}</Tag> : null}
-                    </div>
-                </div>
-            </button>
-            <div className="flex flex-wrap items-center gap-1.5 border-t border-border/60 px-2.5 py-2">
-                <Button type="text" size="small" onClick={(event) => onOpen(event.currentTarget)}>
-                    {t("common.view")}
-                </Button>
-                {asset.kind !== "video" ? (
-                    <Button type="text" size="small" icon={<PencilLine className="size-3.5" />} onClick={onEdit}>
-                        {t("common.edit")}
-                    </Button>
-                ) : null}
-                {asset.kind === "text" ? (
-                    <Button type="text" size="small" icon={<Copy className="size-3.5" />} onClick={() => void onCopy(asset)}>
-                        {t("common.copy")}
-                    </Button>
-                ) : null}
-                {asset.kind === "image" || asset.kind === "video" ? (
-                    <Button type="text" size="small" aria-label={t("common.download")} icon={<Download className="size-3.5" />} onClick={() => onDownload(asset)} />
-                ) : null}
-                <Button type="text" size="small" danger aria-label={t("common.delete")} className="ml-auto" icon={<Trash2 className="size-3.5" />} onClick={onDelete} />
-            </div>
-        </Card>
-    );
-}
-
-function AssetDrawer({ asset, open, onClose, onClosed, onCopy, onDownload }: { asset: Asset | null; open: boolean; onClose: () => void; onClosed: () => void; onCopy: (asset: Asset) => void; onDownload: (asset: Asset) => void }) {
-    const { t } = useTranslation();
-    useSyncExternalStore(subscribeImagePreviews, getImagePreviewRevision);
-    const cover = asset ? asset.coverUrl || (asset.kind === "image" ? asset.data.dataUrl : "") : "";
-    return (
-        <Drawer title={t("assets.details")} open={open} size="large" onClose={onClose} afterOpenChange={(visible) => { if (!visible) onClosed(); }} destroyOnHidden>
-            {asset ? (
-                <div className="space-y-5">
-                    {cover ? (
-                        <Image src={assetCoverUrl(asset)} preview={{ src: cover }} alt={asset.title} className="rounded-lg" />
-                    ) : (
-                        <div className="rounded-lg bg-[var(--surface-sunken)] p-4 text-sm leading-6 break-words whitespace-pre-wrap text-foreground/80">{asset.kind === "text" ? asset.data.content : t("assets.noCover")}</div>
-                    )}
-                    <div>
-                        <Typography.Title level={4} className="!mb-2">
-                            {asset.title}
-                        </Typography.Title>
-                        <Space size={[4, 4]} wrap>
-                            <Tag>{t(`assets.kinds.${asset.kind}`)}</Tag>
-                            {(asset.tags || []).map((tag) => (
-                                <Tag key={tag}>{tag}</Tag>
-                            ))}
-                        </Space>
-                    </div>
-                    <div className="rounded-lg bg-[var(--surface-sunken)] p-4">
-                        <Typography.Text type="secondary" className="block text-xs">
-                            {t("assets.fields.textContent")}
-                        </Typography.Text>
-                        {asset.kind === "text" ? (
-                            <Typography.Paragraph className="mt-2 whitespace-pre-wrap">{asset.data.content}</Typography.Paragraph>
-                        ) : asset.kind === "video" ? (
-                            <video src={asset.data.url} controls ref={(element) => { if (!open) element?.pause(); }} className="mt-2 aspect-video w-full rounded-lg bg-black" />
-                        ) : (
-                            <Typography.Text className="mt-2 block">
-                                {asset.data.width}x{asset.data.height} · {formatBytes(asset.data.bytes)} · {asset.data.mimeType}
-                            </Typography.Text>
-                        )}
-                    </div>
-                    {asset.note ? (
-                        <div>
-                            <Typography.Text type="secondary">{t("assets.fields.note")}</Typography.Text>
-                            <Typography.Paragraph className="mt-1">{asset.note}</Typography.Paragraph>
-                        </div>
-                    ) : null}
-                    <Space>
-                        {asset.kind === "text" ? (
-                            <Button type="primary" icon={<Copy className="size-4" />} onClick={() => onCopy(asset)}>
-                                {t("assets.copyText")}
-                            </Button>
-                        ) : null}
-                        {asset.kind === "image" || asset.kind === "video" ? (
-                            <Button type="primary" icon={<Download className="size-4" />} onClick={() => onDownload(asset)}>
-                                {asset.kind === "video" ? t("assets.downloadVideo") : t("assets.downloadImage")}
-                            </Button>
-                        ) : null}
-                    </Space>
-                </div>
-            ) : null}
-        </Drawer>
     );
 }
 
@@ -672,11 +668,6 @@ async function readAssetMediaBlob(asset: Extract<Asset, { kind: "image" | "video
     if (!url) return null;
     const response = await fetch(url);
     return response.ok ? response.blob() : null;
-}
-
-function assetSummary(asset: Asset) {
-    if (asset.kind === "text") return asset.data.content;
-    return `${asset.data.width}x${asset.data.height} · ${formatBytes(asset.data.bytes)} · ${asset.data.mimeType}`;
 }
 
 function assetSearchText(asset: Asset) {
