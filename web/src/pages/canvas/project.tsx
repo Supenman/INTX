@@ -39,24 +39,20 @@ import { App, Button, Modal } from "antd";
 import { NODE_DEFAULT_SIZE } from "@/constant/canvas";
 import { ActiveConnectionPath, ConnectionPath, CanvasDragGuides } from "@/components/canvas/canvas-connections";
 import { CanvasBackgroundContextMenu, CanvasNodeContextMenu } from "@/components/canvas/canvas-context-menu";
-import { CanvasNodeAngleDialog, type CanvasImageAngleParams } from "@/components/canvas/canvas-node-angle-dialog";
-import { CanvasNodePresetDialog } from "@/components/canvas/canvas-node-preset-dialog";
-import { AgentConfirmDialog } from "@/components/canvas/agent-confirm-dialog";
-import { CanvasNodeCropDialog, type CanvasImageCropRect } from "@/components/canvas/canvas-node-crop-dialog";
-import { CanvasNodeMaskEditDialog, type CanvasImageMaskEditPayload } from "@/components/canvas/canvas-node-mask-edit-dialog";
-import { CanvasNodeSplitDialog, type CanvasImageSplitParams } from "@/components/canvas/canvas-node-split-dialog";
-import { CanvasNodeUpscaleDialog, type CanvasImageUpscaleParams } from "@/components/canvas/canvas-node-upscale-dialog";
+import type { CanvasImageAngleParams } from "@/components/canvas/canvas-node-angle-dialog";
+import type { CanvasImageCropRect } from "@/components/canvas/canvas-node-crop-dialog";
+import type { CanvasImageMaskEditPayload } from "@/components/canvas/canvas-node-mask-edit-dialog";
+import type { CanvasImageSplitParams } from "@/components/canvas/canvas-node-split-dialog";
+import type { CanvasImageUpscaleParams } from "@/components/canvas/canvas-node-upscale-dialog";
 import { buildNodeGenerationContext, buildNodeResponseMessages, hydrateNodeGenerationContext } from "@/components/canvas/canvas-node-generation";
-import { CanvasNodeHoverToolbar, CanvasNodeInfoModal } from "@/components/canvas/canvas-node-hover-toolbar";
+import { CanvasNodeHoverToolbar } from "@/components/canvas/canvas-node-hover-toolbar";
 import { CanvasSelectionToolbar } from "@/components/canvas/canvas-selection-toolbar";
 import { InfiniteCanvas } from "@/components/canvas/infinite-canvas";
 import { Minimap } from "@/components/canvas/canvas-mini-map";
 import { CanvasNode } from "@/components/canvas/canvas-node";
 import { CanvasNodePromptPanel, type CanvasNodeGenerationMode } from "@/components/canvas/canvas-node-prompt-panel";
 import { CanvasToolbar } from "@/components/canvas/canvas-toolbar";
-import { AssetPickerModal, type InsertAssetPayload } from "@/components/canvas/asset-picker-modal";
-import { CanvasGenerationHistoryModal } from "@/components/canvas/canvas-generation-history-modal";
-import { CanvasVersionCompareModal } from "@/components/canvas/canvas-version-compare-modal";
+import type { InsertAssetPayload } from "@/components/canvas/asset-picker-modal";
 import type { Timeline } from "@/domain/timeline/model";
 import { clearVersionFields, listMediaVersions, prepareMediaGenerationVersion, setPrimaryMediaVersion, versionRootIdOf } from "@/domain/node/media-version";
 import { CanvasStoryboardDialog } from "@/components/canvas/canvas-storyboard-dialog";
@@ -100,7 +96,7 @@ import { retryBlockedByError } from "@/lib/canvas/task-retry-guard";
 import { confirmedOps, planAgentOps } from "@/lib/canvas/agent-permissions";
 import { getNodeDefinition, isBuiltinNodeType as isBuiltinType, useNodeRegistryVersion } from "@/lib/canvas/node-registry";
 import { registerBuiltinNodes } from "@/components/canvas/nodes/builtin-nodes";
-import { CanvasPluginManagerModal } from "@/components/canvas/canvas-plugin-manager-modal";
+import { CanvasProjectModals } from "@/pages/canvas/canvas-project-modals";
 import { CanvasRefreshShell } from "@/components/canvas/canvas-refresh-shell";
 import { CanvasTopBar } from "@/components/canvas/canvas-top-bar";
 import { ConnectionCreateMenu, NODE_CREATE_SHORTCUTS, NodeCreateMenu, type PendingConnectionCreate } from "@/components/canvas/canvas-create-menus";
@@ -4372,89 +4368,76 @@ function InfiniteCanvasPage() {
                 <input ref={workflowInputRef} type="file" accept=".zip" className="hidden" onChange={(event) => void importWorkflow(event)} />
                 <input ref={imageInputRef} type="file" multiple accept="image/*,video/*,audio/mpeg,audio/wav,audio/x-wav,.mp3,.wav" className="hidden" onChange={handleImageInputChange} />
 
-                <CanvasNodeInfoModal node={infoNode} open={Boolean(infoNode)} onClose={() => setInfoNodeId(null)} />
-                <CanvasPluginManagerModal open={pluginManagerOpen} onClose={() => setPluginManagerOpen(false)} />
-
-                {cropNode?.metadata?.content ? <CanvasNodeCropDialog dataUrl={cropNode.metadata.content} open={Boolean(cropNode)} onClose={() => { setCropNodeId(null); restoreCanvasFocus(); }} onConfirm={(crop) => void cropImageNode(cropNode!, crop)} /> : null}
-
-                {maskEditNode?.metadata?.content ? (
-                    <CanvasNodeMaskEditDialog dataUrl={maskEditNode.metadata.content} open={Boolean(maskEditNode)} onClose={() => { setMaskEditNodeId(null); restoreCanvasFocus(); }} onConfirm={(payload) => void maskEditImageNode(maskEditNode!, payload)} />
-                ) : null}
-
-                {splitNode?.metadata?.content ? <CanvasNodeSplitDialog dataUrl={splitNode.metadata.content} open={Boolean(splitNode)} onClose={() => { setSplitNodeId(null); restoreCanvasFocus(); }} onConfirm={(params) => void splitImageNode(splitNode!, params)} /> : null}
-
-                {upscaleNode?.metadata?.content ? (
-                    <CanvasNodeUpscaleDialog dataUrl={upscaleNode.metadata.content} open={Boolean(upscaleNode)} onClose={() => { setUpscaleNodeId(null); restoreCanvasFocus(); }} onConfirm={(params) => void upscaleImageNode(upscaleNode!, params)} />
-                ) : null}
-
-                <Modal
-                    destroyOnHidden
-                    title={t("canvas.projectPage.superResolve")}
-                    open={Boolean(superResolveNode?.metadata?.content)}
-                    centered
-                    onCancel={() => setSuperResolveNodeId(null)}
-                    footer={<div className="flex justify-end gap-2"><Button onClick={() => setSuperResolveNodeId(null)}>{t("common.cancel")}</Button><Button type="primary" onClick={() => { if (superResolveNode) void superResolveImageNode(superResolveNode); }}>{t("canvas.projectPage.superResolveConfirmed")}</Button></div>}
-                >
-                    <div className="space-y-3 py-2">
-                        <p>{t("canvas.projectPage.superResolveDescription")}</p>
-                        <p className="text-sm opacity-65">{t("canvas.projectPage.superResolveModel", { model: superResolveConfig ? modelOptionLabel(superResolveConfig, superResolveConfig.model) : "" })}</p>
-                        <p className="text-sm opacity-65">{superResolveCost ? t("canvas.projectPage.superResolveCost", { currency: superResolveCost.currency, amount: superResolveCost.amount }) : t("canvas.projectPage.superResolveCostUnknown")}</p>
-                    </div>
-                </Modal>
-
-                {angleNode?.metadata?.content ? <CanvasNodeAngleDialog dataUrl={angleNode.metadata.content} open={Boolean(angleNode)} onClose={() => { setAngleNodeId(null); restoreCanvasFocus(); }} onConfirm={(params) => void generateAngleNode(angleNode!, params)} /> : null}
-                <AgentConfirmDialog
-                    plan={pendingAgentPlan?.plan ?? null}
-                    open={Boolean(pendingAgentPlan)}
-                    costText={pendingAgentCost}
-                    onCancel={() => setPendingAgentPlan(null)}
-                    onConfirm={() => {
+                <CanvasProjectModals
+                    nodes={nodes}
+                    infoNode={infoNode}
+                    onCloseInfo={() => setInfoNodeId(null)}
+                    pluginManagerOpen={pluginManagerOpen}
+                    onClosePluginManager={() => setPluginManagerOpen(false)}
+                    cropNode={cropNode}
+                    onCloseCrop={() => setCropNodeId(null)}
+                    onConfirmCrop={(node, crop) => void cropImageNode(node, crop)}
+                    maskEditNode={maskEditNode}
+                    onCloseMaskEdit={() => setMaskEditNodeId(null)}
+                    onConfirmMaskEdit={(node, payload) => void maskEditImageNode(node, payload)}
+                    splitNode={splitNode}
+                    onCloseSplit={() => setSplitNodeId(null)}
+                    onConfirmSplit={(node, params) => void splitImageNode(node, params)}
+                    upscaleNode={upscaleNode}
+                    onCloseUpscale={() => setUpscaleNodeId(null)}
+                    onConfirmUpscale={(node, params) => void upscaleImageNode(node, params)}
+                    superResolveNode={superResolveNode}
+                    superResolveConfig={superResolveConfig}
+                    superResolveCost={superResolveCost}
+                    onCloseSuperResolve={() => setSuperResolveNodeId(null)}
+                    onConfirmSuperResolve={(node) => void superResolveImageNode(node)}
+                    angleNode={angleNode}
+                    onCloseAngle={() => setAngleNodeId(null)}
+                    onConfirmAngle={(node, params) => void generateAngleNode(node, params)}
+                    pendingAgentPlan={pendingAgentPlan}
+                    pendingAgentCost={pendingAgentCost}
+                    onCancelAgentPlan={() => setPendingAgentPlan(null)}
+                    onConfirmAgentPlan={() => {
                         const run = pendingAgentPlan?.proceed;
                         setPendingAgentPlan(null);
                         run?.();
                     }}
-                />
-                {presetNode?.metadata?.content ? <CanvasNodePresetDialog dataUrl={presetNode.metadata.content} open={Boolean(presetNode)} onClose={() => { setPresetNodeId(null); restoreCanvasFocus(); }} onConfirm={(id) => void generatePresetNode(presetNode!, id)} /> : null}
-
-                <Modal
-                    destroyOnHidden
-                    title={t("canvas.projectPage.imageDetails")}
-                    open={Boolean(previewContent)}
-                    centered
-                    onCancel={() => setPreviewNodeId(null)}
-                    footer={null}
-                    width="auto"
-                    styles={{ body: { padding: 0, display: "flex", justifyContent: "center", alignItems: "center", maxHeight: "80vh" } }}
-                >
-                    {previewContent ? (previewNode?.type === CanvasNodeType.Video ? <video src={previewContent} controls className="max-h-[80vh] max-w-full" /> : <img src={previewContent} alt={previewNode?.title || t("assets.kinds.image")} style={{ maxWidth: "100%", maxHeight: "80vh", objectFit: "contain" }} />) : null}
-                </Modal>
-
-                <Modal destroyOnHidden title={t("canvas.projectPage.clearTitle")} open={clearConfirmOpen} centered onCancel={() => setClearConfirmOpen(false)} footer={<><Button onClick={() => setClearConfirmOpen(false)}>{t("common.cancel")}</Button><Button danger type="primary" onClick={clearCanvas}>{t("canvas.projectPage.clear")}</Button></>}>
-                    <p className="text-sm opacity-60">{t("canvas.projectPage.clearDescription")}</p>
-                </Modal>
-
-                <AssetPickerModal open={assetPickerOpen} onInsert={async (payloads) => {
-                    await insertAssets(payloads, assetPickerPositionRef.current ?? undefined);
-                    setAssetPickerOpen(false);
-                }} onClose={() => setAssetPickerOpen(false)} />
-                {/* 关闭即卸载：本环境 antd 离场动画会停在 ant-zoom-leave，视觉上关不掉 */}
-                {generationHistoryOpen ? (
-                    <CanvasGenerationHistoryModal nodes={nodes} onClose={() => { setGenerationHistoryOpen(false); restoreCanvasFocus(); }}
-                        onLocate={(node) => { setGenerationHistoryOpen(false); focusNode(node.id); focusNodeElement(node.id); }}
-                        onPreview={(node, imageId) => { setGenerationHistoryOpen(false); handleNodeViewImage(node, imageId); }}
-                        onArchive={(node, imageId) => void archiveHistoryOutput(node, imageId)}
-                        onInsert={(node, imageId) => {
-                            const output = historyOutput(node, imageId);
-                            if (!output?.metadata?.content) return;
-                            const { content, storageKey, naturalWidth, naturalHeight } = output.metadata;
-                            handleAssetInsert(output.type === CanvasNodeType.Video
+                    presetNode={presetNode}
+                    onClosePreset={() => setPresetNodeId(null)}
+                    onConfirmPreset={(node, id) => void generatePresetNode(node, id)}
+                    previewNode={previewNode}
+                    previewContent={previewContent}
+                    onClosePreview={() => setPreviewNodeId(null)}
+                    clearConfirmOpen={clearConfirmOpen}
+                    onCancelClear={() => setClearConfirmOpen(false)}
+                    onConfirmClear={clearCanvas}
+                    assetPickerOpen={assetPickerOpen}
+                    onInsertAssets={async (payloads) => {
+                        await insertAssets(payloads, assetPickerPositionRef.current ?? undefined);
+                        setAssetPickerOpen(false);
+                    }}
+                    onCloseAssetPicker={() => setAssetPickerOpen(false)}
+                    generationHistoryOpen={generationHistoryOpen}
+                    onCloseGenerationHistory={() => setGenerationHistoryOpen(false)}
+                    onFocusNode={focusNode}
+                    onViewNodeImage={handleNodeViewImage}
+                    onArchiveHistoryOutput={(node, imageId) => void archiveHistoryOutput(node, imageId)}
+                    onInsertHistoryOutput={(node, imageId) => {
+                        const output = historyOutput(node, imageId);
+                        if (!output?.metadata?.content) return;
+                        const { content, storageKey, naturalWidth, naturalHeight } = output.metadata;
+                        handleAssetInsert(
+                            output.type === CanvasNodeType.Video
                                 ? { kind: "video", url: content, storageKey, title: output.title, width: naturalWidth || output.width, height: naturalHeight || output.height }
-                                : { kind: "image", dataUrl: content, storageKey, title: output.title });
-                            setGenerationHistoryOpen(false);
-                        }}
-                    />
-                ) : null}
-                {versionCompareRootId ? <CanvasVersionCompareModal open versions={versionCompareVersions} onClose={() => { setVersionCompareRootId(null); restoreCanvasFocus(); }} onSetPrimary={(nodeId) => setNodes((prev) => setPrimaryMediaVersion(prev, nodeId))} onFocus={(nodeId) => { setVersionCompareRootId(null); focusNode(nodeId); focusNodeElement(nodeId); }} /> : null}
+                                : { kind: "image", dataUrl: content, storageKey, title: output.title },
+                        );
+                        setGenerationHistoryOpen(false);
+                    }}
+                    versionCompareRootId={versionCompareRootId}
+                    versionCompareVersions={versionCompareVersions}
+                    onCloseVersionCompare={() => setVersionCompareRootId(null)}
+                    onSetPrimaryMediaVersion={(nodeId) => setNodes((prev) => setPrimaryMediaVersion(prev, nodeId))}
+                />
                 </div>
             </section>
         </main>
